@@ -49,6 +49,44 @@ pub fn add(x: Int, y: Int) -> Int
         self.assertTrue(matches)
         self.assertEqual(matches[0].function.name, "add")
 
+    def test_duplicate_public_intent_is_reported(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "duplicate_intent.serow"
+            source.write_text(
+                """module test.intent
+
+pub fn id(x: Int) -> Int
+  intent "Return x."
+  contract
+    ensures result == x
+  examples
+    id(1) == 1
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+
+pub fn same_id(x: Int) -> Int
+  intent "return x"
+  contract
+    ensures result == x
+  examples
+    same_id(1) == 1
+  properties
+    forall x: Int:
+      same_id(x) == x
+  effects pure
+  impl
+    x
+""",
+                encoding="utf-8",
+            )
+            program, parse_diagnostics = parse_files([str(source)])
+            summary = check_program(program, parse_diagnostics)
+            self.assertIn("PossibleDuplicate", [diagnostic.code for diagnostic in summary.diagnostics])
+
     def test_pure_function_cannot_call_effectful_function(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "effects.serow"

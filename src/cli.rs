@@ -487,6 +487,7 @@ fn agent_json() -> String {
         str_array_json(&[
             "No full compiler or generated backend exists yet.",
             "Properties are sampled, not proven.",
+            "Duplicate-intent detection is exact after simple normalization.",
             "Expression support is intentionally small.",
             "Formatting does not preserve comments.",
             "JSON output is hand-written until external dependencies are accepted."

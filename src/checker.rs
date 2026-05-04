@@ -43,6 +43,7 @@ pub fn check_program(program: &Program, parse_diagnostics: Vec<Diagnostic>) -> C
     };
     check_module_dependencies(program, &mut summary);
     check_duplicate_symbols(program, &mut summary);
+    check_duplicate_intents(program, &mut summary);
     for function in &program.functions {
         check_function_shape(function, &mut summary);
     }
@@ -256,6 +257,62 @@ fn check_duplicate_symbols(program: &Program, summary: &mut CheckSummary) {
             seen.insert(symbol, function.target());
         }
     }
+}
+
+fn check_duplicate_intents(program: &Program, summary: &mut CheckSummary) {
+    let mut seen = HashMap::<String, (String, String, String)>::new();
+    for function in &program.functions {
+        if !function.public {
+            continue;
+        }
+        let Some(intent) = &function.intent else {
+            continue;
+        };
+        let normalized = normalize_intent(intent);
+        if normalized.is_empty() {
+            continue;
+        }
+        if let Some((first_target, first_symbol, first_intent)) = seen.get(&normalized) {
+            summary.diagnostics.push(
+                Diagnostic::error(
+                    "PossibleDuplicate",
+                    format!(
+                        "Public function `{}` has the same intent as `{}`.",
+                        function.name, first_symbol
+                    ),
+                    Some(function.target()),
+                )
+                .with_data("first", first_target.clone())
+                .with_data("first_symbol", first_symbol.clone())
+                .with_data("first_intent", first_intent.clone())
+                .with_data("intent", intent)
+                .with_repair(format!(
+                    "Run `bin/serow query intent \"{}\"` and reuse the existing symbol or make the intent more specific.",
+                    intent
+                )),
+            );
+        } else {
+            seen.insert(
+                normalized,
+                (function.target(), function.symbol(), intent.clone()),
+            );
+        }
+    }
+}
+
+fn normalize_intent(intent: &str) -> String {
+    let mut normalized = String::new();
+    let mut in_token = false;
+    for char in intent.chars() {
+        if char.is_ascii_alphanumeric() {
+            normalized.push(char.to_ascii_lowercase());
+            in_token = true;
+        } else if in_token {
+            normalized.push(' ');
+            in_token = false;
+        }
+    }
+    normalized.trim().to_string()
 }
 
 fn check_function_shape(function: &Function, summary: &mut CheckSummary) {

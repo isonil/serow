@@ -260,6 +260,61 @@ pub fn bad(x: Int) -> Int
 }
 
 #[test]
+fn duplicate_public_intent_is_reported() {
+    let dir = unique_temp_dir("serow-duplicate-intent");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("duplicate_intent.serow");
+    fs::write(
+        &source,
+        r#"module test.intent
+
+pub fn id(x: Int) -> Int
+  intent "Return x."
+  contract
+    ensures result == x
+  examples
+    id(1) == 1
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+
+pub fn same_id(x: Int) -> Int
+  intent "return x"
+  contract
+    ensures result == x
+  examples
+    same_id(1) == 1
+  properties
+    forall x: Int:
+      same_id(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "PossibleDuplicate"
+                && diagnostic
+                    .repairs
+                    .iter()
+                    .any(|repair| repair.contains("bin/serow query intent"))),
+        "{:#?}",
+        summary.diagnostics
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn intent_query_finds_add() {
     let (program, parse_diagnostics) = parse_paths(&["examples".to_string()]);
     assert!(parse_diagnostics.is_empty());

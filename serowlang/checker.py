@@ -44,6 +44,7 @@ def check_program(program: Program, parse_diagnostics: List[Diagnostic]) -> Chec
     summary = CheckSummary(functions=len(program.functions), diagnostics=list(parse_diagnostics))
     evaluator = Evaluator(program.functions)
     _check_duplicate_symbols(program, summary)
+    _check_duplicate_intents(program, summary)
     for function in program.functions:
         _check_function_shape(function, summary)
     _check_effects(program, summary)
@@ -68,6 +69,41 @@ def _check_duplicate_symbols(program: Program, summary: CheckSummary) -> None:
             )
         else:
             seen[function.symbol] = function
+
+
+def _check_duplicate_intents(program: Program, summary: CheckSummary) -> None:
+    seen: Dict[str, Function] = {}
+    for function in program.functions:
+        if not function.public or not function.intent:
+            continue
+        normalized = _normalize_intent(function.intent)
+        if not normalized:
+            continue
+        if normalized in seen:
+            first = seen[normalized]
+            summary.diagnostics.append(
+                Diagnostic(
+                    severity="error",
+                    code="PossibleDuplicate",
+                    message=f"Public function `{function.name}` has the same intent as `{first.symbol}`.",
+                    target=function.target,
+                    data={
+                        "first": first.target,
+                        "first_symbol": first.symbol,
+                        "first_intent": first.intent,
+                        "intent": function.intent,
+                    },
+                    repairs=[
+                        f'Run `bin/serow query intent "{function.intent}"` and reuse the existing symbol or make the intent more specific.'
+                    ],
+                )
+            )
+        else:
+            seen[normalized] = function
+
+
+def _normalize_intent(intent: str) -> str:
+    return " ".join(re.findall(r"[A-Za-z0-9]+", intent.lower()))
 
 
 def _check_function_shape(function: Function, summary: CheckSummary) -> None:

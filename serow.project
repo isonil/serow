@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "0.4.0-rust-bootstrap",
+  "version": "0.4.1-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -22,6 +22,7 @@
       "impl"
     ],
     "examples_are_executable": true,
+    "duplicate_public_intents_rejected": true,
     "effects_are_explicit": true,
     "typed_holes_allowed": true
   },
