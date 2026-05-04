@@ -23,8 +23,12 @@ pub struct Function {
 }
 
 impl Function {
+    pub fn version(&self) -> &'static str {
+        "v1"
+    }
+
     pub fn symbol(&self) -> String {
-        format!("@{}.{}.v1", self.module, self.name)
+        format!("@{}.{}.{}", self.module, self.name, self.version())
     }
 
     pub fn signature(&self) -> String {

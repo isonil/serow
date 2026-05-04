@@ -1,7 +1,7 @@
 use crate::checker::{CheckSummary, check_program};
 use crate::diagnostic::{Diagnostic, has_errors};
 use crate::formatter::{FormatSummary, format_paths};
-use crate::ledger::{query_intent, query_symbol, symbols};
+use crate::ledger::{Dependent, query_dependents, query_intent, query_symbol, symbols};
 use crate::model::Function;
 use crate::parser::parse_paths;
 use crate::patch::{PatchSummary, add_use};
@@ -117,6 +117,21 @@ fn run_query(args: &[String]) -> i32 {
     };
 
     match query_command {
+        "dependents" => {
+            let (paths, json_output) = split_paths_and_json(&args[2..]);
+            let (program, parse_diagnostics) = parse_paths(&paths);
+            if has_errors(&parse_diagnostics) {
+                println!("{}", diagnostics_json(false, &parse_diagnostics));
+                return 1;
+            }
+            let dependents = query_dependents(&program, text_or_flag);
+            if json_output {
+                println!("{}", dependents_json(&dependents));
+            } else {
+                print_dependents(&dependents);
+            }
+            0
+        }
         "intent" => {
             let (paths, json_output) = split_paths_and_json(&args[2..]);
             let (program, parse_diagnostics) = parse_paths(&paths);
@@ -171,10 +186,11 @@ fn run_symbols_query(args: &[String]) -> i32 {
         for function in symbols {
             println!("{}", function.symbol());
             println!("  {}", function.signature());
-            if let Some(intent) = function.intent {
+            if let Some(intent) = &function.intent {
                 println!("  intent: {intent}");
             }
             println!("  source: {}:{}", function.source_path, function.line);
+            println!("  version: {}", function.version());
         }
     }
     0
@@ -311,6 +327,29 @@ fn print_query_matches(matches: &[crate::ledger::QueryMatch]) {
             "  source: {}:{}",
             row.function.source_path, row.function.line
         );
+        println!("  version: {}", row.function.version());
+    }
+}
+
+fn print_dependents(dependents: &[Dependent]) {
+    if dependents.is_empty() {
+        println!("no matches");
+        return;
+    }
+    for row in dependents {
+        println!(
+            "{} depends on {}",
+            row.function.symbol(),
+            row.target.symbol()
+        );
+        println!("  {}", row.function.signature());
+        println!(
+            "  source: {}:{}",
+            row.function.source_path, row.function.line
+        );
+        for call_site in &row.call_sites {
+            println!("  {}: {}", call_site.context, call_site.expression);
+        }
     }
 }
 
@@ -351,7 +390,7 @@ fn query_matches_json(matches: &[crate::ledger::QueryMatch]) -> String {
         .iter()
         .map(|row| {
             format!(
-                "{{\n      \"effects\": {},\n      \"intent\": {},\n      \"module\": {},\n      \"name\": {},\n      \"reasons\": {},\n      \"score\": {:.3},\n      \"signature\": {},\n      \"source\": {},\n      \"symbol\": {}\n    }}",
+                "{{\n      \"effects\": {},\n      \"intent\": {},\n      \"module\": {},\n      \"name\": {},\n      \"reasons\": {},\n      \"score\": {:.3},\n      \"signature\": {},\n      \"source\": {},\n      \"symbol\": {},\n      \"version\": {}\n    }}",
                 string_array_json(&row.function.effects),
                 option_string_json(row.function.intent.as_deref()),
                 json_string(&row.function.module),
@@ -361,6 +400,7 @@ fn query_matches_json(matches: &[crate::ledger::QueryMatch]) -> String {
                 json_string(&row.function.signature()),
                 json_string(&format!("{}:{}", row.function.source_path, row.function.line)),
                 json_string(&row.function.symbol()),
+                json_string(row.function.version()),
             )
         })
         .collect::<Vec<_>>()
@@ -373,7 +413,7 @@ fn symbols_json(functions: &[Function]) -> String {
         .iter()
         .map(|function| {
             format!(
-                "{{\n      \"effects\": {},\n      \"intent\": {},\n      \"module\": {},\n      \"name\": {},\n      \"signature\": {},\n      \"source\": {},\n      \"symbol\": {}\n    }}",
+                "{{\n      \"effects\": {},\n      \"intent\": {},\n      \"module\": {},\n      \"name\": {},\n      \"signature\": {},\n      \"source\": {},\n      \"symbol\": {},\n      \"version\": {}\n    }}",
                 string_array_json(&function.effects),
                 option_string_json(function.intent.as_deref()),
                 json_string(&function.module),
@@ -381,11 +421,69 @@ fn symbols_json(functions: &[Function]) -> String {
                 json_string(&function.signature()),
                 json_string(&format!("{}:{}", function.source_path, function.line)),
                 json_string(&function.symbol()),
+                json_string(function.version()),
             )
         })
         .collect::<Vec<_>>()
         .join(",\n    ");
     format!("{{\n  \"ok\": true,\n  \"results\": [\n    {rows}\n  ]\n}}")
+}
+
+fn dependents_json(dependents: &[Dependent]) -> String {
+    let rows = dependents
+        .iter()
+        .map(|dependent| {
+            format!(
+                concat!(
+                    "{{\n",
+                    "      \"call_sites\": {},\n",
+                    "      \"dependent\": {},\n",
+                    "      \"target\": {}\n",
+                    "    }}"
+                ),
+                call_sites_json(&dependent.call_sites),
+                function_ref_json(&dependent.function),
+                function_ref_json(&dependent.target),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",\n    ");
+    format!("{{\n  \"ok\": true,\n  \"results\": [\n    {rows}\n  ]\n}}")
+}
+
+fn call_sites_json(call_sites: &[crate::ledger::CallSite]) -> String {
+    let rows = call_sites
+        .iter()
+        .map(|call_site| {
+            format!(
+                "{{\"context\": {}, \"expression\": {}}}",
+                json_string(&call_site.context),
+                json_string(&call_site.expression)
+            )
+        })
+        .collect::<Vec<_>>();
+    format!("[{}]", rows.join(", "))
+}
+
+fn function_ref_json(function: &Function) -> String {
+    format!(
+        concat!(
+            "{{",
+            "\"module\": {}, ",
+            "\"name\": {}, ",
+            "\"signature\": {}, ",
+            "\"source\": {}, ",
+            "\"symbol\": {}, ",
+            "\"version\": {}",
+            "}}"
+        ),
+        json_string(&function.module),
+        json_string(&function.name),
+        json_string(&function.signature()),
+        json_string(&format!("{}:{}", function.source_path, function.line)),
+        json_string(&function.symbol()),
+        json_string(function.version())
+    )
 }
 
 fn agent_json() -> String {
@@ -414,6 +512,11 @@ fn agent_json() -> String {
             "patch add-use",
             "serow patch add-use <path> <module> <dependency> [--json]",
             "Add a module use declaration through the structured patch interface.",
+        ),
+        (
+            "query dependents",
+            "serow query dependents <symbol-or-name> [paths...] [--json]",
+            "List direct dependents discovered from unambiguous function calls.",
         ),
         (
             "query intent",
@@ -599,6 +702,7 @@ fn print_agent_bootstrap() {
     println!("  serow certify [paths...] [--json]");
     println!("  serow fmt [paths...] [--check] [--json]");
     println!("  serow patch add-use <path> <module> <dependency> [--json]");
+    println!("  serow query dependents <symbol-or-name> [paths...] [--json]");
     println!("  serow query intent <text> [paths...] [--json]");
     println!("  serow query symbol <text> [paths...] [--json]");
     println!("  serow query symbols [paths...] [--json]");
@@ -619,6 +723,7 @@ fn print_usage() {
     eprintln!("  serow certify [paths...] [--json]");
     eprintln!("  serow fmt [paths...] [--check] [--json]");
     eprintln!("  serow patch add-use <path> <module> <dependency> [--json]");
+    eprintln!("  serow query dependents <symbol-or-name> [paths...] [--json]");
     eprintln!("  serow query intent <text> [paths...] [--json]");
     eprintln!("  serow query symbol <text> [paths...] [--json]");
     eprintln!("  serow query symbols [paths...] [--json]");
@@ -636,6 +741,7 @@ fn print_patch_usage() {
 
 fn print_query_usage() {
     eprintln!("usage:");
+    eprintln!("  serow query dependents <symbol-or-name> [paths...] [--json]");
     eprintln!("  serow query intent <text> [paths...] [--json]");
     eprintln!("  serow query symbol <text> [paths...] [--json]");
     eprintln!("  serow query symbols [paths...] [--json]");

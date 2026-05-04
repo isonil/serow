@@ -44,6 +44,7 @@ Query the project ledger:
 ```sh
 bin/serow query intent "add two integers"
 bin/serow query symbol add
+bin/serow query dependents @core.math.add.v1
 ```
 
 Certify the current sample program:

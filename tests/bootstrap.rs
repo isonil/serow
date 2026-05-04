@@ -497,6 +497,71 @@ pub fn bump(x: Int) -> Int
 }
 
 #[test]
+fn dependents_query_reports_direct_call_sites() {
+    let dir = unique_temp_dir("serow-dependents");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("dependents.serow");
+    fs::write(
+        &source,
+        r#"module core.math
+
+pub fn inc(x: Int) -> Int
+  intent "Increment x."
+  contract
+    ensures result == x + 1
+  examples
+    inc(1) == 2
+  properties
+    forall x: Int:
+      inc(x) == x + 1
+  effects pure
+  impl
+    x + 1
+
+module app.main
+
+use core.math
+
+pub fn bump(x: Int) -> Int
+  intent "Increment x through the math module."
+  contract
+    ensures result == x + 1
+  examples
+    bump(1) == 2
+  properties
+    forall x: Int:
+      bump(x) == inc(x)
+  effects pure
+  impl
+    inc(x)
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "query",
+            "dependents",
+            "@core.math.inc.v1",
+            source.to_str().expect("utf8 path"),
+            "--json",
+        ])
+        .output()
+        .expect("run serow query dependents");
+
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(
+        stdout.contains("\"symbol\": \"@app.main.bump.v1\""),
+        "{stdout}"
+    );
+    assert!(stdout.contains("\"version\": \"v1\""), "{stdout}");
+    assert!(stdout.contains("\"context\": \"impl\""), "{stdout}");
+    assert!(stdout.contains("\"context\": \"property\""), "{stdout}");
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn patch_add_use_updates_source() {
     let dir = unique_temp_dir("serow-patch-add-use");
     fs::create_dir_all(&dir).expect("create temp dir");
