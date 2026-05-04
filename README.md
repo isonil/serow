@@ -12,6 +12,13 @@ The current implementation is a bootstrap toolchain written in dependency-free R
 - structured JSON diagnostics
 - a semantic ledger for agent queries
 
+Print the current agent bootstrap contract:
+
+```sh
+bin/serow agent
+bin/serow agent --json
+```
+
 Run the current checker:
 
 ```sh

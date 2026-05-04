@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::PathBuf;
+use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serow::checker::check_program;
@@ -265,6 +266,38 @@ fn intent_query_finds_add() {
     let matches = query_intent(&program, "add two integers", 10);
     assert!(!matches.is_empty());
     assert_eq!(matches[0].function.name, "add");
+}
+
+#[test]
+fn agent_command_prints_bootstrap_contract() {
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .arg("agent")
+        .output()
+        .expect("run serow agent");
+
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("serow agent: ok"), "{stdout}");
+    assert!(stdout.contains("bin/serow check after edits"), "{stdout}");
+    assert!(stdout.contains("bin/serow certify"), "{stdout}");
+}
+
+#[test]
+fn agent_json_includes_machine_readable_workflow() {
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["agent", "--json"])
+        .output()
+        .expect("run serow agent --json");
+
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"ok\": true"), "{stdout}");
+    assert!(
+        stdout.contains("\"phase\": \"Phase 2: Agent-Native Workflow\""),
+        "{stdout}"
+    );
+    assert!(stdout.contains("serow query intent <text>"), "{stdout}");
+    assert!(stdout.contains("bin/serow certify"), "{stdout}");
 }
 
 #[test]

@@ -13,6 +13,7 @@ pub fn main(args: impl Iterator<Item = String>) -> i32 {
     };
 
     match command {
+        "agent" => run_agent(&args[1..]),
         "check" => run_check(&args[1..], false),
         "certify" => run_check(&args[1..], true),
         "fmt" => run_fmt(&args[1..]),
@@ -27,6 +28,20 @@ pub fn main(args: impl Iterator<Item = String>) -> i32 {
             2
         }
     }
+}
+
+fn run_agent(args: &[String]) -> i32 {
+    let (rest, json_output) = split_flag(args, "--json");
+    if !rest.is_empty() {
+        print_agent_usage();
+        return 2;
+    }
+    if json_output {
+        println!("{}", agent_json());
+    } else {
+        print_agent_bootstrap();
+    }
+    0
 }
 
 fn run_fmt(args: &[String]) -> i32 {
@@ -307,6 +322,107 @@ fn symbols_json(functions: &[Function]) -> String {
     format!("{{\n  \"ok\": true,\n  \"results\": [\n    {rows}\n  ]\n}}")
 }
 
+fn agent_json() -> String {
+    let commands = [
+        (
+            "agent",
+            "serow agent [--json]",
+            "Print the agent bootstrap contract for the current toolchain.",
+        ),
+        (
+            "check",
+            "serow check [paths...] [--json]",
+            "Parse and check Serow source, defaulting to examples/.",
+        ),
+        (
+            "certify",
+            "serow certify [paths...] [--json]",
+            "Require a warning-free and error-free checker result.",
+        ),
+        (
+            "fmt",
+            "serow fmt [paths...] [--check] [--json]",
+            "Rewrite or verify canonical Serow source formatting.",
+        ),
+        (
+            "query intent",
+            "serow query intent <text> [paths...] [--json]",
+            "Find public functions by intent text.",
+        ),
+        (
+            "query symbol",
+            "serow query symbol <text> [paths...] [--json]",
+            "Find public functions by symbol or signature text.",
+        ),
+        (
+            "query symbols",
+            "serow query symbols [paths...] [--json]",
+            "List all public symbols in the parsed source set.",
+        ),
+    ];
+    let command_rows = commands
+        .iter()
+        .map(|(name, usage, purpose)| {
+            format!(
+                "{{\"name\": {}, \"usage\": {}, \"purpose\": {}}}",
+                json_string(name),
+                json_string(usage),
+                json_string(purpose)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!(
+        concat!(
+            "{{\n",
+            "  \"ok\": true,\n",
+            "  \"language\": \"Serow\",\n",
+            "  \"implementation\": \"dependency-free Rust bootstrap\",\n",
+            "  \"phase\": \"Phase 2: Agent-Native Workflow\",\n",
+            "  \"source_default\": \"examples/\",\n",
+            "  \"workflow\": {},\n",
+            "  \"commands\": [{}],\n",
+            "  \"public_function_requirements\": {},\n",
+            "  \"supported_bootstrap_types\": {},\n",
+            "  \"verification_gates\": {},\n",
+            "  \"known_limits\": {}\n",
+            "}}"
+        ),
+        str_array_json(&[
+            "Run `bin/serow query intent \"<description>\"` before adding public behavior.",
+            "Run `bin/serow query symbol \"<name>\"` when a symbol might already exist.",
+            "Run `bin/serow check` after edits.",
+            "Run `bin/serow certify` before considering changed Serow code complete."
+        ]),
+        command_rows,
+        str_array_json(&[
+            "intent",
+            "contract",
+            "examples",
+            "properties",
+            "effects",
+            "impl"
+        ]),
+        str_array_json(&["Int", "Bool", "Text"]),
+        str_array_json(&[
+            "cargo fmt --check",
+            "cargo clippy -- -D warnings",
+            "cargo test",
+            "python3 -m unittest discover -s tests",
+            "bin/serow fmt --check --json",
+            "bin/serow check --json",
+            "bin/serow certify"
+        ]),
+        str_array_json(&[
+            "No full compiler or generated backend exists yet.",
+            "Properties are sampled, not proven.",
+            "Expression support is intentionally small.",
+            "Formatting does not preserve comments.",
+            "JSON output is hand-written until external dependencies are accepted."
+        ])
+    )
+}
+
 fn diagnostics_json(ok: bool, diagnostics: &[Diagnostic]) -> String {
     format!(
         "{{\n  \"diagnostics\": {},\n  \"ok\": {}\n}}",
@@ -370,6 +486,14 @@ fn string_array_json(values: &[String]) -> String {
     format!("[{}]", values.join(", "))
 }
 
+fn str_array_json(values: &[&str]) -> String {
+    let values = values
+        .iter()
+        .map(|value| json_string(value))
+        .collect::<Vec<_>>();
+    format!("[{}]", values.join(", "))
+}
+
 fn json_string(value: &str) -> String {
     let mut escaped = String::from("\"");
     for char in value.chars() {
@@ -387,14 +511,48 @@ fn json_string(value: &str) -> String {
     escaped
 }
 
+fn print_agent_bootstrap() {
+    println!("serow agent: ok");
+    println!("language: Serow");
+    println!("implementation: dependency-free Rust bootstrap");
+    println!("phase: Phase 2: Agent-Native Workflow");
+    println!("workflow:");
+    println!("  1. bin/serow query intent \"<description>\"");
+    println!("  2. bin/serow query symbol \"<name>\" when a symbol might exist");
+    println!("  3. bin/serow check after edits");
+    println!("  4. bin/serow certify before changed Serow code is complete");
+    println!("commands:");
+    println!("  serow agent [--json]");
+    println!("  serow check [paths...] [--json]");
+    println!("  serow certify [paths...] [--json]");
+    println!("  serow fmt [paths...] [--check] [--json]");
+    println!("  serow query intent <text> [paths...] [--json]");
+    println!("  serow query symbol <text> [paths...] [--json]");
+    println!("  serow query symbols [paths...] [--json]");
+    println!("verification gates:");
+    println!("  cargo fmt --check");
+    println!("  cargo clippy -- -D warnings");
+    println!("  cargo test");
+    println!("  python3 -m unittest discover -s tests");
+    println!("  bin/serow fmt --check --json");
+    println!("  bin/serow check --json");
+    println!("  bin/serow certify");
+}
+
 fn print_usage() {
     eprintln!("usage:");
+    eprintln!("  serow agent [--json]");
     eprintln!("  serow check [paths...] [--json]");
     eprintln!("  serow certify [paths...] [--json]");
     eprintln!("  serow fmt [paths...] [--check] [--json]");
     eprintln!("  serow query intent <text> [paths...] [--json]");
     eprintln!("  serow query symbol <text> [paths...] [--json]");
     eprintln!("  serow query symbols [paths...] [--json]");
+}
+
+fn print_agent_usage() {
+    eprintln!("usage:");
+    eprintln!("  serow agent [--json]");
 }
 
 fn print_query_usage() {
