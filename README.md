@@ -1,0 +1,45 @@
+# Serow
+
+Serow is an experimental AI-first programming language.
+
+The current implementation is a bootstrap toolchain written in dependency-free Rust. It focuses on the core language workflow rather than performance:
+
+- spec-first public functions
+- mandatory executable examples
+- mandatory contracts and properties
+- explicit effects
+- explicit module dependencies checked against `serow.project`
+- structured JSON diagnostics
+- a semantic ledger for agent queries
+
+Run the current checker:
+
+```sh
+bin/serow check
+```
+
+Format Serow source into the canonical textual projection:
+
+```sh
+bin/serow fmt
+bin/serow fmt --check
+```
+
+Query the project ledger:
+
+```sh
+bin/serow query intent "add two integers"
+bin/serow query symbol add
+```
+
+Certify the current sample program:
+
+```sh
+bin/serow certify
+```
+
+The language and compiler are intentionally incomplete. Active state and next steps are tracked under `Progress/`.
+
+## License
+
+Serow is licensed under the Apache License, Version 2.0. See `LICENSE`.

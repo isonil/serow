@@ -1,0 +1,38 @@
+{
+  "language": "Serow",
+  "version": "0.3.0-rust-bootstrap",
+  "implementation": {
+    "primary": "Rust",
+    "reference": "Python bootstrap in serowlang/"
+  },
+  "agent_interface": {
+    "check": "bin/serow check",
+    "certify": "bin/serow certify",
+    "query_intent": "bin/serow query intent \"<description>\"",
+    "query_symbol": "bin/serow query symbol \"<name>\""
+  },
+  "rules": {
+    "public_required_sections": [
+      "intent",
+      "contract",
+      "examples",
+      "properties",
+      "effects",
+      "impl"
+    ],
+    "examples_are_executable": true,
+    "effects_are_explicit": true,
+    "typed_holes_allowed": true
+  },
+  "source_roots": [
+    "examples"
+  ],
+  "architecture": {
+    "modules": {
+      "core.math": {
+        "owner": "bootstrap",
+        "may_depend_on": []
+      }
+    }
+  }
+}

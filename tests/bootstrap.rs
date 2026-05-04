@@ -1,0 +1,419 @@
+use std::fs;
+use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use serow::checker::check_program;
+use serow::formatter::format_paths;
+use serow::ledger::query_intent;
+use serow::parser::parse_paths;
+use serow::project::parse_architecture;
+
+#[test]
+fn sample_program_checks() {
+    let (program, parse_diagnostics) = parse_paths(&["examples".to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(
+        summary.ok(),
+        "{:#?}",
+        summary
+            .diagnostics
+            .iter()
+            .map(|diagnostic| &diagnostic.code)
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(summary.functions, 3);
+    assert_eq!(summary.examples, 7);
+    assert_eq!(summary.properties, 3);
+    assert_eq!(summary.contracts, 12);
+}
+
+#[test]
+fn failed_example_is_reported() {
+    let dir = unique_temp_dir("serow-bad-example");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("bad.serow");
+    fs::write(
+        &source,
+        r#"module test.bad
+
+pub fn add(x: Int, y: Int) -> Int
+  intent "Return a deliberately wrong sum."
+  contract
+    ensures result == x + y
+  examples
+    add(2, 3) == 5
+  properties
+    forall x: Int, y: Int:
+      add(x, y) == add(y, x)
+  effects pure
+  impl
+    x - y
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "ExampleFailed")
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn requires_clause_is_enforced_for_examples() {
+    let dir = unique_temp_dir("serow-requires");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("requires.serow");
+    fs::write(
+        &source,
+        r#"module test.requires
+
+pub fn div_trunc(x: Int, y: Int) -> Int
+  intent "Return integer division when the divisor is non-zero."
+  contract
+    requires y != 0
+    ensures result == x // y
+  examples
+    div_trunc(1, 0) == 0
+  properties
+    forall x: Int:
+      div_trunc(x, 1) == x
+  effects pure
+  impl
+    x // y
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "PreconditionFailed"),
+        "{:#?}",
+        summary.diagnostics
+    );
+    assert!(
+        !summary
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("division by zero")),
+        "{:#?}",
+        summary.diagnostics
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn implementation_return_type_mismatch_is_reported() {
+    let dir = unique_temp_dir("serow-type-mismatch");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("bad_type.serow");
+    fs::write(
+        &source,
+        r#"module test.types
+
+pub fn wrong(x: Int) -> Bool
+  intent "Return a value with the wrong declared type."
+  contract
+    ensures result == true
+  examples
+    wrong(1) == true
+  properties
+    forall x: Int:
+      wrong(x) == true
+  effects pure
+  impl
+    x + 1
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "ReturnTypeMismatch"),
+        "{:#?}",
+        summary.diagnostics
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn function_call_argument_type_mismatch_is_reported() {
+    let dir = unique_temp_dir("serow-call-type-mismatch");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("bad_call.serow");
+    fs::write(
+        &source,
+        r#"module test.calls
+
+pub fn add(x: Int, y: Int) -> Int
+  intent "Return the arithmetic sum of x and y."
+  contract
+    ensures result == x + y
+  examples
+    add(1, 2) == 3
+  properties
+    forall x: Int, y: Int:
+      add(x, y) == add(y, x)
+  effects pure
+  impl
+    x + y
+
+pub fn bad() -> Bool
+  intent "Call add with an argument of the wrong type."
+  contract
+    ensures result == true
+  examples
+    bad() == true
+  properties
+    forall flag: Bool:
+      bad() == flag or bad() != flag
+  effects pure
+  impl
+    add(true, 1) == 2
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "TypeError"
+                && diagnostic
+                    .data
+                    .iter()
+                    .any(|(key, value)| key == "context" && value == "impl")),
+        "{:#?}",
+        summary.diagnostics
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn intent_query_finds_add() {
+    let (program, parse_diagnostics) = parse_paths(&["examples".to_string()]);
+    assert!(parse_diagnostics.is_empty());
+    let matches = query_intent(&program, "add two integers", 10);
+    assert!(!matches.is_empty());
+    assert_eq!(matches[0].function.name, "add");
+}
+
+#[test]
+fn architecture_policy_rejects_disallowed_use() {
+    let dir = unique_temp_dir("serow-architecture");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("bad_dependency.serow");
+    fs::write(
+        &source,
+        r#"module core.math
+
+use core.text
+
+pub fn id(x: Int) -> Int
+  intent "Return x."
+  contract
+    ensures result == x
+  examples
+    id(1) == 1
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "ArchitectureViolation"),
+        "{:#?}",
+        summary.diagnostics
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn project_architecture_parser_reads_module_policies() {
+    let architecture = parse_architecture(
+        r#"{
+  "architecture": {
+    "modules": {
+      "app.main": {
+        "owner": "app",
+        "may_depend_on": ["core.math", "core.text"]
+      }
+    }
+  }
+}"#,
+    );
+
+    let policy = architecture.policy_for("app.main").expect("policy");
+    assert_eq!(policy.may_depend_on, ["core.math", "core.text"]);
+}
+
+#[test]
+fn formatter_check_reports_drift_without_writing() {
+    let dir = unique_temp_dir("serow-format-check");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("messy.serow");
+    let messy = r#"module test.format
+
+pub fn id(x: Int) -> Int
+  intent "Return x." # trailing comment
+  contract
+    ensures result == x
+  examples
+    id(1) == 1
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x    
+"#;
+    fs::write(&source, messy).expect("write fixture");
+
+    let summary = format_paths(&[source.to_string_lossy().to_string()], true);
+    assert!(!summary.ok(), "{summary:#?}");
+    assert_eq!(summary.files, 1);
+    assert_eq!(summary.changed, 1);
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "FormatDrift"),
+        "{:#?}",
+        summary.diagnostics
+    );
+    assert_eq!(fs::read_to_string(&source).expect("read fixture"), messy);
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn formatter_preserves_module_uses() {
+    let dir = unique_temp_dir("serow-format-use");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("uses.serow");
+    fs::write(
+        &source,
+        r#"module app.main
+pub fn id(x: Int) -> Int
+  intent "Return x."
+  contract
+    ensures result == x
+  examples
+    id(1) == 1
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x    
+
+use core.math
+"#,
+    )
+    .expect("write fixture");
+
+    let summary = format_paths(&[source.to_string_lossy().to_string()], false);
+    assert!(summary.ok(), "{summary:#?}");
+    assert_eq!(
+        fs::read_to_string(&source).expect("read fixture"),
+        r#"module app.main
+
+use core.math
+
+pub fn id(x: Int) -> Int
+  intent "Return x."
+  contract
+    ensures result == x
+  examples
+    id(1) == 1
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+"#
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn formatter_rewrites_to_canonical_projection() {
+    let dir = unique_temp_dir("serow-format-write");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("messy.serow");
+    fs::write(
+        &source,
+        r#"module test.format
+
+pub fn id(x: Int) -> Int
+  intent "Return x."
+  contract
+    ensures result == x
+  examples
+    id(1) == 1
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x    
+"#,
+    )
+    .expect("write fixture");
+
+    let summary = format_paths(&[source.to_string_lossy().to_string()], false);
+    assert!(summary.ok(), "{summary:#?}");
+    assert_eq!(summary.files, 1);
+    assert_eq!(summary.changed, 1);
+    assert_eq!(
+        fs::read_to_string(&source).expect("read fixture"),
+        r#"module test.format
+
+pub fn id(x: Int) -> Int
+  intent "Return x."
+  contract
+    ensures result == x
+  examples
+    id(1) == 1
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+"#
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+fn unique_temp_dir(prefix: &str) -> PathBuf {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("time")
+        .as_nanos();
+    std::env::temp_dir().join(format!("{prefix}-{nanos}"))
+}

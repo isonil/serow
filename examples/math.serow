@@ -1,0 +1,46 @@
+module core.math
+
+pub fn add(x: Int, y: Int) -> Int
+  intent "Return the arithmetic sum of x and y."
+  contract
+    ensures result == x + y
+  examples
+    add(2, 3) == 5
+    add(-1, 1) == 0
+  properties
+    forall x: Int, y: Int:
+      add(x, y) == add(y, x)
+  effects pure
+  impl
+    x + y
+
+pub fn abs(x: Int) -> Int
+  intent "Return the non-negative magnitude of x."
+  contract
+    ensures result >= 0
+    ensures result == x or result == -x
+  examples
+    abs(5) == 5
+    abs(-5) == 5
+    abs(0) == 0
+  properties
+    forall x: Int:
+      abs(x) >= 0
+  effects pure
+  impl
+    if x < 0 then -x else x
+
+pub fn div_trunc(x: Int, y: Int) -> Int
+  intent "Return integer division of x by a non-zero divisor y, truncating toward zero."
+  contract
+    requires y != 0
+    ensures result == x // y
+  examples
+    div_trunc(7, 2) == 3
+    div_trunc(-7, 2) == -3
+  properties
+    forall x: Int:
+      div_trunc(x, 1) == x
+  effects pure
+  impl
+    x // y
