@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::diagnostic::{Diagnostic, Severity};
-use crate::eval::{Evaluator, Value};
+use crate::eval::{Evaluator, Value, called_functions};
 use crate::model::{Function, Program};
 use crate::project::load_architecture;
 use crate::typecheck::infer_expression_type;
@@ -57,6 +57,20 @@ pub fn check_program(program: &Program, parse_diagnostics: Vec<Diagnostic>) -> C
 
 fn check_module_dependencies(program: &Program, summary: &mut CheckSummary) {
     let architecture = load_architecture();
+    let declared_dependencies = program
+        .modules
+        .iter()
+        .map(|module| {
+            (
+                module.name.clone(),
+                module
+                    .dependencies
+                    .iter()
+                    .map(|dependency| dependency.module.clone())
+                    .collect::<HashSet<_>>(),
+            )
+        })
+        .collect::<HashMap<_, _>>();
     for module in &program.modules {
         let Some(policy) = architecture.policy_for(&module.name) else {
             continue;
@@ -86,6 +100,141 @@ fn check_module_dependencies(program: &Program, summary: &mut CheckSummary) {
             );
         }
     }
+    check_inferred_module_dependencies(program, &architecture, &declared_dependencies, summary);
+}
+
+fn check_inferred_module_dependencies(
+    program: &Program,
+    architecture: &crate::project::Architecture,
+    declared_dependencies: &HashMap<String, HashSet<String>>,
+    summary: &mut CheckSummary,
+) {
+    let mut functions_by_name = HashMap::<String, Vec<&Function>>::new();
+    for function in &program.functions {
+        functions_by_name
+            .entry(function.name.clone())
+            .or_default()
+            .push(function);
+    }
+
+    let mut reported = HashSet::<(String, String, String)>::new();
+    for function in &program.functions {
+        for (context, expression) in function_expressions(function) {
+            let Ok(call_names) = called_functions(&expression) else {
+                continue;
+            };
+            for call_name in call_names {
+                let Some(callees) = functions_by_name.get(&call_name) else {
+                    continue;
+                };
+                if callees.len() != 1 {
+                    continue;
+                }
+                let callee = callees[0];
+                if callee.module == function.module {
+                    continue;
+                }
+                let key = (
+                    function.module.clone(),
+                    callee.module.clone(),
+                    function.name.clone(),
+                );
+                if !reported.insert(key) {
+                    continue;
+                }
+                let declared = declared_dependencies
+                    .get(&function.module)
+                    .is_some_and(|dependencies| dependencies.contains(&callee.module));
+                if dependency_allowed(architecture, &function.module, &callee.module) {
+                    if !declared {
+                        summary.diagnostics.push(
+                            Diagnostic::error(
+                                "MissingModuleDependency",
+                                format!(
+                                    "Function `{}` calls `{}` from module `{}`, but module `{}` does not declare `use {}`.",
+                                    function.name,
+                                    callee.name,
+                                    callee.module,
+                                    function.module,
+                                    callee.module
+                                ),
+                                Some(function.target()),
+                            )
+                            .with_data("module", &function.module)
+                            .with_data("dependency", &callee.module)
+                            .with_data("function", &function.name)
+                            .with_data("callee", callee.symbol())
+                            .with_data("context", context)
+                            .with_data("expression", &expression)
+                            .with_repair(format!(
+                                "Add `use {}` after `module {}`.",
+                                callee.module, function.module
+                            )),
+                        );
+                    }
+                } else if !declared {
+                    let allowed = architecture
+                        .policy_for(&function.module)
+                        .map(|policy| policy.may_depend_on.join(", "))
+                        .unwrap_or_default();
+                    summary.diagnostics.push(
+                        Diagnostic::error(
+                            "ArchitectureViolation",
+                            format!(
+                                "Function `{}` creates an inferred dependency from `{}` to forbidden module `{}`.",
+                                function.name, function.module, callee.module
+                            ),
+                            Some(function.target()),
+                        )
+                        .with_data("module", &function.module)
+                        .with_data("dependency", &callee.module)
+                        .with_data("callee", callee.symbol())
+                        .with_data("allowed", allowed)
+                        .with_data("context", context)
+                        .with_data("expression", &expression)
+                        .with_repair("Move the call behind an allowed module boundary or update `serow.project`."),
+                    );
+                }
+            }
+        }
+    }
+}
+
+fn dependency_allowed(
+    architecture: &crate::project::Architecture,
+    module: &str,
+    dependency: &str,
+) -> bool {
+    if module == dependency {
+        return true;
+    }
+    let Some(policy) = architecture.policy_for(module) else {
+        return true;
+    };
+    policy
+        .may_depend_on
+        .iter()
+        .any(|allowed| allowed == dependency)
+}
+
+fn function_expressions(function: &Function) -> Vec<(&'static str, String)> {
+    let mut expressions = Vec::new();
+    if let Some(implementation) = &function.implementation {
+        expressions.push(("impl", implementation.clone()));
+    }
+    for requirement in &function.requires {
+        expressions.push(("requires", requirement.clone()));
+    }
+    for contract in &function.contracts {
+        expressions.push(("contract", contract.clone()));
+    }
+    for example in &function.examples {
+        expressions.push(("example", example.clone()));
+    }
+    for property in property_blocks(&function.properties) {
+        expressions.push(("property", property.expression));
+    }
+    expressions
 }
 
 fn check_duplicate_symbols(program: &Program, summary: &mut CheckSummary) {

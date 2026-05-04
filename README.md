@@ -8,7 +8,7 @@ The current implementation is a bootstrap toolchain written in dependency-free R
 - mandatory executable examples
 - mandatory contracts and properties
 - explicit effects
-- explicit module dependencies checked against `serow.project`
+- explicit and inferred module dependencies checked against `serow.project`
 - structured JSON diagnostics
 - a semantic ledger for agent queries
 

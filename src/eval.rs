@@ -246,6 +246,21 @@ pub(crate) fn tokenize(expression: &str) -> Result<Vec<Token>, String> {
     Ok(tokens)
 }
 
+pub(crate) fn called_functions(expression: &str) -> Result<Vec<String>, String> {
+    let mut calls = Vec::new();
+    for line in expression.lines() {
+        let tokens = tokenize(line)?;
+        for window in tokens.windows(2) {
+            if let [Token::Ident(name), Token::LParen] = window
+                && !calls.iter().any(|call| call == name)
+            {
+                calls.push(name.clone());
+            }
+        }
+    }
+    Ok(calls)
+}
+
 struct ExprParser<'a, 'b> {
     tokens: Vec<Token>,
     index: usize,

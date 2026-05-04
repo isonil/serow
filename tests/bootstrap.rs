@@ -253,6 +253,164 @@ pub fn id(x: Int) -> Int
 }
 
 #[test]
+fn cross_module_call_requires_explicit_use() {
+    let dir = unique_temp_dir("serow-missing-use");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("missing_use.serow");
+    fs::write(
+        &source,
+        r#"module core.math
+
+pub fn inc(x: Int) -> Int
+  intent "Increment x."
+  contract
+    ensures result == x + 1
+  examples
+    inc(1) == 2
+  properties
+    forall x: Int:
+      inc(x) == x + 1
+  effects pure
+  impl
+    x + 1
+
+module app.main
+
+pub fn bump(x: Int) -> Int
+  intent "Increment x through the math module."
+  contract
+    ensures result == x + 1
+  examples
+    bump(1) == 2
+  properties
+    forall x: Int:
+      bump(x) == inc(x)
+  effects pure
+  impl
+    inc(x)
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "MissingModuleDependency"),
+        "{:#?}",
+        summary.diagnostics
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn declared_cross_module_call_checks() {
+    let dir = unique_temp_dir("serow-declared-use");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("declared_use.serow");
+    fs::write(
+        &source,
+        r#"module core.math
+
+pub fn inc(x: Int) -> Int
+  intent "Increment x."
+  contract
+    ensures result == x + 1
+  examples
+    inc(1) == 2
+  properties
+    forall x: Int:
+      inc(x) == x + 1
+  effects pure
+  impl
+    x + 1
+
+module app.main
+
+use core.math
+
+pub fn bump(x: Int) -> Int
+  intent "Increment x through the math module."
+  contract
+    ensures result == x + 1
+  examples
+    bump(1) == 2
+  properties
+    forall x: Int:
+      bump(x) == inc(x)
+  effects pure
+  impl
+    inc(x)
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(summary.ok(), "{:#?}", summary.diagnostics);
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn architecture_policy_rejects_inferred_disallowed_call() {
+    let dir = unique_temp_dir("serow-inferred-architecture");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("inferred_bad_dependency.serow");
+    fs::write(
+        &source,
+        r#"module core.text
+
+pub fn text_id(x: Text) -> Text
+  intent "Return x."
+  contract
+    ensures result == x
+  examples
+    text_id("a") == "a"
+  properties
+    forall x: Text:
+      text_id(x) == x
+  effects pure
+  impl
+    x
+
+module core.math
+
+pub fn bad(x: Text) -> Text
+  intent "Call the text module from math."
+  contract
+    ensures result == x
+  examples
+    bad("a") == "a"
+  properties
+    forall x: Text:
+      bad(x) == x
+  effects pure
+  impl
+    text_id(x)
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "ArchitectureViolation"
+                && diagnostic
+                    .data
+                    .iter()
+                    .any(|(key, value)| key == "context" && value == "impl")),
+        "{:#?}",
+        summary.diagnostics
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn project_architecture_parser_reads_module_policies() {
     let architecture = parse_architecture(
         r#"{
