@@ -44,6 +44,7 @@ def check_program(program: Program, parse_diagnostics: List[Diagnostic]) -> Chec
     summary = CheckSummary(functions=len(program.functions), diagnostics=list(parse_diagnostics))
     evaluator = Evaluator(program.functions)
     _check_duplicate_symbols(program, summary)
+    _check_ambiguous_unqualified_names(program, summary)
     _check_duplicate_intents(program, summary)
     for function in program.functions:
         _check_function_shape(function, summary)
@@ -69,6 +70,31 @@ def _check_duplicate_symbols(program: Program, summary: CheckSummary) -> None:
             )
         else:
             seen[function.symbol] = function
+
+
+def _check_ambiguous_unqualified_names(program: Program, summary: CheckSummary) -> None:
+    seen: Dict[str, Function] = {}
+    for function in program.functions:
+        first = seen.get(function.name)
+        if first and first.symbol != function.symbol:
+            summary.diagnostics.append(
+                Diagnostic(
+                    severity="error",
+                    code="AmbiguousUnqualifiedName",
+                    message=(
+                        f"Function name `{function.name}` is ambiguous before qualified references are supported."
+                    ),
+                    target=function.target,
+                    data={
+                        "first": first.target,
+                        "first_symbol": first.symbol,
+                        "symbol": function.symbol,
+                    },
+                    repairs=["Use a unique function name until qualified references are supported."],
+                )
+            )
+        else:
+            seen[function.name] = function
 
 
 def _check_duplicate_intents(program: Program, summary: CheckSummary) -> None:

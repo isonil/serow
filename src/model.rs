@@ -9,6 +9,8 @@ pub struct Function {
     pub name: String,
     pub module: String,
     pub public: bool,
+    pub version: String,
+    pub version_explicit: bool,
     pub params: Vec<Param>,
     pub return_type: String,
     pub source_path: String,
@@ -23,8 +25,8 @@ pub struct Function {
 }
 
 impl Function {
-    pub fn version(&self) -> &'static str {
-        "v1"
+    pub fn version(&self) -> &str {
+        &self.version
     }
 
     pub fn symbol(&self) -> String {

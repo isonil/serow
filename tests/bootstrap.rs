@@ -324,6 +324,115 @@ fn intent_query_finds_add() {
 }
 
 #[test]
+fn source_declared_symbol_version_is_part_of_identity() {
+    let dir = unique_temp_dir("serow-source-version");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("version.serow");
+    fs::write(
+        &source,
+        r#"module test.version
+
+pub fn id(x: Int) -> Int
+  intent "Return x with an explicit version."
+  version v2
+  contract
+    ensures result == x
+  examples
+    id(1) == 1
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    assert!(parse_diagnostics.is_empty(), "{parse_diagnostics:#?}");
+    assert_eq!(program.functions[0].version(), "v2");
+    assert_eq!(program.functions[0].symbol(), "@test.version.id.v2");
+    assert!(program.functions[0].version_explicit);
+
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(summary.ok(), "{:#?}", summary.diagnostics);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "query",
+            "symbol",
+            "@test.version.id.v2",
+            source.to_str().expect("utf8 path"),
+            "--json",
+        ])
+        .output()
+        .expect("run serow query symbol");
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(
+        stdout.contains("\"symbol\": \"@test.version.id.v2\""),
+        "{stdout}"
+    );
+    assert!(stdout.contains("\"version\": \"v2\""), "{stdout}");
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn duplicate_unqualified_names_are_rejected_until_qualified_references_exist() {
+    let dir = unique_temp_dir("serow-ambiguous-name");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("ambiguous.serow");
+    fs::write(
+        &source,
+        r#"module test.version
+
+pub fn id(x: Int) -> Int
+  intent "Return x through version one."
+  version v1
+  contract
+    ensures result == x
+  examples
+    id(1) == 1
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+
+pub fn id(x: Int) -> Int
+  intent "Return x through version two."
+  version v2
+  contract
+    ensures result == x
+  examples
+    id(1) == 1
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "AmbiguousUnqualifiedName"),
+        "{:#?}",
+        summary.diagnostics
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn agent_command_prints_bootstrap_contract() {
     let output = Command::new(env!("CARGO_BIN_EXE_serow"))
         .arg("agent")
@@ -348,7 +457,7 @@ fn agent_json_includes_machine_readable_workflow() {
     let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
     assert!(stdout.contains("\"ok\": true"), "{stdout}");
     assert!(
-        stdout.contains("\"phase\": \"Phase 2: Agent-Native Workflow\""),
+        stdout.contains("\"phase\": \"Phase 2.5: Agent-Safe Language Core\""),
         "{stdout}"
     );
     assert!(stdout.contains("serow query intent <text>"), "{stdout}");

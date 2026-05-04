@@ -2,6 +2,7 @@ module core.math
 
 pub fn add(x: Int, y: Int) -> Int
   intent "Return the arithmetic sum of x and y."
+  version v1
   contract
     ensures result == x + y
   examples
@@ -16,6 +17,7 @@ pub fn add(x: Int, y: Int) -> Int
 
 pub fn abs(x: Int) -> Int
   intent "Return the non-negative magnitude of x."
+  version v1
   contract
     ensures result >= 0
     ensures result == x or result == -x
@@ -32,6 +34,7 @@ pub fn abs(x: Int) -> Int
 
 pub fn div_trunc(x: Int, y: Int) -> Int
   intent "Return integer division of x by a non-zero divisor y, truncating toward zero."
+  version v1
   contract
     requires y != 0
     ensures result == x // y

@@ -552,7 +552,7 @@ fn agent_json() -> String {
             "  \"ok\": true,\n",
             "  \"language\": \"Serow\",\n",
             "  \"implementation\": \"dependency-free Rust bootstrap\",\n",
-            "  \"phase\": \"Phase 2: Agent-Native Workflow\",\n",
+            "  \"phase\": \"Phase 2.5: Agent-Safe Language Core\",\n",
             "  \"source_default\": \"examples/\",\n",
             "  \"workflow\": {},\n",
             "  \"commands\": [{}],\n",
@@ -571,6 +571,7 @@ fn agent_json() -> String {
         ]),
         command_rows,
         str_array_json(&[
+            "version (optional; defaults to v1)",
             "intent",
             "contract",
             "examples",
@@ -592,6 +593,7 @@ fn agent_json() -> String {
             "No full compiler or generated backend exists yet.",
             "Properties are sampled, not proven.",
             "Duplicate-intent detection is exact after simple normalization.",
+            "Duplicate unqualified function names are rejected until qualified references are supported.",
             "Expression support is intentionally small.",
             "Formatting does not preserve comments.",
             "JSON output is hand-written until external dependencies are accepted."
@@ -713,7 +715,7 @@ fn print_agent_bootstrap() {
     println!("serow agent: ok");
     println!("language: Serow");
     println!("implementation: dependency-free Rust bootstrap");
-    println!("phase: Phase 2: Agent-Native Workflow");
+    println!("phase: Phase 2.5: Agent-Safe Language Core");
     println!("workflow:");
     println!("  1. bin/serow query intent \"<description>\"");
     println!("  2. bin/serow query symbol \"<name>\" when a symbol might exist");
@@ -740,6 +742,8 @@ fn print_agent_bootstrap() {
     println!("diagnostic json:");
     println!("  repairs: human-readable compatibility strings");
     println!("  repair_actions: machine-readable command actions when available");
+    println!("identity:");
+    println!("  source may declare `version vN`; omitted versions default to v1");
 }
 
 fn print_usage() {

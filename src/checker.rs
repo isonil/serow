@@ -43,6 +43,7 @@ pub fn check_program(program: &Program, parse_diagnostics: Vec<Diagnostic>) -> C
     };
     check_module_dependencies(program, &mut summary);
     check_duplicate_symbols(program, &mut summary);
+    check_ambiguous_unqualified_names(program, &mut summary);
     check_duplicate_intents(program, &mut summary);
     for function in &program.functions {
         check_function_shape(function, &mut summary);
@@ -262,6 +263,36 @@ fn check_duplicate_symbols(program: &Program, summary: &mut CheckSummary) {
             );
         } else {
             seen.insert(symbol, function.target());
+        }
+    }
+}
+
+fn check_ambiguous_unqualified_names(program: &Program, summary: &mut CheckSummary) {
+    let mut seen = HashMap::<String, (String, String)>::new();
+    for function in &program.functions {
+        if let Some((first_target, first_symbol)) = seen.get(&function.name) {
+            if first_symbol == &function.symbol() {
+                continue;
+            }
+            summary.diagnostics.push(
+                Diagnostic::error(
+                    "AmbiguousUnqualifiedName",
+                    format!(
+                        "Function name `{}` is ambiguous before qualified references are supported.",
+                        function.name
+                    ),
+                    Some(function.target()),
+                )
+                .with_data("first", first_target.clone())
+                .with_data("first_symbol", first_symbol.clone())
+                .with_data("symbol", function.symbol())
+                .with_repair("Use a unique function name until qualified references are supported."),
+            );
+        } else {
+            seen.insert(
+                function.name.clone(),
+                (function.target(), function.symbol()),
+            );
         }
     }
 }

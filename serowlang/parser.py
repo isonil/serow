@@ -15,7 +15,7 @@ INTENT_RE = re.compile(r'^intent\s+"(?P<intent>.*)"\s*$')
 
 
 BLOCK_SECTIONS = {"contract", "examples", "properties", "impl"}
-ALL_SECTIONS = BLOCK_SECTIONS | {"intent", "effects"}
+ALL_SECTIONS = BLOCK_SECTIONS | {"intent", "version", "effects"}
 
 
 def discover_sources(paths: Iterable[str]) -> List[Path]:
@@ -127,6 +127,24 @@ def _parse_function(path: str, module: str, line: int, header: re.Match, block: 
             if intent_match:
                 _mark_section(seen_sections, "intent", diagnostics, path, offset)
                 function.intent = intent_match.group("intent")
+                current_section = None
+                continue
+            if content.startswith("version "):
+                _mark_section(seen_sections, "version", diagnostics, path, offset)
+                version = content[len("version ") :].strip()
+                if re.match(r"^v[0-9]+$", version):
+                    function.version = version
+                    function.version_explicit = True
+                else:
+                    diagnostics.append(
+                        Diagnostic(
+                            severity="error",
+                            code="ParseError",
+                            message=f"Invalid symbol version `{version}`.",
+                            target=f"{path}:{offset}",
+                            repairs=["Use a version like `version v1`."],
+                        )
+                    )
                 current_section = None
                 continue
             if content.startswith("effects "):

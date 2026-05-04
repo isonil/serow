@@ -17,6 +17,8 @@ class Function:
     return_type: str
     source_path: str
     line: int
+    version: str = "v1"
+    version_explicit: bool = False
     intent: Optional[str] = None
     requires: List[str] = field(default_factory=list)
     contracts: List[str] = field(default_factory=list)
@@ -27,7 +29,7 @@ class Function:
 
     @property
     def symbol(self) -> str:
-        return f"@{self.module}.{self.name}.v1"
+        return f"@{self.module}.{self.name}.{self.version}"
 
     @property
     def signature(self) -> str:

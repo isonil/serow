@@ -219,6 +219,8 @@ fn parse_function(
         name: header.name,
         module: module.to_string(),
         public: header.public,
+        version: "v1".to_string(),
+        version_explicit: false,
         params,
         return_type: header.return_type,
         source_path: path.to_string(),
@@ -255,6 +257,31 @@ fn parse_function(
                 current_section = None;
                 continue;
             }
+            if let Some(version) = content.strip_prefix("version ") {
+                mark_section(
+                    &mut seen_sections,
+                    "version",
+                    &mut diagnostics,
+                    path,
+                    line_number,
+                );
+                let version = version.trim();
+                if is_valid_version(version) {
+                    function.version = version.to_string();
+                    function.version_explicit = true;
+                } else {
+                    diagnostics.push(
+                        Diagnostic::error(
+                            "ParseError",
+                            format!("Invalid symbol version `{version}`."),
+                            Some(format!("{path}:{line_number}")),
+                        )
+                        .with_repair("Use a version like `version v1`."),
+                    );
+                }
+                current_section = None;
+                continue;
+            }
             if let Some(effects) = content.strip_prefix("effects ") {
                 mark_section(
                     &mut seen_sections,
@@ -286,7 +313,7 @@ fn parse_function(
                 )
                 .with_data(
                     "known_sections",
-                    "contract, examples, properties, impl, intent, effects",
+                    "contract, examples, properties, impl, intent, version, effects",
                 ),
             );
             current_section = None;
@@ -456,4 +483,11 @@ fn is_valid_ident(name: &str) -> bool {
     };
     (first == '_' || first.is_ascii_alphabetic())
         && chars.all(|char| char == '_' || char.is_ascii_alphanumeric())
+}
+
+fn is_valid_version(version: &str) -> bool {
+    let Some(rest) = version.strip_prefix('v') else {
+        return false;
+    };
+    !rest.is_empty() && rest.chars().all(|char| char.is_ascii_digit())
 }

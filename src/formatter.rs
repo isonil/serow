@@ -120,6 +120,11 @@ fn format_function(function: &Function, output: &mut String) {
         output.push_str(&escape_string(intent));
         output.push_str("\"\n");
     }
+    if function.version_explicit {
+        output.push_str("  version ");
+        output.push_str(function.version());
+        output.push('\n');
+    }
     if !function.requires.is_empty() || !function.contracts.is_empty() {
         output.push_str("  contract\n");
         for requirement in &function.requires {
