@@ -161,18 +161,25 @@ fn check_inferred_module_dependencies(
                                     callee.module
                                 ),
                                 Some(function.target()),
-                            )
-                            .with_data("module", &function.module)
-                            .with_data("dependency", &callee.module)
-                            .with_data("function", &function.name)
-                            .with_data("callee", callee.symbol())
-                            .with_data("context", context)
-                            .with_data("expression", &expression)
-                            .with_repair(format!(
-                                "Run `bin/serow patch add-use {} {} {}`.",
-                                function.source_path, function.module, callee.module
-                            )),
-                        );
+                        )
+                        .with_data("module", &function.module)
+                        .with_data("dependency", &callee.module)
+                        .with_data("function", &function.name)
+                        .with_data("callee", callee.symbol())
+                        .with_data("context", context)
+                        .with_data("expression", &expression)
+                        .with_command_repair(
+                            "Add the missing module dependency",
+                            vec![
+                                "bin/serow".to_string(),
+                                "patch".to_string(),
+                                "add-use".to_string(),
+                                function.source_path.clone(),
+                                function.module.clone(),
+                                callee.module.clone(),
+                            ],
+                        ),
+                    );
                     }
                 } else if !declared {
                     let allowed = architecture
@@ -286,10 +293,16 @@ fn check_duplicate_intents(program: &Program, summary: &mut CheckSummary) {
                 .with_data("first_symbol", first_symbol.clone())
                 .with_data("first_intent", first_intent.clone())
                 .with_data("intent", intent)
-                .with_repair(format!(
-                    "Run `bin/serow query intent \"{}\"` and reuse the existing symbol or make the intent more specific.",
-                    intent
-                )),
+                .with_command_repair(
+                    "Find existing functions with the same intent",
+                    vec![
+                        "bin/serow".to_string(),
+                        "query".to_string(),
+                        "intent".to_string(),
+                        intent.clone(),
+                    ],
+                )
+                .with_repair("Reuse the existing symbol or make the new intent more specific."),
             );
         } else {
             seen.insert(
@@ -334,6 +347,7 @@ fn check_function_shape(function: &Function, summary: &mut CheckSummary) {
             target: Some(function.target()),
             data: Vec::new(),
             repairs: vec!["Fill the hole or keep the function out of certification.".to_string()],
+            repair_actions: Vec::new(),
         });
     }
 

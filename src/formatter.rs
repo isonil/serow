@@ -1,6 +1,6 @@
 use std::fs;
 
-use crate::diagnostic::{Diagnostic, Severity, has_errors};
+use crate::diagnostic::{Diagnostic, has_errors};
 use crate::model::{Function, Program};
 use crate::parser::{discover_sources, parse_paths};
 
@@ -46,15 +46,16 @@ pub fn format_paths(paths: &[String], check: bool) -> FormatSummary {
         summary.changed += 1;
         if check {
             summary.diagnostics.push(
-                Diagnostic {
-                    severity: Severity::Error,
-                    code: "FormatDrift".to_string(),
-                    message: "Serow source is not in canonical format.".to_string(),
-                    target: Some(source_path),
-                    data: Vec::new(),
-                    repairs: vec!["Run `bin/serow fmt` to rewrite the file.".to_string()],
-                }
-                .with_data("mode", "check"),
+                Diagnostic::error(
+                    "FormatDrift",
+                    "Serow source is not in canonical format.",
+                    Some(source_path),
+                )
+                .with_data("mode", "check")
+                .with_command_repair(
+                    "Rewrite the file with canonical formatting",
+                    vec!["bin/serow".to_string(), "fmt".to_string()],
+                ),
             );
         } else if let Err(error) = fs::write(&source, formatted) {
             summary.diagnostics.push(Diagnostic::error(

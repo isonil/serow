@@ -21,6 +21,14 @@ pub struct Diagnostic {
     pub target: Option<String>,
     pub data: Vec<(String, String)>,
     pub repairs: Vec<String>,
+    pub repair_actions: Vec<RepairAction>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RepairAction {
+    pub kind: String,
+    pub label: String,
+    pub command: Vec<String>,
 }
 
 impl Diagnostic {
@@ -32,6 +40,7 @@ impl Diagnostic {
             target,
             data: Vec::new(),
             repairs: Vec::new(),
+            repair_actions: Vec::new(),
         }
     }
 
@@ -43,6 +52,7 @@ impl Diagnostic {
             target,
             data: Vec::new(),
             repairs: Vec::new(),
+            repair_actions: Vec::new(),
         }
     }
 
@@ -55,6 +65,35 @@ impl Diagnostic {
         self.repairs.push(repair.into());
         self
     }
+
+    pub fn with_command_repair(mut self, label: impl Into<String>, command: Vec<String>) -> Self {
+        let label = label.into();
+        self.repairs
+            .push(format!("{label}: `{}`.", shell_command_text(&command)));
+        self.repair_actions.push(RepairAction {
+            kind: "command".to_string(),
+            label,
+            command,
+        });
+        self
+    }
+}
+
+fn shell_command_text(command: &[String]) -> String {
+    command
+        .iter()
+        .map(|part| {
+            if part
+                .chars()
+                .all(|char| char.is_ascii_alphanumeric() || "-_./:@".contains(char))
+            {
+                part.clone()
+            } else {
+                format!("\"{}\"", part.replace('\\', "\\\\").replace('"', "\\\""))
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 pub fn has_errors(diagnostics: &[Diagnostic]) -> bool {

@@ -10,7 +10,7 @@ The current implementation is a bootstrap toolchain written in dependency-free R
 - explicit effects
 - explicit and inferred module dependencies checked against `serow.project`
 - duplicate public intent detection
-- structured JSON diagnostics
+- structured JSON diagnostics with machine-readable repair actions where available
 - a semantic ledger for agent queries
 
 Print the current agent bootstrap contract:

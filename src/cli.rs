@@ -559,6 +559,7 @@ fn agent_json() -> String {
             "  \"public_function_requirements\": {},\n",
             "  \"supported_bootstrap_types\": {},\n",
             "  \"verification_gates\": {},\n",
+            "  \"diagnostic_json\": {{\"repairs\": \"legacy human-readable repair strings\", \"repair_actions\": \"machine-readable command actions when available\"}},\n",
             "  \"known_limits\": {}\n",
             "}}"
         ),
@@ -633,7 +634,29 @@ fn diagnostics_array_json(diagnostics: &[Diagnostic]) -> String {
                     string_array_json(&diagnostic.repairs)
                 ));
             }
+            if !diagnostic.repair_actions.is_empty() {
+                fields.push(format!(
+                    "\"repair_actions\": {}",
+                    repair_actions_json(&diagnostic.repair_actions)
+                ));
+            }
             format!("{{{}}}", fields.join(", "))
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("[{rows}]")
+}
+
+fn repair_actions_json(actions: &[crate::diagnostic::RepairAction]) -> String {
+    let rows = actions
+        .iter()
+        .map(|action| {
+            format!(
+                "{{\"kind\": {}, \"label\": {}, \"command\": {}}}",
+                json_string(&action.kind),
+                json_string(&action.label),
+                string_array_json(&action.command)
+            )
         })
         .collect::<Vec<_>>()
         .join(", ");
@@ -714,6 +737,9 @@ fn print_agent_bootstrap() {
     println!("  bin/serow fmt --check --json");
     println!("  bin/serow check --json");
     println!("  bin/serow certify");
+    println!("diagnostic json:");
+    println!("  repairs: human-readable compatibility strings");
+    println!("  repair_actions: machine-readable command actions when available");
 }
 
 fn print_usage() {

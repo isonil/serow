@@ -449,6 +449,67 @@ pub fn bump(x: Int) -> Int
 }
 
 #[test]
+fn check_json_includes_structured_repair_actions() {
+    let dir = unique_temp_dir("serow-json-repair-actions");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("missing_use.serow");
+    fs::write(
+        &source,
+        r#"module core.math
+
+pub fn inc(x: Int) -> Int
+  intent "Increment x."
+  contract
+    ensures result == x + 1
+  examples
+    inc(1) == 2
+  properties
+    forall x: Int:
+      inc(x) == x + 1
+  effects pure
+  impl
+    x + 1
+
+module app.main
+
+pub fn bump(x: Int) -> Int
+  intent "Increment x through the math module."
+  contract
+    ensures result == x + 1
+  examples
+    bump(1) == 2
+  properties
+    forall x: Int:
+      bump(x) == inc(x)
+  effects pure
+  impl
+    inc(x)
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["check", source.to_str().expect("utf8 path"), "--json"])
+        .output()
+        .expect("run serow check --json");
+
+    assert!(!output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"repair_actions\""), "{stdout}");
+    assert!(
+        stdout.contains("\"label\": \"Add the missing module dependency\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"command\": [\"bin/serow\", \"patch\", \"add-use\""),
+        "{stdout}"
+    );
+    assert!(stdout.contains("\"app.main\""), "{stdout}");
+    assert!(stdout.contains("\"core.math\""), "{stdout}");
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn declared_cross_module_call_checks() {
     let dir = unique_temp_dir("serow-declared-use");
     fs::create_dir_all(&dir).expect("create temp dir");
@@ -731,7 +792,13 @@ pub fn id(x: Int) -> Int
         summary
             .diagnostics
             .iter()
-            .any(|diagnostic| diagnostic.code == "FormatDrift"),
+            .any(|diagnostic| diagnostic.code == "FormatDrift"
+                && diagnostic
+                    .repair_actions
+                    .iter()
+                    .any(|action| action.command.len() == 2
+                        && action.command[0] == "bin/serow"
+                        && action.command[1] == "fmt")),
         "{:#?}",
         summary.diagnostics
     );
