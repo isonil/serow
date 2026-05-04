@@ -6,5 +6,6 @@ pub mod formatter;
 pub mod ledger;
 pub mod model;
 pub mod parser;
+pub mod patch;
 pub mod project;
 mod typecheck;

@@ -442,6 +442,70 @@ pub fn bump(x: Int) -> Int
 }
 
 #[test]
+fn patch_add_use_updates_source() {
+    let dir = unique_temp_dir("serow-patch-add-use");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("missing_use.serow");
+    fs::write(
+        &source,
+        r#"module core.math
+
+pub fn inc(x: Int) -> Int
+  intent "Increment x."
+  contract
+    ensures result == x + 1
+  examples
+    inc(1) == 2
+  properties
+    forall x: Int:
+      inc(x) == x + 1
+  effects pure
+  impl
+    x + 1
+
+module app.main
+
+pub fn bump(x: Int) -> Int
+  intent "Increment x through the math module."
+  contract
+    ensures result == x + 1
+  examples
+    bump(1) == 2
+  properties
+    forall x: Int:
+      bump(x) == inc(x)
+  effects pure
+  impl
+    inc(x)
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "add-use",
+            source.to_str().expect("utf8 path"),
+            "app.main",
+            "core.math",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch add-use");
+
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"changed\": 1"), "{stdout}");
+    let updated = fs::read_to_string(&source).expect("read updated fixture");
+    assert!(updated.contains("module app.main\n\nuse core.math\n\npub fn bump"));
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(summary.ok(), "{:#?}", summary.diagnostics);
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn architecture_policy_rejects_inferred_disallowed_call() {
     let dir = unique_temp_dir("serow-inferred-architecture");
     fs::create_dir_all(&dir).expect("create temp dir");

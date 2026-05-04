@@ -4,6 +4,7 @@ use crate::formatter::{FormatSummary, format_paths};
 use crate::ledger::{query_intent, query_symbol, symbols};
 use crate::model::Function;
 use crate::parser::parse_paths;
+use crate::patch::{PatchSummary, add_use};
 
 pub fn main(args: impl Iterator<Item = String>) -> i32 {
     let args = args.collect::<Vec<_>>();
@@ -17,6 +18,7 @@ pub fn main(args: impl Iterator<Item = String>) -> i32 {
         "check" => run_check(&args[1..], false),
         "certify" => run_check(&args[1..], true),
         "fmt" => run_fmt(&args[1..]),
+        "patch" => run_patch(&args[1..]),
         "query" => run_query(&args[1..]),
         "-h" | "--help" | "help" => {
             print_usage();
@@ -52,6 +54,35 @@ fn run_fmt(args: &[String]) -> i32 {
         println!("{}", format_json(&summary));
     } else {
         print_format_summary(&summary, check);
+    }
+    i32::from(!summary.ok())
+}
+
+fn run_patch(args: &[String]) -> i32 {
+    let Some(patch_command) = args.first().map(String::as_str) else {
+        print_patch_usage();
+        return 2;
+    };
+    match patch_command {
+        "add-use" => run_patch_add_use(&args[1..]),
+        _ => {
+            print_patch_usage();
+            2
+        }
+    }
+}
+
+fn run_patch_add_use(args: &[String]) -> i32 {
+    let (args, json_output) = split_flag(args, "--json");
+    let [path, module, dependency] = args.as_slice() else {
+        print_patch_usage();
+        return 2;
+    };
+    let summary = add_use(path, module, dependency);
+    if json_output {
+        println!("{}", patch_json(&summary));
+    } else {
+        print_patch_summary(&summary);
     }
     i32::from(!summary.ok())
 }
@@ -239,6 +270,32 @@ fn print_format_summary(summary: &FormatSummary, check: bool) {
     }
 }
 
+fn print_patch_summary(summary: &PatchSummary) {
+    let status = if summary.ok() { "ok" } else { "failed" };
+    println!("serow patch: {status}");
+    println!("summary: {} files changed", summary.changed);
+    for diagnostic in &summary.diagnostics {
+        let target = diagnostic
+            .target
+            .as_ref()
+            .map(|target| format!(" {target}"))
+            .unwrap_or_default();
+        println!(
+            "{}: {}:{} {}",
+            diagnostic.severity.as_str(),
+            diagnostic.code,
+            target,
+            diagnostic.message
+        );
+        if !diagnostic.data.is_empty() {
+            println!("  data: {}", data_json(&diagnostic.data));
+        }
+        if !diagnostic.repairs.is_empty() {
+            println!("  repairs: {}", diagnostic.repairs.join(", "));
+        }
+    }
+}
+
 fn print_query_matches(matches: &[crate::ledger::QueryMatch]) {
     if matches.is_empty() {
         println!("no matches");
@@ -276,6 +333,15 @@ fn format_json(summary: &FormatSummary) -> String {
         summary.changed,
         diagnostics_array_json(&summary.diagnostics),
         summary.files,
+        summary.ok()
+    )
+}
+
+fn patch_json(summary: &PatchSummary) -> String {
+    format!(
+        "{{\n  \"changed\": {},\n  \"diagnostics\": {},\n  \"ok\": {}\n}}",
+        summary.changed,
+        diagnostics_array_json(&summary.diagnostics),
         summary.ok()
     )
 }
@@ -343,6 +409,11 @@ fn agent_json() -> String {
             "fmt",
             "serow fmt [paths...] [--check] [--json]",
             "Rewrite or verify canonical Serow source formatting.",
+        ),
+        (
+            "patch add-use",
+            "serow patch add-use <path> <module> <dependency> [--json]",
+            "Add a module use declaration through the structured patch interface.",
         ),
         (
             "query intent",
@@ -526,6 +597,7 @@ fn print_agent_bootstrap() {
     println!("  serow check [paths...] [--json]");
     println!("  serow certify [paths...] [--json]");
     println!("  serow fmt [paths...] [--check] [--json]");
+    println!("  serow patch add-use <path> <module> <dependency> [--json]");
     println!("  serow query intent <text> [paths...] [--json]");
     println!("  serow query symbol <text> [paths...] [--json]");
     println!("  serow query symbols [paths...] [--json]");
@@ -545,6 +617,7 @@ fn print_usage() {
     eprintln!("  serow check [paths...] [--json]");
     eprintln!("  serow certify [paths...] [--json]");
     eprintln!("  serow fmt [paths...] [--check] [--json]");
+    eprintln!("  serow patch add-use <path> <module> <dependency> [--json]");
     eprintln!("  serow query intent <text> [paths...] [--json]");
     eprintln!("  serow query symbol <text> [paths...] [--json]");
     eprintln!("  serow query symbols [paths...] [--json]");
@@ -553,6 +626,11 @@ fn print_usage() {
 fn print_agent_usage() {
     eprintln!("usage:");
     eprintln!("  serow agent [--json]");
+}
+
+fn print_patch_usage() {
+    eprintln!("usage:");
+    eprintln!("  serow patch add-use <path> <module> <dependency> [--json]");
 }
 
 fn print_query_usage() {

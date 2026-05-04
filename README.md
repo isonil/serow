@@ -32,6 +32,12 @@ bin/serow fmt
 bin/serow fmt --check
 ```
 
+Apply a structured source patch:
+
+```sh
+bin/serow patch add-use examples/math.serow app.main core.math
+```
+
 Query the project ledger:
 
 ```sh

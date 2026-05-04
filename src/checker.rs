@@ -168,8 +168,8 @@ fn check_inferred_module_dependencies(
                             .with_data("context", context)
                             .with_data("expression", &expression)
                             .with_repair(format!(
-                                "Add `use {}` after `module {}`.",
-                                callee.module, function.module
+                                "Run `bin/serow patch add-use {} {} {}`.",
+                                function.source_path, function.module, callee.module
                             )),
                         );
                     }
