@@ -49,6 +49,7 @@ pub fn check_program(program: &Program, parse_diagnostics: Vec<Diagnostic>) -> C
     for function in &program.functions {
         check_static_types(function, program, &mut summary);
     }
+    check_effects(program, &mut summary);
     for function in &program.functions {
         check_executable_evidence(function, program, &mut summary);
     }
@@ -410,6 +411,75 @@ fn check_static_types(function: &Function, program: &Program, summary: &mut Chec
             summary,
             "property",
         );
+    }
+}
+
+fn check_effects(program: &Program, summary: &mut CheckSummary) {
+    let mut functions_by_name = HashMap::<String, Vec<&Function>>::new();
+    for function in &program.functions {
+        functions_by_name
+            .entry(function.name.clone())
+            .or_default()
+            .push(function);
+    }
+
+    let mut reported = HashSet::<(String, String, String)>::new();
+    for function in &program.functions {
+        if !is_pure(function) {
+            continue;
+        }
+        for (context, expression) in function_expressions(function) {
+            let Ok(call_names) = called_functions(&expression) else {
+                continue;
+            };
+            for call_name in call_names {
+                let Some(callees) = functions_by_name.get(&call_name) else {
+                    continue;
+                };
+                if callees.len() != 1 {
+                    continue;
+                }
+                let callee = callees[0];
+                if is_pure(callee) {
+                    continue;
+                }
+                let key = (function.symbol(), callee.symbol(), context.to_string());
+                if !reported.insert(key) {
+                    continue;
+                }
+                summary.diagnostics.push(
+                    Diagnostic::error(
+                        "EffectViolation",
+                        format!(
+                            "Pure function `{}` calls effectful function `{}`.",
+                            function.name, callee.name
+                        ),
+                        Some(function.target()),
+                    )
+                    .with_data("function", function.symbol())
+                    .with_data("function_effects", effect_label(function))
+                    .with_data("callee", callee.symbol())
+                    .with_data("callee_effects", effect_label(callee))
+                    .with_data("context", context)
+                    .with_data("expression", &expression)
+                    .with_repair(
+                        "Remove the effectful call, call a pure function, or declare the caller's required effects.",
+                    ),
+                );
+            }
+        }
+    }
+}
+
+fn is_pure(function: &Function) -> bool {
+    function.effects.len() == 1 && function.effects[0] == "pure"
+}
+
+fn effect_label(function: &Function) -> String {
+    if function.effects.is_empty() {
+        "none".to_string()
+    } else {
+        function.effects.join(", ")
     }
 }
 

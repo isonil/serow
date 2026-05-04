@@ -49,6 +49,44 @@ pub fn add(x: Int, y: Int) -> Int
         self.assertTrue(matches)
         self.assertEqual(matches[0].function.name, "add")
 
+    def test_pure_function_cannot_call_effectful_function(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "effects.serow"
+            source.write_text(
+                """module test.effects
+
+pub fn read_counter(x: Int) -> Int
+  intent "Return x while modeling an effectful read."
+  contract
+    ensures result == x
+  examples
+    read_counter(1) == 1
+  properties
+    forall x: Int:
+      read_counter(x) == x
+  effects [io]
+  impl
+    x
+
+pub fn bad(x: Int) -> Int
+  intent "Call an effectful function from a pure function."
+  contract
+    ensures result == x
+  examples
+    bad(1) == 1
+  properties
+    forall x: Int:
+      bad(x) == x
+  effects pure
+  impl
+    read_counter(x)
+""",
+                encoding="utf-8",
+            )
+            program, parse_diagnostics = parse_files([str(source)])
+            summary = check_program(program, parse_diagnostics)
+            self.assertIn("EffectViolation", [diagnostic.code for diagnostic in summary.diagnostics])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -46,6 +46,7 @@ def check_program(program: Program, parse_diagnostics: List[Diagnostic]) -> Chec
     _check_duplicate_symbols(program, summary)
     for function in program.functions:
         _check_function_shape(function, summary)
+    _check_effects(program, summary)
     for function in program.functions:
         _check_executable_evidence(function, evaluator, summary)
     return summary
@@ -127,6 +128,75 @@ def _check_function_shape(function: Function, summary: CheckSummary) -> None:
                 target=function.target,
             )
         )
+
+
+def _check_effects(program: Program, summary: CheckSummary) -> None:
+    functions_by_name: Dict[str, List[Function]] = {}
+    for function in program.functions:
+        functions_by_name.setdefault(function.name, []).append(function)
+
+    reported = set()
+    for function in program.functions:
+        if not _is_pure(function):
+            continue
+        for context, expression in _function_expressions(function):
+            for call_name in _called_functions(expression):
+                callees = functions_by_name.get(call_name, [])
+                if len(callees) != 1:
+                    continue
+                callee = callees[0]
+                if _is_pure(callee):
+                    continue
+                key = (function.symbol, callee.symbol, context)
+                if key in reported:
+                    continue
+                reported.add(key)
+                summary.diagnostics.append(
+                    Diagnostic(
+                        severity="error",
+                        code="EffectViolation",
+                        message=f"Pure function `{function.name}` calls effectful function `{callee.name}`.",
+                        target=function.target,
+                        data={
+                            "function": function.symbol,
+                            "function_effects": _effect_label(function),
+                            "callee": callee.symbol,
+                            "callee_effects": _effect_label(callee),
+                            "context": context,
+                            "expression": expression,
+                        },
+                        repairs=[
+                            "Remove the effectful call, call a pure function, or declare the caller's required effects."
+                        ],
+                    )
+                )
+
+
+def _function_expressions(function: Function) -> List[Tuple[str, str]]:
+    expressions: List[Tuple[str, str]] = []
+    if function.impl:
+        expressions.append(("impl", function.impl))
+    expressions.extend(("requires", requirement) for requirement in function.requires)
+    expressions.extend(("contract", contract) for contract in function.contracts)
+    expressions.extend(("example", example) for example in function.examples)
+    expressions.extend(("property", expression) for _, expression in _property_blocks(function.properties))
+    return expressions
+
+
+def _called_functions(expression: str) -> List[str]:
+    calls: List[str] = []
+    for name in re.findall(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*\(", expression):
+        if name not in calls:
+            calls.append(name)
+    return calls
+
+
+def _is_pure(function: Function) -> bool:
+    return function.effects == ["pure"]
+
+
+def _effect_label(function: Function) -> str:
+    return ", ".join(function.effects) if function.effects else "none"
 
 
 def _check_executable_evidence(function: Function, evaluator: Evaluator, summary: CheckSummary) -> None:

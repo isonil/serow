@@ -204,6 +204,61 @@ pub fn bad() -> Bool
 }
 
 #[test]
+fn pure_function_cannot_call_effectful_function() {
+    let dir = unique_temp_dir("serow-effects");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("effects.serow");
+    fs::write(
+        &source,
+        r#"module test.effects
+
+pub fn read_counter(x: Int) -> Int
+  intent "Return x while modeling an effectful read."
+  contract
+    ensures result == x
+  examples
+    read_counter(1) == 1
+  properties
+    forall x: Int:
+      read_counter(x) == x
+  effects [io]
+  impl
+    x
+
+pub fn bad(x: Int) -> Int
+  intent "Call an effectful function from a pure function."
+  contract
+    ensures result == x
+  examples
+    bad(1) == 1
+  properties
+    forall x: Int:
+      bad(x) == x
+  effects pure
+  impl
+    read_counter(x)
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "EffectViolation"
+                && diagnostic
+                    .data
+                    .iter()
+                    .any(|(key, value)| key == "context" && value == "impl")),
+        "{:#?}",
+        summary.diagnostics
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn intent_query_finds_add() {
     let (program, parse_diagnostics) = parse_paths(&["examples".to_string()]);
     assert!(parse_diagnostics.is_empty());
