@@ -2,7 +2,7 @@ use std::fs;
 
 use crate::diagnostic::{Diagnostic, has_errors};
 use crate::formatter::format_program;
-use crate::model::{Function, ModuleDependency, Param};
+use crate::model::{Function, ModuleDependency, Param, Program};
 use crate::parser::parse_paths;
 
 #[derive(Clone, Debug, Default)]
@@ -195,6 +195,274 @@ pub fn add_function(path: &str, module: &str, signature: &str, intent: &str) -> 
         )),
     }
     summary
+}
+
+pub fn add_contract(path: &str, target: &str, clause: &str, expression: &str) -> PatchSummary {
+    let mut summary = PatchSummary::default();
+    let clause = clause.trim();
+    let expression = expression.trim();
+    if clause != "requires" && clause != "ensures" {
+        summary.diagnostics.push(
+            Diagnostic::error(
+                "InvalidPatchTarget",
+                format!("Invalid contract clause `{clause}`."),
+                Some(path.to_string()),
+            )
+            .with_repair("Use `requires` or `ensures`."),
+        );
+        return summary;
+    }
+    if expression.is_empty() {
+        summary.diagnostics.push(Diagnostic::error(
+            "InvalidPatchTarget",
+            "Contract expression must not be empty.",
+            Some(path.to_string()),
+        ));
+        return summary;
+    }
+    patch_function(path, target, |function| {
+        let lines = if clause == "requires" {
+            &mut function.requires
+        } else {
+            &mut function.contracts
+        };
+        if lines.iter().any(|line| line.trim() == expression) {
+            false
+        } else {
+            lines.push(expression.to_string());
+            true
+        }
+    })
+}
+
+pub fn add_example(path: &str, target: &str, expression: &str) -> PatchSummary {
+    let expression = expression.trim();
+    if expression.is_empty() {
+        let mut summary = PatchSummary::default();
+        summary.diagnostics.push(Diagnostic::error(
+            "InvalidPatchTarget",
+            "Example expression must not be empty.",
+            Some(path.to_string()),
+        ));
+        return summary;
+    }
+    patch_function(path, target, |function| {
+        if function
+            .examples
+            .iter()
+            .any(|example| example.trim() == expression)
+        {
+            false
+        } else {
+            function.examples.push(expression.to_string());
+            true
+        }
+    })
+}
+
+pub fn add_property(path: &str, target: &str, forall: &str, expression: &str) -> PatchSummary {
+    let forall = forall.trim();
+    let expression = expression.trim();
+    if !forall.starts_with("forall ") || !forall.ends_with(':') {
+        let mut summary = PatchSummary::default();
+        summary.diagnostics.push(
+            Diagnostic::error(
+                "InvalidPatchTarget",
+                format!("Invalid property header `{forall}`."),
+                Some(path.to_string()),
+            )
+            .with_repair("Use a header like `forall x: Int:`."),
+        );
+        return summary;
+    }
+    if expression.is_empty() {
+        let mut summary = PatchSummary::default();
+        summary.diagnostics.push(Diagnostic::error(
+            "InvalidPatchTarget",
+            "Property expression must not be empty.",
+            Some(path.to_string()),
+        ));
+        return summary;
+    }
+    patch_function(path, target, |function| {
+        let already_present = function.properties.windows(2).any(|lines| {
+            lines[0].trim() == forall && lines.get(1).is_some_and(|line| line.trim() == expression)
+        });
+        if already_present {
+            false
+        } else {
+            function.properties.push(forall.to_string());
+            function.properties.push(expression.to_string());
+            true
+        }
+    })
+}
+
+pub fn fill_hole(path: &str, target: &str, expression: &str) -> PatchSummary {
+    let expression = expression.trim();
+    if expression.is_empty() {
+        let mut summary = PatchSummary::default();
+        summary.diagnostics.push(Diagnostic::error(
+            "InvalidPatchTarget",
+            "Implementation expression must not be empty.",
+            Some(path.to_string()),
+        ));
+        return summary;
+    }
+    patch_function_checked(path, target, |function| {
+        let Some(implementation) = &function.implementation else {
+            return Err(Box::new(Diagnostic::error(
+                "PatchConflict",
+                format!(
+                    "Function `{}` has no implementation section to fill.",
+                    function.name
+                ),
+                Some(function.target()),
+            )));
+        };
+        if !implementation.contains("HOLE(") {
+            if implementation.trim() == expression {
+                return Ok(false);
+            }
+            return Err(Box::new(Diagnostic::error(
+                "PatchConflict",
+                format!(
+                    "Function `{}` does not contain a typed hole.",
+                    function.name
+                ),
+                Some(function.target()),
+            )));
+        }
+        function.implementation = Some(expression.to_string());
+        Ok(true)
+    })
+}
+
+fn patch_function(
+    path: &str,
+    target: &str,
+    update: impl FnOnce(&mut Function) -> bool,
+) -> PatchSummary {
+    patch_function_checked(path, target, |function| Ok(update(function)))
+}
+
+fn patch_function_checked(
+    path: &str,
+    target: &str,
+    update: impl FnOnce(&mut Function) -> Result<bool, Box<Diagnostic>>,
+) -> PatchSummary {
+    let mut summary = PatchSummary::default();
+    let (mut program, parse_diagnostics) = parse_paths(&[path.to_string()]);
+    let has_parse_errors = has_errors(&parse_diagnostics);
+    summary.diagnostics.extend(parse_diagnostics);
+    if has_parse_errors {
+        return summary;
+    }
+
+    let symbol = match resolve_patch_target(&program, target, path) {
+        Ok(symbol) => symbol,
+        Err(diagnostic) => {
+            summary.diagnostics.push(*diagnostic);
+            return summary;
+        }
+    };
+
+    let Some((module_index, function_index)) = find_module_function(&program, &symbol) else {
+        summary.diagnostics.push(Diagnostic::error(
+            "PatchTargetNotFound",
+            format!("Function `{target}` was not found."),
+            Some(path.to_string()),
+        ));
+        return summary;
+    };
+
+    let mut function = program.modules[module_index].functions[function_index].clone();
+    match update(&mut function) {
+        Ok(true) => {}
+        Ok(false) => return summary,
+        Err(diagnostic) => {
+            summary.diagnostics.push(*diagnostic);
+            return summary;
+        }
+    }
+    program.modules[module_index].functions[function_index] = function.clone();
+    for existing in &mut program.functions {
+        if existing.symbol() == symbol {
+            *existing = function.clone();
+        }
+    }
+
+    let formatted = format_program(&program);
+    match fs::write(path, formatted) {
+        Ok(()) => {
+            summary.changed = 1;
+        }
+        Err(error) => summary.diagnostics.push(Diagnostic::error(
+            "WriteError",
+            format!("Could not write `{path}`: {error}"),
+            Some(path.to_string()),
+        )),
+    }
+    summary
+}
+
+fn resolve_patch_target(
+    program: &Program,
+    target: &str,
+    path: &str,
+) -> Result<String, Box<Diagnostic>> {
+    let target = target.trim();
+    if target.is_empty() {
+        return Err(Box::new(Diagnostic::error(
+            "InvalidPatchTarget",
+            "Function target must not be empty.",
+            Some(path.to_string()),
+        )));
+    }
+    let matches = program
+        .functions
+        .iter()
+        .filter(|function| {
+            function.symbol() == target
+                || function.name == target
+                || format!("{}.{}", function.module, function.name) == target
+        })
+        .collect::<Vec<_>>();
+    match matches.as_slice() {
+        [function] => Ok(function.symbol()),
+        [] => Err(Box::new(Diagnostic::error(
+            "PatchTargetNotFound",
+            format!("Function `{target}` was not found."),
+            Some(path.to_string()),
+        ))),
+        functions => Err(Box::new(
+            Diagnostic::error(
+                "AmbiguousPatchTarget",
+                format!("Function target `{target}` is ambiguous."),
+                Some(path.to_string()),
+            )
+            .with_data(
+                "candidates",
+                functions
+                    .iter()
+                    .map(|function| function.symbol())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            )
+            .with_repair("Use an exact symbol like `@module.name.v1`."),
+        )),
+    }
+}
+
+fn find_module_function(program: &Program, symbol: &str) -> Option<(usize, usize)> {
+    for (module_index, module) in program.modules.iter().enumerate() {
+        for (function_index, function) in module.functions.iter().enumerate() {
+            if function.symbol() == symbol {
+                return Some((module_index, function_index));
+            }
+        }
+    }
+    None
 }
 
 fn parse_signature(signature: &str) -> Option<(String, Vec<Param>, String)> {

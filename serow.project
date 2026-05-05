@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "0.4.6-rust-bootstrap",
+  "version": "0.4.7-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -8,8 +8,12 @@
   "agent_interface": {
     "check": "bin/serow check",
     "certify": "bin/serow certify",
+    "patch_add_contract": "bin/serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression>",
+    "patch_add_example": "bin/serow patch add-example <path> <symbol-or-name> <expression>",
     "patch_add_function": "bin/serow patch add-function <path> <module> <signature> <intent>",
+    "patch_add_property": "bin/serow patch add-property <path> <symbol-or-name> <forall-header> <expression>",
     "patch_add_use": "bin/serow patch add-use <path> <module> <dependency>",
+    "patch_fill_hole": "bin/serow patch fill-hole <path> <symbol-or-name> <expression>",
     "query_dependents": "bin/serow query dependents \"<symbol-or-name>\"",
     "query_impact": "bin/serow query impact \"<symbol-or-name>\"",
     "query_intent": "bin/serow query intent \"<description>\"",

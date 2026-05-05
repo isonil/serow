@@ -38,8 +38,12 @@ bin/serow fmt --check
 Apply a structured source patch:
 
 ```sh
+bin/serow patch add-contract examples/math.serow @core.math.add.v1 ensures "result == x + y"
+bin/serow patch add-example examples/math.serow @core.math.add.v1 "add(2, 3) == 5"
 bin/serow patch add-function examples/math.serow core.math "double(x: Int) -> Int" "Return two times x."
+bin/serow patch add-property examples/math.serow @core.math.add.v1 "forall x: Int, y: Int:" "add(x, y) == add(y, x)"
 bin/serow patch add-use examples/math.serow app.main core.math
+bin/serow patch fill-hole examples/math.serow @core.math.double.v1 "x * 2"
 ```
 
 Query the project ledger:

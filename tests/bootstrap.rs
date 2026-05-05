@@ -1011,6 +1011,164 @@ fn patch_add_function_inserts_safe_public_skeleton() {
 }
 
 #[test]
+fn structured_patches_complete_public_skeleton() {
+    let dir = unique_temp_dir("serow-patch-complete-skeleton");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("complete.serow");
+    fs::write(&source, "module app.main\n").expect("write fixture");
+
+    let add_function = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "add-function",
+            source.to_str().expect("utf8 path"),
+            "app.main",
+            "triple(x: Int) -> Int",
+            "Return three times x.",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch add-function");
+    assert!(add_function.status.success(), "{add_function:#?}");
+
+    let add_contract = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "add-contract",
+            source.to_str().expect("utf8 path"),
+            "@app.main.triple.v1",
+            "ensures",
+            "result == x * 3",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch add-contract");
+    assert!(add_contract.status.success(), "{add_contract:#?}");
+
+    let add_example = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "add-example",
+            source.to_str().expect("utf8 path"),
+            "@app.main.triple.v1",
+            "triple(2) == 6",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch add-example");
+    assert!(add_example.status.success(), "{add_example:#?}");
+
+    let add_property = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "add-property",
+            source.to_str().expect("utf8 path"),
+            "@app.main.triple.v1",
+            "forall x: Int:",
+            "triple(x) == x * 3",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch add-property");
+    assert!(add_property.status.success(), "{add_property:#?}");
+
+    let fill_hole = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "fill-hole",
+            source.to_str().expect("utf8 path"),
+            "@app.main.triple.v1",
+            "x * 3",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch fill-hole");
+    assert!(fill_hole.status.success(), "{fill_hole:#?}");
+
+    let updated = fs::read_to_string(&source).expect("read updated fixture");
+    assert!(
+        updated.contains("  contract\n    ensures result == x * 3"),
+        "{updated}"
+    );
+    assert!(
+        updated.contains("  examples\n    triple(2) == 6"),
+        "{updated}"
+    );
+    assert!(
+        updated.contains("  properties\n    forall x: Int:\n      triple(x) == x * 3"),
+        "{updated}"
+    );
+    assert!(updated.contains("  impl\n    x * 3"), "{updated}");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(summary.ok(), "{:#?}", summary.diagnostics);
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn structured_patch_target_must_be_unambiguous() {
+    let dir = unique_temp_dir("serow-patch-ambiguous-target");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("ambiguous.serow");
+    fs::write(
+        &source,
+        r#"module one
+
+pub fn same(x: Int) -> Int
+  intent "Return x from one."
+  version v1
+  contract
+    ensures result == x
+  examples
+    same(1) == 1
+  properties
+    forall x: Int:
+      same(x) == x
+  effects pure
+  impl
+    x
+
+module two
+
+pub fn same(x: Int) -> Int
+  intent "Return x from two."
+  version v1
+  contract
+    ensures result == x
+  examples
+    two.same(1) == 1
+  properties
+    forall x: Int:
+      two.same(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "add-example",
+            source.to_str().expect("utf8 path"),
+            "same",
+            "same(2) == 2",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch add-example");
+
+    assert!(!output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("AmbiguousPatchTarget"), "{stdout}");
+    assert!(stdout.contains("@one.same.v1"), "{stdout}");
+    assert!(stdout.contains("@two.same.v1"), "{stdout}");
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn architecture_policy_rejects_inferred_disallowed_call() {
     let dir = unique_temp_dir("serow-inferred-architecture");
     fs::create_dir_all(&dir).expect("create temp dir");

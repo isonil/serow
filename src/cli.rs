@@ -6,7 +6,9 @@ use crate::ledger::{
 };
 use crate::model::Function;
 use crate::parser::parse_paths;
-use crate::patch::{PatchSummary, add_function, add_use};
+use crate::patch::{
+    PatchSummary, add_contract, add_example, add_function, add_property, add_use, fill_hole,
+};
 
 pub fn main(args: impl Iterator<Item = String>) -> i32 {
     let args = args.collect::<Vec<_>>();
@@ -66,13 +68,47 @@ fn run_patch(args: &[String]) -> i32 {
         return 2;
     };
     match patch_command {
+        "add-contract" => run_patch_add_contract(&args[1..]),
+        "add-example" => run_patch_add_example(&args[1..]),
         "add-function" => run_patch_add_function(&args[1..]),
+        "add-property" => run_patch_add_property(&args[1..]),
         "add-use" => run_patch_add_use(&args[1..]),
+        "fill-hole" => run_patch_fill_hole(&args[1..]),
         _ => {
             print_patch_usage();
             2
         }
     }
+}
+
+fn run_patch_add_contract(args: &[String]) -> i32 {
+    let (args, json_output) = split_flag(args, "--json");
+    let [path, target, clause, expression] = args.as_slice() else {
+        print_patch_usage();
+        return 2;
+    };
+    let summary = add_contract(path, target, clause, expression);
+    if json_output {
+        println!("{}", patch_json(&summary));
+    } else {
+        print_patch_summary(&summary);
+    }
+    i32::from(!summary.ok())
+}
+
+fn run_patch_add_example(args: &[String]) -> i32 {
+    let (args, json_output) = split_flag(args, "--json");
+    let [path, target, expression] = args.as_slice() else {
+        print_patch_usage();
+        return 2;
+    };
+    let summary = add_example(path, target, expression);
+    if json_output {
+        println!("{}", patch_json(&summary));
+    } else {
+        print_patch_summary(&summary);
+    }
+    i32::from(!summary.ok())
 }
 
 fn run_patch_add_function(args: &[String]) -> i32 {
@@ -90,6 +126,21 @@ fn run_patch_add_function(args: &[String]) -> i32 {
     i32::from(!summary.ok())
 }
 
+fn run_patch_add_property(args: &[String]) -> i32 {
+    let (args, json_output) = split_flag(args, "--json");
+    let [path, target, forall, expression] = args.as_slice() else {
+        print_patch_usage();
+        return 2;
+    };
+    let summary = add_property(path, target, forall, expression);
+    if json_output {
+        println!("{}", patch_json(&summary));
+    } else {
+        print_patch_summary(&summary);
+    }
+    i32::from(!summary.ok())
+}
+
 fn run_patch_add_use(args: &[String]) -> i32 {
     let (args, json_output) = split_flag(args, "--json");
     let [path, module, dependency] = args.as_slice() else {
@@ -97,6 +148,21 @@ fn run_patch_add_use(args: &[String]) -> i32 {
         return 2;
     };
     let summary = add_use(path, module, dependency);
+    if json_output {
+        println!("{}", patch_json(&summary));
+    } else {
+        print_patch_summary(&summary);
+    }
+    i32::from(!summary.ok())
+}
+
+fn run_patch_fill_hole(args: &[String]) -> i32 {
+    let (args, json_output) = split_flag(args, "--json");
+    let [path, target, expression] = args.as_slice() else {
+        print_patch_usage();
+        return 2;
+    };
+    let summary = fill_hole(path, target, expression);
     if json_output {
         println!("{}", patch_json(&summary));
     } else {
@@ -608,14 +674,34 @@ fn agent_json() -> String {
             "Rewrite or verify canonical Serow source formatting.",
         ),
         (
+            "patch add-contract",
+            "serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]",
+            "Add one contract clause to an existing function through the structured patch interface.",
+        ),
+        (
+            "patch add-example",
+            "serow patch add-example <path> <symbol-or-name> <expression> [--json]",
+            "Add one executable example expression to an existing function.",
+        ),
+        (
             "patch add-function",
             "serow patch add-function <path> <module> <signature> <intent> [--json]",
             "Insert a public function skeleton with explicit version, intent, effects, and typed hole.",
         ),
         (
+            "patch add-property",
+            "serow patch add-property <path> <symbol-or-name> <forall-header> <expression> [--json]",
+            "Add one sampled forall property to an existing function.",
+        ),
+        (
             "patch add-use",
             "serow patch add-use <path> <module> <dependency> [--json]",
             "Add a module use declaration through the structured patch interface.",
+        ),
+        (
+            "patch fill-hole",
+            "serow patch fill-hole <path> <symbol-or-name> <expression> [--json]",
+            "Replace an existing typed implementation hole with an expression.",
         ),
         (
             "query dependents",
@@ -837,8 +923,16 @@ fn print_agent_bootstrap() {
     println!("  serow check [paths...] [--json]");
     println!("  serow certify [paths...] [--json]");
     println!("  serow fmt [paths...] [--check] [--json]");
+    println!(
+        "  serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]"
+    );
+    println!("  serow patch add-example <path> <symbol-or-name> <expression> [--json]");
     println!("  serow patch add-function <path> <module> <signature> <intent> [--json]");
+    println!(
+        "  serow patch add-property <path> <symbol-or-name> <forall-header> <expression> [--json]"
+    );
     println!("  serow patch add-use <path> <module> <dependency> [--json]");
+    println!("  serow patch fill-hole <path> <symbol-or-name> <expression> [--json]");
     println!("  serow query dependents <symbol-or-name> [paths...] [--json]");
     println!("  serow query impact <symbol-or-name> [paths...] [--json]");
     println!("  serow query intent <text> [paths...] [--json]  # token-ranked");
@@ -865,8 +959,16 @@ fn print_usage() {
     eprintln!("  serow check [paths...] [--json]");
     eprintln!("  serow certify [paths...] [--json]");
     eprintln!("  serow fmt [paths...] [--check] [--json]");
+    eprintln!(
+        "  serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]"
+    );
+    eprintln!("  serow patch add-example <path> <symbol-or-name> <expression> [--json]");
     eprintln!("  serow patch add-function <path> <module> <signature> <intent> [--json]");
+    eprintln!(
+        "  serow patch add-property <path> <symbol-or-name> <forall-header> <expression> [--json]"
+    );
     eprintln!("  serow patch add-use <path> <module> <dependency> [--json]");
+    eprintln!("  serow patch fill-hole <path> <symbol-or-name> <expression> [--json]");
     eprintln!("  serow query dependents <symbol-or-name> [paths...] [--json]");
     eprintln!("  serow query impact <symbol-or-name> [paths...] [--json]");
     eprintln!("  serow query intent <text> [paths...] [--json]");
@@ -881,8 +983,16 @@ fn print_agent_usage() {
 
 fn print_patch_usage() {
     eprintln!("usage:");
+    eprintln!(
+        "  serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]"
+    );
+    eprintln!("  serow patch add-example <path> <symbol-or-name> <expression> [--json]");
     eprintln!("  serow patch add-function <path> <module> <signature> <intent> [--json]");
+    eprintln!(
+        "  serow patch add-property <path> <symbol-or-name> <forall-header> <expression> [--json]"
+    );
     eprintln!("  serow patch add-use <path> <module> <dependency> [--json]");
+    eprintln!("  serow patch fill-hole <path> <symbol-or-name> <expression> [--json]");
 }
 
 fn print_query_usage() {
