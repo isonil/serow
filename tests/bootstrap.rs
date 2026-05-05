@@ -797,6 +797,98 @@ pub fn bump(x: Int) -> Int
 }
 
 #[test]
+fn impact_query_reports_transitive_call_paths() {
+    let dir = unique_temp_dir("serow-impact");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("impact.serow");
+    fs::write(
+        &source,
+        r#"module core.math
+
+pub fn inc(x: Int) -> Int
+  intent "Increment x."
+  contract
+    ensures result == x + 1
+  examples
+    inc(1) == 2
+  properties
+    forall x: Int:
+      inc(x) == x + 1
+  effects pure
+  impl
+    x + 1
+
+module app.main
+
+use core.math
+
+pub fn bump(x: Int) -> Int
+  intent "Increment x through the math module."
+  contract
+    ensures result == x + 1
+  examples
+    bump(1) == 2
+  properties
+    forall x: Int:
+      bump(x) == inc(x)
+  effects pure
+  impl
+    inc(x)
+
+module app.feature
+
+use app.main
+
+pub fn double_bump(x: Int) -> Int
+  intent "Increment x twice through the app module."
+  contract
+    ensures result == x + 2
+  examples
+    double_bump(1) == 3
+  properties
+    forall x: Int:
+      double_bump(x) == bump(bump(x))
+  effects pure
+  impl
+    bump(bump(x))
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "query",
+            "impact",
+            "@core.math.inc.v1",
+            source.to_str().expect("utf8 path"),
+            "--json",
+        ])
+        .output()
+        .expect("run serow query impact");
+
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(
+        stdout.contains("\"symbol\": \"@app.main.bump.v1\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"symbol\": \"@app.feature.double_bump.v1\""),
+        "{stdout}"
+    );
+    assert!(stdout.contains("\"depth\": 1"), "{stdout}");
+    assert!(stdout.contains("\"depth\": 2"), "{stdout}");
+    assert!(
+        stdout.contains("\"symbol\": \"@core.math.inc.v1\""),
+        "{stdout}"
+    );
+    assert!(stdout.contains("\"path\""), "{stdout}");
+    assert!(stdout.contains("\"context\": \"impl\""), "{stdout}");
+    assert!(stdout.contains("\"context\": \"property\""), "{stdout}");
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn patch_add_use_updates_source() {
     let dir = unique_temp_dir("serow-patch-add-use");
     fs::create_dir_all(&dir).expect("create temp dir");

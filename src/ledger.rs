@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::eval::{called_functions, resolve_function};
 use crate::model::{Function, Program};
@@ -21,6 +21,22 @@ pub struct Dependent {
     pub function: Function,
     pub target: Function,
     pub call_sites: Vec<CallSite>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ImpactDependent {
+    pub function: Function,
+    pub target: Function,
+    pub depth: usize,
+    pub path: Vec<Function>,
+    pub call_sites: Vec<CallSite>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct CallEdge {
+    caller: Function,
+    callee: Function,
+    call_sites: Vec<CallSite>,
 }
 
 pub fn query_intent(program: &Program, text: &str, limit: usize) -> Vec<QueryMatch> {
@@ -162,6 +178,107 @@ pub fn query_dependents(program: &Program, text: &str) -> Vec<Dependent> {
     }
     dependents.sort_by_key(|dependent| dependent.function.symbol());
     dependents
+}
+
+pub fn query_impact(program: &Program, text: &str) -> Vec<ImpactDependent> {
+    let targets = program
+        .functions
+        .iter()
+        .filter(|function| function.symbol() == text || function.name == text)
+        .cloned()
+        .collect::<Vec<_>>();
+    if targets.is_empty() {
+        return Vec::new();
+    }
+
+    let reverse_edges = reverse_call_edges(program);
+    let mut visited = HashSet::new();
+    let mut results = Vec::new();
+    let mut frontier = targets
+        .iter()
+        .map(|target| (target.clone(), target.clone(), vec![target.clone()], 0usize))
+        .collect::<VecDeque<_>>();
+
+    while let Some((current, final_target, path_to_target, depth)) = frontier.pop_front() {
+        let Some(incoming_edges) = reverse_edges.get(&current.symbol()) else {
+            continue;
+        };
+        for edge in incoming_edges {
+            if edge.caller.symbol() == final_target.symbol() {
+                continue;
+            }
+            let mut path = vec![edge.caller.clone()];
+            path.extend(path_to_target.iter().cloned());
+            let next_depth = depth + 1;
+            let visit_key = format!("{}->{}", edge.caller.symbol(), final_target.symbol());
+            if !visited.insert(visit_key) {
+                continue;
+            }
+            results.push(ImpactDependent {
+                function: edge.caller.clone(),
+                target: final_target.clone(),
+                depth: next_depth,
+                path: path.clone(),
+                call_sites: edge.call_sites.clone(),
+            });
+            frontier.push_back((edge.caller.clone(), final_target.clone(), path, next_depth));
+        }
+    }
+
+    results.sort_by(|left, right| {
+        left.depth
+            .cmp(&right.depth)
+            .then_with(|| left.function.symbol().cmp(&right.function.symbol()))
+            .then_with(|| left.target.symbol().cmp(&right.target.symbol()))
+    });
+    results
+}
+
+fn reverse_call_edges(program: &Program) -> HashMap<String, Vec<CallEdge>> {
+    let mut edge_map: HashMap<(String, String), CallEdge> = HashMap::new();
+    for function in &program.functions {
+        for (context, expression) in function_expressions(function) {
+            let Ok(call_references) = called_functions(&expression) else {
+                continue;
+            };
+            for call_reference in call_references {
+                let Ok(callee) = resolve_function(&call_reference.raw, &program.functions) else {
+                    continue;
+                };
+                if function.symbol() == callee.symbol() {
+                    continue;
+                }
+                let key = (function.symbol(), callee.symbol());
+                let edge = edge_map.entry(key).or_insert_with(|| CallEdge {
+                    caller: function.clone(),
+                    callee: callee.clone(),
+                    call_sites: Vec::new(),
+                });
+                if !edge
+                    .call_sites
+                    .iter()
+                    .any(|site| site.context == context && site.expression == expression)
+                {
+                    edge.call_sites.push(CallSite {
+                        context: context.to_string(),
+                        expression: expression.clone(),
+                    });
+                }
+            }
+        }
+    }
+
+    let mut reverse_edges: HashMap<String, Vec<CallEdge>> = HashMap::new();
+    for edge in edge_map.into_values() {
+        reverse_edges
+            .entry(edge.callee.symbol())
+            .or_default()
+            .push(edge);
+    }
+    for edges in reverse_edges.values_mut() {
+        edges.sort_by_key(|edge| edge.caller.symbol());
+    }
+    reverse_edges
 }
 
 fn tokens(text: &str) -> HashSet<String> {

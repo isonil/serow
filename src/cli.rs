@@ -1,7 +1,9 @@
 use crate::checker::{CheckSummary, check_program};
 use crate::diagnostic::{Diagnostic, has_errors};
 use crate::formatter::{FormatSummary, format_paths};
-use crate::ledger::{Dependent, query_dependents, query_intent, query_symbol, symbols};
+use crate::ledger::{
+    Dependent, ImpactDependent, query_dependents, query_impact, query_intent, query_symbol, symbols,
+};
 use crate::model::Function;
 use crate::parser::parse_paths;
 use crate::patch::{PatchSummary, add_use};
@@ -129,6 +131,21 @@ fn run_query(args: &[String]) -> i32 {
                 println!("{}", dependents_json(&dependents));
             } else {
                 print_dependents(&dependents);
+            }
+            0
+        }
+        "impact" => {
+            let (paths, json_output) = split_paths_and_json(&args[2..]);
+            let (program, parse_diagnostics) = parse_paths(&paths);
+            if has_errors(&parse_diagnostics) {
+                println!("{}", diagnostics_json(false, &parse_diagnostics));
+                return 1;
+            }
+            let impact = query_impact(&program, text_or_flag);
+            if json_output {
+                println!("{}", impact_json(&impact));
+            } else {
+                print_impact(&impact);
             }
             0
         }
@@ -353,6 +370,29 @@ fn print_dependents(dependents: &[Dependent]) {
     }
 }
 
+fn print_impact(impact: &[ImpactDependent]) {
+    if impact.is_empty() {
+        println!("no matches");
+        return;
+    }
+    for row in impact {
+        println!(
+            "{} impacts {} depth={}",
+            row.function.symbol(),
+            row.target.symbol(),
+            row.depth
+        );
+        println!("  path: {}", symbol_path(&row.path));
+        println!(
+            "  source: {}:{}",
+            row.function.source_path, row.function.line
+        );
+        for call_site in &row.call_sites {
+            println!("  {}: {}", call_site.context, call_site.expression);
+        }
+    }
+}
+
 fn check_json(summary: &CheckSummary) -> String {
     format!(
         "{{\n  \"diagnostics\": {},\n  \"ok\": {},\n  \"summary\": {{\n    \"contracts\": {},\n    \"examples\": {},\n    \"functions\": {},\n    \"holes\": {},\n    \"properties\": {}\n  }}\n}}",
@@ -451,6 +491,32 @@ fn dependents_json(dependents: &[Dependent]) -> String {
     format!("{{\n  \"ok\": true,\n  \"results\": [\n    {rows}\n  ]\n}}")
 }
 
+fn impact_json(impact: &[ImpactDependent]) -> String {
+    let rows = impact
+        .iter()
+        .map(|dependent| {
+            format!(
+                concat!(
+                    "{{\n",
+                    "      \"call_sites\": {},\n",
+                    "      \"dependent\": {},\n",
+                    "      \"depth\": {},\n",
+                    "      \"path\": {},\n",
+                    "      \"target\": {}\n",
+                    "    }}"
+                ),
+                call_sites_json(&dependent.call_sites),
+                function_ref_json(&dependent.function),
+                dependent.depth,
+                function_ref_array_json(&dependent.path),
+                function_ref_json(&dependent.target),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",\n    ");
+    format!("{{\n  \"ok\": true,\n  \"results\": [\n    {rows}\n  ]\n}}")
+}
+
 fn call_sites_json(call_sites: &[crate::ledger::CallSite]) -> String {
     let rows = call_sites
         .iter()
@@ -463,6 +529,15 @@ fn call_sites_json(call_sites: &[crate::ledger::CallSite]) -> String {
         })
         .collect::<Vec<_>>();
     format!("[{}]", rows.join(", "))
+}
+
+fn function_ref_array_json(functions: &[Function]) -> String {
+    let rows = functions
+        .iter()
+        .map(function_ref_json)
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("[{rows}]")
 }
 
 fn function_ref_json(function: &Function) -> String {
@@ -484,6 +559,14 @@ fn function_ref_json(function: &Function) -> String {
         json_string(&function.symbol()),
         json_string(function.version())
     )
+}
+
+fn symbol_path(functions: &[Function]) -> String {
+    functions
+        .iter()
+        .map(Function::symbol)
+        .collect::<Vec<_>>()
+        .join(" -> ")
 }
 
 fn agent_json() -> String {
@@ -517,6 +600,11 @@ fn agent_json() -> String {
             "query dependents",
             "serow query dependents <symbol-or-name> [paths...] [--json]",
             "List direct dependents discovered from resolved function calls.",
+        ),
+        (
+            "query impact",
+            "serow query impact <symbol-or-name> [paths...] [--json]",
+            "List direct and transitive dependents with resolved call paths.",
         ),
         (
             "query intent",
@@ -730,6 +818,7 @@ fn print_agent_bootstrap() {
     println!("  serow fmt [paths...] [--check] [--json]");
     println!("  serow patch add-use <path> <module> <dependency> [--json]");
     println!("  serow query dependents <symbol-or-name> [paths...] [--json]");
+    println!("  serow query impact <symbol-or-name> [paths...] [--json]");
     println!("  serow query intent <text> [paths...] [--json]  # token-ranked");
     println!("  serow query symbol <text> [paths...] [--json]");
     println!("  serow query symbols [paths...] [--json]");
@@ -756,6 +845,7 @@ fn print_usage() {
     eprintln!("  serow fmt [paths...] [--check] [--json]");
     eprintln!("  serow patch add-use <path> <module> <dependency> [--json]");
     eprintln!("  serow query dependents <symbol-or-name> [paths...] [--json]");
+    eprintln!("  serow query impact <symbol-or-name> [paths...] [--json]");
     eprintln!("  serow query intent <text> [paths...] [--json]");
     eprintln!("  serow query symbol <text> [paths...] [--json]");
     eprintln!("  serow query symbols [paths...] [--json]");
@@ -774,6 +864,7 @@ fn print_patch_usage() {
 fn print_query_usage() {
     eprintln!("usage:");
     eprintln!("  serow query dependents <symbol-or-name> [paths...] [--json]");
+    eprintln!("  serow query impact <symbol-or-name> [paths...] [--json]");
     eprintln!("  serow query intent <text> [paths...] [--json]");
     eprintln!("  serow query symbol <text> [paths...] [--json]");
     eprintln!("  serow query symbols [paths...] [--json]");
