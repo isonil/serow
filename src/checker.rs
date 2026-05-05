@@ -74,6 +74,17 @@ pub fn enforce_unattended_profile(program: &Program, summary: &mut CheckSummary)
             )
             .with_data("symbol", function.symbol())
             .with_data("defaulted_version", function.version())
+            .with_command_repair(
+                "Make the defaulted public version explicit",
+                vec![
+                    "bin/serow".to_string(),
+                    "patch".to_string(),
+                    "set-version".to_string(),
+                    function.source_path.clone(),
+                    function.symbol(),
+                    function.version().to_string(),
+                ],
+            )
             .with_repair("Add a `version vN` section to make public symbol identity explicit."),
         );
     }

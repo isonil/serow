@@ -444,6 +444,11 @@ pub fn id(x: Int) -> Int
     assert!(stdout.contains("\"profile\": \"unattended\""), "{stdout}");
     assert!(stdout.contains("MissingExplicitVersion"), "{stdout}");
     assert!(stdout.contains("@test.version.id.v1"), "{stdout}");
+    assert!(stdout.contains("\"repair_actions\""), "{stdout}");
+    assert!(
+        stdout.contains("\"command\": [\"bin/serow\", \"patch\", \"set-version\""),
+        "{stdout}"
+    );
 
     let sample = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args(["certify", "--profile", "unattended", "--json"])
@@ -1063,6 +1068,94 @@ fn patch_add_function_inserts_safe_public_skeleton() {
         "{:#?}",
         summary.diagnostics
     );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn patch_set_version_makes_public_identity_explicit() {
+    let dir = unique_temp_dir("serow-patch-set-version");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("implicit.serow");
+    fs::write(
+        &source,
+        r#"module app.main
+
+pub fn id(x: Int) -> Int
+  intent "Return x with an implicit bootstrap version."
+  contract
+    ensures result == x
+  examples
+    id(1) == 1
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let before = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "certify",
+            source.to_str().expect("utf8 path"),
+            "--profile",
+            "unattended",
+            "--json",
+        ])
+        .output()
+        .expect("run unattended certify");
+    assert!(!before.status.success(), "{before:#?}");
+
+    let bump = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-version",
+            source.to_str().expect("utf8 path"),
+            "@app.main.id.v1",
+            "v2",
+            "--json",
+        ])
+        .output()
+        .expect("run rejected serow patch set-version");
+    assert!(!bump.status.success(), "{bump:#?}");
+    let bump_stdout = String::from_utf8(bump.stdout).expect("stdout is utf8");
+    assert!(bump_stdout.contains("PatchConflict"), "{bump_stdout}");
+    assert!(
+        bump_stdout.contains("dependent-aware version changes are not implemented yet"),
+        "{bump_stdout}"
+    );
+
+    let patch = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-version",
+            source.to_str().expect("utf8 path"),
+            "@app.main.id.v1",
+            "v1",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch set-version");
+    assert!(patch.status.success(), "{patch:#?}");
+    let stdout = String::from_utf8(patch.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"changed\": 1"), "{stdout}");
+
+    let updated = fs::read_to_string(&source).expect("read updated fixture");
+    assert!(updated.contains("  version v1"), "{updated}");
+
+    let after = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "certify",
+            source.to_str().expect("utf8 path"),
+            "--profile",
+            "unattended",
+            "--json",
+        ])
+        .output()
+        .expect("run unattended certify");
+    assert!(after.status.success(), "{after:#?}");
     let _ = fs::remove_dir_all(dir);
 }
 

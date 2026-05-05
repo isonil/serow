@@ -338,6 +338,62 @@ pub fn fill_hole(path: &str, target: &str, expression: &str) -> PatchSummary {
     })
 }
 
+pub fn set_version(path: &str, target: &str, version: &str) -> PatchSummary {
+    let version = version.trim();
+    if !is_valid_version(version) {
+        let mut summary = PatchSummary::default();
+        summary.diagnostics.push(
+            Diagnostic::error(
+                "InvalidPatchTarget",
+                format!("Invalid symbol version `{version}`."),
+                Some(path.to_string()),
+            )
+            .with_repair("Use a version like `v1`."),
+        );
+        return summary;
+    }
+
+    patch_function_checked_with_program(path, target, |program, function| {
+        let symbol = format!("@{}.{}.{}", function.module, function.name, version);
+        if function.version != version {
+            return Err(Box::new(
+                Diagnostic::error(
+                    "PatchConflict",
+                    format!(
+                        "Function `{}` currently has version `{}`.",
+                        function.name, function.version
+                    ),
+                    Some(function.target()),
+                )
+                .with_data("current_version", function.version.clone())
+                .with_data("requested_version", version)
+                .with_repair(
+                    "Use the function's current version; dependent-aware version changes are not implemented yet.",
+                ),
+            ));
+        }
+        if let Some(existing) = program.functions.iter().find(|candidate| {
+            candidate.symbol() == symbol && candidate.symbol() != function.symbol()
+        }) {
+            return Err(Box::new(
+                Diagnostic::error(
+                    "PatchConflict",
+                    format!("Public symbol `{symbol}` already exists."),
+                    Some(existing.target()),
+                )
+                .with_data("symbol", symbol)
+                .with_repair("Choose a different version or update the existing symbol manually."),
+            ));
+        }
+        if function.version == version && function.version_explicit {
+            return Ok(false);
+        }
+        function.version = version.to_string();
+        function.version_explicit = true;
+        Ok(true)
+    })
+}
+
 fn patch_function(
     path: &str,
     target: &str,
@@ -350,6 +406,14 @@ fn patch_function_checked(
     path: &str,
     target: &str,
     update: impl FnOnce(&mut Function) -> Result<bool, Box<Diagnostic>>,
+) -> PatchSummary {
+    patch_function_checked_with_program(path, target, |_, function| update(function))
+}
+
+fn patch_function_checked_with_program(
+    path: &str,
+    target: &str,
+    update: impl FnOnce(&Program, &mut Function) -> Result<bool, Box<Diagnostic>>,
 ) -> PatchSummary {
     let mut summary = PatchSummary::default();
     let (mut program, parse_diagnostics) = parse_paths(&[path.to_string()]);
@@ -377,7 +441,7 @@ fn patch_function_checked(
     };
 
     let mut function = program.modules[module_index].functions[function_index].clone();
-    match update(&mut function) {
+    match update(&program, &mut function) {
         Ok(true) => {}
         Ok(false) => return summary,
         Err(diagnostic) => {
@@ -512,6 +576,13 @@ fn is_valid_module(name: &str) -> bool {
         && name
             .split('.')
             .all(|part| !part.is_empty() && is_valid_ident(part))
+}
+
+fn is_valid_version(version: &str) -> bool {
+    let Some(rest) = version.strip_prefix('v') else {
+        return false;
+    };
+    !rest.is_empty() && rest.chars().all(|char| char.is_ascii_digit())
 }
 
 fn is_valid_ident(name: &str) -> bool {

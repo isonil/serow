@@ -44,6 +44,7 @@ bin/serow patch add-function examples/math.serow core.math "double(x: Int) -> In
 bin/serow patch add-property examples/math.serow @core.math.add.v1 "forall x: Int, y: Int:" "add(x, y) == add(y, x)"
 bin/serow patch add-use examples/math.serow app.main core.math
 bin/serow patch fill-hole examples/math.serow @core.math.double.v1 "x * 2"
+bin/serow patch set-version examples/math.serow @core.math.add.v1 v1
 ```
 
 Query the project ledger:
