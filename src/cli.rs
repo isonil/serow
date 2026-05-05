@@ -10,7 +10,7 @@ use crate::patch::{
     PatchSummary, add_contract, add_example, add_function, add_property, add_use, fill_hole,
     set_version,
 };
-use crate::plan::{ChangePlan, plan_paths};
+use crate::plan::{ChangePlan, EvidenceCoverage, EvidenceDelta, EvidenceWeakening, plan_paths};
 
 pub fn main(args: impl Iterator<Item = String>) -> i32 {
     let args = args.collect::<Vec<_>>();
@@ -594,6 +594,21 @@ fn print_plan(plan: &ChangePlan) {
             symbol.evidence.examples,
             symbol.evidence.properties
         );
+        if let Some(delta) = &symbol.evidence_delta {
+            println!(
+                "  evidence delta from HEAD: {} requires, {} ensures, {} examples, {} properties",
+                signed(delta.requires),
+                signed(delta.ensures),
+                signed(delta.examples),
+                signed(delta.properties)
+            );
+        }
+        for weakening in &symbol.evidence_weakening {
+            println!(
+                "  evidence weakening: {} {} -> {}",
+                weakening.kind, weakening.before, weakening.after
+            );
+        }
         println!("  explicit version: {}", symbol.version_explicit);
         println!("  impacted dependents: {}", symbol.impact.len());
         for risk in &symbol.residual_risks {
@@ -660,17 +675,23 @@ fn changed_symbols_json(plan: &ChangePlan) -> String {
             format!(
                 concat!(
                     "{{\n",
+                    "      \"baseline_evidence\": {},\n",
                     "      \"evidence\": {{\"ensures\": {}, \"examples\": {}, \"properties\": {}, \"requires\": {}}},\n",
+                    "      \"evidence_delta\": {},\n",
+                    "      \"evidence_weakening\": {},\n",
                     "      \"function\": {},\n",
                     "      \"impact\": {},\n",
                     "      \"residual_risks\": {},\n",
                     "      \"version_explicit\": {}\n",
                     "    }}"
                 ),
+                evidence_coverage_option_json(symbol.baseline_evidence.as_ref()),
                 symbol.evidence.ensures,
                 symbol.evidence.examples,
                 symbol.evidence.properties,
                 symbol.evidence.requires,
+                evidence_delta_option_json(symbol.evidence_delta.as_ref()),
+                evidence_weakening_json(&symbol.evidence_weakening),
                 function_ref_json(&symbol.function),
                 impact_rows_json(&symbol.impact),
                 string_array_json(&symbol.residual_risks),
@@ -680,6 +701,52 @@ fn changed_symbols_json(plan: &ChangePlan) -> String {
         .collect::<Vec<_>>()
         .join(",\n    ");
     format!("[\n    {rows}\n  ]")
+}
+
+fn evidence_coverage_option_json(evidence: Option<&EvidenceCoverage>) -> String {
+    evidence
+        .map(evidence_coverage_json)
+        .unwrap_or_else(|| "null".to_string())
+}
+
+fn evidence_coverage_json(evidence: &EvidenceCoverage) -> String {
+    format!(
+        "{{\"ensures\": {}, \"examples\": {}, \"properties\": {}, \"requires\": {}}}",
+        evidence.ensures, evidence.examples, evidence.properties, evidence.requires
+    )
+}
+
+fn evidence_delta_option_json(delta: Option<&EvidenceDelta>) -> String {
+    delta
+        .map(evidence_delta_json)
+        .unwrap_or_else(|| "null".to_string())
+}
+
+fn evidence_delta_json(delta: &EvidenceDelta) -> String {
+    format!(
+        "{{\"ensures\": {}, \"examples\": {}, \"properties\": {}, \"requires\": {}}}",
+        delta.ensures, delta.examples, delta.properties, delta.requires
+    )
+}
+
+fn evidence_weakening_json(weakening: &[EvidenceWeakening]) -> String {
+    if weakening.is_empty() {
+        return "[]".to_string();
+    }
+    let rows = weakening
+        .iter()
+        .map(|row| {
+            format!(
+                "{{\"after\": {}, \"before\": {}, \"kind\": {}, \"removed\": {}}}",
+                row.after,
+                row.before,
+                json_string(&row.kind),
+                string_array_json(&row.removed)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("[{rows}]")
 }
 
 fn format_json(summary: &FormatSummary) -> String {
@@ -915,7 +982,7 @@ fn agent_json() -> String {
         (
             "plan",
             "serow plan [paths...] [--json]",
-            "Summarize changed public symbols, evidence coverage, impact, and residual risk.",
+            "Summarize changed public symbols, evidence coverage, HEAD evidence deltas, impact, and residual risk.",
         ),
         (
             "query dependents",
@@ -1003,10 +1070,10 @@ fn agent_json() -> String {
         str_array_json(&[
             "No full compiler or generated backend exists yet.",
             "Properties are sampled, not proven.",
-            "Duplicate-intent detection is exact after simple normalization.",
+            "Duplicate-intent rejection is exact after simple normalization.",
             "Intent search is deterministic token ranking with stopwords and light normalization, not semantic embeddings.",
             "Qualified calls support `module.name(...)`, `module.name.vN(...)`, and exact `@module.name.vN(...)` references.",
-            "`serow plan --json` is a first change-plan primitive, not yet a certification gate.",
+            "`serow plan --json` compares evidence against HEAD when a tracked baseline is available, but it is not yet a certification gate.",
             "Ambiguous bare calls are rejected; use a qualified reference when names or versions overlap.",
             "Expression support is intentionally small.",
             "Formatting does not preserve comments.",
@@ -1123,6 +1190,14 @@ fn json_string(value: &str) -> String {
     }
     escaped.push('"');
     escaped
+}
+
+fn signed(value: isize) -> String {
+    if value > 0 {
+        format!("+{value}")
+    } else {
+        value.to_string()
+    }
 }
 
 fn print_agent_bootstrap() {

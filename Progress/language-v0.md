@@ -90,9 +90,9 @@ Duplicate unqualified function names are allowed when call sites are disambiguat
 
 ## Change Plans
 
-`bin/serow plan [paths...] [--json]` is the first machine-readable change-plan primitive. With explicit paths, the command treats all public symbols in those paths as the selected change set. Without paths, it uses Git status to find changed `.serow` files. The JSON report includes checker diagnostics, changed public symbols, evidence counts, explicit-version state, transitive impact rows, and residual-risk strings.
+`bin/serow plan [paths...] [--json]` is the first machine-readable change-plan primitive. With explicit paths, the command treats all public symbols in those paths as the selected change set. Without paths, it uses Git status to find changed `.serow` files. The JSON report includes checker diagnostics, changed public symbols, evidence counts, HEAD evidence deltas when a tracked baseline is available, evidence-weakening rows, explicit-version state, transitive impact rows, and residual-risk strings.
 
-This is not yet a certification gate and does not compare individual AST nodes against a baseline. It is intended to give unattended agents a deterministic report shape before stricter evidence-weakening and impact gates are implemented.
+This is not yet a certification gate and does not compare full behavioral AST changes against a baseline. Its first baseline-aware check flags evidence rows that were removed or narrowed compared with `HEAD`; later work still needs structured migration records and stricter impact gates.
 
 ## Effects
 

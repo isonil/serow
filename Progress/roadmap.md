@@ -61,7 +61,7 @@ This phase exists to make Serow more useful to AI implementers before production
 This phase exists because the original Serow premise is not only "AI-first syntax"; it is a language/toolchain that makes unattended or low-attention AI implementation less likely to damage working behavior. The goal is to turn vibe-coding safety from an aspiration into explicit compiler checks, ledger queries, and certification profiles.
 
 - Detect evidence weakening:
-  - flag removed examples, contracts, properties, or preconditions on public functions
+  - flag removed examples, contracts, properties, or preconditions on public functions _(Started: `serow plan` compares changed public symbols with `HEAD` when a tracked baseline is available and reports removed/narrowed evidence rows.)_
   - flag evidence that becomes narrower or less behavioral while implementation changes in the same patch
   - require an explicit migration note or version bump when public evidence is intentionally weakened
 - Enforce change-impact gates:
@@ -81,7 +81,7 @@ This phase exists because the original Serow premise is not only "AI-first synta
   - require public functions to declare the minimum capabilities they need
   - make capability expansion visible in certification and dependent-impact output
 - Add machine-readable change plans:
-  - add a command such as `bin/serow plan <paths...> --json` that summarizes changed symbols, affected dependents, evidence coverage, version decisions, and residual risk _(Started: `bin/serow plan [paths...] [--json]` reports selected changed symbols, evidence counts, explicit-version state, transitive impact rows, checker diagnostics, and residual risks.)_
+  - add a command such as `bin/serow plan <paths...> --json` that summarizes changed symbols, affected dependents, evidence coverage, version decisions, and residual risk _(Started: `bin/serow plan [paths...] [--json]` reports selected changed symbols, evidence counts, HEAD evidence deltas when available, evidence-weakening rows, explicit-version state, transitive impact rows, checker diagnostics, and residual risks.)_
   - keep the output deterministic so weaker agents can follow it without interpreting prose
 - Guard against evidence drift:
   - flag patches that change implementation and evidence together unless the changed evidence is explained by a structured migration record

@@ -1027,6 +1027,88 @@ pub fn bump(x: Int) -> Int
 }
 
 #[test]
+fn plan_json_reports_evidence_weakening_against_head() {
+    let dir = unique_temp_dir("serow-plan-evidence-weakening");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("plan.serow");
+    fs::write(
+        &source,
+        r#"module core.math
+
+pub fn inc(x: Int) -> Int
+  intent "Increment x."
+  version v1
+  contract
+    ensures result == x + 1
+    ensures result > x
+  examples
+    inc(1) == 2
+    inc(2) == 3
+  properties
+    forall x: Int:
+      inc(x) == x + 1
+    forall x: Int:
+      inc(x) > x
+  effects pure
+  impl
+    x + 1
+"#,
+    )
+    .expect("write fixture");
+
+    git(&dir, &["init"]);
+    git(&dir, &["add", "plan.serow"]);
+    git(&dir, &["commit", "-m", "baseline"]);
+
+    fs::write(
+        &source,
+        r#"module core.math
+
+pub fn inc(x: Int) -> Int
+  intent "Increment x."
+  version v1
+  contract
+    ensures result == x + 1
+  examples
+    inc(1) == 2
+  properties
+    forall x: Int:
+      inc(x) == x + 1
+  effects pure
+  impl
+    x + 1
+"#,
+    )
+    .expect("weaken fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args(["plan", "--json"])
+        .output()
+        .expect("run serow plan");
+
+    assert!(!output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"baseline_evidence\""), "{stdout}");
+    assert!(stdout.contains("\"evidence_delta\""), "{stdout}");
+    assert!(stdout.contains("\"examples\": -1"), "{stdout}");
+    assert!(stdout.contains("\"ensures\": -1"), "{stdout}");
+    assert!(stdout.contains("\"properties\": -1"), "{stdout}");
+    assert!(stdout.contains("\"evidence_weakening\""), "{stdout}");
+    assert!(stdout.contains("\"kind\": \"examples\""), "{stdout}");
+    assert!(stdout.contains("inc(2) == 3"), "{stdout}");
+    assert!(stdout.contains("\"kind\": \"ensures\""), "{stdout}");
+    assert!(stdout.contains("result > x"), "{stdout}");
+    assert!(stdout.contains("\"kind\": \"properties\""), "{stdout}");
+    assert!(stdout.contains("inc(x) > x"), "{stdout}");
+    assert!(
+        stdout.contains("Changed public symbols weaken executable evidence compared with HEAD"),
+        "{stdout}"
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn patch_add_use_updates_source() {
     let dir = unique_temp_dir("serow-patch-add-use");
     fs::create_dir_all(&dir).expect("create temp dir");
@@ -1621,4 +1703,19 @@ fn unique_temp_dir(prefix: &str) -> PathBuf {
         .expect("time")
         .as_nanos();
     std::env::temp_dir().join(format!("{prefix}-{nanos}"))
+}
+
+fn git(dir: &PathBuf, args: &[&str]) {
+    let status = Command::new("git")
+        .current_dir(dir)
+        .args([
+            "-c",
+            "user.name=Serow Test",
+            "-c",
+            "user.email=serow@example.invalid",
+        ])
+        .args(args)
+        .status()
+        .expect("run git");
+    assert!(status.success(), "git {args:?} failed");
 }

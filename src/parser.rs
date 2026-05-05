@@ -73,6 +73,10 @@ fn parse_file(path: &Path) -> (Program, Vec<Diagnostic>) {
             );
         }
     };
+    parse_source(&source_path, &source)
+}
+
+pub fn parse_source(source_path: &str, source: &str) -> (Program, Vec<Diagnostic>) {
     let lines = source.lines().map(str::to_string).collect::<Vec<_>>();
     let mut program = Program::default();
     let mut diagnostics = Vec::new();
@@ -89,7 +93,7 @@ fn parse_file(path: &Path) -> (Program, Vec<Diagnostic>) {
         if let Some(module_name) = stripped.strip_prefix("module ") {
             if is_valid_module(module_name.trim()) {
                 module = module_name.trim().to_string();
-                program.add_module(&module, &source_path);
+                program.add_module(&module, source_path);
             } else {
                 diagnostics.push(Diagnostic::error(
                     "ParseError",
@@ -107,7 +111,7 @@ fn parse_file(path: &Path) -> (Program, Vec<Diagnostic>) {
                     &module,
                     ModuleDependency {
                         module: dependency.to_string(),
-                        source_path: source_path.clone(),
+                        source_path: source_path.to_string(),
                         line: index + 1,
                     },
                 );
@@ -125,7 +129,7 @@ fn parse_file(path: &Path) -> (Program, Vec<Diagnostic>) {
             let block_start = index + 1;
             let block_end = find_function_end(&lines, block_start);
             let (function, mut function_diagnostics) = parse_function(
-                &source_path,
+                source_path,
                 &module,
                 index + 1,
                 header,

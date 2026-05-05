@@ -46,7 +46,7 @@ Date: 2026-05-05
   - `bin/serow plan [paths...] [--json]`
   - explicit paths are treated as the change set
   - without paths, Git status is used to discover changed `.serow` files
-  - reports changed public symbols, evidence counts, explicit-version state, transitive impact rows, checker diagnostics, and residual risks
+  - reports changed public symbols, evidence counts, HEAD evidence deltas when a tracked baseline is available, evidence-weakening rows, explicit-version state, transitive impact rows, checker diagnostics, and residual risks
 - Strict certification profile:
   - `bin/serow certify --profile unattended`
   - currently requires public functions to declare explicit source-level versions instead of relying on the bootstrap `v1` default
@@ -140,6 +140,20 @@ bin/serow agent --json
 bin/serow certify --profile unattended --json
 ```
 
+Additional verification after adding baseline evidence-weakening reports:
+
+```sh
+cargo fmt --check
+cargo clippy -- -D warnings
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan examples/math.serow --json
+```
+
 `cargo test` includes integration coverage for `bin/serow patch add-function`.
 
 `bin/serow check --json` currently reports:
@@ -171,7 +185,7 @@ bin/serow certify --profile unattended --json
 - The hand-written JSON output should eventually be replaced with `serde_json` once external dependencies are allowed/desired.
 - Structured repair actions currently cover only command-style fixes already exposed by the bootstrap CLI.
 - `query dependents` reports direct resolved call edges; use `query impact` for direct and transitive dependent paths. Ambiguous bare calls are intentionally skipped by ledger queries because they are checker errors.
-- `serow plan` is an early reporting primitive, not yet a certification gate; it treats explicit path arguments as the selected change set and does not compare individual AST nodes to a baseline yet.
+- `serow plan` is an early reporting primitive, not yet a certification gate; it treats explicit path arguments as the selected change set and now compares evidence sections against `HEAD` when a tracked baseline is available, but it does not yet compare full AST behavior or require migration records.
 - Normal certification still accepts omitted symbol versions for compatibility; `certify --profile unattended` requires explicit public versions but does not yet enforce the rest of the unattended safety roadmap.
 
 ## Current Strategic Direction

@@ -1,12 +1,12 @@
-use std::collections::HashSet;
-use std::path::PathBuf;
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::checker::{CheckSummary, check_program};
 use crate::diagnostic::{Diagnostic, Severity};
 use crate::ledger::{ImpactDependent, query_impact};
 use crate::model::Function;
-use crate::parser::{discover_sources, parse_paths};
+use crate::parser::{discover_sources, parse_paths, parse_source};
 
 #[derive(Clone, Debug)]
 pub struct ChangePlan {
@@ -23,7 +23,10 @@ pub struct ChangePlan {
 #[derive(Clone, Debug)]
 pub struct ChangedSymbol {
     pub function: Function,
+    pub baseline_evidence: Option<EvidenceCoverage>,
     pub evidence: EvidenceCoverage,
+    pub evidence_delta: Option<EvidenceDelta>,
+    pub evidence_weakening: Vec<EvidenceWeakening>,
     pub version_explicit: bool,
     pub impact: Vec<ImpactDependent>,
     pub residual_risks: Vec<String>,
@@ -37,15 +40,26 @@ pub struct EvidenceCoverage {
     pub properties: usize,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EvidenceDelta {
+    pub requires: isize,
+    pub ensures: isize,
+    pub examples: isize,
+    pub properties: isize,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EvidenceWeakening {
+    pub kind: String,
+    pub before: usize,
+    pub after: usize,
+    pub removed: Vec<String>,
+}
+
 pub fn plan_paths(paths: &[String]) -> ChangePlan {
     let explicit_paths = !paths.is_empty();
-    let source_paths = if explicit_paths {
-        discover_sources(paths)
-    } else {
-        discover_sources(&[])
-    };
     let changed_sources = if explicit_paths {
-        source_paths.clone()
+        discover_sources(paths)
     } else {
         git_changed_serow_files()
     };
@@ -57,18 +71,24 @@ pub fn plan_paths(paths: &[String]) -> ChangePlan {
             .map(|path| path.to_string_lossy().to_string())
             .collect::<Vec<_>>()
     };
+    let source_paths = if changed_sources.is_empty() {
+        discover_sources(&parse_roots)
+    } else {
+        changed_sources.clone()
+    };
     let (program, parse_diagnostics) = parse_paths(&parse_roots);
     let summary = check_program(&program, parse_diagnostics);
     let changed_path_set = changed_sources
         .iter()
         .map(|path| path.to_string_lossy().to_string())
         .collect::<HashSet<_>>();
+    let baseline = baseline_functions(&changed_sources);
 
     let mut changed_symbols = program
         .functions
         .iter()
         .filter(|function| changed_path_set.contains(&function.source_path))
-        .map(|function| changed_symbol(function, &program))
+        .map(|function| changed_symbol(function, &program, &baseline))
         .collect::<Vec<_>>();
     changed_symbols.sort_by_key(|symbol| symbol.function.symbol());
 
@@ -89,6 +109,14 @@ pub fn plan_paths(paths: &[String]) -> ChangePlan {
         residual_risks.push(
             "Changed public symbols have transitive dependents; review the listed impact before certification."
                 .to_string(),
+        );
+    }
+    if changed_symbols
+        .iter()
+        .any(|symbol| !symbol.evidence_weakening.is_empty())
+    {
+        residual_risks.push(
+            "Changed public symbols weaken executable evidence compared with HEAD.".to_string(),
         );
     }
 
@@ -115,17 +143,23 @@ pub fn plan_paths(paths: &[String]) -> ChangePlan {
     }
 }
 
-fn changed_symbol(function: &Function, program: &crate::model::Program) -> ChangedSymbol {
-    let evidence = EvidenceCoverage {
-        requires: function.requires.len(),
-        ensures: function.contracts.len(),
-        examples: function.examples.len(),
-        properties: function
-            .properties
-            .iter()
-            .filter(|line| line.trim().starts_with("forall "))
-            .count(),
-    };
+fn changed_symbol(
+    function: &Function,
+    program: &crate::model::Program,
+    baseline: &HashMap<String, Function>,
+) -> ChangedSymbol {
+    let evidence = evidence_coverage(function);
+    let baseline_function = baseline.get(&function.symbol());
+    let baseline_evidence = baseline_function.map(evidence_coverage);
+    let evidence_delta = baseline_evidence.as_ref().map(|baseline| EvidenceDelta {
+        requires: evidence.requires as isize - baseline.requires as isize,
+        ensures: evidence.ensures as isize - baseline.ensures as isize,
+        examples: evidence.examples as isize - baseline.examples as isize,
+        properties: evidence.properties as isize - baseline.properties as isize,
+    });
+    let evidence_weakening = baseline_function
+        .map(|baseline_function| evidence_weakening(baseline_function, function))
+        .unwrap_or_default();
     let mut residual_risks = Vec::new();
     if !function.version_explicit {
         residual_risks.push(
@@ -147,12 +181,148 @@ fn changed_symbol(function: &Function, program: &crate::model::Program) -> Chang
         residual_risks
             .push("Transitive dependents must be reviewed before changing behavior.".to_string());
     }
+    if !evidence_weakening.is_empty() {
+        residual_risks
+            .push("Executable evidence was removed or narrowed compared with HEAD.".to_string());
+    }
     ChangedSymbol {
         function: function.clone(),
+        baseline_evidence,
         evidence,
+        evidence_delta,
+        evidence_weakening,
         version_explicit: function.version_explicit,
         impact,
         residual_risks,
+    }
+}
+
+fn evidence_coverage(function: &Function) -> EvidenceCoverage {
+    EvidenceCoverage {
+        requires: function.requires.len(),
+        ensures: function.contracts.len(),
+        examples: function.examples.len(),
+        properties: function
+            .properties
+            .iter()
+            .filter(|line| line.trim().starts_with("forall "))
+            .count(),
+    }
+}
+
+fn evidence_weakening(before: &Function, after: &Function) -> Vec<EvidenceWeakening> {
+    [
+        (
+            "requires",
+            normalized_lines(&before.requires),
+            normalized_lines(&after.requires),
+        ),
+        (
+            "ensures",
+            normalized_lines(&before.contracts),
+            normalized_lines(&after.contracts),
+        ),
+        (
+            "examples",
+            normalized_lines(&before.examples),
+            normalized_lines(&after.examples),
+        ),
+        (
+            "properties",
+            normalized_properties(&before.properties),
+            normalized_properties(&after.properties),
+        ),
+    ]
+    .into_iter()
+    .filter_map(|(kind, before_lines, after_lines)| {
+        let after_set = after_lines.iter().cloned().collect::<HashSet<_>>();
+        let removed = before_lines
+            .iter()
+            .filter(|line| !after_set.contains(*line))
+            .cloned()
+            .collect::<Vec<_>>();
+        if removed.is_empty() && after_lines.len() >= before_lines.len() {
+            None
+        } else {
+            Some(EvidenceWeakening {
+                kind: kind.to_string(),
+                before: before_lines.len(),
+                after: after_lines.len(),
+                removed,
+            })
+        }
+    })
+    .collect()
+}
+
+fn normalized_lines(lines: &[String]) -> Vec<String> {
+    lines
+        .iter()
+        .map(|line| line.trim().to_string())
+        .filter(|line| !line.is_empty())
+        .collect()
+}
+
+fn normalized_properties(lines: &[String]) -> Vec<String> {
+    let mut properties = Vec::new();
+    let mut current = String::new();
+    for line in normalized_lines(lines) {
+        if line.starts_with("forall ") && !current.is_empty() {
+            properties.push(current);
+            current = line;
+        } else if current.is_empty() {
+            current = line;
+        } else {
+            current.push('\n');
+            current.push_str(&line);
+        }
+    }
+    if !current.is_empty() {
+        properties.push(current);
+    }
+    properties
+}
+
+fn baseline_functions(paths: &[PathBuf]) -> HashMap<String, Function> {
+    let mut functions = HashMap::new();
+    for path in paths {
+        let Some(source) = git_show_head(path) else {
+            continue;
+        };
+        let source_path = path.to_string_lossy().to_string();
+        let (program, diagnostics) = parse_source(&source_path, &source);
+        if diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.severity == Severity::Error)
+        {
+            continue;
+        }
+        for function in program.functions {
+            functions.insert(function.symbol(), function);
+        }
+    }
+    functions
+}
+
+fn git_show_head(path: &Path) -> Option<String> {
+    let relative = relative_git_path(path)?;
+    let output = Command::new("git")
+        .args(["show", &format!("HEAD:{}", relative.to_string_lossy())])
+        .output()
+        .ok()?;
+    if output.status.success() {
+        String::from_utf8(output.stdout).ok()
+    } else {
+        None
+    }
+}
+
+fn relative_git_path(path: &Path) -> Option<PathBuf> {
+    if path.is_absolute() {
+        let cwd = std::env::current_dir().ok()?;
+        path.strip_prefix(cwd).ok().map(Path::to_path_buf)
+    } else {
+        Some(path.to_path_buf())
     }
 }
 

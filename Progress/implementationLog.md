@@ -128,3 +128,7 @@
 - The plan report includes checker diagnostics, changed public symbols, evidence counts, explicit-version state, transitive impact rows, and residual-risk strings.
 - Updated `bin/serow agent [--json]`, README, `serow.project`, and Progress docs to advertise the plan command and mark the active phase as Phase 2.6.
 - Added Rust integration coverage proving `serow plan --json` reports changed symbols, evidence coverage, and dependent impact.
+- Extended `bin/serow plan [paths...] [--json]` with the first baseline-aware evidence weakening report.
+- Plan now parses `HEAD` versions of tracked changed `.serow` files, compares matching public symbols by canonical identity, emits baseline evidence counts, evidence deltas, and removed/narrowed evidence rows, and adds residual risks when executable evidence is weakened.
+- Exposed an in-memory parser entry point so the plan command can parse Git baseline content without temporary files.
+- Added Rust integration coverage using a throwaway Git repository to prove removed examples and contracts are reported against `HEAD`.
