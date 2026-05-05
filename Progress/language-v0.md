@@ -1,0 +1,153 @@
+# Serow Language v0 Bootstrap Notes
+
+Serow v0 is a textual projection over the intended AST-first language. The projection exists so the compiler can be bootstrapped with ordinary files while preserving the AI-first workflow.
+
+## Public Function Shape
+
+```serow
+module core.math
+
+use core.types
+
+pub fn add(x: Int, y: Int) -> Int
+  intent "Return the arithmetic sum of x and y."
+  version v1
+  contract
+    ensures result == x + y
+  examples
+    add(2, 3) == 5
+  properties
+    forall x: Int, y: Int:
+      add(x, y) == add(y, x)
+  effects pure
+  impl
+    x + y
+```
+
+Public functions are incomplete unless they declare:
+
+- `intent`: human/agent-readable purpose
+- `version`: public symbol version, such as `v1` (optional in the bootstrap; omitted versions default to `v1`)
+- `contract`: executable postconditions in the bootstrap
+- `examples`: unit tests owned by the compiler
+- `properties`: sampled generalized tests in the bootstrap
+- `effects`: explicit capability declaration
+- `impl`: implementation expression
+
+## Bootstrap Expression Subset
+
+Supported now:
+
+- integers, booleans, text literals
+- variables
+- direct function calls by bare name, module-qualified name, or exact symbol:
+  - `add(1, 2)`
+  - `core.math.add(1, 2)`
+  - `@core.math.add.v1(1, 2)`
+- `+`, `-`, `*`, `//`, `%`
+- `==`, `!=`, `<`, `<=`, `>`, `>=`
+- `and`, `or`, `not`
+- `if <condition> then <value> else <value>`
+
+Unsupported expressions should produce structured diagnostics instead of silent acceptance.
+
+## Modules
+
+Source files declare the active module with `module <name>`.
+
+Top-level `use <module>` declarations record explicit module dependencies for the active module:
+
+```serow
+module app.main
+
+use core.math
+```
+
+`bin/serow check` validates these declarations against `serow.project` architecture policy when the importing module has a configured `may_depend_on` list. The bootstrap also infers cross-module dependencies from direct function calls in implementations, `requires`, `ensures`, examples, and sampled property bodies. Inferred cross-module calls must be allowed by `serow.project` and must have a matching `use <module>` declaration.
+
+## Contracts
+
+Contract blocks currently support:
+
+- `requires <boolean-expression>` evaluated before executable calls.
+- `ensures <boolean-expression>` evaluated after successful example calls, with `result` bound to the returned value.
+
+`requires` expressions can reference function parameters. `ensures` expressions can reference parameters and `result`.
+
+## Intent Ledger
+
+Public function intents are checked against the project ledger. The bootstrap currently rejects exact normalized duplicate public intents with `PossibleDuplicate` diagnostics. These diagnostics point agents back to `bin/serow query intent "<description>"` so they can reuse an existing symbol or make the new intent more specific before adding public behavior.
+
+Intent queries use deterministic token ranking. The query path filters common stopwords, lightly normalizes content tokens such as plural forms and `integer`/`integers` to `int`, weights stronger fields like name and intent above executable evidence, and returns stable score-ordered results. This is a lexical reuse aid, not semantic embedding search.
+
+Public symbols carry a source-level version in their canonical symbol identity, for example `@core.math.add.v1`. The textual projection accepts a function-level `version vN` section after `intent`; omitted versions default to `v1` for compatibility with older bootstrap sources. Ledger JSON exposes the version as a separate `version` field so agents can depend on it without parsing the symbol string.
+
+`bin/serow query dependents <symbol-or-name> [paths...] [--json]` reports direct dependents discovered from implementation, contract, example, and property expressions. The bootstrap resolves call edges with the same rule as the checker: bare calls must resolve unambiguously, while qualified calls can target `module.name(...)`, `module.name.vN(...)`, or exact `@module.name.vN(...)` references.
+
+`bin/serow query impact <symbol-or-name> [paths...] [--json]` reports direct and transitive dependents through resolved call paths. Each row includes the dependent, target, path depth, a symbol path from dependent to target, and the immediate call sites connecting the dependent to the next function on that path. Ambiguous bare calls are skipped in ledger output because the checker already rejects them.
+
+Duplicate unqualified function names are allowed when call sites are disambiguated with qualified references. Ambiguous bare calls produce `AmbiguousUnqualifiedCall` diagnostics instead of silently choosing a candidate.
+
+## Change Plans
+
+`bin/serow plan [paths...] [--json]` is the first machine-readable change-plan primitive. With explicit paths, the command treats all public symbols in those paths as the selected change set. Without paths, it uses Git status to find changed `.serow` files. The JSON report includes checker diagnostics, changed public symbols, evidence counts, explicit-version state, transitive impact rows, and residual-risk strings.
+
+This is not yet a certification gate and does not compare individual AST nodes against a baseline. It is intended to give unattended agents a deterministic report shape before stricter evidence-weakening and impact gates are implemented.
+
+## Effects
+
+Effects are explicit on every public function. The bootstrap recognizes `effects pure` as a pure capability declaration and bracketed effect lists such as `effects [io]` as effectful declarations. `bin/serow check` rejects a `pure` function when any direct call in its implementation, contracts, examples, or properties resolves to a function that is not also declared `pure`.
+
+## Certification Meaning
+
+`bin/serow certify` currently means:
+
+- parsing succeeded
+- no checker errors or warnings were emitted
+- implementations, contracts, examples, and properties are well-typed within the bootstrap expression subset
+- all examples passed
+- all executable calls satisfy declared `requires` preconditions
+- no exact duplicate public intents are present
+- `pure` functions do not call effectful functions in checked expressions
+- bare function calls resolve unambiguously, or call sites use qualified references
+- sampled properties passed
+- contracts passed for example evidence
+- no public typed holes remain
+
+`bin/serow certify --profile unattended` runs the same checks and then applies stricter low-attention agent gates. The first unattended gate requires every public function to declare an explicit `version vN` section so public identity is not silently defaulted.
+
+This is a deliberately weak early version of certification. Later phases should make certification include richer architecture constraints, richer effect/capability inference, stronger intent-similarity workflow checks, and backend generation checks.
+
+## Agent Bootstrap
+
+`bin/serow agent [--json]` prints the current bootstrap contract for AI implementers. The JSON form is the stable entry point for discovering workflow requirements, supported commands, public function requirements, verification gates, and known limits without reading repository notes first.
+
+## Diagnostics
+
+JSON diagnostics include stable core fields such as `severity`, `code`, `message`, optional `target`, and optional `data`. Diagnostics can also include legacy human-readable `repairs` strings and machine-readable `repair_actions`. The first repair action kind is `command`, encoded with a human label and an argv-style `command` array so agents can run known CLI repairs without parsing prose. Current command actions cover canonical formatting, missing `use` declarations, duplicate-intent ledger lookup, and explicit-version fixes for unattended certification.
+
+## Structured Patches
+
+`bin/serow patch add-use <path> <module> <dependency> [--json]` adds a top-level `use <dependency>` declaration to an existing module in one source file. The patch command parses the source, edits the AST-level module dependency list, and rewrites the file through the canonical formatter. It is intentionally narrow: parse errors stop the patch, unknown module targets are rejected, and existing dependencies are left unchanged.
+
+`bin/serow patch add-function <path> <module> <signature> <intent> [--json]` inserts a public function skeleton into an existing module. The skeleton declares the supplied signature and intent, emits explicit `version v1`, declares `effects pure`, and leaves `impl` as a typed hole such as `HOLE(Int)`. It intentionally does not invent contracts, examples, or properties; `bin/serow check` must still report the missing evidence and typed hole until an implementer fills in real behavior.
+
+`bin/serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]` appends one contract clause to an existing function. `bin/serow patch add-example <path> <symbol-or-name> <expression> [--json]` appends one executable example. `bin/serow patch add-property <path> <symbol-or-name> <forall-header> <expression> [--json]` appends one sampled property as a `forall` header plus body expression. These commands reject ambiguous bare targets and preserve idempotence for existing identical evidence.
+
+`bin/serow patch fill-hole <path> <symbol-or-name> <expression> [--json]` replaces an existing typed implementation hole with the supplied expression. It does not overwrite a non-hole implementation; use normal source editing for intentional rewrites until Serow has dependent-aware implementation migration commands.
+
+`bin/serow patch set-version <path> <symbol-or-name> <version> [--json]` declares an explicit source-level version on an existing function. This is primarily used by unattended certification repair actions when public functions still rely on the bootstrap default `v1` identity. The command rejects invalid versions, duplicate canonical symbols, and dependent-unaware version changes.
+
+## Formatting
+
+`bin/serow fmt [paths...]` parses valid `.serow` files and rewrites them into the canonical bootstrap projection:
+
+- one `module <name>` header per rendered module block
+- normalized function signatures
+- fixed section indentation
+- explicit source-declared `version vN` sections when present
+- explicit `use <module>` declarations after each module header
+- `requires` clauses before `ensures` clauses
+- one final newline
+
+`bin/serow fmt [paths...] --check` reports `FormatDrift` diagnostics without writing. Formatting is currently AST-based and does not preserve comments.

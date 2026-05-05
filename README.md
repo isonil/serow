@@ -14,6 +14,7 @@ The current implementation is a bootstrap toolchain written in dependency-free R
 - duplicate public intent detection
 - structured JSON diagnostics with machine-readable repair actions where available
 - a semantic ledger for agent queries, including token-ranked intent search and transitive impact paths
+- a first machine-readable change plan for changed symbols, impact, evidence coverage, and residual risk
 
 Print the current agent bootstrap contract:
 
@@ -54,6 +55,13 @@ bin/serow query intent "add two integers"
 bin/serow query symbol add
 bin/serow query dependents @core.math.add.v1
 bin/serow query impact @core.math.add.v1
+```
+
+Plan a change set:
+
+```sh
+bin/serow plan --json
+bin/serow plan examples/math.serow --json
 ```
 
 Certify the current sample program:

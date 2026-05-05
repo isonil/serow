@@ -10,6 +10,7 @@ use crate::patch::{
     PatchSummary, add_contract, add_example, add_function, add_property, add_use, fill_hole,
     set_version,
 };
+use crate::plan::{ChangePlan, plan_paths};
 
 pub fn main(args: impl Iterator<Item = String>) -> i32 {
     let args = args.collect::<Vec<_>>();
@@ -24,6 +25,7 @@ pub fn main(args: impl Iterator<Item = String>) -> i32 {
         "certify" => run_check(&args[1..], true),
         "fmt" => run_fmt(&args[1..]),
         "patch" => run_patch(&args[1..]),
+        "plan" => run_plan(&args[1..]),
         "query" => run_query(&args[1..]),
         "-h" | "--help" | "help" => {
             print_usage();
@@ -76,6 +78,17 @@ fn run_fmt(args: &[String]) -> i32 {
         print_format_summary(&summary, check);
     }
     i32::from(!summary.ok())
+}
+
+fn run_plan(args: &[String]) -> i32 {
+    let (paths, json_output) = split_paths_and_json(args);
+    let plan = plan_paths(&paths);
+    if json_output {
+        println!("{}", plan_json(&plan));
+    } else {
+        print_plan(&plan);
+    }
+    i32::from(!plan.ok)
 }
 
 fn run_patch(args: &[String]) -> i32 {
@@ -559,6 +572,36 @@ fn print_impact(impact: &[ImpactDependent]) {
     }
 }
 
+fn print_plan(plan: &ChangePlan) {
+    let status = if plan.ok { "ok" } else { "needs-review" };
+    println!("serow plan: {status}");
+    println!("mode: {}", plan.mode);
+    println!("changed files: {}", plan.changed_paths.len());
+    println!("changed symbols: {}", plan.changed_symbols.len());
+    if !plan.residual_risks.is_empty() {
+        println!("residual risks:");
+        for risk in &plan.residual_risks {
+            println!("  {risk}");
+        }
+    }
+    for symbol in &plan.changed_symbols {
+        println!("{}", symbol.function.symbol());
+        println!("  {}", symbol.function.signature());
+        println!(
+            "  evidence: {} requires, {} ensures, {} examples, {} properties",
+            symbol.evidence.requires,
+            symbol.evidence.ensures,
+            symbol.evidence.examples,
+            symbol.evidence.properties
+        );
+        println!("  explicit version: {}", symbol.version_explicit);
+        println!("  impacted dependents: {}", symbol.impact.len());
+        for risk in &symbol.residual_risks {
+            println!("  risk: {risk}");
+        }
+    }
+}
+
 fn check_json(summary: &CheckSummary, profile: Option<CertifyProfile>) -> String {
     let profile_field = profile
         .map(|profile| format!("  \"profile\": {},\n", json_string(profile.as_str())))
@@ -574,6 +617,69 @@ fn check_json(summary: &CheckSummary, profile: Option<CertifyProfile>) -> String
         summary.holes,
         summary.properties
     )
+}
+
+fn plan_json(plan: &ChangePlan) -> String {
+    let changed_symbols = changed_symbols_json(plan);
+    format!(
+        concat!(
+            "{{\n",
+            "  \"changed_paths\": {},\n",
+            "  \"changed_symbols\": {},\n",
+            "  \"diagnostics\": {},\n",
+            "  \"mode\": {},\n",
+            "  \"ok\": {},\n",
+            "  \"residual_risks\": {},\n",
+            "  \"source_paths\": {},\n",
+            "  \"summary\": {{\"contracts\": {}, \"examples\": {}, \"functions\": {}, \"holes\": {}, \"properties\": {}}}\n",
+            "}}"
+        ),
+        string_array_json(&plan.changed_paths),
+        changed_symbols,
+        diagnostics_array_json(&plan.diagnostics),
+        json_string(&plan.mode),
+        plan.ok,
+        string_array_json(&plan.residual_risks),
+        string_array_json(&plan.source_paths),
+        plan.summary.contracts,
+        plan.summary.examples,
+        plan.summary.functions,
+        plan.summary.holes,
+        plan.summary.properties
+    )
+}
+
+fn changed_symbols_json(plan: &ChangePlan) -> String {
+    if plan.changed_symbols.is_empty() {
+        return "[]".to_string();
+    }
+    let rows = plan
+        .changed_symbols
+        .iter()
+        .map(|symbol| {
+            format!(
+                concat!(
+                    "{{\n",
+                    "      \"evidence\": {{\"ensures\": {}, \"examples\": {}, \"properties\": {}, \"requires\": {}}},\n",
+                    "      \"function\": {},\n",
+                    "      \"impact\": {},\n",
+                    "      \"residual_risks\": {},\n",
+                    "      \"version_explicit\": {}\n",
+                    "    }}"
+                ),
+                symbol.evidence.ensures,
+                symbol.evidence.examples,
+                symbol.evidence.properties,
+                symbol.evidence.requires,
+                function_ref_json(&symbol.function),
+                impact_rows_json(&symbol.impact),
+                string_array_json(&symbol.residual_risks),
+                symbol.version_explicit
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",\n    ");
+    format!("[\n    {rows}\n  ]")
 }
 
 fn format_json(summary: &FormatSummary) -> String {
@@ -662,6 +768,16 @@ fn dependents_json(dependents: &[Dependent]) -> String {
 }
 
 fn impact_json(impact: &[ImpactDependent]) -> String {
+    format!(
+        "{{\n  \"ok\": true,\n  \"results\": {}\n}}",
+        impact_rows_json(impact)
+    )
+}
+
+fn impact_rows_json(impact: &[ImpactDependent]) -> String {
+    if impact.is_empty() {
+        return "[]".to_string();
+    }
     let rows = impact
         .iter()
         .map(|dependent| {
@@ -684,7 +800,7 @@ fn impact_json(impact: &[ImpactDependent]) -> String {
         })
         .collect::<Vec<_>>()
         .join(",\n    ");
-    format!("{{\n  \"ok\": true,\n  \"results\": [\n    {rows}\n  ]\n}}")
+    format!("[\n    {rows}\n  ]")
 }
 
 fn call_sites_json(call_sites: &[crate::ledger::CallSite]) -> String {
@@ -797,6 +913,11 @@ fn agent_json() -> String {
             "Declare an explicit source-level version on an existing function.",
         ),
         (
+            "plan",
+            "serow plan [paths...] [--json]",
+            "Summarize changed public symbols, evidence coverage, impact, and residual risk.",
+        ),
+        (
             "query dependents",
             "serow query dependents <symbol-or-name> [paths...] [--json]",
             "List direct dependents discovered from resolved function calls.",
@@ -840,7 +961,7 @@ fn agent_json() -> String {
             "  \"ok\": true,\n",
             "  \"language\": \"Serow\",\n",
             "  \"implementation\": \"dependency-free Rust bootstrap\",\n",
-            "  \"phase\": \"Phase 2.5: Agent-Safe Language Core\",\n",
+            "  \"phase\": \"Phase 2.6: Unattended Agent Safety\",\n",
             "  \"source_default\": \"examples/\",\n",
             "  \"workflow\": {},\n",
             "  \"commands\": [{}],\n",
@@ -885,6 +1006,7 @@ fn agent_json() -> String {
             "Duplicate-intent detection is exact after simple normalization.",
             "Intent search is deterministic token ranking with stopwords and light normalization, not semantic embeddings.",
             "Qualified calls support `module.name(...)`, `module.name.vN(...)`, and exact `@module.name.vN(...)` references.",
+            "`serow plan --json` is a first change-plan primitive, not yet a certification gate.",
             "Ambiguous bare calls are rejected; use a qualified reference when names or versions overlap.",
             "Expression support is intentionally small.",
             "Formatting does not preserve comments.",
@@ -1007,7 +1129,7 @@ fn print_agent_bootstrap() {
     println!("serow agent: ok");
     println!("language: Serow");
     println!("implementation: dependency-free Rust bootstrap");
-    println!("phase: Phase 2.5: Agent-Safe Language Core");
+    println!("phase: Phase 2.6: Unattended Agent Safety");
     println!("workflow:");
     println!("  1. bin/serow query intent \"<description>\"");
     println!("  2. bin/serow query symbol \"<name>\" when a symbol might exist");
@@ -1030,6 +1152,7 @@ fn print_agent_bootstrap() {
     println!("  serow patch add-use <path> <module> <dependency> [--json]");
     println!("  serow patch fill-hole <path> <symbol-or-name> <expression> [--json]");
     println!("  serow patch set-version <path> <symbol-or-name> <version> [--json]");
+    println!("  serow plan [paths...] [--json]");
     println!("  serow query dependents <symbol-or-name> [paths...] [--json]");
     println!("  serow query impact <symbol-or-name> [paths...] [--json]");
     println!("  serow query intent <text> [paths...] [--json]  # token-ranked");
@@ -1069,6 +1192,7 @@ fn print_usage() {
     eprintln!("  serow patch add-use <path> <module> <dependency> [--json]");
     eprintln!("  serow patch fill-hole <path> <symbol-or-name> <expression> [--json]");
     eprintln!("  serow patch set-version <path> <symbol-or-name> <version> [--json]");
+    eprintln!("  serow plan [paths...] [--json]");
     eprintln!("  serow query dependents <symbol-or-name> [paths...] [--json]");
     eprintln!("  serow query impact <symbol-or-name> [paths...] [--json]");
     eprintln!("  serow query intent <text> [paths...] [--json]");

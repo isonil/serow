@@ -1,0 +1,130 @@
+# Implementation Log
+
+## 2026-05-03
+
+- Started from an empty repository containing only `Progress/originalConversation.txt`.
+- Chose dependency-free Python for the bootstrap because Python 3.9 is available and Node/Rust are not.
+- Added repository agent instructions, `serow.project`, roadmap, a sample Serow program, and a minimal compiler CLI.
+- Initial compiler goals: parse public functions, enforce required sections, execute examples, sample properties, and expose semantic queries.
+- Implemented the bootstrap parser/checker/ledger in `serowlang/`.
+- Added `examples/math.serow` with `add` and `abs`.
+- Added unit tests covering successful checking, failed examples, and intent queries.
+- Verified with unit tests, `bin/serow check`, `bin/serow certify`, query commands, and redirected-cache `compileall`.
+- Installed Rust toolchain became available, so the bootstrap was migrated to a dependency-free Rust Cargo project.
+- Added Rust modules for model, diagnostics, parser, evaluator, checker, ledger, and CLI.
+- Updated `bin/serow` to invoke the Rust CLI through Cargo.
+- Added Rust integration tests mirroring the Python bootstrap tests.
+- Verified Rust implementation with `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`, and `bin/serow check`.
+- Added an internal static type checker for the bootstrap expression subset.
+- The checker now validates implementation return types, boolean contracts/examples/properties, function call arity, and function call argument types before executable evidence runs.
+- Added Rust integration tests for implementation return-type mismatches and bad function-call argument types.
+- Verified with `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`, `python3 -m unittest discover -s tests`, `bin/serow check`, `bin/serow check --json`, and `bin/serow certify`.
+- Added parsed, type-checked, and executable `requires` preconditions to the Rust bootstrap.
+- Function calls now fail before implementation evaluation when their declared preconditions are false.
+- Added `div_trunc` to `examples/math.serow` as the first sample function with a non-zero divisor precondition.
+- Updated the Python reference bootstrap to parse and enforce `requires` and to mirror Rust's truncating integer division/remainder behavior.
+- Verified with `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`, `python3 -m unittest discover -s tests`, `bin/serow check --json`, `bin/serow query symbol div_trunc --json`, `bin/serow query intent "truncating integer division nonzero divisor" --json`, and `bin/serow certify`.
+- Added dependency-free deterministic formatting for the Rust bootstrap textual projection.
+- Added `bin/serow fmt [paths...]` to rewrite `.serow` files and `bin/serow fmt [paths...] --check` to report canonical-format drift without writing.
+- Added Rust integration coverage for formatter check mode and formatter rewriting.
+- Verified with `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`, `python3 -m unittest discover -s tests`, `bin/serow fmt --check --json`, `bin/serow check --json`, and `bin/serow certify`.
+- Added explicit top-level `use <module>` declarations to the Rust parser and AST.
+- Added dependency-free parsing for `serow.project` module architecture policies.
+- `bin/serow check` now reports `ArchitectureViolation` when a module with a configured policy imports a module outside its `may_depend_on` list.
+- `bin/serow fmt` preserves and canonicalizes module `use` declarations.
+- Added Rust integration tests for architecture policy enforcement, project architecture parsing, and formatting `use` declarations.
+- Verified with `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`, `python3 -m unittest discover -s tests`, `bin/serow fmt --check --json`, `bin/serow check --json`, `bin/serow query intent "add two integers" --json`, `bin/serow query symbol abs --json`, `bin/serow query symbols --json`, and `bin/serow certify`.
+- Added Apache-2.0 licensing via root `LICENSE`, Cargo package metadata, and README license notes.
+
+## 2026-05-04
+
+- Added expression call discovery to the Rust bootstrap evaluator support.
+- The checker now infers cross-module dependencies from function calls found in implementations, `requires`, `ensures`, examples, and property bodies.
+- Added `MissingModuleDependency` diagnostics when a cross-module call is allowed but the caller module has no matching `use <module>` declaration.
+- Extended `ArchitectureViolation` checking so omitted `use` declarations cannot hide calls to modules forbidden by `serow.project`.
+- Added Rust integration tests for missing inferred dependencies, declared cross-module calls, and inferred architecture violations.
+- Verified with `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`, `python3 -m unittest discover -s tests`, `bin/serow fmt --check --json`, `bin/serow check --json`, `bin/serow query intent "add two integers" --json`, `bin/serow query symbol abs --json`, `bin/serow query symbols --json`, and `bin/serow certify`.
+- Added conservative effect capability checking to the Rust checker and Python reference checker.
+- Functions declared `effects pure` now produce `EffectViolation` when direct calls in implementations, contracts, examples, or properties resolve to a function whose effects are not exactly `pure`.
+- Added Rust and Python regression tests for pure functions calling an `[io]` function.
+- Updated `Progress/language-v0.md` to reflect implemented cross-module dependency inference and the new bootstrap effect rule.
+- Verified with `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`, `python3 -m unittest discover -s tests`, `bin/serow fmt --check --json`, `bin/serow check --json`, `bin/serow query intent "add two integers" --json`, `bin/serow query symbol abs --json`, `bin/serow query symbols --json`, and `bin/serow certify`.
+- Added `bin/serow agent [--json]` as the first Phase 2 agent-native workflow command.
+- The agent command prints the current language/toolchain contract, workflow requirements, CLI command list, public function requirements, verification gates, and known bootstrap limits.
+- Added Rust integration tests for the text and JSON forms of `bin/serow agent`.
+- Updated README and Progress docs to point future sessions at the agent bootstrap command.
+- Verified with `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`, `python3 -m unittest discover -s tests`, `bin/serow fmt --check --json`, `bin/serow check --json`, `bin/serow agent`, `bin/serow agent --json`, and `bin/serow certify`.
+
+## 2026-05-05
+
+- Added the first structured patch command: `bin/serow patch add-use <path> <module> <dependency> [--json]`.
+- The patch command parses the target Serow file, rejects parse errors and unknown module targets, updates the module dependency list, and rewrites the file through the canonical formatter.
+- `MissingModuleDependency` diagnostics now point agents at the `patch add-use` command.
+- Added Rust integration coverage for `patch add-use` repairing a missing cross-module dependency.
+- Updated `bin/serow agent [--json]`, README, `serow.project`, and Progress docs to advertise the patch interface.
+- Verified with `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`, `python3 -m unittest discover -s tests`, `bin/serow fmt --check --json`, `bin/serow check --json`, `bin/serow agent --json`, query commands, and `bin/serow certify`.
+- Added exact normalized duplicate public intent detection to the Rust checker and Python reference checker.
+- Duplicate public intents now produce `PossibleDuplicate` errors with repair guidance pointing agents to `bin/serow query intent "<description>"`.
+- Added Rust and Python regression tests for duplicate public intents.
+- Updated `bin/serow agent --json`, README, `serow.project`, and Progress docs to document duplicate-intent enforcement and its current exact-match limit.
+- Verified with `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`, `python3 -m unittest discover -s tests`, `bin/serow fmt --check --json`, `bin/serow check --json`, `bin/serow query intent "add two integers" --json`, `bin/serow query symbol abs --json`, `bin/serow query symbols --json`, `bin/serow agent --json`, and `bin/serow certify`.
+- Added `bin/serow query dependents <symbol-or-name> [paths...] [--json]` to the Rust ledger.
+- The dependents query reports direct call sites found in implementations, `requires`, `ensures`, examples, and sampled property bodies, using the same unambiguous-name call resolution rule as checker dependency inference.
+- Added explicit fixed `v1` version metadata to function JSON in query results, symbol listings, and dependent query function references.
+- Added Rust integration coverage for dependent call-site reporting across implementation and property contexts.
+- Updated `bin/serow agent [--json]`, README, `serow.project`, and Progress docs to advertise the dependent query and fixed-version metadata.
+- Added machine-readable diagnostic `repair_actions` alongside legacy `repairs` strings in Rust JSON output.
+- Command repair actions now cover missing module dependency fixes via `patch add-use`, duplicate-intent ledger lookups via `query intent`, and format drift fixes via `fmt`.
+- Added Rust integration coverage proving `bin/serow check --json` emits structured command repair actions.
+- Updated `bin/serow agent [--json]`, README, `serow.project`, and Progress docs to document the diagnostic repair action contract.
+- Reframed the roadmap to add Phase 2.5: Agent-Safe Language Core before production backend work.
+- Phase 2.5 prioritizes explicit symbol identity, qualified calls, stronger ledger queries, repair-action diagnostics, shared AST/IR boundaries, structured patch expansion, and tighter certification.
+- Backend work remains planned, but Rust transpilation is now explicitly downstream of stable identity and evidence semantics.
+- Added source-level symbol versions to the Rust bootstrap with an optional `version vN` function section.
+- `Function::symbol()` now uses the parsed source version, while omitted versions continue to default to `v1` for compatibility.
+- The canonical formatter preserves explicit `version vN` sections, and the sample Serow program now declares `version v1` on public functions.
+- Updated the Python reference bootstrap to parse declared versions and include them in symbol identity.
+- Added Rust and Python regression tests proving a `version v2` declaration produces `@module.name.v2` ledger identity.
+- Added `AmbiguousUnqualifiedName` checking in Rust and Python so duplicate bare function names are rejected until qualified references exist.
+- Updated agent bootstrap output and Progress docs to describe Phase 2.5 source-level identity semantics.
+- Added qualified function references to the Rust bootstrap expression subset.
+- Calls now resolve through one shared rule across evaluation, static type checking, effect checking, inferred module dependencies, and dependent queries.
+- Supported call forms are bare `name(...)` when unambiguous, module-qualified `module.name(...)` / `module.name.vN(...)`, and exact canonical `@module.name.vN(...)`.
+- Replaced duplicate bare-name rejection with `AmbiguousUnqualifiedCall` diagnostics for ambiguous bare call sites.
+- Updated the Python reference bootstrap to evaluate qualified calls and mirror the ambiguous-call diagnostic.
+- Added Rust and Python regression tests showing duplicate function names work when exact symbol calls are used, while ambiguous bare calls are still rejected.
+- Updated `bin/serow agent --json`, README, `serow.project`, and Progress docs to document qualified references.
+- Verified with `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`, `python3 -m unittest discover -s tests`, `bin/serow fmt --check --json`, `bin/serow check --json`, query commands, `bin/serow agent`, `bin/serow agent --json`, and `bin/serow certify`.
+- Added Phase 2.6: Unattended Agent Safety to the roadmap.
+- The new roadmap phase makes low-attention AI implementation safety explicit, with planned work for evidence-weakening detection, change-impact gates, public versioning policy, semantic reuse checks, structured capabilities, machine-readable change plans, evidence-drift guards, and a strict unattended certification profile.
+- Improved intent ledger search in the Rust bootstrap and Python reference implementation.
+- `bin/serow query intent` now uses deterministic weighted token ranking with stopword filtering, light plural/gerund normalization, and type-token aliases such as `integer`/`integers` to `int`.
+- Intent query results now use stable symbol tie-breaking and no longer return matches only because of low-value words such as `by`.
+- Added Rust and Python regression tests for ranked content-token matching and stopword-only query rejection.
+- Added `bin/serow query impact <symbol-or-name> [paths...] [--json]` to report direct and transitive dependents through resolved reverse call paths.
+- Impact rows include dependent, target, depth, a function-reference path from dependent to target, and immediate call sites for the first edge on that path.
+- Updated agent bootstrap output, README, `serow.project`, and Progress docs to advertise the impact query as the first change-impact ledger primitive.
+- Added `bin/serow patch add-function <path> <module> <signature> <intent> [--json]` as the second structured patch command.
+- The add-function patch validates the target module and signature, rejects duplicate `v1` public symbols, inserts explicit `version v1`, preserves the supplied intent, declares `effects pure`, and leaves `impl` as a typed hole without inventing contracts, examples, or properties.
+- Added Rust integration coverage proving the generated skeleton is canonical and still fails `check` with `MissingRequiredSection` and `TypedHole` until real evidence and implementation are supplied.
+- Added structured evidence and hole-filling patch commands:
+  - `bin/serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]`
+  - `bin/serow patch add-example <path> <symbol-or-name> <expression> [--json]`
+  - `bin/serow patch add-property <path> <symbol-or-name> <forall-header> <expression> [--json]`
+  - `bin/serow patch fill-hole <path> <symbol-or-name> <expression> [--json]`
+- Evidence patches append only when the exact evidence is not already present, reject ambiguous bare function targets, and rewrite through the canonical formatter.
+- `patch fill-hole` replaces typed implementation holes but rejects non-hole implementations instead of overwriting existing behavior.
+- Added Rust integration coverage for completing a generated public skeleton through structured patch commands and for ambiguous patch-target diagnostics.
+- Added the first strict certification profile: `bin/serow certify --profile unattended`.
+- The unattended profile reuses normal checker/certification behavior and adds a `MissingExplicitVersion` error for any public function that still relies on the bootstrap default `v1` version.
+- Updated agent bootstrap output, README, and Progress docs to advertise the unattended profile as the first Phase 2.6 strict certification gate.
+- Added Rust integration coverage proving normal certification still accepts implicit versions for compatibility while unattended certification rejects them, and proving the sample program passes the unattended profile.
+- Added `bin/serow patch set-version <path> <symbol-or-name> <version> [--json]`.
+- The set-version patch makes an existing function's source-level version explicit, rejects invalid versions, duplicate canonical symbols, and dependent-unaware version changes.
+- `MissingExplicitVersion` diagnostics in unattended certification now include a concrete command repair action pointing at `patch set-version`.
+- Added Rust integration coverage for applying the set-version repair and for the unattended repair action JSON.
+- Added `bin/serow plan [paths...] [--json]` as the first machine-readable change plan primitive for Phase 2.6.
+- Explicit path arguments are treated as the selected change set; without paths, the command uses Git status to find changed `.serow` files.
+- The plan report includes checker diagnostics, changed public symbols, evidence counts, explicit-version state, transitive impact rows, and residual-risk strings.
+- Updated `bin/serow agent [--json]`, README, `serow.project`, and Progress docs to advertise the plan command and mark the active phase as Phase 2.6.
+- Added Rust integration coverage proving `serow plan --json` reports changed symbols, evidence coverage, and dependent impact.

@@ -583,7 +583,11 @@ fn agent_json_includes_machine_readable_workflow() {
     let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
     assert!(stdout.contains("\"ok\": true"), "{stdout}");
     assert!(
-        stdout.contains("\"phase\": \"Phase 2.5: Agent-Safe Language Core\""),
+        stdout.contains("\"phase\": \"Phase 2.6: Unattended Agent Safety\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("serow plan [paths...] [--json]"),
         "{stdout}"
     );
     assert!(stdout.contains("serow query intent <text>"), "{stdout}");
@@ -946,6 +950,79 @@ pub fn double_bump(x: Int) -> Int
     assert!(stdout.contains("\"path\""), "{stdout}");
     assert!(stdout.contains("\"context\": \"impl\""), "{stdout}");
     assert!(stdout.contains("\"context\": \"property\""), "{stdout}");
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn plan_json_reports_changed_symbols_and_impact() {
+    let dir = unique_temp_dir("serow-plan");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("plan.serow");
+    fs::write(
+        &source,
+        r#"module core.math
+
+pub fn inc(x: Int) -> Int
+  intent "Increment x."
+  version v1
+  contract
+    ensures result == x + 1
+  examples
+    inc(1) == 2
+  properties
+    forall x: Int:
+      inc(x) == x + 1
+  effects pure
+  impl
+    x + 1
+
+module app.main
+
+use core.math
+
+pub fn bump(x: Int) -> Int
+  intent "Increment x through the math module."
+  version v1
+  contract
+    ensures result == x + 1
+  examples
+    bump(1) == 2
+  properties
+    forall x: Int:
+      bump(x) == inc(x)
+  effects pure
+  impl
+    inc(x)
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["plan", source.to_str().expect("utf8 path"), "--json"])
+        .output()
+        .expect("run serow plan");
+
+    assert!(!output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"mode\": \"explicit-paths\""), "{stdout}");
+    assert!(stdout.contains("\"changed_symbols\""), "{stdout}");
+    assert!(
+        stdout.contains("\"symbol\": \"@core.math.inc.v1\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"symbol\": \"@app.main.bump.v1\""),
+        "{stdout}"
+    );
+    assert!(stdout.contains("\"version_explicit\": true"), "{stdout}");
+    assert!(stdout.contains("\"examples\": 1"), "{stdout}");
+    assert!(stdout.contains("\"properties\": 1"), "{stdout}");
+    assert!(stdout.contains("\"impact\""), "{stdout}");
+    assert!(stdout.contains("\"depth\": 1"), "{stdout}");
+    assert!(
+        stdout.contains("Changed public symbols have transitive dependents"),
+        "{stdout}"
+    );
     let _ = fs::remove_dir_all(dir);
 }
 
