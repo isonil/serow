@@ -49,6 +49,19 @@ pub fn add(x: Int, y: Int) -> Int
         self.assertTrue(matches)
         self.assertEqual(matches[0].function.name, "add")
 
+    def test_intent_query_uses_ranked_content_tokens(self):
+        program, parse_diagnostics = parse_files(["examples"])
+        self.assertFalse(parse_diagnostics)
+
+        matches = query_intent(program, "sum integers")
+        self.assertTrue(matches)
+        self.assertEqual(matches[0].function.name, "add")
+        self.assertIn("sum", matches[0].reasons)
+        self.assertIn("int", matches[0].reasons)
+
+        stopword_matches = query_intent(program, "rank existing public functions by intent tokens")
+        self.assertFalse(stopword_matches)
+
     def test_source_declared_symbol_version_is_part_of_identity(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "version.serow"

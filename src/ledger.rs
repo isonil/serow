@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::eval::{called_functions, resolve_function};
 use crate::model::{Function, Program};
@@ -25,28 +25,26 @@ pub struct Dependent {
 
 pub fn query_intent(program: &Program, text: &str, limit: usize) -> Vec<QueryMatch> {
     let query_tokens = tokens(text);
+    if query_tokens.is_empty() {
+        return Vec::new();
+    }
     let mut matches = Vec::new();
     for function in &program.functions {
-        let haystack = format!(
-            "{} {} {} {} {} {} {}",
-            function.name,
-            function.module,
-            function.signature(),
-            function.intent.as_deref().unwrap_or_default(),
-            function.requires.join(" "),
-            function.contracts.join(" "),
-            function.examples.join(" ")
-        );
-        let candidate_tokens = tokens(&haystack);
+        let candidate_tokens = intent_token_weights(function);
         let mut overlap = query_tokens
-            .intersection(&candidate_tokens)
+            .iter()
+            .filter(|token| candidate_tokens.contains_key(*token))
             .cloned()
             .collect::<Vec<_>>();
         overlap.sort();
         if overlap.is_empty() {
             continue;
         }
-        let mut score = overlap.len() as f64 / query_tokens.len().max(1) as f64;
+        let mut score = overlap
+            .iter()
+            .map(|token| candidate_tokens.get(token).copied().unwrap_or(0.0))
+            .sum::<f64>()
+            / query_tokens.len() as f64;
         if text.to_lowercase().contains(&function.name.to_lowercase()) {
             score += 0.5;
             overlap.push("name".to_string());
@@ -62,6 +60,7 @@ pub fn query_intent(program: &Program, text: &str, limit: usize) -> Vec<QueryMat
             .score
             .partial_cmp(&left.score)
             .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| left.function.symbol().cmp(&right.function.symbol()))
     });
     matches.truncate(limit);
     matches
@@ -101,6 +100,7 @@ pub fn query_symbol(program: &Program, text: &str, limit: usize) -> Vec<QueryMat
             .score
             .partial_cmp(&left.score)
             .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| left.function.symbol().cmp(&right.function.symbol()))
     });
     matches.truncate(limit);
     matches
@@ -171,15 +171,121 @@ fn tokens(text: &str) -> HashSet<String> {
         if char.is_ascii_alphanumeric() {
             current.push(char.to_ascii_lowercase());
         } else if current.len() > 1 {
-            tokens.insert(std::mem::take(&mut current));
+            if let Some(token) = canonical_token(&current) {
+                tokens.insert(token);
+            }
+            current.clear();
         } else {
             current.clear();
         }
     }
-    if current.len() > 1 {
-        tokens.insert(current);
+    if current.len() > 1
+        && let Some(token) = canonical_token(&current)
+    {
+        tokens.insert(token);
     }
     tokens
+}
+
+fn intent_token_weights(function: &Function) -> HashMap<String, f64> {
+    let mut weights = HashMap::new();
+    add_weighted_tokens(&mut weights, &function.module, 0.4);
+    add_weighted_tokens(&mut weights, &function.name, 2.0);
+    add_weighted_tokens(&mut weights, &function.signature(), 1.0);
+    if let Some(intent) = &function.intent {
+        add_weighted_tokens(&mut weights, intent, 1.5);
+    }
+    add_weighted_tokens(&mut weights, &function.requires.join(" "), 0.8);
+    add_weighted_tokens(&mut weights, &function.contracts.join(" "), 0.8);
+    add_weighted_tokens(&mut weights, &function.examples.join(" "), 0.7);
+    add_weighted_tokens(&mut weights, &function.properties.join(" "), 0.6);
+    weights
+}
+
+fn add_weighted_tokens(weights: &mut HashMap<String, f64>, text: &str, weight: f64) {
+    for token in tokens(text) {
+        weights
+            .entry(token)
+            .and_modify(|existing| {
+                if *existing < weight {
+                    *existing = weight;
+                }
+            })
+            .or_insert(weight);
+    }
+}
+
+fn canonical_token(raw: &str) -> Option<String> {
+    let mut token = raw.to_ascii_lowercase();
+    if is_intent_stopword(&token) {
+        return None;
+    }
+    token = match token.as_str() {
+        "integer" | "integers" => "int".to_string(),
+        "boolean" | "booleans" => "bool".to_string(),
+        "string" | "strings" => "text".to_string(),
+        _ => token,
+    };
+    if token.len() > 6 && token.ends_with("ating") {
+        token.truncate(token.len() - 5);
+        token.push_str("ate");
+    } else if token.len() > 5 && token.ends_with("ing") {
+        token.truncate(token.len() - 3);
+    } else if token.len() > 4 && token.ends_with("ies") {
+        token.truncate(token.len() - 3);
+        token.push('y');
+    } else if token.len() > 4 && (token.ends_with("ed") || token.ends_with("es")) {
+        token.truncate(token.len() - 2);
+    } else if token.len() > 3 && token.ends_with('s') {
+        token.truncate(token.len() - 1);
+    }
+    token = match token.as_str() {
+        "integer" => "int".to_string(),
+        "boolean" => "bool".to_string(),
+        "string" => "text".to_string(),
+        _ => token,
+    };
+    if token.len() > 1 && !is_intent_stopword(&token) {
+        Some(token)
+    } else {
+        None
+    }
+}
+
+fn is_intent_stopword(token: &str) -> bool {
+    matches!(
+        token,
+        "a" | "an"
+            | "and"
+            | "are"
+            | "as"
+            | "at"
+            | "be"
+            | "by"
+            | "for"
+            | "from"
+            | "function"
+            | "functions"
+            | "in"
+            | "intent"
+            | "into"
+            | "is"
+            | "it"
+            | "of"
+            | "on"
+            | "or"
+            | "public"
+            | "return"
+            | "returns"
+            | "symbol"
+            | "symbols"
+            | "that"
+            | "the"
+            | "to"
+            | "when"
+            | "while"
+            | "with"
+    )
 }
 
 fn function_expressions(function: &Function) -> Vec<(&'static str, String)> {

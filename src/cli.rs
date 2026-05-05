@@ -521,7 +521,7 @@ fn agent_json() -> String {
         (
             "query intent",
             "serow query intent <text> [paths...] [--json]",
-            "Find public functions by intent text.",
+            "Find public functions with deterministic token-ranked intent search.",
         ),
         (
             "query symbol",
@@ -593,6 +593,7 @@ fn agent_json() -> String {
             "No full compiler or generated backend exists yet.",
             "Properties are sampled, not proven.",
             "Duplicate-intent detection is exact after simple normalization.",
+            "Intent search is deterministic token ranking with stopwords and light normalization, not semantic embeddings.",
             "Qualified calls support `module.name(...)`, `module.name.vN(...)`, and exact `@module.name.vN(...)` references.",
             "Ambiguous bare calls are rejected; use a qualified reference when names or versions overlap.",
             "Expression support is intentionally small.",
@@ -729,7 +730,7 @@ fn print_agent_bootstrap() {
     println!("  serow fmt [paths...] [--check] [--json]");
     println!("  serow patch add-use <path> <module> <dependency> [--json]");
     println!("  serow query dependents <symbol-or-name> [paths...] [--json]");
-    println!("  serow query intent <text> [paths...] [--json]");
+    println!("  serow query intent <text> [paths...] [--json]  # token-ranked");
     println!("  serow query symbol <text> [paths...] [--json]");
     println!("  serow query symbols [paths...] [--json]");
     println!("verification gates:");

@@ -324,6 +324,25 @@ fn intent_query_finds_add() {
 }
 
 #[test]
+fn intent_query_uses_ranked_content_tokens() {
+    let (program, parse_diagnostics) = parse_paths(&["examples".to_string()]);
+    assert!(parse_diagnostics.is_empty());
+
+    let matches = query_intent(&program, "sum integers", 10);
+    assert!(!matches.is_empty());
+    assert_eq!(matches[0].function.name, "add");
+    assert!(matches[0].reasons.contains(&"sum".to_string()));
+    assert!(matches[0].reasons.contains(&"int".to_string()));
+
+    let stopword_matches = query_intent(
+        &program,
+        "rank existing public functions by intent tokens",
+        10,
+    );
+    assert!(stopword_matches.is_empty(), "{stopword_matches:#?}");
+}
+
+#[test]
 fn source_declared_symbol_version_is_part_of_identity() {
     let dir = unique_temp_dir("serow-source-version");
     fs::create_dir_all(&dir).expect("create temp dir");

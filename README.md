@@ -13,7 +13,7 @@ The current implementation is a bootstrap toolchain written in dependency-free R
 - explicit and inferred module dependencies checked against `serow.project`
 - duplicate public intent detection
 - structured JSON diagnostics with machine-readable repair actions where available
-- a semantic ledger for agent queries
+- a semantic ledger for agent queries, including token-ranked intent search
 
 Print the current agent bootstrap contract:
 
