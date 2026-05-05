@@ -38,6 +38,7 @@ bin/serow fmt --check
 Apply a structured source patch:
 
 ```sh
+bin/serow patch add-function examples/math.serow core.math "double(x: Int) -> Int" "Return two times x."
 bin/serow patch add-use examples/math.serow app.main core.math
 ```
 

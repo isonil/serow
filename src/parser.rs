@@ -13,6 +13,7 @@ pub fn parse_paths(paths: &[String]) -> (Program, Vec<Diagnostic>) {
         let (parsed, mut file_diagnostics) = parse_file(&source);
         diagnostics.append(&mut file_diagnostics);
         for module in parsed.modules {
+            program.add_module(&module.name, &module.source_path);
             for dependency in module.dependencies {
                 program.add_module_dependency(&module.name, dependency);
             }
@@ -88,6 +89,7 @@ fn parse_file(path: &Path) -> (Program, Vec<Diagnostic>) {
         if let Some(module_name) = stripped.strip_prefix("module ") {
             if is_valid_module(module_name.trim()) {
                 module = module_name.trim().to_string();
+                program.add_module(&module, &source_path);
             } else {
                 diagnostics.push(Diagnostic::error(
                     "ParseError",

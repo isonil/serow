@@ -953,6 +953,64 @@ pub fn bump(x: Int) -> Int
 }
 
 #[test]
+fn patch_add_function_inserts_safe_public_skeleton() {
+    let dir = unique_temp_dir("serow-patch-add-function");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("skeleton.serow");
+    fs::write(&source, "module app.main\n").expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "add-function",
+            source.to_str().expect("utf8 path"),
+            "app.main",
+            "triple(x: Int) -> Int",
+            "Return three times x.",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch add-function");
+
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"changed\": 1"), "{stdout}");
+    let updated = fs::read_to_string(&source).expect("read updated fixture");
+    assert!(
+        updated.contains("pub fn triple(x: Int) -> Int"),
+        "{updated}"
+    );
+    assert!(
+        updated.contains("  intent \"Return three times x.\""),
+        "{updated}"
+    );
+    assert!(updated.contains("  version v1"), "{updated}");
+    assert!(updated.contains("  effects pure"), "{updated}");
+    assert!(updated.contains("    HOLE(Int)"), "{updated}");
+    assert!(!updated.contains("examples\n"), "{updated}");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "MissingRequiredSection"),
+        "{:#?}",
+        summary.diagnostics
+    );
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "TypedHole"),
+        "{:#?}",
+        summary.diagnostics
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn architecture_policy_rejects_inferred_disallowed_call() {
     let dir = unique_temp_dir("serow-inferred-architecture");
     fs::create_dir_all(&dir).expect("create temp dir");

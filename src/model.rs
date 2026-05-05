@@ -76,6 +76,10 @@ pub struct Program {
 }
 
 impl Program {
+    pub fn add_module(&mut self, name: &str, source_path: &str) {
+        self.ensure_module(name, source_path);
+    }
+
     pub fn add_module_dependency(&mut self, module_name: &str, dependency: ModuleDependency) {
         let module = self.ensure_module(module_name, &dependency.source_path);
         if !module

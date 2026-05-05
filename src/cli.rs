@@ -6,7 +6,7 @@ use crate::ledger::{
 };
 use crate::model::Function;
 use crate::parser::parse_paths;
-use crate::patch::{PatchSummary, add_use};
+use crate::patch::{PatchSummary, add_function, add_use};
 
 pub fn main(args: impl Iterator<Item = String>) -> i32 {
     let args = args.collect::<Vec<_>>();
@@ -66,12 +66,28 @@ fn run_patch(args: &[String]) -> i32 {
         return 2;
     };
     match patch_command {
+        "add-function" => run_patch_add_function(&args[1..]),
         "add-use" => run_patch_add_use(&args[1..]),
         _ => {
             print_patch_usage();
             2
         }
     }
+}
+
+fn run_patch_add_function(args: &[String]) -> i32 {
+    let (args, json_output) = split_flag(args, "--json");
+    let [path, module, signature, intent] = args.as_slice() else {
+        print_patch_usage();
+        return 2;
+    };
+    let summary = add_function(path, module, signature, intent);
+    if json_output {
+        println!("{}", patch_json(&summary));
+    } else {
+        print_patch_summary(&summary);
+    }
+    i32::from(!summary.ok())
 }
 
 fn run_patch_add_use(args: &[String]) -> i32 {
@@ -592,6 +608,11 @@ fn agent_json() -> String {
             "Rewrite or verify canonical Serow source formatting.",
         ),
         (
+            "patch add-function",
+            "serow patch add-function <path> <module> <signature> <intent> [--json]",
+            "Insert a public function skeleton with explicit version, intent, effects, and typed hole.",
+        ),
+        (
             "patch add-use",
             "serow patch add-use <path> <module> <dependency> [--json]",
             "Add a module use declaration through the structured patch interface.",
@@ -816,6 +837,7 @@ fn print_agent_bootstrap() {
     println!("  serow check [paths...] [--json]");
     println!("  serow certify [paths...] [--json]");
     println!("  serow fmt [paths...] [--check] [--json]");
+    println!("  serow patch add-function <path> <module> <signature> <intent> [--json]");
     println!("  serow patch add-use <path> <module> <dependency> [--json]");
     println!("  serow query dependents <symbol-or-name> [paths...] [--json]");
     println!("  serow query impact <symbol-or-name> [paths...] [--json]");
@@ -843,6 +865,7 @@ fn print_usage() {
     eprintln!("  serow check [paths...] [--json]");
     eprintln!("  serow certify [paths...] [--json]");
     eprintln!("  serow fmt [paths...] [--check] [--json]");
+    eprintln!("  serow patch add-function <path> <module> <signature> <intent> [--json]");
     eprintln!("  serow patch add-use <path> <module> <dependency> [--json]");
     eprintln!("  serow query dependents <symbol-or-name> [paths...] [--json]");
     eprintln!("  serow query impact <symbol-or-name> [paths...] [--json]");
@@ -858,6 +881,7 @@ fn print_agent_usage() {
 
 fn print_patch_usage() {
     eprintln!("usage:");
+    eprintln!("  serow patch add-function <path> <module> <signature> <intent> [--json]");
     eprintln!("  serow patch add-use <path> <module> <dependency> [--json]");
 }
 
