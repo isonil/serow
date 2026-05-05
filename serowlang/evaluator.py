@@ -18,13 +18,11 @@ class CallResult:
 
 class Evaluator:
     def __init__(self, functions: List[Function]):
-        self.functions = {function.name: function for function in functions}
+        self.functions = list(functions)
         self.call_depth = 0
 
     def call(self, name: str, args: List[Any]) -> CallResult:
-        if name not in self.functions:
-            raise EvaluationError(f"Unknown function `{name}`.")
-        function = self.functions[name]
+        function = resolve_function(name, self.functions)
         if function.impl is None:
             raise EvaluationError(f"Function `{name}` has no implementation.")
         if len(args) != len(function.params):
@@ -53,7 +51,18 @@ class Evaluator:
         return SafeExpressionEvaluator(variables, self._call_function).visit(parsed.body)
 
     def _call_function(self, name: str, args: List[Any]) -> Any:
-        return self.call(name, args).value
+        return self.call(_decode_call_name(name), args).value
+
+
+def resolve_function(reference_text: str, functions: List[Function]) -> Function:
+    reference = _parse_call_reference(reference_text)
+    matches = [function for function in functions if _function_matches_reference(function, reference)]
+    if len(matches) == 1:
+        return matches[0]
+    if not matches:
+        raise EvaluationError(f"Unknown function `{reference_text}`.")
+    symbols = ", ".join(function.symbol for function in matches)
+    raise EvaluationError(f"Ambiguous function `{reference_text}` resolves to {len(matches)} candidates: {symbols}.")
 
 
 class SafeExpressionEvaluator(pyast.NodeVisitor):
@@ -150,10 +159,57 @@ def translate_expr(expression: str) -> str:
     expr = expression.strip()
     if "\n" in expr:
         raise EvaluationError("Multi-line implementations are not executable in the bootstrap checker.")
+    expr = _encode_qualified_calls(expr)
     expr = _translate_if(expr)
     expr = re.sub(r"\btrue\b", "True", expr)
     expr = re.sub(r"\bfalse\b", "False", expr)
     return expr
+
+
+def _encode_qualified_calls(expr: str) -> str:
+    def replace(match):
+        return f"{_encode_call_name(match.group(1))}("
+
+    return re.sub(r"(?<![A-Za-z0-9_])(@?[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\s*\(", replace, expr)
+
+
+def _encode_call_name(name: str) -> str:
+    if "." not in name and not name.startswith("@"):
+        return name
+    return "__serow_call_" + name.replace("@", "_at_").replace(".", "_dot_")
+
+
+def _decode_call_name(name: str) -> str:
+    prefix = "__serow_call_"
+    if not name.startswith(prefix):
+        return name
+    return name[len(prefix) :].replace("_dot_", ".").replace("_at_", "@")
+
+
+def _parse_call_reference(raw: str):
+    symbol_text = raw[1:] if raw.startswith("@") else raw
+    parts = symbol_text.split(".")
+    if len(parts) >= 3 and _is_valid_version(parts[-1]):
+        return {"raw": raw, "module": ".".join(parts[:-2]), "name": parts[-2], "version": parts[-1]}
+    if len(parts) >= 2:
+        return {"raw": raw, "module": ".".join(parts[:-1]), "name": parts[-1], "version": None}
+    return {"raw": raw, "module": None, "name": symbol_text, "version": None}
+
+
+def _function_matches_reference(function: Function, reference) -> bool:
+    if reference["raw"].startswith("@"):
+        return function.symbol == reference["raw"]
+    if reference["module"] and function.module != reference["module"]:
+        return False
+    if function.name != reference["name"]:
+        return False
+    if reference["version"] and function.version != reference["version"]:
+        return False
+    return True
+
+
+def _is_valid_version(version: str) -> bool:
+    return version.startswith("v") and version[1:].isdigit()
 
 
 def _trunc_div(left: int, right: int) -> int:

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::eval::{Token, tokenize};
+use crate::eval::{Token, resolve_function, tokenize};
 use crate::model::Function;
 
 pub(crate) fn infer_expression_type(
@@ -14,12 +14,8 @@ pub(crate) fn infer_expression_type(
                 .to_string(),
         );
     }
-    let function_map = functions
-        .iter()
-        .map(|function| (function.name.clone(), function.clone()))
-        .collect::<HashMap<_, _>>();
     let tokens = tokenize(expression)?;
-    let mut parser = TypeParser::new(tokens, variables, &function_map);
+    let mut parser = TypeParser::new(tokens, variables, functions);
     let type_name = parser.parse_expression()?;
     parser.expect_end()?;
     Ok(type_name)
@@ -29,14 +25,14 @@ struct TypeParser<'a> {
     tokens: Vec<Token>,
     index: usize,
     variables: &'a HashMap<String, String>,
-    functions: &'a HashMap<String, Function>,
+    functions: &'a [Function],
 }
 
 impl<'a> TypeParser<'a> {
     fn new(
         tokens: Vec<Token>,
         variables: &'a HashMap<String, String>,
-        functions: &'a HashMap<String, Function>,
+        functions: &'a [Function],
     ) -> Self {
         Self {
             tokens,
@@ -227,9 +223,7 @@ impl<'a> TypeParser<'a> {
     }
 
     fn parse_call(&mut self, name: &str) -> Result<String, String> {
-        let Some(function) = self.functions.get(name).cloned() else {
-            return Err(format!("Unknown function `{name}`."));
-        };
+        let function = resolve_function(name, self.functions)?;
         let mut args = Vec::new();
         if !self.consume(&Token::RParen) {
             loop {
@@ -257,7 +251,7 @@ impl<'a> TypeParser<'a> {
                 ));
             }
         }
-        Ok(function.return_type)
+        Ok(function.return_type.clone())
     }
 
     fn expect_end(&self) -> Result<(), String> {

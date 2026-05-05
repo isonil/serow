@@ -516,7 +516,7 @@ fn agent_json() -> String {
         (
             "query dependents",
             "serow query dependents <symbol-or-name> [paths...] [--json]",
-            "List direct dependents discovered from unambiguous function calls.",
+            "List direct dependents discovered from resolved function calls.",
         ),
         (
             "query intent",
@@ -593,7 +593,8 @@ fn agent_json() -> String {
             "No full compiler or generated backend exists yet.",
             "Properties are sampled, not proven.",
             "Duplicate-intent detection is exact after simple normalization.",
-            "Duplicate unqualified function names are rejected until qualified references are supported.",
+            "Qualified calls support `module.name(...)`, `module.name.vN(...)`, and exact `@module.name.vN(...)` references.",
+            "Ambiguous bare calls are rejected; use a qualified reference when names or versions overlap.",
             "Expression support is intentionally small.",
             "Formatting does not preserve comments.",
             "JSON output is hand-written until external dependencies are accepted."

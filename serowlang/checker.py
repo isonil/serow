@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Tuple
 
 from .diagnostics import Diagnostic
-from .evaluator import EvaluationError, Evaluator
+from .evaluator import EvaluationError, Evaluator, resolve_function
 from .model import Function, Program
 
 
@@ -44,7 +44,7 @@ def check_program(program: Program, parse_diagnostics: List[Diagnostic]) -> Chec
     summary = CheckSummary(functions=len(program.functions), diagnostics=list(parse_diagnostics))
     evaluator = Evaluator(program.functions)
     _check_duplicate_symbols(program, summary)
-    _check_ambiguous_unqualified_names(program, summary)
+    _check_ambiguous_unqualified_calls(program, summary)
     _check_duplicate_intents(program, summary)
     for function in program.functions:
         _check_function_shape(function, summary)
@@ -72,29 +72,40 @@ def _check_duplicate_symbols(program: Program, summary: CheckSummary) -> None:
             seen[function.symbol] = function
 
 
-def _check_ambiguous_unqualified_names(program: Program, summary: CheckSummary) -> None:
-    seen: Dict[str, Function] = {}
+def _check_ambiguous_unqualified_calls(program: Program, summary: CheckSummary) -> None:
+    functions_by_name: Dict[str, List[Function]] = {}
     for function in program.functions:
-        first = seen.get(function.name)
-        if first and first.symbol != function.symbol:
-            summary.diagnostics.append(
-                Diagnostic(
-                    severity="error",
-                    code="AmbiguousUnqualifiedName",
-                    message=(
-                        f"Function name `{function.name}` is ambiguous before qualified references are supported."
-                    ),
-                    target=function.target,
-                    data={
-                        "first": first.target,
-                        "first_symbol": first.symbol,
-                        "symbol": function.symbol,
-                    },
-                    repairs=["Use a unique function name until qualified references are supported."],
+        functions_by_name.setdefault(function.name, []).append(function)
+
+    reported = set()
+    for function in program.functions:
+        for context, expression in _function_expressions(function):
+            for call in _called_functions(expression):
+                if _is_qualified_call(call):
+                    continue
+                candidates = functions_by_name.get(call, [])
+                if len(candidates) <= 1:
+                    continue
+                key = (function.symbol, call, context)
+                if key in reported:
+                    continue
+                reported.add(key)
+                summary.diagnostics.append(
+                    Diagnostic(
+                        severity="error",
+                        code="AmbiguousUnqualifiedCall",
+                        message=f"Call `{call}` is ambiguous; use a qualified reference.",
+                        target=function.target,
+                        data={
+                            "function": function.symbol,
+                            "call": call,
+                            "candidates": ", ".join(candidate.symbol for candidate in candidates),
+                            "context": context,
+                            "expression": expression,
+                        },
+                        repairs=["Use `module.name(...)` or `@module.name.vN(...)` for ambiguous calls."],
+                    )
                 )
-            )
-        else:
-            seen[function.name] = function
 
 
 def _check_duplicate_intents(program: Program, summary: CheckSummary) -> None:
@@ -193,20 +204,16 @@ def _check_function_shape(function: Function, summary: CheckSummary) -> None:
 
 
 def _check_effects(program: Program, summary: CheckSummary) -> None:
-    functions_by_name: Dict[str, List[Function]] = {}
-    for function in program.functions:
-        functions_by_name.setdefault(function.name, []).append(function)
-
     reported = set()
     for function in program.functions:
         if not _is_pure(function):
             continue
         for context, expression in _function_expressions(function):
             for call_name in _called_functions(expression):
-                callees = functions_by_name.get(call_name, [])
-                if len(callees) != 1:
+                try:
+                    callee = resolve_function(call_name, program.functions)
+                except EvaluationError:
                     continue
-                callee = callees[0]
                 if _is_pure(callee):
                     continue
                 key = (function.symbol, callee.symbol, context)
@@ -247,10 +254,14 @@ def _function_expressions(function: Function) -> List[Tuple[str, str]]:
 
 def _called_functions(expression: str) -> List[str]:
     calls: List[str] = []
-    for name in re.findall(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*\(", expression):
+    for name in re.findall(r"(?<![A-Za-z0-9_])(@?[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\s*\(", expression):
         if name not in calls:
             calls.append(name)
     return calls
+
+
+def _is_qualified_call(call: str) -> bool:
+    return call.startswith("@") or "." in call
 
 
 def _is_pure(function: Function) -> bool:
@@ -272,7 +283,7 @@ def _check_executable_evidence(function: Function, evaluator: Evaluator, summary
 
 def _check_example(function: Function, example: str, evaluator: Evaluator, summary: CheckSummary) -> None:
     direct_args = None
-    call = _extract_single_call(example, function.name)
+    call = _extract_single_call(example, function)
     if call:
         try:
             direct_args = _eval_args(call.group("args"), evaluator)
@@ -320,7 +331,7 @@ def _check_example(function: Function, example: str, evaluator: Evaluator, summa
 
     if direct_args is not None:
         try:
-            call_result = evaluator.call(function.name, direct_args)
+            call_result = evaluator.call(function.symbol, direct_args)
             _check_contracts(function, call_result.args, call_result.value, evaluator, summary, "example", example)
         except EvaluationError as exc:
             summary.diagnostics.append(
@@ -490,8 +501,21 @@ def _samples_for_type(type_name: str):
     return None
 
 
-def _extract_single_call(example: str, function_name: str):
-    return re.match(rf"^\s*(?P<call>{function_name}\((?P<args>.*)\))\s*==", example)
+def _extract_single_call(example: str, function: Function):
+    match = re.match(
+        r"^\s*(?P<callee>@?[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\((?P<args>.*)\)\s*==",
+        example,
+    )
+    if not match:
+        return None
+    callee = match.group("callee")
+    targets = {
+        function.name,
+        function.symbol,
+        f"{function.module}.{function.name}",
+        f"{function.module}.{function.name}.{function.version}",
+    }
+    return match if callee in targets else None
 
 
 def _eval_args(args_text: str, evaluator: Evaluator) -> List[Any]:

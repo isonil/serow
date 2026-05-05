@@ -78,7 +78,47 @@ pub fn id(x: Int) -> Int
             summary = check_program(program, parse_diagnostics)
             self.assertTrue(summary.ok, [diagnostic.to_dict() for diagnostic in summary.diagnostics])
 
-    def test_duplicate_unqualified_names_are_rejected_until_qualified_references_exist(self):
+    def test_qualified_references_allow_duplicate_unqualified_names(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "qualified.serow"
+            source.write_text(
+                """module test.version
+
+pub fn id(x: Int) -> Int
+  intent "Return x through version one."
+  version v1
+  contract
+    ensures result == x
+  examples
+    @test.version.id.v1(1) == 1
+  properties
+    forall x: Int:
+      @test.version.id.v1(x) == x
+  effects pure
+  impl
+    x
+
+pub fn id(x: Int) -> Int
+  intent "Return x through version two."
+  version v2
+  contract
+    ensures result == x
+  examples
+    test.version.id.v2(1) == 1
+  properties
+    forall x: Int:
+      test.version.id.v2(x) == x
+  effects pure
+  impl
+    x
+""",
+                encoding="utf-8",
+            )
+            program, parse_diagnostics = parse_files([str(source)])
+            summary = check_program(program, parse_diagnostics)
+            self.assertTrue(summary.ok, [diagnostic.to_dict() for diagnostic in summary.diagnostics])
+
+    def test_ambiguous_unqualified_calls_are_reported(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "ambiguous.serow"
             source.write_text(
@@ -90,10 +130,10 @@ pub fn id(x: Int) -> Int
   contract
     ensures result == x
   examples
-    id(1) == 1
+    @test.version.id.v1(1) == 1
   properties
     forall x: Int:
-      id(x) == x
+      @test.version.id.v1(x) == x
   effects pure
   impl
     x
@@ -107,7 +147,7 @@ pub fn id(x: Int) -> Int
     id(1) == 1
   properties
     forall x: Int:
-      id(x) == x
+      @test.version.id.v2(x) == x
   effects pure
   impl
     x
@@ -116,7 +156,7 @@ pub fn id(x: Int) -> Int
             )
             program, parse_diagnostics = parse_files([str(source)])
             summary = check_program(program, parse_diagnostics)
-            self.assertIn("AmbiguousUnqualifiedName", [diagnostic.code for diagnostic in summary.diagnostics])
+            self.assertIn("AmbiguousUnqualifiedCall", [diagnostic.code for diagnostic in summary.diagnostics])
 
     def test_duplicate_public_intent_is_reported(self):
         with tempfile.TemporaryDirectory() as directory:

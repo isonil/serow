@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::diagnostic::{Diagnostic, Severity};
-use crate::eval::{Evaluator, Value, called_functions};
+use crate::eval::{Evaluator, Value, called_functions, resolve_function};
 use crate::model::{Function, Program};
 use crate::project::load_architecture;
 use crate::typecheck::infer_expression_type;
@@ -43,7 +43,7 @@ pub fn check_program(program: &Program, parse_diagnostics: Vec<Diagnostic>) -> C
     };
     check_module_dependencies(program, &mut summary);
     check_duplicate_symbols(program, &mut summary);
-    check_ambiguous_unqualified_names(program, &mut summary);
+    check_ambiguous_unqualified_calls(program, &mut summary);
     check_duplicate_intents(program, &mut summary);
     for function in &program.functions {
         check_function_shape(function, &mut summary);
@@ -112,28 +112,16 @@ fn check_inferred_module_dependencies(
     declared_dependencies: &HashMap<String, HashSet<String>>,
     summary: &mut CheckSummary,
 ) {
-    let mut functions_by_name = HashMap::<String, Vec<&Function>>::new();
-    for function in &program.functions {
-        functions_by_name
-            .entry(function.name.clone())
-            .or_default()
-            .push(function);
-    }
-
     let mut reported = HashSet::<(String, String, String)>::new();
     for function in &program.functions {
         for (context, expression) in function_expressions(function) {
             let Ok(call_names) = called_functions(&expression) else {
                 continue;
             };
-            for call_name in call_names {
-                let Some(callees) = functions_by_name.get(&call_name) else {
+            for call_reference in call_names {
+                let Ok(callee) = resolve_function(&call_reference.raw, &program.functions) else {
                     continue;
                 };
-                if callees.len() != 1 {
-                    continue;
-                }
-                let callee = callees[0];
                 if callee.module == function.module {
                     continue;
                 }
@@ -267,32 +255,65 @@ fn check_duplicate_symbols(program: &Program, summary: &mut CheckSummary) {
     }
 }
 
-fn check_ambiguous_unqualified_names(program: &Program, summary: &mut CheckSummary) {
-    let mut seen = HashMap::<String, (String, String)>::new();
+fn check_ambiguous_unqualified_calls(program: &Program, summary: &mut CheckSummary) {
+    let mut functions_by_name = HashMap::<String, Vec<&Function>>::new();
     for function in &program.functions {
-        if let Some((first_target, first_symbol)) = seen.get(&function.name) {
-            if first_symbol == &function.symbol() {
+        functions_by_name
+            .entry(function.name.clone())
+            .or_default()
+            .push(function);
+    }
+
+    let mut reported = HashSet::<(String, String, String)>::new();
+    for function in &program.functions {
+        for (context, expression) in function_expressions(function) {
+            let Ok(call_references) = called_functions(&expression) else {
                 continue;
-            }
-            summary.diagnostics.push(
-                Diagnostic::error(
-                    "AmbiguousUnqualifiedName",
-                    format!(
-                        "Function name `{}` is ambiguous before qualified references are supported.",
-                        function.name
+            };
+            for call_reference in call_references {
+                if call_reference.is_qualified() {
+                    continue;
+                }
+                let Some(candidates) = functions_by_name.get(&call_reference.name) else {
+                    continue;
+                };
+                if candidates.len() <= 1 {
+                    continue;
+                }
+                let key = (
+                    function.symbol(),
+                    call_reference.raw.clone(),
+                    context.to_string(),
+                );
+                if !reported.insert(key) {
+                    continue;
+                }
+                summary.diagnostics.push(
+                    Diagnostic::error(
+                        "AmbiguousUnqualifiedCall",
+                        format!(
+                            "Call `{}` is ambiguous; use a qualified reference.",
+                            call_reference.raw
+                        ),
+                        Some(function.target()),
+                    )
+                    .with_data("function", function.symbol())
+                    .with_data("call", call_reference.raw)
+                    .with_data(
+                        "candidates",
+                        candidates
+                            .iter()
+                            .map(|candidate| candidate.symbol())
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                    )
+                    .with_data("context", context)
+                    .with_data("expression", &expression)
+                    .with_repair(
+                        "Use `module.name(...)` or `@module.name.vN(...)` for ambiguous calls.",
                     ),
-                    Some(function.target()),
-                )
-                .with_data("first", first_target.clone())
-                .with_data("first_symbol", first_symbol.clone())
-                .with_data("symbol", function.symbol())
-                .with_repair("Use a unique function name until qualified references are supported."),
-            );
-        } else {
-            seen.insert(
-                function.name.clone(),
-                (function.target(), function.symbol()),
-            );
+                );
+            }
         }
     }
 }
@@ -517,14 +538,6 @@ fn check_static_types(function: &Function, program: &Program, summary: &mut Chec
 }
 
 fn check_effects(program: &Program, summary: &mut CheckSummary) {
-    let mut functions_by_name = HashMap::<String, Vec<&Function>>::new();
-    for function in &program.functions {
-        functions_by_name
-            .entry(function.name.clone())
-            .or_default()
-            .push(function);
-    }
-
     let mut reported = HashSet::<(String, String, String)>::new();
     for function in &program.functions {
         if !is_pure(function) {
@@ -534,14 +547,10 @@ fn check_effects(program: &Program, summary: &mut CheckSummary) {
             let Ok(call_names) = called_functions(&expression) else {
                 continue;
             };
-            for call_name in call_names {
-                let Some(callees) = functions_by_name.get(&call_name) else {
+            for call_reference in call_names {
+                let Ok(callee) = resolve_function(&call_reference.raw, &program.functions) else {
                     continue;
                 };
-                if callees.len() != 1 {
-                    continue;
-                }
-                let callee = callees[0];
                 if is_pure(callee) {
                     continue;
                 }
@@ -643,7 +652,7 @@ fn check_example(
     program: &Program,
     summary: &mut CheckSummary,
 ) {
-    let direct_call_args = match extract_call_args(example, &function.name) {
+    let direct_call_args = match extract_call_args(example, function) {
         Some(args) => match eval_args(args, program) {
             Ok(args) => Some(args),
             Err(error) => {
@@ -699,7 +708,7 @@ fn check_example(
 
     if let Some(args) = direct_call_args {
         let mut evaluator = Evaluator::new(&program.functions);
-        match evaluator.call(&function.name, args) {
+        match evaluator.call(&function.symbol(), args) {
             Ok(call_result) => {
                 check_contracts(
                     function,
@@ -932,19 +941,33 @@ fn cartesian_product(sample_sets: &[Vec<Value>]) -> Vec<Vec<Value>> {
     combinations
 }
 
-fn extract_call_args<'a>(example: &'a str, function_name: &str) -> Option<&'a str> {
+fn extract_call_args<'a>(example: &'a str, function: &Function) -> Option<&'a str> {
     let trimmed = example.trim();
-    let prefix = format!("{function_name}(");
-    if !trimmed.starts_with(&prefix) {
+    let open = trimmed.find('(')?;
+    let call_reference = trimmed[..open].trim();
+    if !call_reference_targets_function(call_reference, function) {
         return None;
     }
-    let close = find_matching_paren(trimmed, function_name.len())?;
+    let close = find_matching_paren(trimmed, open)?;
     let after = trimmed[close + 1..].trim_start();
     if after.starts_with("==") {
-        Some(&trimmed[prefix.len()..close])
+        Some(&trimmed[open + 1..close])
     } else {
         None
     }
+}
+
+fn call_reference_targets_function(call_reference: &str, function: &Function) -> bool {
+    call_reference == function.name
+        || call_reference == function.symbol()
+        || call_reference == format!("{}.{}", function.module, function.name)
+        || call_reference
+            == format!(
+                "{}.{}.{}",
+                function.module,
+                function.name,
+                function.version()
+            )
 }
 
 fn find_matching_paren(text: &str, open_index: usize) -> Option<usize> {

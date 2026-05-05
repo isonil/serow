@@ -2,6 +2,48 @@ use std::collections::HashMap;
 
 use crate::model::Function;
 
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct CallReference {
+    pub raw: String,
+    pub module: Option<String>,
+    pub name: String,
+    pub version: Option<String>,
+}
+
+impl CallReference {
+    pub fn parse(raw: &str) -> Self {
+        let raw = raw.to_string();
+        let symbol_text = raw.strip_prefix('@').unwrap_or(&raw).to_string();
+        let parts = symbol_text.split('.').collect::<Vec<_>>();
+        if parts.len() >= 3 && is_valid_version(parts[parts.len() - 1]) {
+            return Self {
+                raw,
+                module: Some(parts[..parts.len() - 2].join(".")),
+                name: parts[parts.len() - 2].to_string(),
+                version: Some(parts[parts.len() - 1].to_string()),
+            };
+        }
+        if parts.len() >= 2 {
+            return Self {
+                raw,
+                module: Some(parts[..parts.len() - 1].join(".")),
+                name: parts[parts.len() - 1].to_string(),
+                version: None,
+            };
+        }
+        Self {
+            raw,
+            module: None,
+            name: symbol_text.to_string(),
+            version: None,
+        }
+    }
+
+    pub fn is_qualified(&self) -> bool {
+        self.module.is_some() || self.raw.starts_with('@')
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Value {
     Int(i64),
@@ -27,25 +69,20 @@ pub struct CallResult {
 
 #[derive(Clone, Debug)]
 pub struct Evaluator {
-    functions: HashMap<String, Function>,
+    functions: Vec<Function>,
     call_depth: usize,
 }
 
 impl Evaluator {
     pub fn new(functions: &[Function]) -> Self {
         Self {
-            functions: functions
-                .iter()
-                .map(|function| (function.name.clone(), function.clone()))
-                .collect(),
+            functions: functions.to_vec(),
             call_depth: 0,
         }
     }
 
     pub fn call(&mut self, name: &str, args: Vec<Value>) -> Result<CallResult, String> {
-        let Some(function) = self.functions.get(name).cloned() else {
-            return Err(format!("Unknown function `{name}`."));
-        };
+        let function = resolve_function(name, &self.functions)?.clone();
         let Some(implementation) = &function.implementation else {
             return Err(format!("Function `{name}` has no implementation."));
         };
@@ -186,15 +223,37 @@ pub(crate) fn tokenize(expression: &str) -> Result<Vec<Token>, String> {
             tokens.push(Token::Text(value));
             continue;
         }
-        if char.is_ascii_alphabetic() || char == '_' {
+        if char == '@' {
             let start = index;
             index += 1;
             while index < chars.len()
-                && (chars[index].is_ascii_alphanumeric() || chars[index] == '_')
+                && (chars[index].is_ascii_alphanumeric()
+                    || chars[index] == '_'
+                    || chars[index] == '.')
             {
                 index += 1;
             }
             let ident = &expression[start..index];
+            if ident == "@" || ident.ends_with('.') {
+                return Err(format!("Invalid qualified identifier `{ident}`."));
+            }
+            tokens.push(Token::Ident(ident.to_string()));
+            continue;
+        }
+        if char.is_ascii_alphabetic() || char == '_' {
+            let start = index;
+            index += 1;
+            while index < chars.len()
+                && (chars[index].is_ascii_alphanumeric()
+                    || chars[index] == '_'
+                    || chars[index] == '.')
+            {
+                index += 1;
+            }
+            let ident = &expression[start..index];
+            if ident.ends_with('.') {
+                return Err(format!("Invalid qualified identifier `{ident}`."));
+            }
             tokens.push(match ident {
                 "true" => Token::True,
                 "false" => Token::False,
@@ -246,19 +305,67 @@ pub(crate) fn tokenize(expression: &str) -> Result<Vec<Token>, String> {
     Ok(tokens)
 }
 
-pub(crate) fn called_functions(expression: &str) -> Result<Vec<String>, String> {
+pub fn called_functions(expression: &str) -> Result<Vec<CallReference>, String> {
     let mut calls = Vec::new();
     for line in expression.lines() {
         let tokens = tokenize(line)?;
         for window in tokens.windows(2) {
             if let [Token::Ident(name), Token::LParen] = window
-                && !calls.iter().any(|call| call == name)
+                && !calls.iter().any(|call: &CallReference| call.raw == *name)
             {
-                calls.push(name.clone());
+                calls.push(CallReference::parse(name));
             }
         }
     }
     Ok(calls)
+}
+
+pub fn resolve_function<'a>(
+    reference_text: &str,
+    functions: &'a [Function],
+) -> Result<&'a Function, String> {
+    let reference = CallReference::parse(reference_text);
+    let matches = functions
+        .iter()
+        .filter(|function| function_matches_reference(function, &reference))
+        .collect::<Vec<_>>();
+    match matches.as_slice() {
+        [function] => Ok(function),
+        [] => Err(format!("Unknown function `{reference_text}`.")),
+        many => Err(format!(
+            "Ambiguous function `{reference_text}` resolves to {} candidates: {}.",
+            many.len(),
+            many.iter()
+                .map(|function| function.symbol())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )),
+    }
+}
+
+fn function_matches_reference(function: &Function, reference: &CallReference) -> bool {
+    if reference.raw.starts_with('@') {
+        return function.symbol() == reference.raw;
+    }
+    if let Some(module) = &reference.module
+        && module != &function.module
+    {
+        return false;
+    }
+    if function.name != reference.name {
+        return false;
+    }
+    if let Some(version) = &reference.version {
+        return version == function.version();
+    }
+    true
+}
+
+fn is_valid_version(version: &str) -> bool {
+    let Some(rest) = version.strip_prefix('v') else {
+        return false;
+    };
+    !rest.is_empty() && rest.chars().all(|char| char.is_ascii_digit())
 }
 
 struct ExprParser<'a, 'b> {

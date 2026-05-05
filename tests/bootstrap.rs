@@ -380,8 +380,54 @@ pub fn id(x: Int) -> Int
 }
 
 #[test]
-fn duplicate_unqualified_names_are_rejected_until_qualified_references_exist() {
-    let dir = unique_temp_dir("serow-ambiguous-name");
+fn qualified_references_allow_duplicate_unqualified_names() {
+    let dir = unique_temp_dir("serow-qualified-reference");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("qualified.serow");
+    fs::write(
+        &source,
+        r#"module test.version
+
+pub fn id(x: Int) -> Int
+  intent "Return x through version one."
+  version v1
+  contract
+    ensures result == x
+  examples
+    @test.version.id.v1(1) == 1
+  properties
+    forall x: Int:
+      @test.version.id.v1(x) == x
+  effects pure
+  impl
+    x
+
+pub fn id(x: Int) -> Int
+  intent "Return x through version two."
+  version v2
+  contract
+    ensures result == x
+  examples
+    test.version.id.v2(1) == 1
+  properties
+    forall x: Int:
+      test.version.id.v2(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(summary.ok(), "{:#?}", summary.diagnostics);
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn ambiguous_unqualified_calls_are_reported() {
+    let dir = unique_temp_dir("serow-ambiguous-call");
     fs::create_dir_all(&dir).expect("create temp dir");
     let source = dir.join("ambiguous.serow");
     fs::write(
@@ -394,10 +440,10 @@ pub fn id(x: Int) -> Int
   contract
     ensures result == x
   examples
-    id(1) == 1
+    @test.version.id.v1(1) == 1
   properties
     forall x: Int:
-      id(x) == x
+      @test.version.id.v1(x) == x
   effects pure
   impl
     x
@@ -411,7 +457,7 @@ pub fn id(x: Int) -> Int
     id(1) == 1
   properties
     forall x: Int:
-      id(x) == x
+      @test.version.id.v2(x) == x
   effects pure
   impl
     x
@@ -425,7 +471,7 @@ pub fn id(x: Int) -> Int
         summary
             .diagnostics
             .iter()
-            .any(|diagnostic| diagnostic.code == "AmbiguousUnqualifiedName"),
+            .any(|diagnostic| diagnostic.code == "AmbiguousUnqualifiedCall"),
         "{:#?}",
         summary.diagnostics
     );

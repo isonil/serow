@@ -1,6 +1,6 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
-use crate::eval::called_functions;
+use crate::eval::{called_functions, resolve_function};
 use crate::model::{Function, Program};
 
 #[derive(Clone, Debug)]
@@ -123,14 +123,6 @@ pub fn query_dependents(program: &Program, text: &str) -> Vec<Dependent> {
         return Vec::new();
     }
     let target_symbols = targets.iter().map(Function::symbol).collect::<HashSet<_>>();
-    let mut functions_by_name = HashMap::<String, Vec<&Function>>::new();
-    for function in &program.functions {
-        functions_by_name
-            .entry(function.name.clone())
-            .or_default()
-            .push(function);
-    }
-
     let mut dependents = Vec::new();
     for function in &program.functions {
         let mut call_sites = Vec::new();
@@ -139,14 +131,10 @@ pub fn query_dependents(program: &Program, text: &str) -> Vec<Dependent> {
             let Ok(call_names) = called_functions(&expression) else {
                 continue;
             };
-            for call_name in call_names {
-                let Some(callees) = functions_by_name.get(&call_name) else {
+            for call_reference in call_names {
+                let Ok(callee) = resolve_function(&call_reference.raw, &program.functions) else {
                     continue;
                 };
-                if callees.len() != 1 {
-                    continue;
-                }
-                let callee = callees[0];
                 if !target_symbols.contains(&callee.symbol()) {
                     continue;
                 }
