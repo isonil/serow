@@ -12,7 +12,7 @@ use crate::patch::{
 };
 use crate::plan::{
     ChangePlan, EvidenceCoverage, EvidenceDelta, EvidenceWeakening, plan_paths,
-    unattended_evidence_weakening_diagnostics,
+    unattended_evidence_weakening_diagnostics, unattended_unchecked_impact_diagnostics,
 };
 
 pub fn main(args: impl Iterator<Item = String>) -> i32 {
@@ -242,6 +242,9 @@ fn run_check(args: &[String], certify: bool) -> i32 {
         summary
             .diagnostics
             .extend(unattended_evidence_weakening_diagnostics(&paths));
+        summary
+            .diagnostics
+            .extend(unattended_unchecked_impact_diagnostics(&paths));
     }
     if json_output {
         println!("{}", check_json(&summary, certify.then_some(profile)));
@@ -1080,6 +1083,7 @@ fn agent_json() -> String {
             "Intent search is deterministic token ranking with stopwords and light normalization, not semantic embeddings.",
             "Qualified calls support `module.name(...)`, `module.name.vN(...)`, and exact `@module.name.vN(...)` references.",
             "`serow certify --profile unattended` fails when changed public symbols weaken executable evidence compared with HEAD.",
+            "`serow certify --profile unattended` fails when changed tracked public symbols have transitive dependents outside the certified change set.",
             "Ambiguous bare calls are rejected; use a qualified reference when names or versions overlap.",
             "Expression support is intentionally small.",
             "Formatting does not preserve comments.",

@@ -66,7 +66,7 @@ This phase exists because the original Serow premise is not only "AI-first synta
   - require an explicit migration note or version bump when public evidence is intentionally weakened
 - Enforce change-impact gates:
   - expose direct and transitive dependents for changed public symbols
-  - make certification fail when changed public behavior has unchecked dependents
+  - make certification fail when changed public behavior has unchecked dependents _(Started: `certify --profile unattended` now emits `UncheckedImpact` when a changed tracked public symbol has transitive dependents outside the certified change set.)_
   - report whether each affected dependent has executable evidence covering the changed call edge
 - Strengthen public versioning policy:
   - require public behavior changes to preserve compatibility or bump `version vN`
@@ -89,7 +89,7 @@ This phase exists because the original Serow premise is not only "AI-first synta
   - add mutation or lightweight fuzz checks to catch examples that are too shallow to detect broken implementations
 - Add strict certification profiles:
   - keep normal `bin/serow certify` useful for local iteration
-  - add a stricter unattended profile, for example `bin/serow certify --profile unattended` _(Started: the profile exists, requires explicit public symbol versions, and rejects evidence weakening against `HEAD`.)_
+  - add a stricter unattended profile, for example `bin/serow certify --profile unattended` _(Started: the profile exists, requires explicit public symbol versions, rejects evidence weakening against `HEAD`, and rejects unchecked transitive impact.)_
   - make the unattended profile require no unresolved impact, no evidence weakening, no ambiguous intent reuse, no capability expansion without acknowledgement, and complete repair-action consistency
 
 ## Phase 3: Backends

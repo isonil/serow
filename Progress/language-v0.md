@@ -90,9 +90,9 @@ Duplicate unqualified function names are allowed when call sites are disambiguat
 
 ## Change Plans
 
-`bin/serow plan [paths...] [--json]` is the first machine-readable change-plan primitive. With explicit paths, the command treats all public symbols in those paths as the selected change set. Without paths, it uses Git status to find changed `.serow` files. The JSON report includes checker diagnostics, changed public symbols, evidence counts, HEAD evidence deltas when a tracked baseline is available, evidence-weakening rows, explicit-version state, transitive impact rows, and residual-risk strings.
+`bin/serow plan [paths...] [--json]` is the first machine-readable change-plan primitive. With explicit paths, the command treats all public symbols in those paths as the selected change set. Without paths, it uses Git status to find changed `.serow` files and analyzes tracked project `.serow` files so unchanged dependents can be discovered. The JSON report includes checker diagnostics, changed public symbols, evidence counts, HEAD evidence deltas when a tracked baseline is available, evidence-weakening rows, explicit-version state, transitive impact rows, and residual-risk strings.
 
-The unattended certification profile now consumes this evidence-weakening analysis as a strict gate for changed tracked public symbols. The plan command still does not compare full behavioral AST changes against a baseline; later work still needs structured migration records and stricter impact gates.
+The unattended certification profile now consumes this evidence-weakening and impact analysis as strict gates for changed tracked public symbols. It rejects removed or narrowed executable evidence as `EvidenceWeakening`, and rejects transitive dependents outside the certified change set as `UncheckedImpact`. The plan command still does not compare full behavioral AST changes against a baseline; later work still needs structured migration records, dependent coverage reporting, and explicit impact acknowledgements.
 
 ## Effects
 
@@ -114,7 +114,7 @@ Effects are explicit on every public function. The bootstrap recognizes `effects
 - contracts passed for example evidence
 - no public typed holes remain
 
-`bin/serow certify --profile unattended` runs the same checks and then applies stricter low-attention agent gates. It requires every public function to declare an explicit `version vN` section so public identity is not silently defaulted. It also compares changed tracked public symbols with Git `HEAD` and rejects removed or narrowed executable evidence as `EvidenceWeakening`.
+`bin/serow certify --profile unattended` runs the same checks and then applies stricter low-attention agent gates. It requires every public function to declare an explicit `version vN` section so public identity is not silently defaulted. It also compares changed tracked public symbols with Git `HEAD` and rejects removed or narrowed executable evidence as `EvidenceWeakening`. When planning from Git status, it analyzes tracked Serow sources and rejects changed public symbols whose transitive dependents are outside the certified change set as `UncheckedImpact`.
 
 This is a deliberately weak early version of certification. Later phases should make certification include richer architecture constraints, richer effect/capability inference, stronger intent-similarity workflow checks, and backend generation checks.
 

@@ -15,7 +15,7 @@ The current implementation is a bootstrap toolchain written in dependency-free R
 - structured JSON diagnostics with machine-readable repair actions where available
 - a semantic ledger for agent queries, including token-ranked intent search and transitive impact paths
 - a first machine-readable change plan for changed symbols, impact, evidence coverage, HEAD evidence deltas, and residual risk
-- unattended certification gates for explicit versions and evidence weakening against Git `HEAD`
+- unattended certification gates for explicit versions, evidence weakening against Git `HEAD`, and unchecked dependent impact
 
 Print the current agent bootstrap contract:
 
@@ -74,7 +74,7 @@ bin/serow certify
 bin/serow certify --profile unattended
 ```
 
-The unattended certification profile is stricter than normal local certification. It requires public functions to declare explicit source-level versions instead of relying on the bootstrap `v1` default, and it fails when changed tracked public symbols remove or narrow executable evidence compared with Git `HEAD`.
+The unattended certification profile is stricter than normal local certification. It requires public functions to declare explicit source-level versions instead of relying on the bootstrap `v1` default, fails when changed tracked public symbols remove or narrow executable evidence compared with Git `HEAD`, and rejects changed public symbols with transitive dependents outside the certified change set.
 
 The language and compiler are intentionally incomplete. Active state and next steps are tracked under `Progress/`.
 

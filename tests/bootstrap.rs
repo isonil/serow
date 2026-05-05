@@ -1191,6 +1191,102 @@ pub fn inc(x: Int) -> Int
 }
 
 #[test]
+fn unattended_certification_rejects_unchecked_transitive_impact() {
+    let dir = unique_temp_dir("serow-unattended-unchecked-impact");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let core = dir.join("core.serow");
+    let app = dir.join("app.serow");
+    fs::write(
+        &core,
+        r#"module core.math
+
+pub fn inc(x: Int) -> Int
+  intent "Increment x."
+  version v1
+  contract
+    ensures result == x + 1
+  examples
+    inc(1) == 2
+  properties
+    forall x: Int:
+      inc(x) == x + 1
+  effects pure
+  impl
+    x + 1
+"#,
+    )
+    .expect("write core fixture");
+    fs::write(
+        &app,
+        r#"module app.main
+
+use core.math
+
+pub fn bump(x: Int) -> Int
+  intent "Increment x through the math module."
+  version v1
+  contract
+    ensures result == x + 1
+  examples
+    bump(1) == 2
+  properties
+    forall x: Int:
+      bump(x) == inc(x)
+  effects pure
+  impl
+    inc(x)
+"#,
+    )
+    .expect("write app fixture");
+
+    git(&dir, &["init"]);
+    git(&dir, &["add", "core.serow", "app.serow"]);
+    git(&dir, &["commit", "-m", "baseline"]);
+
+    fs::write(
+        &core,
+        r#"module core.math
+
+pub fn inc(x: Int) -> Int
+  intent "Increment x."
+  version v1
+  contract
+    ensures result == x + 1
+  examples
+    inc(1) == 2
+  properties
+    forall x: Int:
+      inc(x) == x + 1
+  effects pure
+  impl
+    1 + x
+"#,
+    )
+    .expect("modify core fixture");
+
+    let unattended = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args(["certify", "--profile", "unattended", "--json"])
+        .output()
+        .expect("run unattended certify");
+    assert!(!unattended.status.success(), "{unattended:#?}");
+    let stdout = String::from_utf8(unattended.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"profile\": \"unattended\""), "{stdout}");
+    assert!(stdout.contains("UncheckedImpact"), "{stdout}");
+    assert!(stdout.contains("@core.math.inc.v1"), "{stdout}");
+    assert!(stdout.contains("@app.main.bump.v1"), "{stdout}");
+    assert!(
+        stdout.contains("\"path\": \"@app.main.bump.v1 -> @core.math.inc.v1\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"command\": [\"bin/serow\", \"query\", \"impact\""),
+        "{stdout}"
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn patch_add_use_updates_source() {
     let dir = unique_temp_dir("serow-patch-add-use");
     fs::create_dir_all(&dir).expect("create temp dir");

@@ -63,18 +63,26 @@ pub fn plan_paths(paths: &[String]) -> ChangePlan {
     } else {
         git_changed_serow_files()
     };
+    let source_paths = if explicit_paths || changed_sources.is_empty() {
+        discover_sources(paths)
+    } else {
+        let mut sources = git_project_serow_files();
+        sources.extend(changed_sources.iter().cloned());
+        sources.sort();
+        sources.dedup();
+        if sources.is_empty() {
+            changed_sources.clone()
+        } else {
+            sources
+        }
+    };
     let parse_roots = if explicit_paths || changed_sources.is_empty() {
         paths.to_vec()
     } else {
-        changed_sources
+        source_paths
             .iter()
             .map(|path| path.to_string_lossy().to_string())
             .collect::<Vec<_>>()
-    };
-    let source_paths = if changed_sources.is_empty() {
-        discover_sources(&parse_roots)
-    } else {
-        changed_sources.clone()
     };
     let (program, parse_diagnostics) = parse_paths(&parse_roots);
     let summary = check_program(&program, parse_diagnostics);
@@ -170,6 +178,68 @@ pub fn unattended_evidence_weakening_diagnostics(paths: &[String]) -> Vec<Diagno
                     .with_data("removed", removed)
                     .with_repair(
                         "Restore the removed executable evidence or make an explicit migration/version decision before unattended certification.",
+                    )
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
+pub fn unattended_unchecked_impact_diagnostics(paths: &[String]) -> Vec<Diagnostic> {
+    let plan = plan_paths(paths);
+    let changed_symbols = plan
+        .changed_symbols
+        .iter()
+        .map(|symbol| symbol.function.symbol())
+        .collect::<HashSet<_>>();
+
+    plan.changed_symbols
+        .into_iter()
+        .flat_map(|symbol| {
+            let target = symbol.function.target();
+            let changed_symbol = symbol.function.symbol();
+            symbol
+                .impact
+                .into_iter()
+                .filter(|impact| !changed_symbols.contains(&impact.function.symbol()))
+                .map(move |impact| {
+                    let dependent_symbol = impact.function.symbol();
+                    let path = impact
+                        .path
+                        .iter()
+                        .map(Function::symbol)
+                        .collect::<Vec<_>>()
+                        .join(" -> ");
+                    let call_sites = impact
+                        .call_sites
+                        .iter()
+                        .map(|site| format!("{}: {}", site.context, site.expression))
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    Diagnostic::error(
+                        "UncheckedImpact",
+                        format!(
+                            "Public function `{}` has dependent `{dependent_symbol}` outside the certified change set.",
+                            symbol.function.name
+                        ),
+                        Some(target.clone()),
+                    )
+                    .with_data("symbol", changed_symbol.clone())
+                    .with_data("dependent", dependent_symbol)
+                    .with_data("depth", impact.depth.to_string())
+                    .with_data("path", path)
+                    .with_data("call_sites", call_sites)
+                    .with_command_repair(
+                        "Review transitive impact",
+                        vec![
+                            "bin/serow".to_string(),
+                            "query".to_string(),
+                            "impact".to_string(),
+                            changed_symbol.clone(),
+                        ],
+                    )
+                    .with_repair(
+                        "Include impacted dependents in the certified change set or add an explicit migration/impact decision before unattended certification.",
                     )
                 })
                 .collect::<Vec<_>>()
@@ -375,6 +445,27 @@ fn git_changed_serow_files() -> Vec<PathBuf> {
         .lines()
         .filter_map(parse_git_status_path)
         .filter(|path| path.extension().is_some_and(|ext| ext == "serow"))
+        .collect::<Vec<_>>();
+    paths.sort();
+    paths.dedup();
+    paths
+}
+
+fn git_project_serow_files() -> Vec<PathBuf> {
+    let Ok(output) = Command::new("git")
+        .args(["ls-files", "--", "*.serow"])
+        .output()
+    else {
+        return Vec::new();
+    };
+    if !output.status.success() {
+        return Vec::new();
+    }
+    let mut paths = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|path| !path.is_empty())
+        .map(PathBuf::from)
         .collect::<Vec<_>>();
     paths.sort();
     paths.dedup();

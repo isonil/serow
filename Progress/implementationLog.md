@@ -136,3 +136,7 @@
 - `bin/serow certify --profile unattended` now reuses the baseline evidence analysis for changed tracked public symbols and emits `EvidenceWeakening` errors when examples, contracts, properties, or preconditions are removed or narrowed compared with Git `HEAD`.
 - Normal certification remains unchanged for local iteration; explicit-version enforcement still runs as the other unattended gate.
 - Added Rust integration coverage proving standard certification passes a behavior-preserving evidence removal while unattended certification rejects it with `EvidenceWeakening` diagnostics.
+- Made unchecked transitive impact a strict unattended certification gate.
+- Git-status planning now analyzes tracked project `.serow` files in addition to changed `.serow` files, so unchanged dependents can be discovered instead of hidden by a narrow changed-file parse.
+- `bin/serow certify --profile unattended` now emits `UncheckedImpact` errors when a changed tracked public symbol has transitive dependents outside the certified change set, with diagnostic data for the symbol, dependent, depth, path, and call sites.
+- Added Rust integration coverage proving unattended certification rejects a changed public function with an unchanged dependent in another tracked Serow file.
