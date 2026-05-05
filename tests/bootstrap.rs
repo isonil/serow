@@ -1019,8 +1019,80 @@ pub fn bump(x: Int) -> Int
     assert!(stdout.contains("\"properties\": 1"), "{stdout}");
     assert!(stdout.contains("\"impact\""), "{stdout}");
     assert!(stdout.contains("\"depth\": 1"), "{stdout}");
+    assert!(stdout.contains("\"impact_coverage\""), "{stdout}");
+    assert!(stdout.contains("\"covered\": true"), "{stdout}");
+    assert!(
+        stdout.contains("Executable evidence in `@app.main.bump.v1` exercises the call edge"),
+        "{stdout}"
+    );
     assert!(
         stdout.contains("Changed public symbols have transitive dependents"),
+        "{stdout}"
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn plan_json_reports_uncovered_impact_edges() {
+    let dir = unique_temp_dir("serow-plan-impact-coverage");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("plan.serow");
+    fs::write(
+        &source,
+        r#"module core.math
+
+pub fn inc(x: Int) -> Int
+  intent "Increment x."
+  version v1
+  contract
+    ensures result == x + 1
+  examples
+    inc(1) == 2
+  properties
+    forall x: Int:
+      inc(x) == x + 1
+  effects pure
+  impl
+    x + 1
+
+module app.main
+
+use core.math
+
+pub fn bump(x: Int) -> Int
+  intent "Increment x through the math module without testing the wrapper."
+  version v1
+  contract
+    ensures result == result
+  examples
+    1 == 1
+  properties
+    forall x: Int:
+      x == x
+  effects pure
+  impl
+    inc(x)
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["plan", source.to_str().expect("utf8 path"), "--json"])
+        .output()
+        .expect("run serow plan");
+
+    assert!(!output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"impact_coverage\""), "{stdout}");
+    assert!(stdout.contains("\"covered\": false"), "{stdout}");
+    assert!(
+        stdout.contains("No executable example or sampled property in `@app.main.bump.v1`"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains(
+            "One or more impacted dependent call edges lack executable evidence coverage"
+        ),
         "{stdout}"
     );
     let _ = fs::remove_dir_all(dir);

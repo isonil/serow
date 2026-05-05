@@ -11,8 +11,8 @@ use crate::patch::{
     set_version,
 };
 use crate::plan::{
-    ChangePlan, EvidenceCoverage, EvidenceDelta, EvidenceWeakening, plan_paths,
-    unattended_evidence_weakening_diagnostics, unattended_unchecked_impact_diagnostics,
+    ChangePlan, EvidenceCoverage, EvidenceDelta, EvidenceWeakening, ImpactEvidenceCoverage,
+    plan_paths, unattended_evidence_weakening_diagnostics, unattended_unchecked_impact_diagnostics,
 };
 
 pub fn main(args: impl Iterator<Item = String>) -> i32 {
@@ -620,6 +620,15 @@ fn print_plan(plan: &ChangePlan) {
         }
         println!("  explicit version: {}", symbol.version_explicit);
         println!("  impacted dependents: {}", symbol.impact.len());
+        let covered_edges = symbol
+            .impact_coverage
+            .iter()
+            .filter(|row| row.covered)
+            .count();
+        let uncovered_edges = symbol.impact_coverage.len().saturating_sub(covered_edges);
+        println!(
+            "  impact evidence coverage: {covered_edges} covered, {uncovered_edges} uncovered"
+        );
         for risk in &symbol.residual_risks {
             println!("  risk: {risk}");
         }
@@ -690,6 +699,7 @@ fn changed_symbols_json(plan: &ChangePlan) -> String {
                     "      \"evidence_weakening\": {},\n",
                     "      \"function\": {},\n",
                     "      \"impact\": {},\n",
+                    "      \"impact_coverage\": {},\n",
                     "      \"residual_risks\": {},\n",
                     "      \"version_explicit\": {}\n",
                     "    }}"
@@ -703,6 +713,7 @@ fn changed_symbols_json(plan: &ChangePlan) -> String {
                 evidence_weakening_json(&symbol.evidence_weakening),
                 function_ref_json(&symbol.function),
                 impact_rows_json(&symbol.impact),
+                impact_coverage_json(&symbol.impact_coverage),
                 string_array_json(&symbol.residual_risks),
                 symbol.version_explicit
             )
@@ -756,6 +767,39 @@ fn evidence_weakening_json(weakening: &[EvidenceWeakening]) -> String {
         .collect::<Vec<_>>()
         .join(", ");
     format!("[{rows}]")
+}
+
+fn impact_coverage_json(coverage: &[ImpactEvidenceCoverage]) -> String {
+    if coverage.is_empty() {
+        return "[]".to_string();
+    }
+    let rows = coverage
+        .iter()
+        .map(|row| {
+            format!(
+                concat!(
+                    "{{\n",
+                    "      \"coverage\": {},\n",
+                    "      \"covered\": {},\n",
+                    "      \"dependent\": {},\n",
+                    "      \"depth\": {},\n",
+                    "      \"edge_target\": {},\n",
+                    "      \"reason\": {},\n",
+                    "      \"target\": {}\n",
+                    "    }}"
+                ),
+                call_sites_json(&row.coverage),
+                row.covered,
+                function_ref_json(&row.dependent),
+                row.depth,
+                function_ref_json(&row.edge_target),
+                json_string(&row.reason),
+                function_ref_json(&row.target),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",\n    ");
+    format!("[\n    {rows}\n  ]")
 }
 
 fn format_json(summary: &FormatSummary) -> String {
@@ -991,7 +1035,7 @@ fn agent_json() -> String {
         (
             "plan",
             "serow plan [paths...] [--json]",
-            "Summarize changed public symbols, evidence coverage, HEAD evidence deltas, impact, and residual risk.",
+            "Summarize changed public symbols, evidence coverage, HEAD evidence deltas, impact-edge coverage, and residual risk.",
         ),
         (
             "query dependents",
@@ -1084,6 +1128,7 @@ fn agent_json() -> String {
             "Qualified calls support `module.name(...)`, `module.name.vN(...)`, and exact `@module.name.vN(...)` references.",
             "`serow certify --profile unattended` fails when changed public symbols weaken executable evidence compared with HEAD.",
             "`serow certify --profile unattended` fails when changed tracked public symbols have transitive dependents outside the certified change set.",
+            "`serow plan` reports whether impacted dependent call edges are covered by executable examples or sampled properties.",
             "Ambiguous bare calls are rejected; use a qualified reference when names or versions overlap.",
             "Expression support is intentionally small.",
             "Formatting does not preserve comments.",
@@ -1238,6 +1283,7 @@ fn print_agent_bootstrap() {
     println!("  serow patch fill-hole <path> <symbol-or-name> <expression> [--json]");
     println!("  serow patch set-version <path> <symbol-or-name> <version> [--json]");
     println!("  serow plan [paths...] [--json]");
+    println!("    reports impact-edge coverage by executable examples/properties");
     println!("  serow query dependents <symbol-or-name> [paths...] [--json]");
     println!("  serow query impact <symbol-or-name> [paths...] [--json]");
     println!("  serow query intent <text> [paths...] [--json]  # token-ranked");

@@ -14,7 +14,7 @@ The current implementation is a bootstrap toolchain written in dependency-free R
 - duplicate public intent detection
 - structured JSON diagnostics with machine-readable repair actions where available
 - a semantic ledger for agent queries, including token-ranked intent search and transitive impact paths
-- a first machine-readable change plan for changed symbols, impact, evidence coverage, HEAD evidence deltas, and residual risk
+- a first machine-readable change plan for changed symbols, impact, impact-edge evidence coverage, HEAD evidence deltas, and residual risk
 - unattended certification gates for explicit versions, evidence weakening against Git `HEAD`, and unchecked dependent impact
 
 Print the current agent bootstrap contract:
@@ -65,7 +65,7 @@ bin/serow plan --json
 bin/serow plan examples/math.serow --json
 ```
 
-When a changed `.serow` file is tracked by Git, `serow plan` compares the selected public symbols against `HEAD` and reports removed or narrowed executable evidence.
+When a changed `.serow` file is tracked by Git, `serow plan` compares the selected public symbols against `HEAD` and reports removed or narrowed executable evidence. For impacted dependents, it also reports whether executable examples or sampled properties cover the affected call edge.
 
 Certify the current sample program:
 

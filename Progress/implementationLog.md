@@ -140,3 +140,7 @@
 - Git-status planning now analyzes tracked project `.serow` files in addition to changed `.serow` files, so unchanged dependents can be discovered instead of hidden by a narrow changed-file parse.
 - `bin/serow certify --profile unattended` now emits `UncheckedImpact` errors when a changed tracked public symbol has transitive dependents outside the certified change set, with diagnostic data for the symbol, dependent, depth, path, and call sites.
 - Added Rust integration coverage proving unattended certification rejects a changed public function with an unchanged dependent in another tracked Serow file.
+- Added impact-edge evidence coverage rows to `bin/serow plan [paths...] [--json]`.
+- The plan now reports whether impacted dependent call edges are covered by direct example/property calls, or by examples/properties that exercise an implementation, precondition, or contract edge through the dependent function.
+- Uncovered impact edges now add per-symbol residual risk text so shallow dependent evidence is visible before unattended certification.
+- Added Rust integration coverage for covered and uncovered impact-edge coverage rows.

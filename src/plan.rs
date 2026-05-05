@@ -4,7 +4,8 @@ use std::process::Command;
 
 use crate::checker::{CheckSummary, check_program};
 use crate::diagnostic::{Diagnostic, Severity};
-use crate::ledger::{ImpactDependent, query_impact};
+use crate::eval::{called_functions, resolve_function};
+use crate::ledger::{CallSite, ImpactDependent, query_impact};
 use crate::model::Function;
 use crate::parser::{discover_sources, parse_paths, parse_source};
 
@@ -29,6 +30,7 @@ pub struct ChangedSymbol {
     pub evidence_weakening: Vec<EvidenceWeakening>,
     pub version_explicit: bool,
     pub impact: Vec<ImpactDependent>,
+    pub impact_coverage: Vec<ImpactEvidenceCoverage>,
     pub residual_risks: Vec<String>,
 }
 
@@ -54,6 +56,17 @@ pub struct EvidenceWeakening {
     pub before: usize,
     pub after: usize,
     pub removed: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ImpactEvidenceCoverage {
+    pub dependent: Function,
+    pub edge_target: Function,
+    pub target: Function,
+    pub depth: usize,
+    pub covered: bool,
+    pub coverage: Vec<CallSite>,
+    pub reason: String,
 }
 
 pub fn plan_paths(paths: &[String]) -> ChangePlan {
@@ -281,9 +294,19 @@ fn changed_symbol(
         residual_risks.push("No executable contract clauses cover this symbol.".to_string());
     }
     let impact = query_impact(program, &function.symbol());
+    let impact_coverage = impact
+        .iter()
+        .map(|row| impact_evidence_coverage(row, program))
+        .collect::<Vec<_>>();
     if !impact.is_empty() {
         residual_risks
             .push("Transitive dependents must be reviewed before changing behavior.".to_string());
+    }
+    if impact_coverage.iter().any(|row| !row.covered) {
+        residual_risks.push(
+            "One or more impacted dependent call edges lack executable evidence coverage."
+                .to_string(),
+        );
     }
     if !evidence_weakening.is_empty() {
         residual_risks
@@ -297,8 +320,123 @@ fn changed_symbol(
         evidence_weakening,
         version_explicit: function.version_explicit,
         impact,
+        impact_coverage,
         residual_risks,
     }
+}
+
+fn impact_evidence_coverage(
+    impact: &ImpactDependent,
+    program: &crate::model::Program,
+) -> ImpactEvidenceCoverage {
+    let edge_target = impact
+        .path
+        .get(1)
+        .cloned()
+        .unwrap_or_else(|| impact.target.clone());
+    let mut coverage = impact
+        .call_sites
+        .iter()
+        .filter(|site| matches!(site.context.as_str(), "example" | "property"))
+        .cloned()
+        .collect::<Vec<_>>();
+
+    if coverage.is_empty()
+        && impact
+            .call_sites
+            .iter()
+            .any(|site| matches!(site.context.as_str(), "impl" | "requires" | "contract"))
+    {
+        coverage =
+            executable_evidence_calling(&impact.function, &impact.function.symbol(), program);
+    }
+
+    let covered = !coverage.is_empty();
+    let reason = if covered {
+        format!(
+            "Executable evidence in `{}` exercises the call edge to `{}`.",
+            impact.function.symbol(),
+            edge_target.symbol()
+        )
+    } else {
+        format!(
+            "No executable example or sampled property in `{}` exercises the call edge to `{}`.",
+            impact.function.symbol(),
+            edge_target.symbol()
+        )
+    };
+
+    ImpactEvidenceCoverage {
+        dependent: impact.function.clone(),
+        edge_target,
+        target: impact.target.clone(),
+        depth: impact.depth,
+        covered,
+        coverage,
+        reason,
+    }
+}
+
+fn executable_evidence_calling(
+    function: &Function,
+    symbol: &str,
+    program: &crate::model::Program,
+) -> Vec<CallSite> {
+    executable_evidence_expressions(function)
+        .into_iter()
+        .filter(|site| expression_calls_symbol(&site.expression, symbol, program))
+        .collect()
+}
+
+fn executable_evidence_expressions(function: &Function) -> Vec<CallSite> {
+    let mut expressions = function
+        .examples
+        .iter()
+        .map(|example| CallSite {
+            context: "example".to_string(),
+            expression: example.clone(),
+        })
+        .collect::<Vec<_>>();
+    expressions.extend(
+        property_expressions(&function.properties)
+            .into_iter()
+            .map(|property| CallSite {
+                context: "property".to_string(),
+                expression: property,
+            }),
+    );
+    expressions
+}
+
+fn property_expressions(lines: &[String]) -> Vec<String> {
+    let mut expressions = Vec::new();
+    let mut index = 0;
+    while index < lines.len() {
+        let line = lines[index].trim();
+        if line.starts_with("forall ") && line.ends_with(':') {
+            if let Some(expression) = lines.get(index + 1) {
+                expressions.push(expression.trim().to_string());
+            }
+            index += 2;
+        } else {
+            index += 1;
+        }
+    }
+    expressions
+}
+
+fn expression_calls_symbol(
+    expression: &str,
+    symbol: &str,
+    program: &crate::model::Program,
+) -> bool {
+    let Ok(call_references) = called_functions(expression) else {
+        return false;
+    };
+    call_references.into_iter().any(|call_reference| {
+        resolve_function(&call_reference.raw, &program.functions)
+            .is_ok_and(|function| function.symbol() == symbol)
+    })
 }
 
 fn evidence_coverage(function: &Function) -> EvidenceCoverage {

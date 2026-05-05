@@ -67,7 +67,7 @@ This phase exists because the original Serow premise is not only "AI-first synta
 - Enforce change-impact gates:
   - expose direct and transitive dependents for changed public symbols
   - make certification fail when changed public behavior has unchecked dependents _(Started: `certify --profile unattended` now emits `UncheckedImpact` when a changed tracked public symbol has transitive dependents outside the certified change set.)_
-  - report whether each affected dependent has executable evidence covering the changed call edge
+  - report whether each affected dependent has executable evidence covering the changed call edge _(Started: `serow plan` now emits `impact_coverage` rows showing whether examples/properties cover impacted dependent call edges.)_
 - Strengthen public versioning policy:
   - require public behavior changes to preserve compatibility or bump `version vN`
   - detect changed contracts/examples/properties without a corresponding version or migration decision
@@ -81,7 +81,7 @@ This phase exists because the original Serow premise is not only "AI-first synta
   - require public functions to declare the minimum capabilities they need
   - make capability expansion visible in certification and dependent-impact output
 - Add machine-readable change plans:
-  - add a command such as `bin/serow plan <paths...> --json` that summarizes changed symbols, affected dependents, evidence coverage, version decisions, and residual risk _(Started: `bin/serow plan [paths...] [--json]` reports selected changed symbols, evidence counts, HEAD evidence deltas when available, evidence-weakening rows, explicit-version state, transitive impact rows, checker diagnostics, and residual risks.)_
+  - add a command such as `bin/serow plan <paths...> --json` that summarizes changed symbols, affected dependents, evidence coverage, version decisions, and residual risk _(Started: `bin/serow plan [paths...] [--json]` reports selected changed symbols, evidence counts, HEAD evidence deltas when available, evidence-weakening rows, explicit-version state, transitive impact rows, impact-edge coverage rows, checker diagnostics, and residual risks.)_
   - keep the output deterministic so weaker agents can follow it without interpreting prose
 - Guard against evidence drift:
   - flag patches that change implementation and evidence together unless the changed evidence is explained by a structured migration record
