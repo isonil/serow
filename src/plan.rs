@@ -25,6 +25,7 @@ pub struct ChangePlan {
 pub struct ChangedSymbol {
     pub function: Function,
     pub baseline_evidence: Option<EvidenceCoverage>,
+    pub behavior_change: Option<PublicBehaviorChange>,
     pub evidence: EvidenceCoverage,
     pub evidence_delta: Option<EvidenceDelta>,
     pub evidence_weakening: Vec<EvidenceWeakening>,
@@ -56,6 +57,11 @@ pub struct EvidenceWeakening {
     pub before: usize,
     pub after: usize,
     pub removed: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PublicBehaviorChange {
+    pub changed: Vec<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -140,6 +146,15 @@ pub fn plan_paths(paths: &[String]) -> ChangePlan {
             "Changed public symbols weaken executable evidence compared with HEAD.".to_string(),
         );
     }
+    if changed_symbols
+        .iter()
+        .any(|symbol| symbol.behavior_change.is_some())
+    {
+        residual_risks.push(
+            "Changed public symbols modify their public contract surface without a new symbol version compared with HEAD."
+                .to_string(),
+        );
+    }
 
     let ok = summary.ok() && residual_risks.is_empty();
     ChangePlan {
@@ -194,6 +209,32 @@ pub fn unattended_evidence_weakening_diagnostics(paths: &[String]) -> Vec<Diagno
                     )
                 })
                 .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
+pub fn unattended_public_behavior_change_diagnostics(paths: &[String]) -> Vec<Diagnostic> {
+    plan_paths(paths)
+        .changed_symbols
+        .into_iter()
+        .filter_map(|symbol| {
+            let behavior_change = symbol.behavior_change?;
+            let changed = behavior_change.changed.join(", ");
+            Some(
+                Diagnostic::error(
+                    "PublicBehaviorChangeNeedsVersion",
+                    format!(
+                        "Public function `{}` changes its public contract surface without changing its symbol version.",
+                        symbol.function.name
+                    ),
+                    Some(symbol.function.target()),
+                )
+                .with_data("symbol", symbol.function.symbol())
+                .with_data("changed", changed)
+                .with_repair(
+                    "Preserve the existing public contract surface or introduce a new explicit version before unattended certification.",
+                ),
+            )
         })
         .collect()
 }
@@ -268,6 +309,8 @@ fn changed_symbol(
     let evidence = evidence_coverage(function);
     let baseline_function = baseline.get(&function.symbol());
     let baseline_evidence = baseline_function.map(evidence_coverage);
+    let behavior_change = baseline_function
+        .and_then(|baseline_function| public_behavior_change(baseline_function, function));
     let evidence_delta = baseline_evidence.as_ref().map(|baseline| EvidenceDelta {
         requires: evidence.requires as isize - baseline.requires as isize,
         ensures: evidence.ensures as isize - baseline.ensures as isize,
@@ -312,9 +355,16 @@ fn changed_symbol(
         residual_risks
             .push("Executable evidence was removed or narrowed compared with HEAD.".to_string());
     }
+    if behavior_change.is_some() {
+        residual_risks.push(
+            "Public contract surface changed without a new symbol version compared with HEAD."
+                .to_string(),
+        );
+    }
     ChangedSymbol {
         function: function.clone(),
         baseline_evidence,
+        behavior_change,
         evidence,
         evidence_delta,
         evidence_weakening,
@@ -322,6 +372,33 @@ fn changed_symbol(
         impact,
         impact_coverage,
         residual_risks,
+    }
+}
+
+fn public_behavior_change(before: &Function, after: &Function) -> Option<PublicBehaviorChange> {
+    let mut changed = Vec::new();
+    if before.signature() != after.signature() {
+        changed.push("signature".to_string());
+    }
+    if normalized_lines(&before.requires) != normalized_lines(&after.requires) {
+        changed.push("requires".to_string());
+    }
+    if normalized_lines(&before.contracts) != normalized_lines(&after.contracts) {
+        changed.push("ensures".to_string());
+    }
+    if normalized_lines(&before.examples) != normalized_lines(&after.examples) {
+        changed.push("examples".to_string());
+    }
+    if normalized_properties(&before.properties) != normalized_properties(&after.properties) {
+        changed.push("properties".to_string());
+    }
+    if normalized_lines(&before.effects) != normalized_lines(&after.effects) {
+        changed.push("effects".to_string());
+    }
+    if changed.is_empty() {
+        None
+    } else {
+        Some(PublicBehaviorChange { changed })
     }
 }
 

@@ -12,7 +12,8 @@ use crate::patch::{
 };
 use crate::plan::{
     ChangePlan, EvidenceCoverage, EvidenceDelta, EvidenceWeakening, ImpactEvidenceCoverage,
-    plan_paths, unattended_evidence_weakening_diagnostics, unattended_unchecked_impact_diagnostics,
+    PublicBehaviorChange, plan_paths, unattended_evidence_weakening_diagnostics,
+    unattended_public_behavior_change_diagnostics, unattended_unchecked_impact_diagnostics,
 };
 
 pub fn main(args: impl Iterator<Item = String>) -> i32 {
@@ -242,6 +243,9 @@ fn run_check(args: &[String], certify: bool) -> i32 {
         summary
             .diagnostics
             .extend(unattended_evidence_weakening_diagnostics(&paths));
+        summary
+            .diagnostics
+            .extend(unattended_public_behavior_change_diagnostics(&paths));
         summary
             .diagnostics
             .extend(unattended_unchecked_impact_diagnostics(&paths));
@@ -694,6 +698,7 @@ fn changed_symbols_json(plan: &ChangePlan) -> String {
                 concat!(
                     "{{\n",
                     "      \"baseline_evidence\": {},\n",
+                    "      \"behavior_change\": {},\n",
                     "      \"evidence\": {{\"ensures\": {}, \"examples\": {}, \"properties\": {}, \"requires\": {}}},\n",
                     "      \"evidence_delta\": {},\n",
                     "      \"evidence_weakening\": {},\n",
@@ -705,6 +710,7 @@ fn changed_symbols_json(plan: &ChangePlan) -> String {
                     "    }}"
                 ),
                 evidence_coverage_option_json(symbol.baseline_evidence.as_ref()),
+                behavior_change_json(symbol.behavior_change.as_ref()),
                 symbol.evidence.ensures,
                 symbol.evidence.examples,
                 symbol.evidence.properties,
@@ -726,6 +732,12 @@ fn changed_symbols_json(plan: &ChangePlan) -> String {
 fn evidence_coverage_option_json(evidence: Option<&EvidenceCoverage>) -> String {
     evidence
         .map(evidence_coverage_json)
+        .unwrap_or_else(|| "null".to_string())
+}
+
+fn behavior_change_json(change: Option<&PublicBehaviorChange>) -> String {
+    change
+        .map(|change| format!("{{\"changed\": {}}}", string_array_json(&change.changed)))
         .unwrap_or_else(|| "null".to_string())
 }
 
@@ -1127,6 +1139,7 @@ fn agent_json() -> String {
             "Intent search is deterministic token ranking with stopwords and light normalization, not semantic embeddings.",
             "Qualified calls support `module.name(...)`, `module.name.vN(...)`, and exact `@module.name.vN(...)` references.",
             "`serow certify --profile unattended` fails when changed public symbols weaken executable evidence compared with HEAD.",
+            "`serow certify --profile unattended` fails when a tracked public symbol changes its public contract surface without a new symbol version.",
             "`serow certify --profile unattended` fails when changed tracked public symbols have transitive dependents outside the certified change set.",
             "`serow plan` reports whether impacted dependent call edges are covered by executable examples or sampled properties.",
             "Ambiguous bare calls are rejected; use a qualified reference when names or versions overlap.",
@@ -1304,6 +1317,9 @@ fn print_agent_bootstrap() {
     println!("identity:");
     println!("  source may declare `version vN`; omitted versions default to v1");
     println!("  unattended certification requires explicit public versions");
+    println!(
+        "  unattended certification rejects tracked public contract-surface changes that keep the same symbol version"
+    );
 }
 
 fn print_usage() {

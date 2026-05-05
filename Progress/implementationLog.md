@@ -144,3 +144,7 @@
 - The plan now reports whether impacted dependent call edges are covered by direct example/property calls, or by examples/properties that exercise an implementation, precondition, or contract edge through the dependent function.
 - Uncovered impact edges now add per-symbol residual risk text so shallow dependent evidence is visible before unattended certification.
 - Added Rust integration coverage for covered and uncovered impact-edge coverage rows.
+- Added same-version public contract-surface change detection for tracked public symbols.
+- `bin/serow plan [--json]` now emits `behavior_change` rows when a changed public symbol keeps the same canonical version but changes its signature, requires clauses, ensures clauses, examples, properties, or effects compared with Git `HEAD`.
+- `bin/serow certify --profile unattended` now rejects those changes as `PublicBehaviorChangeNeedsVersion`; bumping the public `version vN` creates a new canonical symbol and satisfies this gate.
+- Updated agent bootstrap output, README, `serow.project`, and Progress docs to document the stricter public versioning policy.
