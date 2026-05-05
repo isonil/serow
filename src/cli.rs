@@ -1,4 +1,4 @@
-use crate::checker::{CheckSummary, check_program};
+use crate::checker::{CheckSummary, check_program, enforce_unattended_profile};
 use crate::diagnostic::{Diagnostic, has_errors};
 use crate::formatter::{FormatSummary, format_paths};
 use crate::ledger::{
@@ -32,6 +32,21 @@ pub fn main(args: impl Iterator<Item = String>) -> i32 {
             eprintln!("unknown command `{other}`");
             print_usage();
             2
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum CertifyProfile {
+    Standard,
+    Unattended,
+}
+
+impl CertifyProfile {
+    fn as_str(self) -> &'static str {
+        match self {
+            CertifyProfile::Standard => "standard",
+            CertifyProfile::Unattended => "unattended",
         }
     }
 }
@@ -172,13 +187,30 @@ fn run_patch_fill_hole(args: &[String]) -> i32 {
 }
 
 fn run_check(args: &[String], certify: bool) -> i32 {
-    let (paths, json_output) = split_paths_and_json(args);
-    let (program, parse_diagnostics) = parse_paths(&paths);
-    let summary = check_program(&program, parse_diagnostics);
-    if json_output {
-        println!("{}", check_json(&summary));
+    let (args, json_output) = split_flag(args, "--json");
+    let (paths, profile) = if certify {
+        match split_certify_profile(&args) {
+            Ok(parsed) => parsed,
+            Err(()) => {
+                print_usage();
+                return 2;
+            }
+        }
+    } else if args.iter().any(|arg| arg == "--profile") {
+        print_usage();
+        return 2;
     } else {
-        print_check_summary(&summary, certify);
+        (args, CertifyProfile::Standard)
+    };
+    let (program, parse_diagnostics) = parse_paths(&paths);
+    let mut summary = check_program(&program, parse_diagnostics);
+    if profile == CertifyProfile::Unattended {
+        enforce_unattended_profile(&program, &mut summary);
+    }
+    if json_output {
+        println!("{}", check_json(&summary, certify.then_some(profile)));
+    } else {
+        print_check_summary(&summary, certify, profile);
     }
     if certify {
         i32::from(!summary.diagnostics.is_empty())
@@ -321,8 +353,43 @@ fn split_flag(args: &[String], flag: &str) -> (Vec<String>, bool) {
     (rest, found)
 }
 
-fn print_check_summary(summary: &CheckSummary, certify: bool) {
-    let mode = if certify { "certify" } else { "check" };
+fn split_certify_profile(args: &[String]) -> Result<(Vec<String>, CertifyProfile), ()> {
+    let mut paths = Vec::new();
+    let mut profile = CertifyProfile::Standard;
+    let mut saw_profile = false;
+    let mut index = 0;
+    while index < args.len() {
+        if args[index] == "--profile" {
+            if saw_profile {
+                return Err(());
+            }
+            saw_profile = true;
+            let Some(value) = args.get(index + 1).map(String::as_str) else {
+                return Err(());
+            };
+            profile = match value {
+                "standard" | "default" => CertifyProfile::Standard,
+                "unattended" => CertifyProfile::Unattended,
+                _ => return Err(()),
+            };
+            index += 2;
+        } else {
+            paths.push(args[index].clone());
+            index += 1;
+        }
+    }
+    Ok((paths, profile))
+}
+
+fn print_check_summary(summary: &CheckSummary, certify: bool, profile: CertifyProfile) {
+    let mode = if certify {
+        match profile {
+            CertifyProfile::Standard => "certify".to_string(),
+            CertifyProfile::Unattended => "certify --profile unattended".to_string(),
+        }
+    } else {
+        "check".to_string()
+    };
     let status = if summary.ok() && (!certify || summary.diagnostics.is_empty()) {
         "ok"
     } else {
@@ -475,11 +542,15 @@ fn print_impact(impact: &[ImpactDependent]) {
     }
 }
 
-fn check_json(summary: &CheckSummary) -> String {
+fn check_json(summary: &CheckSummary, profile: Option<CertifyProfile>) -> String {
+    let profile_field = profile
+        .map(|profile| format!("  \"profile\": {},\n", json_string(profile.as_str())))
+        .unwrap_or_default();
     format!(
-        "{{\n  \"diagnostics\": {},\n  \"ok\": {},\n  \"summary\": {{\n    \"contracts\": {},\n    \"examples\": {},\n    \"functions\": {},\n    \"holes\": {},\n    \"properties\": {}\n  }}\n}}",
+        "{{\n  \"diagnostics\": {},\n  \"ok\": {},\n{}  \"summary\": {{\n    \"contracts\": {},\n    \"examples\": {},\n    \"functions\": {},\n    \"holes\": {},\n    \"properties\": {}\n  }}\n}}",
         diagnostics_array_json(&summary.diagnostics),
         summary.ok(),
+        profile_field,
         summary.contracts,
         summary.examples,
         summary.functions,
@@ -665,8 +736,8 @@ fn agent_json() -> String {
         ),
         (
             "certify",
-            "serow certify [paths...] [--json]",
-            "Require a warning-free and error-free checker result.",
+            "serow certify [paths...] [--profile unattended] [--json]",
+            "Require a warning-free and error-free checker result, with an optional stricter unattended profile.",
         ),
         (
             "fmt",
@@ -762,7 +833,8 @@ fn agent_json() -> String {
             "Run `bin/serow query intent \"<description>\"` before adding public behavior.",
             "Run `bin/serow query symbol \"<name>\"` when a symbol might already exist.",
             "Run `bin/serow check` after edits.",
-            "Run `bin/serow certify` before considering changed Serow code complete."
+            "Run `bin/serow certify` before considering changed Serow code complete.",
+            "Use `bin/serow certify --profile unattended` for stricter low-attention agent gates."
         ]),
         command_rows,
         str_array_json(&[
@@ -782,7 +854,8 @@ fn agent_json() -> String {
             "python3 -m unittest discover -s tests",
             "bin/serow fmt --check --json",
             "bin/serow check --json",
-            "bin/serow certify"
+            "bin/serow certify",
+            "bin/serow certify --profile unattended"
         ]),
         str_array_json(&[
             "No full compiler or generated backend exists yet.",
@@ -918,10 +991,11 @@ fn print_agent_bootstrap() {
     println!("  2. bin/serow query symbol \"<name>\" when a symbol might exist");
     println!("  3. bin/serow check after edits");
     println!("  4. bin/serow certify before changed Serow code is complete");
+    println!("  5. bin/serow certify --profile unattended for stricter agent gates");
     println!("commands:");
     println!("  serow agent [--json]");
     println!("  serow check [paths...] [--json]");
-    println!("  serow certify [paths...] [--json]");
+    println!("  serow certify [paths...] [--profile unattended] [--json]");
     println!("  serow fmt [paths...] [--check] [--json]");
     println!(
         "  serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]"
@@ -946,18 +1020,20 @@ fn print_agent_bootstrap() {
     println!("  bin/serow fmt --check --json");
     println!("  bin/serow check --json");
     println!("  bin/serow certify");
+    println!("  bin/serow certify --profile unattended");
     println!("diagnostic json:");
     println!("  repairs: human-readable compatibility strings");
     println!("  repair_actions: machine-readable command actions when available");
     println!("identity:");
     println!("  source may declare `version vN`; omitted versions default to v1");
+    println!("  unattended certification requires explicit public versions");
 }
 
 fn print_usage() {
     eprintln!("usage:");
     eprintln!("  serow agent [--json]");
     eprintln!("  serow check [paths...] [--json]");
-    eprintln!("  serow certify [paths...] [--json]");
+    eprintln!("  serow certify [paths...] [--profile unattended] [--json]");
     eprintln!("  serow fmt [paths...] [--check] [--json]");
     eprintln!(
         "  serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]"

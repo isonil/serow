@@ -58,6 +58,27 @@ pub fn check_program(program: &Program, parse_diagnostics: Vec<Diagnostic>) -> C
     summary
 }
 
+pub fn enforce_unattended_profile(program: &Program, summary: &mut CheckSummary) {
+    for function in &program.functions {
+        if !function.public || function.version_explicit {
+            continue;
+        }
+        summary.diagnostics.push(
+            Diagnostic::error(
+                "MissingExplicitVersion",
+                format!(
+                    "Public function `{}` must declare an explicit version for unattended certification.",
+                    function.name
+                ),
+                Some(function.target()),
+            )
+            .with_data("symbol", function.symbol())
+            .with_data("defaulted_version", function.version())
+            .with_repair("Add a `version vN` section to make public symbol identity explicit."),
+        );
+    }
+}
+
 fn check_module_dependencies(program: &Program, summary: &mut CheckSummary) {
     let architecture = load_architecture();
     let declared_dependencies = program

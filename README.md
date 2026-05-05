@@ -59,7 +59,10 @@ Certify the current sample program:
 
 ```sh
 bin/serow certify
+bin/serow certify --profile unattended
 ```
+
+The unattended certification profile is stricter than normal local certification. It currently requires public functions to declare explicit source-level versions instead of relying on the bootstrap `v1` default.
 
 The language and compiler are intentionally incomplete. Active state and next steps are tracked under `Progress/`.
 

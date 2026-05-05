@@ -399,6 +399,62 @@ pub fn id(x: Int) -> Int
 }
 
 #[test]
+fn unattended_certification_requires_explicit_public_versions() {
+    let dir = unique_temp_dir("serow-unattended-version");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("implicit_version.serow");
+    fs::write(
+        &source,
+        r#"module test.version
+
+pub fn id(x: Int) -> Int
+  intent "Return x with an implicit bootstrap version."
+  contract
+    ensures result == x
+  examples
+    id(1) == 1
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let standard = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["certify", source.to_str().expect("utf8 path"), "--json"])
+        .output()
+        .expect("run standard certify");
+    assert!(standard.status.success(), "{standard:#?}");
+
+    let unattended = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "certify",
+            source.to_str().expect("utf8 path"),
+            "--profile",
+            "unattended",
+            "--json",
+        ])
+        .output()
+        .expect("run unattended certify");
+    assert!(!unattended.status.success(), "{unattended:#?}");
+    let stdout = String::from_utf8(unattended.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"profile\": \"unattended\""), "{stdout}");
+    assert!(stdout.contains("MissingExplicitVersion"), "{stdout}");
+    assert!(stdout.contains("@test.version.id.v1"), "{stdout}");
+
+    let sample = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["certify", "--profile", "unattended", "--json"])
+        .output()
+        .expect("run unattended certify on examples");
+    assert!(sample.status.success(), "{sample:#?}");
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn qualified_references_allow_duplicate_unqualified_names() {
     let dir = unique_temp_dir("serow-qualified-reference");
     fs::create_dir_all(&dir).expect("create temp dir");
