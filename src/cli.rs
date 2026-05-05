@@ -10,7 +10,10 @@ use crate::patch::{
     PatchSummary, add_contract, add_example, add_function, add_property, add_use, fill_hole,
     set_version,
 };
-use crate::plan::{ChangePlan, EvidenceCoverage, EvidenceDelta, EvidenceWeakening, plan_paths};
+use crate::plan::{
+    ChangePlan, EvidenceCoverage, EvidenceDelta, EvidenceWeakening, plan_paths,
+    unattended_evidence_weakening_diagnostics,
+};
 
 pub fn main(args: impl Iterator<Item = String>) -> i32 {
     let args = args.collect::<Vec<_>>();
@@ -236,6 +239,9 @@ fn run_check(args: &[String], certify: bool) -> i32 {
     let mut summary = check_program(&program, parse_diagnostics);
     if profile == CertifyProfile::Unattended {
         enforce_unattended_profile(&program, &mut summary);
+        summary
+            .diagnostics
+            .extend(unattended_evidence_weakening_diagnostics(&paths));
     }
     if json_output {
         println!("{}", check_json(&summary, certify.then_some(profile)));
@@ -1073,7 +1079,7 @@ fn agent_json() -> String {
             "Duplicate-intent rejection is exact after simple normalization.",
             "Intent search is deterministic token ranking with stopwords and light normalization, not semantic embeddings.",
             "Qualified calls support `module.name(...)`, `module.name.vN(...)`, and exact `@module.name.vN(...)` references.",
-            "`serow plan --json` compares evidence against HEAD when a tracked baseline is available, but it is not yet a certification gate.",
+            "`serow certify --profile unattended` fails when changed public symbols weaken executable evidence compared with HEAD.",
             "Ambiguous bare calls are rejected; use a qualified reference when names or versions overlap.",
             "Expression support is intentionally small.",
             "Formatting does not preserve comments.",

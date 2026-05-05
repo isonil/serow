@@ -61,7 +61,7 @@ This phase exists to make Serow more useful to AI implementers before production
 This phase exists because the original Serow premise is not only "AI-first syntax"; it is a language/toolchain that makes unattended or low-attention AI implementation less likely to damage working behavior. The goal is to turn vibe-coding safety from an aspiration into explicit compiler checks, ledger queries, and certification profiles.
 
 - Detect evidence weakening:
-  - flag removed examples, contracts, properties, or preconditions on public functions _(Started: `serow plan` compares changed public symbols with `HEAD` when a tracked baseline is available and reports removed/narrowed evidence rows.)_
+  - flag removed examples, contracts, properties, or preconditions on public functions _(Started: `serow plan` compares changed public symbols with `HEAD` when a tracked baseline is available and reports removed/narrowed evidence rows; `certify --profile unattended` now rejects those weakening rows.)_
   - flag evidence that becomes narrower or less behavioral while implementation changes in the same patch
   - require an explicit migration note or version bump when public evidence is intentionally weakened
 - Enforce change-impact gates:
@@ -89,7 +89,7 @@ This phase exists because the original Serow premise is not only "AI-first synta
   - add mutation or lightweight fuzz checks to catch examples that are too shallow to detect broken implementations
 - Add strict certification profiles:
   - keep normal `bin/serow certify` useful for local iteration
-  - add a stricter unattended profile, for example `bin/serow certify --profile unattended` _(Started: the profile exists and currently requires explicit public symbol versions.)_
+  - add a stricter unattended profile, for example `bin/serow certify --profile unattended` _(Started: the profile exists, requires explicit public symbol versions, and rejects evidence weakening against `HEAD`.)_
   - make the unattended profile require no unresolved impact, no evidence weakening, no ambiguous intent reuse, no capability expansion without acknowledgement, and complete repair-action consistency
 
 ## Phase 3: Backends

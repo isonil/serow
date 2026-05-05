@@ -143,6 +143,40 @@ pub fn plan_paths(paths: &[String]) -> ChangePlan {
     }
 }
 
+pub fn unattended_evidence_weakening_diagnostics(paths: &[String]) -> Vec<Diagnostic> {
+    plan_paths(paths)
+        .changed_symbols
+        .into_iter()
+        .flat_map(|symbol| {
+            let target = symbol.function.target();
+            let canonical_symbol = symbol.function.symbol();
+            symbol
+                .evidence_weakening
+                .into_iter()
+                .map(move |weakening| {
+                    let removed = weakening.removed.join("\n");
+                    Diagnostic::error(
+                        "EvidenceWeakening",
+                        format!(
+                            "Public function `{}` weakens {} evidence compared with HEAD.",
+                            symbol.function.name, weakening.kind
+                        ),
+                        Some(target.clone()),
+                    )
+                    .with_data("symbol", canonical_symbol.clone())
+                    .with_data("kind", weakening.kind)
+                    .with_data("before", weakening.before.to_string())
+                    .with_data("after", weakening.after.to_string())
+                    .with_data("removed", removed)
+                    .with_repair(
+                        "Restore the removed executable evidence or make an explicit migration/version decision before unattended certification.",
+                    )
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
 fn changed_symbol(
     function: &Function,
     program: &crate::model::Program,

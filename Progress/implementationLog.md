@@ -132,3 +132,7 @@
 - Plan now parses `HEAD` versions of tracked changed `.serow` files, compares matching public symbols by canonical identity, emits baseline evidence counts, evidence deltas, and removed/narrowed evidence rows, and adds residual risks when executable evidence is weakened.
 - Exposed an in-memory parser entry point so the plan command can parse Git baseline content without temporary files.
 - Added Rust integration coverage using a throwaway Git repository to prove removed examples and contracts are reported against `HEAD`.
+- Made evidence weakening a strict unattended certification gate.
+- `bin/serow certify --profile unattended` now reuses the baseline evidence analysis for changed tracked public symbols and emits `EvidenceWeakening` errors when examples, contracts, properties, or preconditions are removed or narrowed compared with Git `HEAD`.
+- Normal certification remains unchanged for local iteration; explicit-version enforcement still runs as the other unattended gate.
+- Added Rust integration coverage proving standard certification passes a behavior-preserving evidence removal while unattended certification rejects it with `EvidenceWeakening` diagnostics.

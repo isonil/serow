@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "0.4.9-rust-bootstrap",
+  "version": "0.4.10-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -8,6 +8,7 @@
   "agent_interface": {
     "check": "bin/serow check",
     "certify": "bin/serow certify",
+    "certify_unattended": "bin/serow certify --profile unattended",
     "patch_add_contract": "bin/serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression>",
     "patch_add_example": "bin/serow patch add-example <path> <symbol-or-name> <expression>",
     "patch_add_function": "bin/serow patch add-function <path> <module> <signature> <intent>",
@@ -34,7 +35,8 @@
     "duplicate_public_intents_rejected": true,
     "qualified_function_references": true,
     "effects_are_explicit": true,
-    "typed_holes_allowed": true
+    "typed_holes_allowed": true,
+    "unattended_rejects_evidence_weakening": true
   },
   "source_roots": [
     "examples"
