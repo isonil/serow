@@ -67,7 +67,7 @@ This phase exists because the original Serow premise is not only "AI-first synta
 - Enforce change-impact gates:
   - expose direct and transitive dependents for changed public symbols
   - make certification fail when changed public behavior has unchecked dependents _(Started: `certify --profile unattended` now emits `UncheckedImpact` when a changed tracked public symbol has transitive dependents outside the certified change set.)_
-  - report whether each affected dependent has executable evidence covering the changed call edge _(Started: `serow plan` now emits `impact_coverage` rows showing whether examples/properties cover impacted dependent call edges.)_
+  - report whether each affected dependent has executable evidence covering the changed call edge _(Started: `serow plan` now emits `impact_coverage` rows showing whether examples/properties cover impacted dependent call edges, and `certify --profile unattended` now rejects uncovered impacted call edges as `UncoveredImpactEvidence`.)_
 - Strengthen public versioning policy:
   - require public behavior changes to preserve compatibility or bump `version vN` _(Started: `serow plan` reports same-symbol public contract-surface changes against `HEAD`, and `certify --profile unattended` rejects them as `PublicBehaviorChangeNeedsVersion`.)_
   - detect changed contracts/examples/properties without a corresponding version or migration decision _(Started: requires, ensures, examples, properties, effects, and signature changes are compared for tracked changed symbols.)_
@@ -89,7 +89,7 @@ This phase exists because the original Serow premise is not only "AI-first synta
   - add mutation or lightweight fuzz checks to catch examples that are too shallow to detect broken implementations
 - Add strict certification profiles:
   - keep normal `bin/serow certify` useful for local iteration
-  - add a stricter unattended profile, for example `bin/serow certify --profile unattended` _(Started: the profile exists, requires explicit public symbol versions, rejects evidence weakening against `HEAD`, and rejects unchecked transitive impact.)_
+  - add a stricter unattended profile, for example `bin/serow certify --profile unattended` _(Started: the profile exists, requires explicit public symbol versions, rejects evidence weakening against `HEAD`, rejects unchecked transitive impact, and rejects uncovered impacted call edges.)_
   - make the unattended profile require no unresolved impact, no evidence weakening, no ambiguous intent reuse, no capability expansion without acknowledgement, and complete repair-action consistency
 
 ## Phase 3: Backends

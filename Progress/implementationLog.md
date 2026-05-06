@@ -148,3 +148,7 @@
 - `bin/serow plan [--json]` now emits `behavior_change` rows when a changed public symbol keeps the same canonical version but changes its signature, requires clauses, ensures clauses, examples, properties, or effects compared with Git `HEAD`.
 - `bin/serow certify --profile unattended` now rejects those changes as `PublicBehaviorChangeNeedsVersion`; bumping the public `version vN` creates a new canonical symbol and satisfies this gate.
 - Updated agent bootstrap output, README, `serow.project`, and Progress docs to document the stricter public versioning policy.
+- Made uncovered impacted call edges a strict unattended certification gate.
+- `bin/serow certify --profile unattended` now emits `UncoveredImpactEvidence` when a changed public symbol has an impacted dependent call edge that is inside the certified change set but is not exercised by an executable example or sampled property.
+- Added Rust integration coverage proving a change set that includes both target and dependent still fails unattended certification when the dependent evidence is shallow.
+- Updated agent bootstrap output, README, and Progress docs to document the new impact coverage gate.

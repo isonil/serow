@@ -14,6 +14,7 @@ use crate::plan::{
     ChangePlan, EvidenceCoverage, EvidenceDelta, EvidenceWeakening, ImpactEvidenceCoverage,
     PublicBehaviorChange, plan_paths, unattended_evidence_weakening_diagnostics,
     unattended_public_behavior_change_diagnostics, unattended_unchecked_impact_diagnostics,
+    unattended_uncovered_impact_evidence_diagnostics,
 };
 
 pub fn main(args: impl Iterator<Item = String>) -> i32 {
@@ -249,6 +250,9 @@ fn run_check(args: &[String], certify: bool) -> i32 {
         summary
             .diagnostics
             .extend(unattended_unchecked_impact_diagnostics(&paths));
+        summary
+            .diagnostics
+            .extend(unattended_uncovered_impact_evidence_diagnostics(&paths));
     }
     if json_output {
         println!("{}", check_json(&summary, certify.then_some(profile)));
@@ -1141,6 +1145,7 @@ fn agent_json() -> String {
             "`serow certify --profile unattended` fails when changed public symbols weaken executable evidence compared with HEAD.",
             "`serow certify --profile unattended` fails when a tracked public symbol changes its public contract surface without a new symbol version.",
             "`serow certify --profile unattended` fails when changed tracked public symbols have transitive dependents outside the certified change set.",
+            "`serow certify --profile unattended` fails when impacted dependent call edges lack executable example or sampled property coverage.",
             "`serow plan` reports whether impacted dependent call edges are covered by executable examples or sampled properties.",
             "Ambiguous bare calls are rejected; use a qualified reference when names or versions overlap.",
             "Expression support is intentionally small.",
@@ -1319,6 +1324,9 @@ fn print_agent_bootstrap() {
     println!("  unattended certification requires explicit public versions");
     println!(
         "  unattended certification rejects tracked public contract-surface changes that keep the same symbol version"
+    );
+    println!(
+        "  unattended certification rejects impacted dependent call edges without executable evidence coverage"
     );
 }
 

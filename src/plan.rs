@@ -301,6 +301,51 @@ pub fn unattended_unchecked_impact_diagnostics(paths: &[String]) -> Vec<Diagnost
         .collect()
 }
 
+pub fn unattended_uncovered_impact_evidence_diagnostics(paths: &[String]) -> Vec<Diagnostic> {
+    let mut plan_command = vec!["bin/serow".to_string(), "plan".to_string()];
+    plan_command.extend(paths.iter().cloned());
+    plan_command.push("--json".to_string());
+
+    plan_paths(paths)
+        .changed_symbols
+        .into_iter()
+        .flat_map(|symbol| {
+            let target = symbol.function.target();
+            let changed_symbol = symbol.function.symbol();
+            let plan_command = plan_command.clone();
+            symbol
+                .impact_coverage
+                .into_iter()
+                .filter(|coverage| !coverage.covered)
+                .map(move |coverage| {
+                    Diagnostic::error(
+                        "UncoveredImpactEvidence",
+                        format!(
+                            "Public function `{}` has impacted dependent `{}` without executable evidence covering the changed call edge.",
+                            symbol.function.name,
+                            coverage.dependent.symbol()
+                        ),
+                        Some(target.clone()),
+                    )
+                    .with_data("symbol", changed_symbol.clone())
+                    .with_data("dependent", coverage.dependent.symbol())
+                    .with_data("edge_target", coverage.edge_target.symbol())
+                    .with_data("target", coverage.target.symbol())
+                    .with_data("depth", coverage.depth.to_string())
+                    .with_data("reason", coverage.reason)
+                    .with_command_repair(
+                        "Review impact coverage",
+                        plan_command.clone(),
+                    )
+                    .with_repair(
+                        "Add an executable example or sampled property that exercises the impacted dependent call edge before unattended certification.",
+                    )
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
 fn changed_symbol(
     function: &Function,
     program: &crate::model::Program,

@@ -1,6 +1,6 @@
 # Current State
 
-Date: 2026-05-05
+Date: 2026-05-06
 
 ## Implemented
 
@@ -53,6 +53,7 @@ Date: 2026-05-05
   - rejects changed tracked public symbols that modify their public contract surface without changing the canonical symbol version
   - rejects changed tracked public symbols that remove or narrow executable evidence compared with Git `HEAD`
   - rejects changed tracked public symbols with transitive dependents outside the certified change set
+  - rejects impacted dependent call edges that lack executable example or sampled property coverage
 - Structured patch commands:
   - `bin/serow patch add-function <path> <module> <signature> <intent> [--json]`
   - `bin/serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]`
@@ -218,6 +219,21 @@ bin/serow certify --profile unattended --json
 bin/serow plan --json
 ```
 
+Additional verification after making uncovered impacted call edges an unattended certification gate:
+
+```sh
+cargo fmt --check
+cargo clippy -- -D warnings
+cargo test unattended_certification_rejects_uncovered_impact_evidence
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+```
+
 `cargo test` includes integration coverage for `bin/serow patch add-function`.
 
 `bin/serow check --json` currently reports:
@@ -249,8 +265,8 @@ bin/serow plan --json
 - The hand-written JSON output should eventually be replaced with `serde_json` once external dependencies are allowed/desired.
 - Structured repair actions currently cover only command-style fixes already exposed by the bootstrap CLI.
 - `query dependents` reports direct resolved call edges; use `query impact` for direct and transitive dependent paths. Ambiguous bare calls are intentionally skipped by ledger queries because they are checker errors.
-- `serow plan` is an early reporting primitive; it treats explicit path arguments as the selected change set and compares public contract-surface and evidence sections against `HEAD` when a tracked baseline is available. It reports whether impacted dependent call edges are covered by executable examples or sampled properties, but it does not yet compare full implementation AST behavior, require migration records, or enforce coverage as a certification gate.
-- Normal certification still accepts omitted symbol versions for compatibility; `certify --profile unattended` requires explicit public versions, rejects same-version public contract-surface changes, rejects evidence weakening against `HEAD`, and rejects unchecked transitive impact, but it does not yet enforce the rest of the unattended safety roadmap.
+- `serow plan` is an early reporting primitive; it treats explicit path arguments as the selected change set and compares public contract-surface and evidence sections against `HEAD` when a tracked baseline is available. It reports whether impacted dependent call edges are covered by executable examples or sampled properties, but it does not yet compare full implementation AST behavior or require migration records.
+- Normal certification still accepts omitted symbol versions for compatibility; `certify --profile unattended` requires explicit public versions, rejects same-version public contract-surface changes, rejects evidence weakening against `HEAD`, rejects unchecked transitive impact, and rejects uncovered impacted call edges, but it does not yet enforce the rest of the unattended safety roadmap.
 
 ## Current Strategic Direction
 
