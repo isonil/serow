@@ -2738,32 +2738,31 @@ pub fn id(x: Int) -> Int
             "--json",
         ])
         .output()
-        .expect("run rejected serow patch set-version");
-    assert!(!bump.status.success(), "{bump:#?}");
+        .expect("run serow patch set-version bump");
+    assert!(bump.status.success(), "{bump:#?}");
     let bump_stdout = String::from_utf8(bump.stdout).expect("stdout is utf8");
-    assert!(bump_stdout.contains("PatchConflict"), "{bump_stdout}");
-    assert!(
-        bump_stdout.contains("dependent-aware version changes are not implemented yet"),
-        "{bump_stdout}"
-    );
+    assert!(bump_stdout.contains("\"changed\": 1"), "{bump_stdout}");
+
+    let bumped = fs::read_to_string(&source).expect("read bumped fixture");
+    assert!(bumped.contains("  version v2"), "{bumped}");
 
     let patch = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args([
             "patch",
             "set-version",
             source.to_str().expect("utf8 path"),
-            "@app.main.id.v1",
-            "v1",
+            "@app.main.id.v2",
+            "v2",
             "--json",
         ])
         .output()
         .expect("run serow patch set-version");
     assert!(patch.status.success(), "{patch:#?}");
     let stdout = String::from_utf8(patch.stdout).expect("stdout is utf8");
-    assert!(stdout.contains("\"changed\": 1"), "{stdout}");
+    assert!(stdout.contains("\"changed\": 0"), "{stdout}");
 
     let updated = fs::read_to_string(&source).expect("read updated fixture");
-    assert!(updated.contains("  version v1"), "{updated}");
+    assert!(updated.contains("  version v2"), "{updated}");
 
     let after = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args([
@@ -2776,6 +2775,70 @@ pub fn id(x: Int) -> Int
         .output()
         .expect("run unattended certify");
     assert!(after.status.success(), "{after:#?}");
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn patch_set_version_rejects_version_pinned_dependents() {
+    let dir = unique_temp_dir("serow-patch-set-version-pinned");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("pinned.serow");
+    fs::write(
+        &source,
+        r#"module app.main
+
+pub fn id(x: Int) -> Int
+  intent "Return x for pinned version checks."
+  version v1
+  contract
+    ensures result == x
+  examples
+    id(1) == 1
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+
+pub fn uses_id(x: Int) -> Int
+  intent "Return x through the pinned id symbol."
+  version v1
+  contract
+    ensures result == x
+  examples
+    uses_id(1) == 1
+  properties
+    forall x: Int:
+      uses_id(x) == x
+  effects pure
+  impl
+    @app.main.id.v1(x)
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-version",
+            source.to_str().expect("utf8 path"),
+            "@app.main.id.v1",
+            "v2",
+            "--json",
+        ])
+        .output()
+        .expect("run rejected serow patch set-version");
+
+    assert!(!output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("VersionPinnedDependent"), "{stdout}");
+    assert!(stdout.contains("@app.main.uses_id.v1"), "{stdout}");
+    assert!(stdout.contains("@app.main.id.v1(x)"), "{stdout}");
+
+    let unchanged = fs::read_to_string(&source).expect("read unchanged fixture");
+    assert!(unchanged.contains("  version v1"), "{unchanged}");
+    assert!(!unchanged.contains("  version v2"), "{unchanged}");
     let _ = fs::remove_dir_all(dir);
 }
 

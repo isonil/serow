@@ -1225,7 +1225,7 @@ fn agent_json() -> String {
         (
             "patch set-version",
             "serow patch set-version <path> <symbol-or-name> <version> [--json]",
-            "Declare an explicit source-level version on an existing function.",
+            "Declare or bump an explicit source-level version, rejecting call sites pinned to the old version.",
         ),
         (
             "plan",
@@ -1322,6 +1322,7 @@ fn agent_json() -> String {
             "Exact duplicate public intents are errors; high-overlap token-ranked intent matches are warnings.",
             "Intent search is deterministic token ranking with stopwords and light normalization, not semantic embeddings.",
             "Qualified calls support `module.name(...)`, `module.name.vN(...)`, and exact `@module.name.vN(...)` references.",
+            "`serow patch set-version` can bump a symbol version when parsed call sites do not pin the old canonical version.",
             "`bin/serow check` requires callers to declare every concrete capability required by direct callees.",
             "`bin/serow check` warns when a function declares concrete capabilities not required by resolved non-self direct callees.",
             "`serow certify --profile unattended` fails when changed public symbols weaken executable evidence compared with HEAD unless acknowledged by migration.",
@@ -1523,6 +1524,9 @@ fn print_agent_bootstrap() {
     println!("identity:");
     println!("  source may declare `version vN`; omitted versions default to v1");
     println!("  unattended certification requires explicit public versions");
+    println!(
+        "  patch set-version can bump versions unless parsed call sites pin the old canonical symbol"
+    );
     println!(
         "  unattended certification rejects tracked public contract-surface changes that keep the same symbol version"
     );

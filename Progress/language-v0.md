@@ -154,7 +154,7 @@ JSON diagnostics include stable core fields such as `severity`, `code`, `message
 
 `bin/serow patch set-effects <path> <symbol-or-name> <effects> [--json]` replaces an existing function's explicit effect capability declaration. The effects argument must be `pure` or a bracketed concrete capability list such as `[io, network]`. The command rejects ambiguous bare targets and rewrites through the canonical formatter. Capability expansion remains a public-surface change that the unattended profile gates through versioning or `capability-expansion` migration acknowledgement.
 
-`bin/serow patch set-version <path> <symbol-or-name> <version> [--json]` declares an explicit source-level version on an existing function. This is primarily used by unattended certification repair actions when public functions still rely on the bootstrap default `v1` identity. The command rejects invalid versions, duplicate canonical symbols, and dependent-unaware version changes.
+`bin/serow patch set-version <path> <symbol-or-name> <version> [--json]` declares an explicit source-level version on an existing function. This is primarily used by unattended certification repair actions when public functions still rely on the bootstrap default `v1` identity. It can also bump an existing symbol to a new `vN` when parsed call sites do not pin the old canonical version. The command rejects invalid versions, duplicate canonical symbols, and version bumps that would strand `module.name.vN(...)` or exact `@module.name.vN(...)` callers, reporting `VersionPinnedDependent` with the pinned call sites.
 
 ## Formatting
 

@@ -1,6 +1,7 @@
 use std::fs;
 
 use crate::diagnostic::{Diagnostic, has_errors};
+use crate::eval::{called_functions, resolve_function};
 use crate::formatter::format_program;
 use crate::model::{Function, MigrationRecord, ModuleDependency, Param, Program};
 
@@ -406,23 +407,6 @@ pub fn set_version(path: &str, target: &str, version: &str) -> PatchSummary {
 
     patch_function_checked_with_program(path, target, |program, function| {
         let symbol = format!("@{}.{}.{}", function.module, function.name, version);
-        if function.version != version {
-            return Err(Box::new(
-                Diagnostic::error(
-                    "PatchConflict",
-                    format!(
-                        "Function `{}` currently has version `{}`.",
-                        function.name, function.version
-                    ),
-                    Some(function.target()),
-                )
-                .with_data("current_version", function.version.clone())
-                .with_data("requested_version", version)
-                .with_repair(
-                    "Use the function's current version; dependent-aware version changes are not implemented yet.",
-                ),
-            ));
-        }
         if let Some(existing) = program.functions.iter().find(|candidate| {
             candidate.symbol() == symbol && candidate.symbol() != function.symbol()
         }) {
@@ -436,6 +420,44 @@ pub fn set_version(path: &str, target: &str, version: &str) -> PatchSummary {
                 .with_repair("Choose a different version or update the existing symbol manually."),
             ));
         }
+        if function.version != version {
+            let pinned_call_sites = version_pinned_call_sites(program, function);
+            if !pinned_call_sites.is_empty() {
+                return Err(Box::new(
+                    Diagnostic::error(
+                        "VersionPinnedDependent",
+                        format!(
+                            "Function `{}` cannot move from `{}` to `{version}` while call sites pin the current symbol version.",
+                            function.name, function.version
+                        ),
+                        Some(function.target()),
+                    )
+                    .with_data("current_symbol", function.symbol())
+                    .with_data("requested_symbol", symbol)
+                    .with_data(
+                        "pinned_call_sites",
+                        pinned_call_sites
+                            .iter()
+                            .map(PinnedVersionCallSite::label)
+                            .collect::<Vec<_>>()
+                            .join("; "),
+                    )
+                    .with_repair(
+                        "Update version-pinned call sites manually or keep the existing public version.",
+                    )
+                    .with_command_repair(
+                        "Inspect dependents before changing the public version",
+                        vec![
+                            "bin/serow".to_string(),
+                            "query".to_string(),
+                            "dependents".to_string(),
+                            function.symbol(),
+                            path.to_string(),
+                        ],
+                    ),
+                ));
+            }
+        }
         if function.version == version && function.version_explicit {
             return Ok(false);
         }
@@ -443,6 +465,96 @@ pub fn set_version(path: &str, target: &str, version: &str) -> PatchSummary {
         function.version_explicit = true;
         Ok(true)
     })
+}
+
+#[derive(Clone, Debug)]
+struct PinnedVersionCallSite {
+    caller: String,
+    context: String,
+    reference: String,
+    expression: String,
+}
+
+impl PinnedVersionCallSite {
+    fn label(&self) -> String {
+        format!(
+            "{} {} `{}` in `{}`",
+            self.caller, self.context, self.reference, self.expression
+        )
+    }
+}
+
+fn version_pinned_call_sites(program: &Program, target: &Function) -> Vec<PinnedVersionCallSite> {
+    let mut call_sites = Vec::new();
+    for caller in &program.functions {
+        for (context, expression) in function_expressions(caller) {
+            let Ok(call_references) = called_functions(&expression) else {
+                continue;
+            };
+            for call_reference in call_references {
+                if call_reference.version.is_none() {
+                    continue;
+                }
+                let Ok(callee) = resolve_function(&call_reference.raw, &program.functions) else {
+                    continue;
+                };
+                if callee.symbol() != target.symbol() {
+                    continue;
+                }
+                call_sites.push(PinnedVersionCallSite {
+                    caller: caller.symbol(),
+                    context: context.to_string(),
+                    reference: call_reference.raw,
+                    expression: expression.clone(),
+                });
+            }
+        }
+    }
+    call_sites.sort_by(|left, right| {
+        left.caller
+            .cmp(&right.caller)
+            .then_with(|| left.context.cmp(&right.context))
+            .then_with(|| left.reference.cmp(&right.reference))
+            .then_with(|| left.expression.cmp(&right.expression))
+    });
+    call_sites
+}
+
+fn function_expressions(function: &Function) -> Vec<(&'static str, String)> {
+    let mut expressions = Vec::new();
+    if let Some(implementation) = &function.implementation {
+        expressions.push(("impl", implementation.clone()));
+    }
+    for requirement in &function.requires {
+        expressions.push(("requires", requirement.clone()));
+    }
+    for contract in &function.contracts {
+        expressions.push(("contract", contract.clone()));
+    }
+    for example in &function.examples {
+        expressions.push(("example", example.clone()));
+    }
+    for property in property_expressions(&function.properties) {
+        expressions.push(("property", property));
+    }
+    expressions
+}
+
+fn property_expressions(lines: &[String]) -> Vec<String> {
+    let mut expressions = Vec::new();
+    let mut index = 0;
+    while index < lines.len() {
+        let line = lines[index].trim();
+        if line.starts_with("forall ") && line.ends_with(':') {
+            if let Some(expression) = lines.get(index + 1) {
+                expressions.push(expression.trim().to_string());
+            }
+            index += 2;
+        } else {
+            index += 1;
+        }
+    }
+    expressions
 }
 
 pub fn set_effects(path: &str, target: &str, effects: &str) -> PatchSummary {

@@ -51,7 +51,7 @@ This phase exists to make Serow more useful to AI implementers before production
   - insert a new public function skeleton from an intent and signature _(Started: `patch add-function` creates an explicit-version pure skeleton with a typed hole and no invented evidence.)_
   - declare explicit source-level versions through structured patches _(Started: `patch set-version` makes an existing function's public version explicit and rejects duplicate canonical symbols.)_
   - update effect declarations through structured patches _(Started: `patch set-effects` replaces a function's explicit capability declaration and effect diagnostics can point at it.)_
-  - rename or version symbols with dependent-aware diagnostics
+  - rename or version symbols with dependent-aware diagnostics _(Started: `patch set-version` can bump a public version when parsed call sites do not pin the old canonical symbol, and rejects pinned `module.name.vN(...)` / `@module.name.vN(...)` callers with `VersionPinnedDependent`.)_
   - update examples/properties/contracts through AST-aware edits
 - Tighten agent certification:
   - require warning-free diagnostics where appropriate

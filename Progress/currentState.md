@@ -73,6 +73,7 @@ Date: 2026-05-06
   - `bin/serow patch set-effects <path> <symbol-or-name> <effects> [--json]`
   - `bin/serow patch set-version <path> <symbol-or-name> <version> [--json]`
 - Structured evidence patches reject ambiguous bare targets and preserve canonical formatting.
+- `patch set-version` now supports dependent-aware public version bumps when parsed call sites do not pin the old canonical symbol, and rejects pinned `module.name.vN(...)` or `@module.name.vN(...)` callers with `VersionPinnedDependent`.
 - Structured JSON diagnostic repair actions:
   - command repair actions are emitted as `repair_actions` alongside legacy `repairs`
   - currently used for format drift, missing module dependencies, duplicate-intent lookup, implicit-version fixes in unattended certification, and effect capability declaration repairs
@@ -447,6 +448,28 @@ bin/serow plan --json
 bin/serow agent --json
 ```
 
+Additional verification after adding dependent-aware public version bumps:
+
+```sh
+bin/serow query intent "bump public symbol version when behavior changes" --json
+bin/serow query intent "rename or version symbols with dependent-aware diagnostics" --json
+bin/serow query symbol "set-version" --json
+bin/serow query symbol "version" --json
+cargo fmt
+cargo test patch_set_version -- --nocapture
+cargo test repair_action_contract_validation_rejects_malformed_commands -- --nocapture
+cargo fmt --check
+cargo clippy -- -D warnings
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow agent --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+```
+
 `cargo test` includes integration coverage for `bin/serow patch add-function`.
 
 `bin/serow check --json` currently reports:
@@ -472,7 +495,7 @@ bin/serow agent --json
 - Expression support is intentionally small: literals, variables, direct or qualified calls, arithmetic, comparisons, booleans, and one-line `if ... then ... else ...`.
 - Properties are sampled, not proven.
 - Effects checking is intentionally conservative direct-call capability subset validation; it warns on unused declared capabilities only when resolved non-self direct callees establish a required capability set, and it does not yet model effect polymorphism or external effect primitives.
-- Structured patch coverage is intentionally narrow: module `use` insertion, public function skeleton insertion, append-only evidence insertion, migration acknowledgement insertion, effect declaration replacement, version declaration, and typed-hole filling are implemented.
+- Structured patch coverage is intentionally narrow: module `use` insertion, public function skeleton insertion, append-only evidence insertion, migration acknowledgement insertion, effect declaration replacement, version declaration and pinned-call-aware version bumps, and typed-hole filling are implemented.
 - Evidence patching is intentionally append-only; implementation patching only fills typed holes and does not yet model dependent-aware rewrites.
 - Formatting parses and re-emits the bootstrap projection; comments are not preserved yet.
 - The hand-written JSON output should eventually be replaced with `serde_json` once external dependencies are allowed/desired.

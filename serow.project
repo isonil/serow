@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "0.4.22-rust-bootstrap",
+  "version": "0.4.23-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -17,6 +17,7 @@
     "patch_add_use": "bin/serow patch add-use <path> <module> <dependency>",
     "patch_fill_hole": "bin/serow patch fill-hole <path> <symbol-or-name> <expression>",
     "patch_set_effects": "bin/serow patch set-effects <path> <symbol-or-name> <effects>",
+    "patch_set_version": "bin/serow patch set-version <path> <symbol-or-name> <version>",
     "plan": "bin/serow plan <paths...>",
     "query_dependents": "bin/serow query dependents \"<symbol-or-name>\"",
     "query_impact": "bin/serow query impact \"<symbol-or-name>\"",
@@ -37,6 +38,7 @@
     "duplicate_public_intents_rejected": true,
     "near_duplicate_public_intents_warned": true,
     "qualified_function_references": true,
+    "structured_version_bumps_reject_version_pinned_call_sites": true,
     "effects_are_explicit": true,
     "direct_calls_require_declared_callee_capabilities": true,
     "direct_call_unused_declared_capabilities_warned": true,

@@ -200,3 +200,8 @@
 - `EffectViolation` and `UnusedEffectCapability` diagnostics now include command-style repair actions pointing at `patch set-effects`, and unattended repair-action contract validation accepts the new patch subcommand.
 - Added Rust integration coverage proving `patch set-effects` repairs an effect capability diagnostic.
 - Updated the agent bootstrap contract, README, `serow.project`, and Progress docs to document structured effect declaration patches.
+- Made `bin/serow patch set-version` dependent-aware for public version bumps.
+- The command still makes implicit versions explicit, but it can now move a function to a new `vN` when parsed call sites do not pin the old canonical symbol.
+- Version bumps are rejected as `VersionPinnedDependent` when a parsed call site uses `module.name.vN(...)` or exact `@module.name.vN(...)` for the current symbol, with data listing the pinned callers and a repair action to inspect dependents.
+- Added Rust integration coverage for successful standalone version bumps and rejected pinned-call version bumps.
+- Updated the agent bootstrap contract, README, `serow.project`, and Progress docs to document pinned-call-aware version patching.
