@@ -12,9 +12,10 @@ use crate::patch::{
 };
 use crate::plan::{
     CapabilityChange, ChangePlan, EvidenceCoverage, EvidenceDelta, EvidenceDrift,
-    EvidenceWeakening, ImpactEvidenceCoverage, ImplementationChange, PublicBehaviorChange,
-    plan_paths, unattended_capability_expansion_diagnostics,
-    unattended_evidence_weakening_diagnostics, unattended_implementation_change_diagnostics,
+    EvidenceWeakening, ImpactEvidenceCoverage, ImplementationChange,
+    ImplementationEvidenceCoverage, PublicBehaviorChange, plan_paths,
+    unattended_capability_expansion_diagnostics, unattended_evidence_weakening_diagnostics,
+    unattended_implementation_change_diagnostics,
     unattended_implementation_evidence_drift_diagnostics,
     unattended_public_behavior_change_diagnostics, unattended_unchecked_impact_diagnostics,
     unattended_uncovered_impact_evidence_diagnostics,
@@ -662,6 +663,17 @@ fn print_plan(plan: &ChangePlan) {
             println!("    before: {}", change.before);
             println!("    after: {}", change.after);
         }
+        if let Some(coverage) = &symbol.implementation_evidence {
+            println!(
+                "  implementation evidence coverage: {}",
+                if coverage.covered {
+                    "covered"
+                } else {
+                    "uncovered"
+                }
+            );
+            println!("    {}", coverage.reason);
+        }
         for migration in &symbol.migrations {
             println!("  migration: {} - {}", migration.kind, migration.note);
         }
@@ -749,6 +761,7 @@ fn changed_symbols_json(plan: &ChangePlan) -> String {
                     "      \"evidence_weakening\": {},\n",
                     "      \"function\": {},\n",
                     "      \"implementation_change\": {},\n",
+                    "      \"implementation_evidence\": {},\n",
                     "      \"impact\": {},\n",
                     "      \"impact_coverage\": {},\n",
                     "      \"migrations\": {},\n",
@@ -768,6 +781,7 @@ fn changed_symbols_json(plan: &ChangePlan) -> String {
                 evidence_weakening_json(&symbol.evidence_weakening),
                 function_ref_json(&symbol.function),
                 implementation_change_json(symbol.implementation_change.as_ref()),
+                implementation_evidence_json(symbol.implementation_evidence.as_ref()),
                 impact_rows_json(&symbol.impact),
                 impact_coverage_json(&symbol.impact_coverage),
                 migrations_json(&symbol.migrations),
@@ -817,6 +831,29 @@ fn implementation_change_json(change: Option<&ImplementationChange>) -> String {
                 "{{\"after\": {}, \"before\": {}}}",
                 json_string(&change.after),
                 json_string(&change.before)
+            )
+        })
+        .unwrap_or_else(|| "null".to_string())
+}
+
+fn implementation_evidence_json(coverage: Option<&ImplementationEvidenceCoverage>) -> String {
+    coverage
+        .map(|coverage| {
+            format!(
+                concat!(
+                    "{{",
+                    "\"added_examples\": {}, ",
+                    "\"added_properties\": {}, ",
+                    "\"coverage\": {}, ",
+                    "\"covered\": {}, ",
+                    "\"reason\": {}",
+                    "}}"
+                ),
+                string_array_json(&coverage.added_examples),
+                string_array_json(&coverage.added_properties),
+                call_sites_json(&coverage.coverage),
+                coverage.covered,
+                json_string(&coverage.reason)
             )
         })
         .unwrap_or_else(|| "null".to_string())
@@ -1153,7 +1190,7 @@ fn agent_json() -> String {
         (
             "plan",
             "serow plan [paths...] [--json]",
-            "Summarize changed public symbols, migration acknowledgements, capability changes, implementation changes, implementation/evidence drift, evidence coverage, HEAD evidence deltas, impact-edge coverage, and residual risk.",
+            "Summarize changed public symbols, migration acknowledgements, capability changes, implementation changes, implementation evidence coverage, implementation/evidence drift, evidence coverage, HEAD evidence deltas, impact-edge coverage, and residual risk.",
         ),
         (
             "query dependents",
@@ -1251,9 +1288,11 @@ fn agent_json() -> String {
             "`serow certify --profile unattended` fails when changed tracked public symbols have transitive dependents outside the certified change set unless acknowledged by impact migration.",
             "`serow certify --profile unattended` fails when impacted dependent call edges lack executable example or sampled property coverage unless acknowledged by impact migration.",
             "`serow certify --profile unattended` fails when changed tracked public symbols modify implementations without adding executable evidence unless acknowledged by migration.",
+            "`serow certify --profile unattended` fails when added executable evidence for an implementation change does not call the changed function unless acknowledged by implementation migration.",
             "`serow certify --profile unattended` fails when implementation and executable evidence change together unless acknowledged by implementation migration.",
             "`serow plan` reports declared capability changes against HEAD for changed tracked public symbols.",
             "`serow plan` reports implementation changes against HEAD for changed tracked public symbols.",
+            "`serow plan` reports whether added examples/properties directly call changed implementations.",
             "`serow plan` reports implementation/evidence drift against HEAD for changed tracked public symbols.",
             "`serow plan` reports whether impacted dependent call edges are covered by executable examples or sampled properties.",
             "Ambiguous bare calls are rejected; use a qualified reference when names or versions overlap.",
@@ -1413,6 +1452,7 @@ fn print_agent_bootstrap() {
     println!("  serow plan [paths...] [--json]");
     println!("    reports declared capability changes against HEAD");
     println!("    reports same-symbol implementation changes against HEAD");
+    println!("    reports whether added evidence directly calls changed implementations");
     println!("    reports implementation/evidence drift against HEAD");
     println!("    reports impact-edge coverage by executable examples/properties");
     println!("  serow query dependents <symbol-or-name> [paths...] [--json]");
@@ -1440,6 +1480,9 @@ fn print_agent_bootstrap() {
     );
     println!(
         "  unattended certification rejects tracked implementation changes without added executable evidence"
+    );
+    println!(
+        "  unattended certification rejects added implementation evidence that does not call the changed function"
     );
     println!(
         "  unattended certification rejects tracked implementation/evidence drift without explicit migration acknowledgement"

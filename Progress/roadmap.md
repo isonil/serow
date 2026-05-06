@@ -85,7 +85,7 @@ This phase exists because the original Serow premise is not only "AI-first synta
   - keep the output deterministic so weaker agents can follow it without interpreting prose
 - Guard against evidence drift:
   - flag patches that change implementation and evidence together unless the changed evidence is explained by a structured migration record _(Started: same-symbol implementation-only changes are reported by `serow plan` and rejected by unattended certification when no executable evidence is added; `serow plan` now reports implementation/evidence drift rows, and unattended certification rejects them unless acknowledged by an `implementation-change` migration.)_
-  - report examples/properties that no longer exercise the changed implementation path
+  - report examples/properties that no longer exercise the changed implementation path _(Started: `serow plan` now reports whether added examples/properties directly call a changed function implementation, and unattended certification rejects shallow added implementation evidence as `ImplementationChangeNeedsCoveringEvidence` unless acknowledged by an `implementation-change` migration.)_
   - add mutation or lightweight fuzz checks to catch examples that are too shallow to detect broken implementations
 - Add strict certification profiles:
   - keep normal `bin/serow certify` useful for local iteration

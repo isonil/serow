@@ -171,3 +171,7 @@
 - `serow plan --json` now emits `evidence_drift` rows when a same-symbol implementation change is paired with changed executable evidence.
 - `bin/serow certify --profile unattended` now emits `ImplementationEvidenceDriftNeedsMigration` unless the function has an `implementation-change` migration acknowledgement.
 - Added Rust integration coverage proving added evidence no longer masks a same-version implementation change in unattended certification.
+- Added implementation evidence coverage analysis for changed tracked public symbols.
+- `serow plan --json` now emits `implementation_evidence` rows for implementation changes, including added examples, added properties, direct call coverage, and a reason string.
+- `bin/serow certify --profile unattended` now emits `ImplementationChangeNeedsCoveringEvidence` when a same-symbol implementation change adds executable examples/properties that do not directly call the changed function.
+- Added Rust integration coverage proving a tautological added example no longer satisfies the implementation-change evidence gate.

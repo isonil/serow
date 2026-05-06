@@ -32,6 +32,7 @@ pub struct ChangedSymbol {
     pub evidence_drift: Option<EvidenceDrift>,
     pub evidence_weakening: Vec<EvidenceWeakening>,
     pub implementation_change: Option<ImplementationChange>,
+    pub implementation_evidence: Option<ImplementationEvidenceCoverage>,
     pub version_explicit: bool,
     pub migrations: Vec<MigrationRecord>,
     pub impact: Vec<ImpactDependent>,
@@ -85,6 +86,15 @@ pub struct CapabilityChange {
 pub struct ImplementationChange {
     pub before: String,
     pub after: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ImplementationEvidenceCoverage {
+    pub added_examples: Vec<String>,
+    pub added_properties: Vec<String>,
+    pub covered: bool,
+    pub coverage: Vec<CallSite>,
+    pub reason: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -196,6 +206,20 @@ pub fn plan_paths(paths: &[String]) -> ChangePlan {
     }) {
         residual_risks.push(
             "Changed public symbols modify implementations without adding executable evidence compared with HEAD."
+                .to_string(),
+        );
+    }
+    if changed_symbols.iter().any(|symbol| {
+        symbol.implementation_change.is_some()
+            && executable_evidence_strengthened(symbol.evidence_delta.as_ref())
+            && !symbol
+                .implementation_evidence
+                .as_ref()
+                .is_some_and(|coverage| coverage.covered)
+            && !has_migration(&symbol.function, "implementation-change")
+    }) {
+        residual_risks.push(
+            "Changed public symbols add executable evidence that does not call the changed function."
                 .to_string(),
         );
     }
@@ -377,8 +401,55 @@ pub fn unattended_implementation_change_diagnostics(paths: &[String]) -> Vec<Dia
                 return None;
             }
             let implementation_change = symbol.implementation_change?;
-            if executable_evidence_strengthened(symbol.evidence_delta.as_ref()) {
+            if executable_evidence_strengthened(symbol.evidence_delta.as_ref())
+                && symbol
+                    .implementation_evidence
+                    .as_ref()
+                    .is_some_and(|coverage| coverage.covered)
+            {
                 return None;
+            }
+            if executable_evidence_strengthened(symbol.evidence_delta.as_ref()) {
+                let coverage = symbol.implementation_evidence;
+                return Some(
+                    Diagnostic::error(
+                        "ImplementationChangeNeedsCoveringEvidence",
+                        format!(
+                            "Public function `{}` changes its implementation, but the added executable evidence does not call the changed function.",
+                            symbol.function.name
+                        ),
+                        Some(symbol.function.target()),
+                    )
+                    .with_data("symbol", symbol.function.symbol())
+                    .with_data("before", implementation_change.before)
+                    .with_data("after", implementation_change.after)
+                    .with_data(
+                        "added_examples",
+                        coverage
+                            .as_ref()
+                            .map(|coverage| coverage.added_examples.join("\n"))
+                            .unwrap_or_default(),
+                    )
+                    .with_data(
+                        "added_properties",
+                        coverage
+                            .as_ref()
+                            .map(|coverage| coverage.added_properties.join("\n"))
+                            .unwrap_or_default(),
+                    )
+                    .with_command_repair(
+                        "Review implementation evidence coverage",
+                        vec![
+                            "bin/serow".to_string(),
+                            "plan".to_string(),
+                            symbol.function.source_path.clone(),
+                            "--json".to_string(),
+                        ],
+                    )
+                    .with_repair(
+                        "Add an executable example or sampled property that directly calls the changed function, or add an explicit implementation-change migration decision.",
+                    ),
+                );
             }
             Some(
                 Diagnostic::error(
@@ -616,6 +687,11 @@ fn changed_symbol(
         .unwrap_or_default();
     let implementation_change = baseline_function
         .and_then(|baseline_function| implementation_change(baseline_function, function));
+    let implementation_evidence = implementation_change.as_ref().and_then(|_| {
+        baseline_function.map(|baseline_function| {
+            implementation_evidence_coverage(baseline_function, function, program)
+        })
+    });
     let evidence_drift = implementation_change
         .as_ref()
         .and(behavior_change.as_ref())
@@ -674,10 +750,20 @@ fn changed_symbol(
     }
     if implementation_change.is_some() && !has_migration(function, "implementation-change") {
         if executable_evidence_strengthened(evidence_delta.as_ref()) {
-            residual_risks.push(
-                "Implementation changed compared with HEAD; verify the added executable evidence explains the change."
-                    .to_string(),
-            );
+            if implementation_evidence
+                .as_ref()
+                .is_some_and(|coverage| coverage.covered)
+            {
+                residual_risks.push(
+                    "Implementation changed compared with HEAD; verify the added executable evidence explains the change."
+                        .to_string(),
+                );
+            } else {
+                residual_risks.push(
+                    "Implementation changed compared with HEAD, but added executable evidence does not call the changed function."
+                        .to_string(),
+                );
+            }
         } else {
             residual_risks.push(
                 "Implementation changed compared with HEAD without added executable evidence."
@@ -701,6 +787,7 @@ fn changed_symbol(
         evidence_drift,
         evidence_weakening,
         implementation_change,
+        implementation_evidence,
         version_explicit: function.version_explicit,
         migrations: function.migrations.clone(),
         impact,
@@ -824,6 +911,69 @@ fn executable_evidence_strengthened(delta: Option<&EvidenceDelta>) -> bool {
     })
 }
 
+fn implementation_evidence_coverage(
+    before: &Function,
+    after: &Function,
+    program: &crate::model::Program,
+) -> ImplementationEvidenceCoverage {
+    let before_examples = normalized_lines(&before.examples)
+        .into_iter()
+        .collect::<HashSet<_>>();
+    let before_properties = normalized_properties(&before.properties)
+        .into_iter()
+        .collect::<HashSet<_>>();
+    let added_examples = normalized_lines(&after.examples)
+        .into_iter()
+        .filter(|example| !before_examples.contains(example))
+        .collect::<Vec<_>>();
+    let added_properties = normalized_properties(&after.properties)
+        .into_iter()
+        .filter(|property| !before_properties.contains(property))
+        .collect::<Vec<_>>();
+    let mut coverage = added_examples
+        .iter()
+        .filter(|example| expression_calls_symbol(example, &after.symbol(), program))
+        .map(|example| CallSite {
+            context: "example".to_string(),
+            expression: example.clone(),
+        })
+        .collect::<Vec<_>>();
+    coverage.extend(
+        added_properties
+            .iter()
+            .filter_map(|property| property_body(property))
+            .filter(|expression| expression_calls_symbol(expression, &after.symbol(), program))
+            .map(|expression| CallSite {
+                context: "property".to_string(),
+                expression: expression.to_string(),
+            }),
+    );
+    let covered = !coverage.is_empty();
+    let reason = if covered {
+        format!(
+            "Added executable evidence directly calls changed function `{}`.",
+            after.symbol()
+        )
+    } else if added_examples.is_empty() && added_properties.is_empty() {
+        format!(
+            "No added executable examples or sampled properties directly call changed function `{}`.",
+            after.symbol()
+        )
+    } else {
+        format!(
+            "Added executable examples/properties do not directly call changed function `{}`.",
+            after.symbol()
+        )
+    };
+    ImplementationEvidenceCoverage {
+        added_examples,
+        added_properties,
+        covered,
+        coverage,
+        reason,
+    }
+}
+
 fn impact_evidence_coverage(
     impact: &ImpactDependent,
     program: &crate::model::Program,
@@ -922,6 +1072,13 @@ fn property_expressions(lines: &[String]) -> Vec<String> {
         }
     }
     expressions
+}
+
+fn property_body(property: &str) -> Option<&str> {
+    property
+        .lines()
+        .map(str::trim)
+        .rfind(|line| !line.is_empty())
 }
 
 fn expression_calls_symbol(

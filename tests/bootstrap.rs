@@ -1258,6 +1258,104 @@ pub fn inc(x: Int) -> Int
 }
 
 #[test]
+fn implementation_change_added_evidence_must_call_changed_function() {
+    let dir = unique_temp_dir("serow-implementation-evidence-coverage");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("checked.serow");
+    fs::write(
+        &source,
+        r#"module core.math
+
+pub fn inc(x: Int) -> Int
+  intent "Increment x."
+  version v1
+  contract
+    ensures result == x + 1
+  examples
+    inc(1) == 2
+  properties
+    forall x: Int:
+      inc(x) == x + 1
+  effects pure
+  impl
+    x + 1
+"#,
+    )
+    .expect("write fixture");
+
+    git(&dir, &["init"]);
+    git(&dir, &["add", "checked.serow"]);
+    git(&dir, &["commit", "-m", "baseline"]);
+
+    fs::write(
+        &source,
+        r#"module core.math
+
+pub fn inc(x: Int) -> Int
+  intent "Increment x."
+  version v1
+  migration
+    public-behavior-change "The added example is intended to cover the implementation edit."
+  contract
+    ensures result == x + 1
+  examples
+    inc(1) == 2
+    1 == 1
+  properties
+    forall x: Int:
+      inc(x) == x + 1
+  effects pure
+  impl
+    1 + x
+"#,
+    )
+    .expect("change implementation fixture");
+
+    let plan = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args(["plan", "--json"])
+        .output()
+        .expect("run serow plan");
+    assert!(!plan.status.success(), "{plan:#?}");
+    let plan_stdout = String::from_utf8(plan.stdout).expect("stdout is utf8");
+    assert!(
+        plan_stdout.contains("\"implementation_evidence\""),
+        "{plan_stdout}"
+    );
+    assert!(
+        plan_stdout.contains("\"added_examples\": [\"1 == 1\"]"),
+        "{plan_stdout}"
+    );
+    assert!(plan_stdout.contains("\"covered\": false"), "{plan_stdout}");
+    assert!(
+        plan_stdout
+            .contains("Added executable examples/properties do not directly call changed function"),
+        "{plan_stdout}"
+    );
+
+    let unattended = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args(["certify", "--profile", "unattended", "--json"])
+        .output()
+        .expect("run unattended certify");
+    assert!(!unattended.status.success(), "{unattended:#?}");
+    let stdout = String::from_utf8(unattended.stdout).expect("stdout is utf8");
+    assert!(
+        stdout.contains("ImplementationChangeNeedsCoveringEvidence"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"added_examples\": \"1 == 1\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"command\": [\"bin/serow\", \"plan\""),
+        "{stdout}"
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn unattended_certification_rejects_evidence_weakening_against_head() {
     let dir = unique_temp_dir("serow-unattended-evidence-weakening");
     fs::create_dir_all(&dir).expect("create temp dir");

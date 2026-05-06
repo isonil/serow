@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "0.4.17-rust-bootstrap",
+  "version": "0.4.18-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -41,6 +41,7 @@
     "unattended_rejects_capability_expansion_without_migration": true,
     "unattended_rejects_evidence_weakening": true,
     "unattended_rejects_implementation_change_without_evidence": true,
+    "unattended_rejects_implementation_change_with_shallow_added_evidence": true,
     "unattended_rejects_implementation_evidence_drift_without_migration": true,
     "unattended_rejects_unchecked_impact": true,
     "migration_records_acknowledge_unattended_gate_decisions": true,
