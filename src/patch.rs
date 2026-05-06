@@ -245,6 +245,71 @@ pub fn add_contract(path: &str, target: &str, clause: &str, expression: &str) ->
     })
 }
 
+pub fn set_contract(path: &str, target: &str, clause: &str, expression: &str) -> PatchSummary {
+    let mut summary = PatchSummary::default();
+    let clause = clause.trim();
+    let expression = expression.trim();
+    if clause != "requires" && clause != "ensures" {
+        summary.diagnostics.push(
+            Diagnostic::error(
+                "InvalidPatchTarget",
+                format!("Invalid contract clause `{clause}`."),
+                Some(path.to_string()),
+            )
+            .with_repair("Use `requires` or `ensures`."),
+        );
+        return summary;
+    }
+    if expression.is_empty() {
+        summary.diagnostics.push(Diagnostic::error(
+            "InvalidPatchTarget",
+            "Contract expression must not be empty.",
+            Some(path.to_string()),
+        ));
+        return summary;
+    }
+    patch_function_checked(path, target, |function| {
+        let existing_count = if clause == "requires" {
+            function.requires.len()
+        } else {
+            function.contracts.len()
+        };
+        if existing_count > 1 {
+            return Err(Box::new(
+                Diagnostic::error(
+                    "PatchConflict",
+                    format!(
+                        "Function `{}` has multiple `{clause}` contract clauses.",
+                        function.name
+                    ),
+                    Some(function.target()),
+                )
+                .with_repair(
+                    "Use `patch add-contract` for additional clauses or edit the contract manually.",
+                ),
+            ));
+        }
+
+        let lines = if clause == "requires" {
+            &mut function.requires
+        } else {
+            &mut function.contracts
+        };
+        match lines.as_mut_slice() {
+            [existing] if existing.trim() == expression => Ok(false),
+            [existing] => {
+                *existing = expression.to_string();
+                Ok(true)
+            }
+            [] => {
+                lines.push(expression.to_string());
+                Ok(true)
+            }
+            _ => unreachable!("multiple contract clauses were rejected above"),
+        }
+    })
+}
+
 pub fn add_example(path: &str, target: &str, expression: &str) -> PatchSummary {
     let expression = expression.trim();
     if expression.is_empty() {

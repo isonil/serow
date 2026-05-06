@@ -156,6 +156,8 @@ JSON diagnostics include stable core fields such as `severity`, `code`, `message
 
 `bin/serow patch set-impl <path> <symbol-or-name> <expression> [--json]` replaces an existing implementation expression. It rejects empty expressions, rejects functions without implementation sections, rejects ambiguous bare targets, and rewrites through the canonical formatter. This is a structured edit primitive, not a certification bypass: changed tracked public implementations are still reported by `serow plan` and gated by `certify --profile unattended`.
 
+`bin/serow patch set-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]` creates a missing contract clause or replaces a single existing contract clause. It rejects invalid clause names, empty expressions, ambiguous bare targets, and multi-clause replacements. Multi-clause contract editing remains manual until Serow has indexed contract patch commands.
+
 `bin/serow patch set-intent <path> <symbol-or-name> <intent> [--json]` sets or replaces a function's intent. It rejects empty intents, rejects ambiguous bare targets, and rewrites through the canonical formatter. Changing a public intent can still trigger duplicate or near-duplicate intent diagnostics during checking.
 
 `bin/serow patch set-effects <path> <symbol-or-name> <effects> [--json]` replaces an existing function's explicit effect capability declaration. The effects argument must be `pure` or a bracketed concrete capability list such as `[io, network]`. The command rejects ambiguous bare targets and rewrites through the canonical formatter. Capability expansion remains a public-surface change that the unattended profile gates through versioning or `capability-expansion` migration acknowledgement.

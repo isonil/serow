@@ -3206,6 +3206,130 @@ pub fn id(x: Int) -> Int
 }
 
 #[test]
+fn patch_set_contract_replaces_missing_or_single_clause() {
+    let dir = unique_temp_dir("serow-patch-set-contract");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("contract.serow");
+    fs::write(
+        &source,
+        r#"module app.main
+
+pub fn id(x: Int) -> Int
+  intent "Return the input unchanged."
+  version v1
+  contract
+    ensures result == x + 1
+  examples
+    id(3) == 3
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let patch = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-contract",
+            source.to_str().expect("utf8 path"),
+            "@app.main.id.v1",
+            "ensures",
+            "result == x",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch set-contract");
+    assert!(patch.status.success(), "{patch:#?}");
+    let stdout = String::from_utf8(patch.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"changed\": 1"), "{stdout}");
+
+    let with_replaced_ensure = fs::read_to_string(&source).expect("read updated fixture");
+    assert!(
+        with_replaced_ensure.contains("  contract\n    ensures result == x"),
+        "{with_replaced_ensure}"
+    );
+    assert!(
+        !with_replaced_ensure.contains("ensures result == x + 1"),
+        "{with_replaced_ensure}"
+    );
+
+    let add_requires = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-contract",
+            source.to_str().expect("utf8 path"),
+            "@app.main.id.v1",
+            "requires",
+            "x == x",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch set-contract requires");
+    assert!(add_requires.status.success(), "{add_requires:#?}");
+
+    let with_requires = fs::read_to_string(&source).expect("read updated fixture");
+    assert!(
+        with_requires.contains("  contract\n    requires x == x\n    ensures result == x"),
+        "{with_requires}"
+    );
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(summary.ok(), "{:#?}", summary.diagnostics);
+
+    fs::write(
+        &source,
+        r#"module app.main
+
+pub fn id(x: Int) -> Int
+  intent "Return the input unchanged."
+  version v1
+  contract
+    ensures result == x
+    ensures result != x + 1
+  examples
+    id(3) == 3
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write multi-clause fixture");
+
+    let rejected = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-contract",
+            source.to_str().expect("utf8 path"),
+            "@app.main.id.v1",
+            "ensures",
+            "result == x",
+            "--json",
+        ])
+        .output()
+        .expect("run rejected serow patch set-contract");
+    assert!(!rejected.status.success(), "{rejected:#?}");
+    let rejected_stdout = String::from_utf8(rejected.stdout).expect("stdout is utf8");
+    assert!(
+        rejected_stdout.contains("PatchConflict"),
+        "{rejected_stdout}"
+    );
+    assert!(
+        rejected_stdout.contains("multiple `ensures` contract clauses"),
+        "{rejected_stdout}"
+    );
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn structured_patch_target_must_be_unambiguous() {
     let dir = unique_temp_dir("serow-patch-ambiguous-target");
     fs::create_dir_all(&dir).expect("create temp dir");
