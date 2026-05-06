@@ -7,8 +7,8 @@ use crate::ledger::{
 use crate::model::Function;
 use crate::parser::parse_paths;
 use crate::patch::{
-    PatchSummary, add_contract, add_example, add_function, add_property, add_use, fill_hole,
-    set_version,
+    PatchSummary, add_contract, add_example, add_function, add_migration, add_property, add_use,
+    fill_hole, set_version,
 };
 use crate::plan::{
     ChangePlan, EvidenceCoverage, EvidenceDelta, EvidenceWeakening, ImpactEvidenceCoverage,
@@ -106,6 +106,7 @@ fn run_patch(args: &[String]) -> i32 {
         "add-contract" => run_patch_add_contract(&args[1..]),
         "add-example" => run_patch_add_example(&args[1..]),
         "add-function" => run_patch_add_function(&args[1..]),
+        "add-migration" => run_patch_add_migration(&args[1..]),
         "add-property" => run_patch_add_property(&args[1..]),
         "add-use" => run_patch_add_use(&args[1..]),
         "fill-hole" => run_patch_fill_hole(&args[1..]),
@@ -154,6 +155,21 @@ fn run_patch_add_function(args: &[String]) -> i32 {
         return 2;
     };
     let summary = add_function(path, module, signature, intent);
+    if json_output {
+        println!("{}", patch_json(&summary));
+    } else {
+        print_patch_summary(&summary);
+    }
+    i32::from(!summary.ok())
+}
+
+fn run_patch_add_migration(args: &[String]) -> i32 {
+    let (args, json_output) = split_flag(args, "--json");
+    let [path, target, kind, note] = args.as_slice() else {
+        print_patch_usage();
+        return 2;
+    };
+    let summary = add_migration(path, target, kind, note);
     if json_output {
         println!("{}", patch_json(&summary));
     } else {
@@ -635,6 +651,9 @@ fn print_plan(plan: &ChangePlan) {
             println!("    before: {}", change.before);
             println!("    after: {}", change.after);
         }
+        for migration in &symbol.migrations {
+            println!("  migration: {} - {}", migration.kind, migration.note);
+        }
         println!("  explicit version: {}", symbol.version_explicit);
         println!("  impacted dependents: {}", symbol.impact.len());
         let covered_edges = symbol
@@ -719,6 +738,7 @@ fn changed_symbols_json(plan: &ChangePlan) -> String {
                     "      \"implementation_change\": {},\n",
                     "      \"impact\": {},\n",
                     "      \"impact_coverage\": {},\n",
+                    "      \"migrations\": {},\n",
                     "      \"residual_risks\": {},\n",
                     "      \"version_explicit\": {}\n",
                     "    }}"
@@ -735,6 +755,7 @@ fn changed_symbols_json(plan: &ChangePlan) -> String {
                 implementation_change_json(symbol.implementation_change.as_ref()),
                 impact_rows_json(&symbol.impact),
                 impact_coverage_json(&symbol.impact_coverage),
+                migrations_json(&symbol.migrations),
                 string_array_json(&symbol.residual_risks),
                 symbol.version_explicit
             )
@@ -742,6 +763,24 @@ fn changed_symbols_json(plan: &ChangePlan) -> String {
         .collect::<Vec<_>>()
         .join(",\n    ");
     format!("[\n    {rows}\n  ]")
+}
+
+fn migrations_json(migrations: &[crate::model::MigrationRecord]) -> String {
+    if migrations.is_empty() {
+        return "[]".to_string();
+    }
+    let rows = migrations
+        .iter()
+        .map(|migration| {
+            format!(
+                "{{\"kind\": {}, \"note\": {}}}",
+                json_string(&migration.kind),
+                json_string(&migration.note)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("[{rows}]")
 }
 
 fn evidence_coverage_option_json(evidence: Option<&EvidenceCoverage>) -> String {
@@ -1052,6 +1091,11 @@ fn agent_json() -> String {
             "Insert a public function skeleton with explicit version, intent, effects, and typed hole.",
         ),
         (
+            "patch add-migration",
+            "serow patch add-migration <path> <symbol-or-name> <kind> <note> [--json]",
+            "Add one explicit migration acknowledgement to an existing function.",
+        ),
+        (
             "patch add-property",
             "serow patch add-property <path> <symbol-or-name> <forall-header> <expression> [--json]",
             "Add one sampled forall property to an existing function.",
@@ -1074,7 +1118,7 @@ fn agent_json() -> String {
         (
             "plan",
             "serow plan [paths...] [--json]",
-            "Summarize changed public symbols, implementation changes, evidence coverage, HEAD evidence deltas, impact-edge coverage, and residual risk.",
+            "Summarize changed public symbols, migration acknowledgements, implementation changes, evidence coverage, HEAD evidence deltas, impact-edge coverage, and residual risk.",
         ),
         (
             "query dependents",
@@ -1162,14 +1206,15 @@ fn agent_json() -> String {
         str_array_json(&[
             "No full compiler or generated backend exists yet.",
             "Properties are sampled, not proven.",
+            "Migration acknowledgements are source-level notes; they do not prove behavioral compatibility.",
             "Duplicate-intent rejection is exact after simple normalization.",
             "Intent search is deterministic token ranking with stopwords and light normalization, not semantic embeddings.",
             "Qualified calls support `module.name(...)`, `module.name.vN(...)`, and exact `@module.name.vN(...)` references.",
-            "`serow certify --profile unattended` fails when changed public symbols weaken executable evidence compared with HEAD.",
-            "`serow certify --profile unattended` fails when a tracked public symbol changes its public contract surface without a new symbol version.",
-            "`serow certify --profile unattended` fails when changed tracked public symbols have transitive dependents outside the certified change set.",
-            "`serow certify --profile unattended` fails when impacted dependent call edges lack executable example or sampled property coverage.",
-            "`serow certify --profile unattended` fails when changed tracked public symbols modify implementations without adding executable evidence.",
+            "`serow certify --profile unattended` fails when changed public symbols weaken executable evidence compared with HEAD unless acknowledged by migration.",
+            "`serow certify --profile unattended` fails when a tracked public symbol changes its public contract surface without a new symbol version unless acknowledged by migration.",
+            "`serow certify --profile unattended` fails when changed tracked public symbols have transitive dependents outside the certified change set unless acknowledged by impact migration.",
+            "`serow certify --profile unattended` fails when impacted dependent call edges lack executable example or sampled property coverage unless acknowledged by impact migration.",
+            "`serow certify --profile unattended` fails when changed tracked public symbols modify implementations without adding executable evidence unless acknowledged by migration.",
             "`serow plan` reports implementation changes against HEAD for changed tracked public symbols.",
             "`serow plan` reports whether impacted dependent call edges are covered by executable examples or sampled properties.",
             "Ambiguous bare calls are rejected; use a qualified reference when names or versions overlap.",
@@ -1319,6 +1364,7 @@ fn print_agent_bootstrap() {
     );
     println!("  serow patch add-example <path> <symbol-or-name> <expression> [--json]");
     println!("  serow patch add-function <path> <module> <signature> <intent> [--json]");
+    println!("  serow patch add-migration <path> <symbol-or-name> <kind> <note> [--json]");
     println!(
         "  serow patch add-property <path> <symbol-or-name> <forall-header> <expression> [--json]"
     );
@@ -1355,6 +1401,9 @@ fn print_agent_bootstrap() {
         "  unattended certification rejects tracked implementation changes without added executable evidence"
     );
     println!(
+        "  migration records can explicitly acknowledge intentional unattended gate decisions"
+    );
+    println!(
         "  unattended certification rejects impacted dependent call edges without executable evidence coverage"
     );
 }
@@ -1370,6 +1419,7 @@ fn print_usage() {
     );
     eprintln!("  serow patch add-example <path> <symbol-or-name> <expression> [--json]");
     eprintln!("  serow patch add-function <path> <module> <signature> <intent> [--json]");
+    eprintln!("  serow patch add-migration <path> <symbol-or-name> <kind> <note> [--json]");
     eprintln!(
         "  serow patch add-property <path> <symbol-or-name> <forall-header> <expression> [--json]"
     );
@@ -1396,6 +1446,7 @@ fn print_patch_usage() {
     );
     eprintln!("  serow patch add-example <path> <symbol-or-name> <expression> [--json]");
     eprintln!("  serow patch add-function <path> <module> <signature> <intent> [--json]");
+    eprintln!("  serow patch add-migration <path> <symbol-or-name> <kind> <note> [--json]");
     eprintln!(
         "  serow patch add-property <path> <symbol-or-name> <forall-header> <expression> [--json]"
     );

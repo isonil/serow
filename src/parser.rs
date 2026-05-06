@@ -2,9 +2,15 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::diagnostic::Diagnostic;
-use crate::model::{Function, ModuleDependency, Param, Program};
+use crate::model::{Function, MigrationRecord, ModuleDependency, Param, Program};
 
-const BLOCK_SECTIONS: &[&str] = &["contract", "examples", "properties", "impl"];
+const BLOCK_SECTIONS: &[&str] = &["contract", "examples", "properties", "migration", "impl"];
+const MIGRATION_KINDS: &[&str] = &[
+    "public-behavior-change",
+    "evidence-weakening",
+    "implementation-change",
+    "impact-review",
+];
 
 pub fn parse_paths(paths: &[String]) -> (Program, Vec<Diagnostic>) {
     let mut program = Program::default();
@@ -236,6 +242,7 @@ fn parse_function(
         contracts: Vec::new(),
         examples: Vec::new(),
         properties: Vec::new(),
+        migrations: Vec::new(),
         effects: Vec::new(),
         implementation: None,
     };
@@ -319,7 +326,7 @@ fn parse_function(
                 )
                 .with_data(
                     "known_sections",
-                    "contract, examples, properties, impl, intent, version, effects",
+                    "contract, examples, properties, migration, impl, intent, version, effects",
                 ),
             );
             current_section = None;
@@ -349,6 +356,36 @@ fn parse_function(
                 }
                 "examples" => function.examples.push(content.trim().to_string()),
                 "properties" => function.properties.push(content.to_string()),
+                "migration" => {
+                    if let Some((kind, note)) = parse_migration_record(content.trim()) {
+                        if MIGRATION_KINDS.iter().any(|allowed| allowed == &kind) {
+                            function.migrations.push(MigrationRecord { kind, note });
+                        } else {
+                            diagnostics.push(
+                                Diagnostic::error(
+                                    "UnsupportedMigrationKind",
+                                    format!("Unsupported migration kind `{kind}`."),
+                                    Some(format!("{path}:{line_number}")),
+                                )
+                                .with_data("allowed", MIGRATION_KINDS.join(", "))
+                                .with_repair(
+                                    "Use a supported migration kind or remove the record.",
+                                ),
+                            );
+                        }
+                    } else {
+                        diagnostics.push(
+                            Diagnostic::error(
+                                "UnsupportedMigrationRecord",
+                                format!("Unsupported migration record: {}", content.trim()),
+                                Some(format!("{path}:{line_number}")),
+                            )
+                            .with_repair(
+                                "Use `<kind> \"note\"`, for example `implementation-change \"Added compatible alternate implementation.\"`.",
+                            ),
+                        );
+                    }
+                }
                 "impl" => {
                     function.implementation = Some(match function.implementation {
                         Some(current) => format!("{current}\n{content}"),
@@ -368,6 +405,20 @@ fn parse_function(
     }
 
     (Some(function), diagnostics)
+}
+
+fn parse_migration_record(content: &str) -> Option<(String, String)> {
+    let (kind, note) = content.split_once(' ')?;
+    let kind = kind.trim();
+    let note = note.trim();
+    if kind.is_empty() || !note.starts_with('"') || !note.ends_with('"') || note.len() < 2 {
+        return None;
+    }
+    let note = note[1..note.len() - 1].trim();
+    if note.is_empty() {
+        return None;
+    }
+    Some((kind.to_string(), note.to_string()))
 }
 
 fn parse_params(text: &str, path: &str, line: usize) -> (Vec<Param>, Vec<Diagnostic>) {

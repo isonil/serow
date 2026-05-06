@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "0.4.14-rust-bootstrap",
+  "version": "0.4.15-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -12,6 +12,7 @@
     "patch_add_contract": "bin/serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression>",
     "patch_add_example": "bin/serow patch add-example <path> <symbol-or-name> <expression>",
     "patch_add_function": "bin/serow patch add-function <path> <module> <signature> <intent>",
+    "patch_add_migration": "bin/serow patch add-migration <path> <symbol-or-name> <kind> <note>",
     "patch_add_property": "bin/serow patch add-property <path> <symbol-or-name> <forall-header> <expression>",
     "patch_add_use": "bin/serow patch add-use <path> <module> <dependency>",
     "patch_fill_hole": "bin/serow patch fill-hole <path> <symbol-or-name> <expression>",
@@ -40,6 +41,7 @@
     "unattended_rejects_evidence_weakening": true,
     "unattended_rejects_implementation_change_without_evidence": true,
     "unattended_rejects_unchecked_impact": true,
+    "migration_records_acknowledge_unattended_gate_decisions": true,
     "plan_reports_impact_evidence_coverage": true
   },
   "source_roots": [

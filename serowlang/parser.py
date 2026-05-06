@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Iterable, List, Tuple
 
 from .diagnostics import Diagnostic
-from .model import Function, Param, Program
+from .model import Function, MigrationRecord, Param, Program
 
 
 FUNCTION_RE = re.compile(
@@ -14,8 +14,14 @@ MODULE_RE = re.compile(r"^module\s+(?P<name>[A-Za-z_][A-Za-z0-9_.]*)\s*$")
 INTENT_RE = re.compile(r'^intent\s+"(?P<intent>.*)"\s*$')
 
 
-BLOCK_SECTIONS = {"contract", "examples", "properties", "impl"}
+BLOCK_SECTIONS = {"contract", "examples", "properties", "migration", "impl"}
 ALL_SECTIONS = BLOCK_SECTIONS | {"intent", "version", "effects"}
+MIGRATION_KINDS = {
+    "public-behavior-change",
+    "evidence-weakening",
+    "implementation-change",
+    "impact-review",
+}
 
 
 def discover_sources(paths: Iterable[str]) -> List[Path]:
@@ -190,6 +196,31 @@ def _parse_function(path: str, module: str, line: int, header: re.Match, block: 
                 function.examples.append(content.strip())
             elif current_section == "properties":
                 function.properties.append(content.rstrip())
+            elif current_section == "migration":
+                record = _parse_migration_record(content.strip())
+                if record is None:
+                    diagnostics.append(
+                        Diagnostic(
+                            severity="error",
+                            code="UnsupportedMigrationRecord",
+                            message=f"Unsupported migration record: {content.strip()}",
+                            target=f"{path}:{offset}",
+                            repairs=['Use `<kind> "note"` for migration records.'],
+                        )
+                    )
+                elif record.kind not in MIGRATION_KINDS:
+                    diagnostics.append(
+                        Diagnostic(
+                            severity="error",
+                            code="UnsupportedMigrationKind",
+                            message=f"Unsupported migration kind `{record.kind}`.",
+                            target=f"{path}:{offset}",
+                            data={"allowed": sorted(MIGRATION_KINDS)},
+                            repairs=["Use a supported migration kind or remove the record."],
+                        )
+                    )
+                else:
+                    function.migrations.append(record)
             elif current_section == "impl":
                 function.impl = content.strip() if function.impl is None else f"{function.impl}\n{content}"
             continue
@@ -204,6 +235,19 @@ def _parse_function(path: str, module: str, line: int, header: re.Match, block: 
         )
 
     return function, diagnostics
+
+
+def _parse_migration_record(content: str):
+    if " " not in content:
+        return None
+    kind, note = content.split(" ", 1)
+    note = note.strip()
+    if not kind.strip() or not note.startswith('"') or not note.endswith('"') or len(note) < 2:
+        return None
+    note = note[1:-1].strip()
+    if not note:
+        return None
+    return MigrationRecord(kind=kind.strip(), note=note)
 
 
 def _parse_params(text: str, path: str, line: int) -> Tuple[List[Param], List[Diagnostic]]:

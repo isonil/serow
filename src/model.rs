@@ -20,6 +20,7 @@ pub struct Function {
     pub contracts: Vec<String>,
     pub examples: Vec<String>,
     pub properties: Vec<String>,
+    pub migrations: Vec<MigrationRecord>,
     pub effects: Vec<String>,
     pub implementation: Option<String>,
 }
@@ -46,6 +47,12 @@ impl Function {
     pub fn target(&self) -> String {
         format!("{}:{}:{}", self.source_path, self.line, self.name)
     }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MigrationRecord {
+    pub kind: String,
+    pub note: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

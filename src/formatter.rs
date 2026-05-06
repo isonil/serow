@@ -125,6 +125,16 @@ fn format_function(function: &Function, output: &mut String) {
         output.push_str(function.version());
         output.push('\n');
     }
+    if !function.migrations.is_empty() {
+        output.push_str("  migration\n");
+        for migration in &function.migrations {
+            output.push_str("    ");
+            output.push_str(&migration.kind);
+            output.push_str(" \"");
+            output.push_str(&escape_string(&migration.note));
+            output.push_str("\"\n");
+        }
+    }
     if !function.requires.is_empty() || !function.contracts.is_empty() {
         output.push_str("  contract\n");
         for requirement in &function.requires {

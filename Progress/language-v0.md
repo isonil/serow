@@ -28,6 +28,7 @@ Public functions are incomplete unless they declare:
 
 - `intent`: human/agent-readable purpose
 - `version`: public symbol version, such as `v1` (optional in the bootstrap; omitted versions default to `v1`)
+- `migration`: optional source-level acknowledgement records for intentional compatibility or impact decisions
 - `contract`: executable postconditions in the bootstrap
 - `examples`: unit tests owned by the compiler
 - `properties`: sampled generalized tests in the bootstrap
@@ -90,11 +91,22 @@ Duplicate unqualified function names are allowed when call sites are disambiguat
 
 ## Change Plans
 
-`bin/serow plan [paths...] [--json]` is the first machine-readable change-plan primitive. With explicit paths, the command treats all public symbols in those paths as the selected change set. Without paths, it uses Git status to find changed `.serow` files and analyzes tracked project `.serow` files so unchanged dependents can be discovered. The JSON report includes checker diagnostics, changed public symbols, same-symbol public contract-surface changes against HEAD, normalized public implementation changes against HEAD, evidence counts, HEAD evidence deltas when a tracked baseline is available, evidence-weakening rows, explicit-version state, transitive impact rows, impacted dependent call-edge coverage rows, and residual-risk strings.
+`bin/serow plan [paths...] [--json]` is the first machine-readable change-plan primitive. With explicit paths, the command treats all public symbols in those paths as the selected change set. Without paths, it uses Git status to find changed `.serow` files and analyzes tracked project `.serow` files so unchanged dependents can be discovered. The JSON report includes checker diagnostics, changed public symbols, same-symbol public contract-surface changes against HEAD, normalized public implementation changes against HEAD, source-level migration acknowledgements, evidence counts, HEAD evidence deltas when a tracked baseline is available, evidence-weakening rows, explicit-version state, transitive impact rows, impacted dependent call-edge coverage rows, and residual-risk strings.
 
 For each transitive impact row, the plan also emits an `impact_coverage` row. A direct call in an example or sampled property counts as covered. A call edge in an implementation, precondition, or contract counts as covered only when an executable example or sampled property calls the dependent function and therefore exercises that edge. Uncovered rows become per-symbol residual risks.
 
-The unattended certification profile now consumes public contract-surface, implementation-change, evidence-weakening, and impact analysis as strict gates for changed tracked public symbols. It rejects requires, ensures, examples, properties, effects, or signature changes that keep the same canonical symbol as `PublicBehaviorChangeNeedsVersion`, rejects implementation changes without added executable evidence as `ImplementationChangeNeedsEvidence`, rejects removed or narrowed executable evidence as `EvidenceWeakening`, rejects transitive dependents outside the certified change set as `UncheckedImpact`, and rejects impacted dependent call edges without executable evidence coverage as `UncoveredImpactEvidence`. The plan command compares normalized implementation text, not a full implementation AST; later work still needs structured migration records and explicit impact acknowledgements.
+The unattended certification profile now consumes public contract-surface, implementation-change, evidence-weakening, and impact analysis as strict gates for changed tracked public symbols. It rejects requires, ensures, examples, properties, effects, or signature changes that keep the same canonical symbol as `PublicBehaviorChangeNeedsVersion`, rejects implementation changes without added executable evidence as `ImplementationChangeNeedsEvidence`, rejects removed or narrowed executable evidence as `EvidenceWeakening`, rejects transitive dependents outside the certified change set as `UncheckedImpact`, and rejects impacted dependent call edges without executable evidence coverage as `UncoveredImpactEvidence`. A function-level `migration` record can explicitly acknowledge intentional `public-behavior-change`, `evidence-weakening`, `implementation-change`, or `impact-review` decisions. These acknowledgements are records, not proofs. The plan command compares normalized implementation text, not a full implementation AST.
+
+## Migrations
+
+Migration records are optional function-level records in the bootstrap projection:
+
+```serow
+  migration
+    implementation-change "Commutative rewrite preserves the existing Int behavior."
+```
+
+Supported migration kinds are `public-behavior-change`, `evidence-weakening`, `implementation-change`, and `impact-review`. `bin/serow patch add-migration <path> <symbol-or-name> <kind> <note> [--json]` inserts them through the structured patch interface. `serow plan --json` exposes them for changed symbols, and the unattended certification profile treats them as explicit acknowledgements for the corresponding gate.
 
 ## Effects
 
@@ -135,6 +147,8 @@ JSON diagnostics include stable core fields such as `severity`, `code`, `message
 `bin/serow patch add-function <path> <module> <signature> <intent> [--json]` inserts a public function skeleton into an existing module. The skeleton declares the supplied signature and intent, emits explicit `version v1`, declares `effects pure`, and leaves `impl` as a typed hole such as `HOLE(Int)`. It intentionally does not invent contracts, examples, or properties; `bin/serow check` must still report the missing evidence and typed hole until an implementer fills in real behavior.
 
 `bin/serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]` appends one contract clause to an existing function. `bin/serow patch add-example <path> <symbol-or-name> <expression> [--json]` appends one executable example. `bin/serow patch add-property <path> <symbol-or-name> <forall-header> <expression> [--json]` appends one sampled property as a `forall` header plus body expression. These commands reject ambiguous bare targets and preserve idempotence for existing identical evidence.
+
+`bin/serow patch add-migration <path> <symbol-or-name> <kind> <note> [--json]` appends one migration acknowledgement. It accepts the supported migration kinds described above, rejects empty notes, rejects ambiguous bare targets, and preserves idempotence for an existing identical record.
 
 `bin/serow patch fill-hole <path> <symbol-or-name> <expression> [--json]` replaces an existing typed implementation hole with the supplied expression. It does not overwrite a non-hole implementation; use normal source editing for intentional rewrites until Serow has dependent-aware implementation migration commands.
 

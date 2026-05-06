@@ -1415,6 +1415,114 @@ pub fn inc(x: Int) -> Int
 }
 
 #[test]
+fn migration_record_acknowledges_intentional_implementation_change() {
+    let dir = unique_temp_dir("serow-migration-implementation-change");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("checked.serow");
+    fs::write(
+        &source,
+        r#"module core.math
+
+pub fn inc(x: Int) -> Int
+  intent "Increment x."
+  version v1
+  contract
+    ensures result == x + 1
+  examples
+    inc(1) == 2
+  properties
+    forall x: Int:
+      inc(x) == x + 1
+  effects pure
+  impl
+    x + 1
+"#,
+    )
+    .expect("write fixture");
+
+    git(&dir, &["init"]);
+    git(&dir, &["add", "checked.serow"]);
+    git(&dir, &["commit", "-m", "baseline"]);
+
+    fs::write(
+        &source,
+        r#"module core.math
+
+pub fn inc(x: Int) -> Int
+  intent "Increment x."
+  version v1
+  contract
+    ensures result == x + 1
+  examples
+    inc(1) == 2
+  properties
+    forall x: Int:
+      inc(x) == x + 1
+  effects pure
+  impl
+    1 + x
+"#,
+    )
+    .expect("change implementation fixture");
+
+    let patch = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args([
+            "patch",
+            "add-migration",
+            "checked.serow",
+            "@core.math.inc.v1",
+            "implementation-change",
+            "Commutative addition keeps this implementation behavior-preserving.",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch add-migration");
+    assert!(patch.status.success(), "{patch:#?}");
+    let patch_stdout = String::from_utf8(patch.stdout).expect("stdout is utf8");
+    assert!(patch_stdout.contains("\"changed\": 1"), "{patch_stdout}");
+
+    let updated = fs::read_to_string(&source).expect("read updated fixture");
+    assert!(
+        updated.contains(
+            "  migration\n    implementation-change \"Commutative addition keeps this implementation behavior-preserving.\""
+        ),
+        "{updated}"
+    );
+
+    let plan = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args(["plan", "--json"])
+        .output()
+        .expect("run serow plan");
+    assert!(plan.status.success(), "{plan:#?}");
+    let plan_stdout = String::from_utf8(plan.stdout).expect("stdout is utf8");
+    assert!(plan_stdout.contains("\"migrations\""), "{plan_stdout}");
+    assert!(
+        plan_stdout.contains("\"kind\": \"implementation-change\""),
+        "{plan_stdout}"
+    );
+    assert!(
+        plan_stdout.contains("\"implementation_change\""),
+        "{plan_stdout}"
+    );
+    assert!(
+        !plan_stdout.contains(
+            "Changed public symbols modify implementations without adding executable evidence compared with HEAD"
+        ),
+        "{plan_stdout}"
+    );
+
+    let unattended = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args(["certify", "--profile", "unattended", "--json"])
+        .output()
+        .expect("run unattended certify");
+    assert!(unattended.status.success(), "{unattended:#?}");
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn unattended_certification_rejects_public_evidence_change_without_version_bump() {
     let dir = unique_temp_dir("serow-unattended-public-behavior-change");
     fs::create_dir_all(&dir).expect("create temp dir");

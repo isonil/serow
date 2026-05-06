@@ -8,6 +8,12 @@ class Param:
     type_name: str
 
 
+@dataclass(frozen=True)
+class MigrationRecord:
+    kind: str
+    note: str
+
+
 @dataclass
 class Function:
     name: str
@@ -24,6 +30,7 @@ class Function:
     contracts: List[str] = field(default_factory=list)
     examples: List[str] = field(default_factory=list)
     properties: List[str] = field(default_factory=list)
+    migrations: List[MigrationRecord] = field(default_factory=list)
     effects: List[str] = field(default_factory=list)
     impl: Optional[str] = None
 

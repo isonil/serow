@@ -2,7 +2,14 @@ use std::fs;
 
 use crate::diagnostic::{Diagnostic, has_errors};
 use crate::formatter::format_program;
-use crate::model::{Function, ModuleDependency, Param, Program};
+use crate::model::{Function, MigrationRecord, ModuleDependency, Param, Program};
+
+const MIGRATION_KINDS: &[&str] = &[
+    "public-behavior-change",
+    "evidence-weakening",
+    "implementation-change",
+    "impact-review",
+];
 use crate::parser::parse_paths;
 
 #[derive(Clone, Debug, Default)]
@@ -175,6 +182,7 @@ pub fn add_function(path: &str, module: &str, signature: &str, intent: &str) -> 
         contracts: Vec::new(),
         examples: Vec::new(),
         properties: Vec::new(),
+        migrations: Vec::new(),
         effects: vec!["pure".to_string()],
         implementation: Some(format!("HOLE({return_type})")),
     };
@@ -293,6 +301,48 @@ pub fn add_property(path: &str, target: &str, forall: &str, expression: &str) ->
         } else {
             function.properties.push(forall.to_string());
             function.properties.push(expression.to_string());
+            true
+        }
+    })
+}
+
+pub fn add_migration(path: &str, target: &str, kind: &str, note: &str) -> PatchSummary {
+    let kind = kind.trim();
+    let note = note.trim();
+    if !MIGRATION_KINDS.iter().any(|allowed| allowed == &kind) {
+        let mut summary = PatchSummary::default();
+        summary.diagnostics.push(
+            Diagnostic::error(
+                "InvalidPatchTarget",
+                format!("Invalid migration kind `{kind}`."),
+                Some(path.to_string()),
+            )
+            .with_data("allowed", MIGRATION_KINDS.join(", "))
+            .with_repair("Use a supported migration kind."),
+        );
+        return summary;
+    }
+    if note.is_empty() {
+        let mut summary = PatchSummary::default();
+        summary.diagnostics.push(Diagnostic::error(
+            "InvalidPatchTarget",
+            "Migration note must not be empty.",
+            Some(path.to_string()),
+        ));
+        return summary;
+    }
+    patch_function(path, target, |function| {
+        if function
+            .migrations
+            .iter()
+            .any(|migration| migration.kind == kind && migration.note == note)
+        {
+            false
+        } else {
+            function.migrations.push(MigrationRecord {
+                kind: kind.to_string(),
+                note: note.to_string(),
+            });
             true
         }
     })

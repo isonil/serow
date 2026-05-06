@@ -63,7 +63,7 @@ This phase exists because the original Serow premise is not only "AI-first synta
 - Detect evidence weakening:
   - flag removed examples, contracts, properties, or preconditions on public functions _(Started: `serow plan` compares changed public symbols with `HEAD` when a tracked baseline is available and reports removed/narrowed evidence rows; `certify --profile unattended` now rejects those weakening rows.)_
   - flag evidence that becomes narrower or less behavioral while implementation changes in the same patch
-  - require an explicit migration note or version bump when public evidence is intentionally weakened
+  - require an explicit migration note or version bump when public evidence is intentionally weakened _(Started: function-level `migration` records can acknowledge `evidence-weakening` decisions and are exposed through `serow plan`.)_
 - Enforce change-impact gates:
   - expose direct and transitive dependents for changed public symbols
   - make certification fail when changed public behavior has unchecked dependents _(Started: `certify --profile unattended` now emits `UncheckedImpact` when a changed tracked public symbol has transitive dependents outside the certified change set.)_
@@ -84,13 +84,13 @@ This phase exists because the original Serow premise is not only "AI-first synta
   - add a command such as `bin/serow plan <paths...> --json` that summarizes changed symbols, affected dependents, evidence coverage, version decisions, and residual risk _(Started: `bin/serow plan [paths...] [--json]` reports selected changed symbols, normalized implementation changes against HEAD, evidence counts, HEAD evidence deltas when available, evidence-weakening rows, explicit-version state, transitive impact rows, impact-edge coverage rows, checker diagnostics, and residual risks.)_
   - keep the output deterministic so weaker agents can follow it without interpreting prose
 - Guard against evidence drift:
-  - flag patches that change implementation and evidence together unless the changed evidence is explained by a structured migration record _(Started: same-symbol implementation-only changes are reported by `serow plan` and rejected by unattended certification when no executable evidence is added; structured migration records do not exist yet.)_
+  - flag patches that change implementation and evidence together unless the changed evidence is explained by a structured migration record _(Started: same-symbol implementation-only changes are reported by `serow plan` and rejected by unattended certification when no executable evidence is added; source-level `migration` records can now acknowledge intentional implementation-change decisions.)_
   - report examples/properties that no longer exercise the changed implementation path
   - add mutation or lightweight fuzz checks to catch examples that are too shallow to detect broken implementations
 - Add strict certification profiles:
   - keep normal `bin/serow certify` useful for local iteration
   - add a stricter unattended profile, for example `bin/serow certify --profile unattended` _(Started: the profile exists, requires explicit public symbol versions, rejects evidence weakening against `HEAD`, rejects unchecked transitive impact, and rejects uncovered impacted call edges.)_
-  - make the unattended profile require no unresolved impact, no evidence weakening, no ambiguous intent reuse, no capability expansion without acknowledgement, and complete repair-action consistency
+  - make the unattended profile require no unresolved impact, no evidence weakening, no ambiguous intent reuse, no capability expansion without acknowledgement, and complete repair-action consistency _(Started: source-level migration acknowledgements can explicitly record public behavior, evidence weakening, implementation, and impact-review decisions.)_
 
 ## Phase 3: Backends
 

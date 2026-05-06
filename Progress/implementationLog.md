@@ -156,3 +156,9 @@
 - Changed-symbol plan rows now include `implementation_change` with before/after implementation text when a tracked public function keeps the same canonical symbol but changes its body.
 - `bin/serow certify --profile unattended` now emits `ImplementationChangeNeedsEvidence` when a changed tracked public symbol modifies its implementation without adding executable evidence.
 - Added Rust integration coverage proving plan JSON reports implementation drift and unattended certification rejects an implementation-only public change while normal certification still passes.
+- Added source-level function `migration` records for `public-behavior-change`, `evidence-weakening`, `implementation-change`, and `impact-review` acknowledgements.
+- The Rust and Python parsers now read migration records, the Rust formatter preserves them, and `serow plan --json` exposes them on changed public symbols.
+- Added `bin/serow patch add-migration <path> <symbol-or-name> <kind> <note> [--json]`.
+- Unattended certification now treats matching migration records as explicit acknowledgements for intentional public behavior, evidence weakening, implementation, and impact-review gate decisions.
+- Added command-style repair actions for unattended gate diagnostics that point to `patch add-migration`.
+- Updated agent bootstrap output, README, `serow.project`, and Progress docs to document migration acknowledgements.

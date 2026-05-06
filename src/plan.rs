@@ -6,7 +6,7 @@ use crate::checker::{CheckSummary, check_program};
 use crate::diagnostic::{Diagnostic, Severity};
 use crate::eval::{called_functions, resolve_function};
 use crate::ledger::{CallSite, ImpactDependent, query_impact};
-use crate::model::Function;
+use crate::model::{Function, MigrationRecord};
 use crate::parser::{discover_sources, parse_paths, parse_source};
 
 #[derive(Clone, Debug)]
@@ -31,6 +31,7 @@ pub struct ChangedSymbol {
     pub evidence_weakening: Vec<EvidenceWeakening>,
     pub implementation_change: Option<ImplementationChange>,
     pub version_explicit: bool,
+    pub migrations: Vec<MigrationRecord>,
     pub impact: Vec<ImpactDependent>,
     pub impact_coverage: Vec<ImpactEvidenceCoverage>,
     pub residual_risks: Vec<String>,
@@ -136,27 +137,26 @@ pub fn plan_paths(paths: &[String]) -> ChangePlan {
             "Checker errors are present; impact and evidence data may be incomplete.".to_string(),
         );
     }
-    if changed_symbols
-        .iter()
-        .any(|symbol| !symbol.impact.is_empty())
-    {
+    if changed_symbols.iter().any(|symbol| {
+        !symbol.impact.is_empty() && !has_migration(&symbol.function, "impact-review")
+    }) {
         residual_risks.push(
             "Changed public symbols have transitive dependents; review the listed impact before certification."
                 .to_string(),
         );
     }
-    if changed_symbols
-        .iter()
-        .any(|symbol| !symbol.evidence_weakening.is_empty())
-    {
+    if changed_symbols.iter().any(|symbol| {
+        !symbol.evidence_weakening.is_empty()
+            && !has_migration(&symbol.function, "evidence-weakening")
+    }) {
         residual_risks.push(
             "Changed public symbols weaken executable evidence compared with HEAD.".to_string(),
         );
     }
-    if changed_symbols
-        .iter()
-        .any(|symbol| symbol.behavior_change.is_some())
-    {
+    if changed_symbols.iter().any(|symbol| {
+        symbol.behavior_change.is_some()
+            && !has_migration(&symbol.function, "public-behavior-change")
+    }) {
         residual_risks.push(
             "Changed public symbols modify their public contract surface without a new symbol version compared with HEAD."
                 .to_string(),
@@ -165,6 +165,7 @@ pub fn plan_paths(paths: &[String]) -> ChangePlan {
     if changed_symbols.iter().any(|symbol| {
         symbol.implementation_change.is_some()
             && !executable_evidence_strengthened(symbol.evidence_delta.as_ref())
+            && !has_migration(&symbol.function, "implementation-change")
     }) {
         residual_risks.push(
             "Changed public symbols modify implementations without adding executable evidence compared with HEAD."
@@ -202,6 +203,9 @@ pub fn unattended_evidence_weakening_diagnostics(paths: &[String]) -> Vec<Diagno
         .flat_map(|symbol| {
             let target = symbol.function.target();
             let canonical_symbol = symbol.function.symbol();
+            if has_migration(&symbol.function, "evidence-weakening") {
+                return Vec::new();
+            }
             symbol
                 .evidence_weakening
                 .into_iter()
@@ -220,6 +224,18 @@ pub fn unattended_evidence_weakening_diagnostics(paths: &[String]) -> Vec<Diagno
                     .with_data("before", weakening.before.to_string())
                     .with_data("after", weakening.after.to_string())
                     .with_data("removed", removed)
+                    .with_command_repair(
+                        "Acknowledge intentional evidence weakening",
+                        vec![
+                            "bin/serow".to_string(),
+                            "patch".to_string(),
+                            "add-migration".to_string(),
+                            symbol.function.source_path.clone(),
+                            canonical_symbol.clone(),
+                            "evidence-weakening".to_string(),
+                            "Document why the weakened evidence remains acceptable.".to_string(),
+                        ],
+                    )
                     .with_repair(
                         "Restore the removed executable evidence or make an explicit migration/version decision before unattended certification.",
                     )
@@ -234,6 +250,9 @@ pub fn unattended_public_behavior_change_diagnostics(paths: &[String]) -> Vec<Di
         .changed_symbols
         .into_iter()
         .filter_map(|symbol| {
+            if has_migration(&symbol.function, "public-behavior-change") {
+                return None;
+            }
             let behavior_change = symbol.behavior_change?;
             let changed = behavior_change.changed.join(", ");
             Some(
@@ -247,6 +266,19 @@ pub fn unattended_public_behavior_change_diagnostics(paths: &[String]) -> Vec<Di
                 )
                 .with_data("symbol", symbol.function.symbol())
                 .with_data("changed", changed)
+                .with_command_repair(
+                    "Acknowledge intentional public behavior change",
+                    vec![
+                        "bin/serow".to_string(),
+                        "patch".to_string(),
+                        "add-migration".to_string(),
+                        symbol.function.source_path.clone(),
+                        symbol.function.symbol(),
+                        "public-behavior-change".to_string(),
+                        "Document why this same-version public surface change is compatible."
+                            .to_string(),
+                    ],
+                )
                 .with_repair(
                     "Preserve the existing public contract surface or introduce a new explicit version before unattended certification.",
                 ),
@@ -260,6 +292,9 @@ pub fn unattended_implementation_change_diagnostics(paths: &[String]) -> Vec<Dia
         .changed_symbols
         .into_iter()
         .filter_map(|symbol| {
+            if has_migration(&symbol.function, "implementation-change") {
+                return None;
+            }
             let implementation_change = symbol.implementation_change?;
             if executable_evidence_strengthened(symbol.evidence_delta.as_ref()) {
                 return None;
@@ -276,6 +311,19 @@ pub fn unattended_implementation_change_diagnostics(paths: &[String]) -> Vec<Dia
                 .with_data("symbol", symbol.function.symbol())
                 .with_data("before", implementation_change.before)
                 .with_data("after", implementation_change.after)
+                .with_command_repair(
+                    "Acknowledge intentional implementation change",
+                    vec![
+                        "bin/serow".to_string(),
+                        "patch".to_string(),
+                        "add-migration".to_string(),
+                        symbol.function.source_path.clone(),
+                        symbol.function.symbol(),
+                        "implementation-change".to_string(),
+                        "Document why this implementation change is behavior-preserving."
+                            .to_string(),
+                    ],
+                )
                 .with_repair(
                     "Add executable evidence covering the implementation change or introduce a new explicit version/migration decision before unattended certification.",
                 ),
@@ -297,9 +345,11 @@ pub fn unattended_unchecked_impact_diagnostics(paths: &[String]) -> Vec<Diagnost
         .flat_map(|symbol| {
             let target = symbol.function.target();
             let changed_symbol = symbol.function.symbol();
+            let impact_reviewed = has_migration(&symbol.function, "impact-review");
             symbol
                 .impact
                 .into_iter()
+                .filter(move |_| !impact_reviewed)
                 .filter(|impact| !changed_symbols.contains(&impact.function.symbol()))
                 .map(move |impact| {
                     let dependent_symbol = impact.function.symbol();
@@ -337,6 +387,18 @@ pub fn unattended_unchecked_impact_diagnostics(paths: &[String]) -> Vec<Diagnost
                             changed_symbol.clone(),
                         ],
                     )
+                    .with_command_repair(
+                        "Acknowledge reviewed impact",
+                        vec![
+                            "bin/serow".to_string(),
+                            "patch".to_string(),
+                            "add-migration".to_string(),
+                            symbol.function.source_path.clone(),
+                            changed_symbol.clone(),
+                            "impact-review".to_string(),
+                            "Document why the listed dependent impact is acceptable.".to_string(),
+                        ],
+                    )
                     .with_repair(
                         "Include impacted dependents in the certified change set or add an explicit migration/impact decision before unattended certification.",
                     )
@@ -358,9 +420,11 @@ pub fn unattended_uncovered_impact_evidence_diagnostics(paths: &[String]) -> Vec
             let target = symbol.function.target();
             let changed_symbol = symbol.function.symbol();
             let plan_command = plan_command.clone();
+            let impact_reviewed = has_migration(&symbol.function, "impact-review");
             symbol
                 .impact_coverage
                 .into_iter()
+                .filter(move |_| !impact_reviewed)
                 .filter(|coverage| !coverage.covered)
                 .map(move |coverage| {
                     Diagnostic::error(
@@ -381,6 +445,19 @@ pub fn unattended_uncovered_impact_evidence_diagnostics(paths: &[String]) -> Vec
                     .with_command_repair(
                         "Review impact coverage",
                         plan_command.clone(),
+                    )
+                    .with_command_repair(
+                        "Acknowledge reviewed impact",
+                        vec![
+                            "bin/serow".to_string(),
+                            "patch".to_string(),
+                            "add-migration".to_string(),
+                            symbol.function.source_path.clone(),
+                            changed_symbol.clone(),
+                            "impact-review".to_string(),
+                            "Document why the uncovered impacted edge is acceptable."
+                                .to_string(),
+                        ],
                     )
                     .with_repair(
                         "Add an executable example or sampled property that exercises the impacted dependent call edge before unattended certification.",
@@ -433,27 +510,27 @@ fn changed_symbol(
         .iter()
         .map(|row| impact_evidence_coverage(row, program))
         .collect::<Vec<_>>();
-    if !impact.is_empty() {
+    if !impact.is_empty() && !has_migration(function, "impact-review") {
         residual_risks
             .push("Transitive dependents must be reviewed before changing behavior.".to_string());
     }
-    if impact_coverage.iter().any(|row| !row.covered) {
+    if impact_coverage.iter().any(|row| !row.covered) && !has_migration(function, "impact-review") {
         residual_risks.push(
             "One or more impacted dependent call edges lack executable evidence coverage."
                 .to_string(),
         );
     }
-    if !evidence_weakening.is_empty() {
+    if !evidence_weakening.is_empty() && !has_migration(function, "evidence-weakening") {
         residual_risks
             .push("Executable evidence was removed or narrowed compared with HEAD.".to_string());
     }
-    if behavior_change.is_some() {
+    if behavior_change.is_some() && !has_migration(function, "public-behavior-change") {
         residual_risks.push(
             "Public contract surface changed without a new symbol version compared with HEAD."
                 .to_string(),
         );
     }
-    if implementation_change.is_some() {
+    if implementation_change.is_some() && !has_migration(function, "implementation-change") {
         if executable_evidence_strengthened(evidence_delta.as_ref()) {
             residual_risks.push(
                 "Implementation changed compared with HEAD; verify the added executable evidence explains the change."
@@ -475,10 +552,18 @@ fn changed_symbol(
         evidence_weakening,
         implementation_change,
         version_explicit: function.version_explicit,
+        migrations: function.migrations.clone(),
         impact,
         impact_coverage,
         residual_risks,
     }
+}
+
+fn has_migration(function: &Function, kind: &str) -> bool {
+    function
+        .migrations
+        .iter()
+        .any(|migration| migration.kind == kind && !migration.note.trim().is_empty())
 }
 
 fn public_behavior_change(before: &Function, after: &Function) -> Option<PublicBehaviorChange> {
