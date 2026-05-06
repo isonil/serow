@@ -4,6 +4,7 @@ use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serow::checker::check_program;
+use serow::diagnostic::{Diagnostic, RepairAction, validate_repair_actions};
 use serow::formatter::format_paths;
 use serow::ledger::query_intent;
 use serow::parser::parse_paths;
@@ -449,6 +450,10 @@ pub fn id(x: Int) -> Int
         stdout.contains("\"command\": [\"bin/serow\", \"patch\", \"set-version\""),
         "{stdout}"
     );
+    assert!(
+        !stdout.contains("RepairActionContractViolation"),
+        "{stdout}"
+    );
 
     let sample = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args(["certify", "--profile", "unattended", "--json"])
@@ -457,6 +462,49 @@ pub fn id(x: Int) -> Int
     assert!(sample.status.success(), "{sample:#?}");
 
     let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn repair_action_contract_validation_rejects_malformed_commands() {
+    let diagnostics = vec![
+        Diagnostic::error(
+            "SyntheticBrokenRepair",
+            "Synthetic diagnostic with an invalid repair action.",
+            Some("test.target".to_string()),
+        )
+        .with_data("source", "test")
+        .with_command_repair(
+            "Valid command repair",
+            vec![
+                "bin/serow".to_string(),
+                "query".to_string(),
+                "symbol".to_string(),
+                "id".to_string(),
+            ],
+        ),
+    ];
+    assert!(validate_repair_actions(&diagnostics).is_empty());
+
+    let mut malformed = diagnostics;
+    malformed[0].repair_actions.push(RepairAction {
+        kind: "command".to_string(),
+        label: "Broken command repair".to_string(),
+        command: vec!["serow".to_string(), "unknown".to_string()],
+    });
+
+    let contract_diagnostics = validate_repair_actions(&malformed);
+    assert_eq!(contract_diagnostics.len(), 1, "{contract_diagnostics:#?}");
+    assert_eq!(
+        contract_diagnostics[0].code,
+        "RepairActionContractViolation"
+    );
+    assert!(
+        contract_diagnostics[0]
+            .data
+            .iter()
+            .any(|(key, value)| key == "diagnostic_code" && value == "SyntheticBrokenRepair"),
+        "{contract_diagnostics:#?}"
+    );
 }
 
 #[test]

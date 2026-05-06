@@ -58,6 +58,7 @@ Date: 2026-05-06
   - rejects changed tracked public symbols that remove or narrow executable evidence compared with Git `HEAD`
   - rejects changed tracked public symbols with transitive dependents outside the certified change set
   - rejects impacted dependent call edges that lack executable example or sampled property coverage
+  - rejects malformed structured diagnostic repair actions emitted during strict-profile certification
   - accepts explicit migration acknowledgements for intentional public behavior, capability expansion, evidence weakening, implementation, and impact-review decisions
 - Structured patch commands:
   - `bin/serow patch add-function <path> <module> <signature> <intent> [--json]`
@@ -324,6 +325,25 @@ bin/serow plan --json
 bin/serow agent --json
 ```
 
+Additional verification after adding structured repair-action contract validation:
+
+```sh
+bin/serow query intent "validate structured diagnostic repair actions for unattended certification" --json
+bin/serow query symbol repair --json
+cargo fmt --check
+cargo clippy -- -D warnings
+cargo test repair_action_contract_validation_rejects_malformed_commands
+cargo test unattended_certification_requires_explicit_public_versions
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+bin/serow agent --json
+```
+
 `cargo test` includes integration coverage for `bin/serow patch add-function`.
 
 `bin/serow check --json` currently reports:
@@ -356,7 +376,7 @@ bin/serow agent --json
 - Structured repair actions currently cover only command-style fixes already exposed by the bootstrap CLI.
 - `query dependents` reports direct resolved call edges; use `query impact` for direct and transitive dependent paths. Ambiguous bare calls are intentionally skipped by ledger queries because they are checker errors.
 - `serow plan` is an early reporting primitive; it treats explicit path arguments as the selected change set and compares public contract-surface, declared capabilities, normalized implementation text, and evidence sections against `HEAD` when a tracked baseline is available. It reports whether added examples/properties directly call changed implementations and whether impacted dependent call edges are covered by executable examples or sampled properties, but it does not yet compare full implementation AST behavior.
-- Normal certification still accepts omitted symbol versions for compatibility; `certify --profile unattended` requires explicit public versions, rejects same-version public contract-surface changes, rejects capability expansion without a migration acknowledgement, rejects same-version implementation changes without added executable evidence, rejects added implementation evidence that does not call the changed function, rejects evidence weakening against `HEAD`, rejects unchecked transitive impact, and rejects uncovered impacted call edges unless an explicit migration acknowledgement records the intentional decision. It does not yet enforce the rest of the unattended safety roadmap.
+- Normal certification still accepts omitted symbol versions for compatibility; `certify --profile unattended` requires explicit public versions, rejects same-version public contract-surface changes, rejects capability expansion without a migration acknowledgement, rejects same-version implementation changes without added executable evidence, rejects added implementation evidence that does not call the changed function, rejects evidence weakening against `HEAD`, rejects unchecked transitive impact, rejects uncovered impacted call edges unless an explicit migration acknowledgement records the intentional decision, and validates structured repair action commands before accepting diagnostics. It does not yet enforce the rest of the unattended safety roadmap.
 
 ## Current Strategic Direction
 

@@ -90,7 +90,7 @@ This phase exists because the original Serow premise is not only "AI-first synta
 - Add strict certification profiles:
   - keep normal `bin/serow certify` useful for local iteration
   - add a stricter unattended profile, for example `bin/serow certify --profile unattended` _(Started: the profile exists, requires explicit public symbol versions, rejects evidence weakening against `HEAD`, rejects unchecked transitive impact, and rejects uncovered impacted call edges.)_
-  - make the unattended profile require no unresolved impact, no evidence weakening, no ambiguous intent reuse, no capability expansion without acknowledgement, and complete repair-action consistency _(Started: source-level migration acknowledgements can explicitly record public behavior, capability expansion, evidence weakening, implementation, and impact-review decisions.)_
+  - make the unattended profile require no unresolved impact, no evidence weakening, no ambiguous intent reuse, no capability expansion without acknowledgement, and complete repair-action consistency _(Started: source-level migration acknowledgements can explicitly record public behavior, capability expansion, evidence weakening, implementation, and impact-review decisions; strict-profile certification now validates structured command repair actions before accepting diagnostics.)_
 
 ## Phase 3: Backends
 

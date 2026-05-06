@@ -101,3 +101,87 @@ pub fn has_errors(diagnostics: &[Diagnostic]) -> bool {
         .iter()
         .any(|diagnostic| diagnostic.severity == Severity::Error)
 }
+
+pub fn validate_repair_actions(diagnostics: &[Diagnostic]) -> Vec<Diagnostic> {
+    let mut contract_diagnostics = Vec::new();
+    for diagnostic in diagnostics {
+        for action in &diagnostic.repair_actions {
+            if let Some(issue) = repair_action_issue(action) {
+                contract_diagnostics.push(
+                    Diagnostic::error(
+                        "RepairActionContractViolation",
+                        format!(
+                            "Diagnostic `{}` has an invalid structured repair action: {issue}.",
+                            diagnostic.code
+                        ),
+                        diagnostic.target.clone(),
+                    )
+                    .with_data("diagnostic_code", &diagnostic.code)
+                    .with_data("action_label", &action.label)
+                    .with_data("command", action.command.join(" ")),
+                );
+            }
+        }
+    }
+    contract_diagnostics
+}
+
+fn repair_action_issue(action: &RepairAction) -> Option<String> {
+    if action.kind != "command" {
+        return Some(format!("unsupported repair action kind `{}`", action.kind));
+    }
+    if action.label.trim().is_empty() {
+        return Some("missing repair action label".to_string());
+    }
+    if action.command.is_empty() {
+        return Some("missing command argv".to_string());
+    }
+    if action.command.iter().any(|part| part.trim().is_empty()) {
+        return Some("command argv contains an empty argument".to_string());
+    }
+    if action
+        .command
+        .first()
+        .is_some_and(|command| command != "bin/serow")
+    {
+        return Some("command must start with `bin/serow`".to_string());
+    }
+    let Some(command) = action.command.get(1).map(String::as_str) else {
+        return Some("missing Serow subcommand".to_string());
+    };
+    match command {
+        "agent" | "certify" | "check" | "fmt" | "plan" => None,
+        "patch" => validate_nested_command(
+            action,
+            &[
+                "add-contract",
+                "add-example",
+                "add-function",
+                "add-migration",
+                "add-property",
+                "add-use",
+                "fill-hole",
+                "set-version",
+            ],
+        ),
+        "query" => validate_nested_command(
+            action,
+            &["dependents", "impact", "intent", "symbol", "symbols"],
+        ),
+        other => Some(format!("unknown Serow subcommand `{other}`")),
+    }
+}
+
+fn validate_nested_command(action: &RepairAction, allowed: &[&str]) -> Option<String> {
+    let Some(nested) = action.command.get(2).map(String::as_str) else {
+        return Some(format!("missing `{}` subcommand", action.command[1]));
+    };
+    if allowed.iter().any(|allowed| allowed == &nested) {
+        None
+    } else {
+        Some(format!(
+            "unknown `{}` subcommand `{nested}`",
+            action.command[1]
+        ))
+    }
+}

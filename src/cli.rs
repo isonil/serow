@@ -1,5 +1,5 @@
 use crate::checker::{CheckSummary, check_program, enforce_unattended_profile};
-use crate::diagnostic::{Diagnostic, has_errors};
+use crate::diagnostic::{Diagnostic, has_errors, validate_repair_actions};
 use crate::formatter::{FormatSummary, format_paths};
 use crate::ledger::{
     Dependent, ImpactDependent, query_dependents, query_impact, query_intent, query_symbol, symbols,
@@ -282,6 +282,10 @@ fn run_check(args: &[String], certify: bool) -> i32 {
         summary
             .diagnostics
             .extend(unattended_uncovered_impact_evidence_diagnostics(&paths));
+        let repair_action_contract_diagnostics = validate_repair_actions(&summary.diagnostics);
+        summary
+            .diagnostics
+            .extend(repair_action_contract_diagnostics);
     }
     if json_output {
         println!("{}", check_json(&summary, certify.then_some(profile)));
@@ -1290,6 +1294,7 @@ fn agent_json() -> String {
             "`serow certify --profile unattended` fails when changed tracked public symbols modify implementations without adding executable evidence unless acknowledged by migration.",
             "`serow certify --profile unattended` fails when added executable evidence for an implementation change does not call the changed function unless acknowledged by implementation migration.",
             "`serow certify --profile unattended` fails when implementation and executable evidence change together unless acknowledged by implementation migration.",
+            "`serow certify --profile unattended` validates structured repair actions before accepting diagnostics.",
             "`serow plan` reports declared capability changes against HEAD for changed tracked public symbols.",
             "`serow plan` reports implementation changes against HEAD for changed tracked public symbols.",
             "`serow plan` reports whether added examples/properties directly call changed implementations.",
@@ -1472,6 +1477,7 @@ fn print_agent_bootstrap() {
     println!("diagnostic json:");
     println!("  repairs: human-readable compatibility strings");
     println!("  repair_actions: machine-readable command actions when available");
+    println!("  unattended certification validates structured repair action commands");
     println!("identity:");
     println!("  source may declare `version vN`; omitted versions default to v1");
     println!("  unattended certification requires explicit public versions");

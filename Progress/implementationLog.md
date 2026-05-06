@@ -175,3 +175,6 @@
 - `serow plan --json` now emits `implementation_evidence` rows for implementation changes, including added examples, added properties, direct call coverage, and a reason string.
 - `bin/serow certify --profile unattended` now emits `ImplementationChangeNeedsCoveringEvidence` when a same-symbol implementation change adds executable examples/properties that do not directly call the changed function.
 - Added Rust integration coverage proving a tautological added example no longer satisfies the implementation-change evidence gate.
+- Added structured diagnostic repair-action contract validation for unattended certification.
+- `bin/serow certify --profile unattended` now emits `RepairActionContractViolation` if a diagnostic repair action has an unsupported kind, empty label/argv component, non-`bin/serow` command prefix, missing subcommand, or unknown `patch`/`query` subcommand.
+- Added Rust coverage for both valid command repair actions and malformed synthetic repair actions, and confirmed the real missing-version repair action passes the stricter contract.

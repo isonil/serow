@@ -16,6 +16,7 @@ The current implementation is a bootstrap toolchain written in dependency-free R
 - a semantic ledger for agent queries, including token-ranked intent search and transitive impact paths
 - a first machine-readable change plan for changed symbols, public contract-surface changes, capability changes, public implementation changes, implementation evidence coverage, implementation/evidence drift, migration acknowledgements, impact, impact-edge evidence coverage, HEAD evidence deltas, and residual risk
 - unattended certification gates for explicit versions, same-version public contract-surface changes, capability expansion, implementation changes without added executable evidence, added implementation evidence that does not call the changed function, implementation/evidence drift, evidence weakening against Git `HEAD`, unchecked dependent impact, and uncovered impacted call edges, with explicit migration records for intentional decisions
+- strict-profile validation for structured diagnostic repair actions
 
 Print the current agent bootstrap contract:
 
@@ -76,6 +77,8 @@ bin/serow certify --profile unattended
 ```
 
 The unattended certification profile is stricter than normal local certification. It requires public functions to declare explicit source-level versions instead of relying on the bootstrap `v1` default, fails when changed tracked public symbols modify their public contract surface without a new symbol version, rejects capability expansion without a `capability-expansion` migration record, rejects same-version implementation changes that add no executable evidence, rejects added implementation evidence that does not call the changed function, rejects patches that change implementation and executable evidence together without an `implementation-change` migration record, fails when executable evidence is removed or narrowed compared with Git `HEAD`, rejects changed public symbols with transitive dependents outside the certified change set, and rejects impacted dependent call edges that lack executable example or sampled property coverage. A source-level `migration` record can explicitly acknowledge intentional public behavior, capability expansion, evidence weakening, implementation, or impact-review decisions; it records a decision, not a proof.
+
+The unattended profile also validates machine-readable diagnostic `repair_actions`, rejecting malformed command actions so agents can trust repair commands as a narrow protocol rather than prose.
 
 The language and compiler are intentionally incomplete. Active state and next steps are tracked under `Progress/`.
 
