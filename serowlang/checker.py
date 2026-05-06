@@ -5,12 +5,15 @@ from typing import Any, Dict, List, Tuple
 
 from .diagnostics import Diagnostic
 from .evaluator import EvaluationError, Evaluator, resolve_function
+from .ledger import query_intent
 from .model import Function, Program
 
 
 REQUIRED_PUBLIC_SECTIONS = ["intent", "contract", "examples", "properties", "effects", "impl"]
 SUPPORTED_TYPES = {"Int", "Bool", "Text"}
 HOLE_RE = re.compile(r"\bHOLE\s*\(")
+NEAR_DUPLICATE_INTENT_SCORE = 0.75
+NEAR_DUPLICATE_INTENT_MIN_REASONS = 2
 
 
 @dataclass
@@ -110,6 +113,7 @@ def _check_ambiguous_unqualified_calls(program: Program, summary: CheckSummary) 
 
 def _check_duplicate_intents(program: Program, summary: CheckSummary) -> None:
     seen: Dict[str, Function] = {}
+    seen_functions: List[Function] = []
     for function in program.functions:
         if not function.public or not function.intent:
             continue
@@ -136,7 +140,39 @@ def _check_duplicate_intents(program: Program, summary: CheckSummary) -> None:
                 )
             )
         else:
+            seen_program = Program(functions=list(seen_functions))
+            for candidate in query_intent(seen_program, function.intent, limit=3):
+                reason_count = len([reason for reason in candidate.reasons if reason != "name"])
+                candidate_intent = candidate.function.intent or ""
+                if (
+                    candidate.score < NEAR_DUPLICATE_INTENT_SCORE
+                    or reason_count < NEAR_DUPLICATE_INTENT_MIN_REASONS
+                    or candidate.function.symbol == function.symbol
+                    or _normalize_intent(candidate_intent) == normalized
+                ):
+                    continue
+                summary.diagnostics.append(
+                    Diagnostic(
+                        severity="warning",
+                        code="NearDuplicateIntent",
+                        message=f"Public function `{function.name}` has an intent similar to `{candidate.function.symbol}`.",
+                        target=function.target,
+                        data={
+                            "candidate": candidate.function.symbol,
+                            "candidate_target": candidate.function.target,
+                            "candidate_intent": candidate_intent,
+                            "intent": function.intent,
+                            "score": f"{candidate.score:.3f}",
+                            "reasons": ", ".join(candidate.reasons),
+                        },
+                        repairs=[
+                            f'Run `bin/serow query intent "{function.intent}"` and reuse the closest existing symbol or make the intent more specific.'
+                        ],
+                    )
+                )
+                break
             seen[normalized] = function
+        seen_functions.append(function)
 
 
 def _normalize_intent(intent: str) -> str:

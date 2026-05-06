@@ -209,6 +209,52 @@ pub fn same_id(x: Int) -> Int
             summary = check_program(program, parse_diagnostics)
             self.assertIn("PossibleDuplicate", [diagnostic.code for diagnostic in summary.diagnostics])
 
+    def test_near_duplicate_public_intent_is_warned(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "near_duplicate_intent.serow"
+            source.write_text(
+                """module test.intent
+
+pub fn add(x: Int, y: Int) -> Int
+  intent "Return the arithmetic sum of x and y."
+  contract
+    ensures result == x + y
+  examples
+    add(1, 2) == 3
+  properties
+    forall x: Int, y: Int:
+      add(x, y) == add(y, x)
+  effects pure
+  impl
+    x + y
+
+pub fn sum_pair(x: Int, y: Int) -> Int
+  intent "Return the sum of two integers."
+  contract
+    ensures result == x + y
+  examples
+    sum_pair(1, 2) == 3
+  properties
+    forall x: Int, y: Int:
+      sum_pair(x, y) == sum_pair(y, x)
+  effects pure
+  impl
+    x + y
+""",
+                encoding="utf-8",
+            )
+            program, parse_diagnostics = parse_files([str(source)])
+            summary = check_program(program, parse_diagnostics)
+            self.assertTrue(
+                any(
+                    diagnostic.code == "NearDuplicateIntent"
+                    and diagnostic.severity == "warning"
+                    and diagnostic.data.get("candidate") == "@test.intent.add.v1"
+                    for diagnostic in summary.diagnostics
+                ),
+                summary.diagnostics,
+            )
+
     def test_pure_function_cannot_call_effectful_function(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "effects.serow"

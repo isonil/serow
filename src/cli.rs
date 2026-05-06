@@ -1283,7 +1283,7 @@ fn agent_json() -> String {
             "No full compiler or generated backend exists yet.",
             "Properties are sampled, not proven.",
             "Migration acknowledgements are source-level notes; they do not prove behavioral compatibility.",
-            "Duplicate-intent rejection is exact after simple normalization.",
+            "Exact duplicate public intents are errors; high-overlap token-ranked intent matches are warnings.",
             "Intent search is deterministic token ranking with stopwords and light normalization, not semantic embeddings.",
             "Qualified calls support `module.name(...)`, `module.name.vN(...)`, and exact `@module.name.vN(...)` references.",
             "`serow certify --profile unattended` fails when changed public symbols weaken executable evidence compared with HEAD unless acknowledged by migration.",

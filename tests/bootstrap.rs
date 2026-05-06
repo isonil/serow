@@ -316,6 +316,74 @@ pub fn same_id(x: Int) -> Int
 }
 
 #[test]
+fn near_duplicate_public_intent_is_warned() {
+    let dir = unique_temp_dir("serow-near-duplicate-intent");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("near_duplicate_intent.serow");
+    fs::write(
+        &source,
+        r#"module test.intent
+
+pub fn add(x: Int, y: Int) -> Int
+  intent "Return the arithmetic sum of x and y."
+  contract
+    ensures result == x + y
+  examples
+    add(1, 2) == 3
+  properties
+    forall x: Int, y: Int:
+      add(x, y) == add(y, x)
+  effects pure
+  impl
+    x + y
+
+pub fn sum_pair(x: Int, y: Int) -> Int
+  intent "Return the sum of two integers."
+  contract
+    ensures result == x + y
+  examples
+    sum_pair(1, 2) == 3
+  properties
+    forall x: Int, y: Int:
+      sum_pair(x, y) == sum_pair(y, x)
+  effects pure
+  impl
+    x + y
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "NearDuplicateIntent"
+                && diagnostic.severity == serow::diagnostic::Severity::Warning
+                && diagnostic
+                    .data
+                    .iter()
+                    .any(|(key, value)| key == "candidate" && value == "@test.intent.add.v1")
+                && diagnostic
+                    .repair_actions
+                    .iter()
+                    .any(|action| action.command[..3] == ["bin/serow", "query", "intent"])),
+        "{:#?}",
+        summary.diagnostics
+    );
+    assert!(
+        !summary
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "PossibleDuplicate"),
+        "{:#?}",
+        summary.diagnostics
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn intent_query_finds_add() {
     let (program, parse_diagnostics) = parse_paths(&["examples".to_string()]);
     assert!(parse_diagnostics.is_empty());

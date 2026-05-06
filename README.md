@@ -11,7 +11,7 @@ The current implementation is a bootstrap toolchain written in dependency-free R
 - qualified function references (`module.name(...)` or `@module.name.vN(...)`)
 - explicit effects
 - explicit and inferred module dependencies checked against `serow.project`
-- duplicate public intent detection
+- exact duplicate public intent errors and near-duplicate intent warnings
 - structured JSON diagnostics with machine-readable repair actions where available
 - a semantic ledger for agent queries, including token-ranked intent search and transitive impact paths
 - a first machine-readable change plan for changed symbols, public contract-surface changes, capability changes, public implementation changes, implementation evidence coverage, implementation/evidence drift, migration acknowledgements, impact, impact-edge evidence coverage, HEAD evidence deltas, and residual risk

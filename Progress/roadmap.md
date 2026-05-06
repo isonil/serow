@@ -74,7 +74,7 @@ This phase exists because the original Serow premise is not only "AI-first synta
   - make version and dependent information part of change-impact diagnostics
 - Improve semantic reuse checks:
   - upgrade intent search from exact normalization to token ranking, then semantic similarity when dependencies permit
-  - warn before adding near-duplicate public behavior
+  - warn before adding near-duplicate public behavior _(Started: the checker emits `NearDuplicateIntent` warnings for high-overlap token-ranked public intents and points agents back to `query intent`.)_
   - make duplicate-intent diagnostics explain likely reuse candidates and differences
 - Expand capabilities and effects:
   - replace the current coarse `pure` vs effectful rule with structured capabilities

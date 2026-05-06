@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::diagnostic::{Diagnostic, Severity};
 use crate::eval::{Evaluator, Value, called_functions, resolve_function};
+use crate::ledger::query_intent;
 use crate::model::{Function, Program};
 use crate::project::load_architecture;
 use crate::typecheck::infer_expression_type;
@@ -15,6 +16,8 @@ const REQUIRED_PUBLIC_SECTIONS: &[&str] = &[
     "impl",
 ];
 const SUPPORTED_TYPES: &[&str] = &["Int", "Bool", "Text"];
+const NEAR_DUPLICATE_INTENT_SCORE: f64 = 0.75;
+const NEAR_DUPLICATE_INTENT_MIN_REASONS: usize = 2;
 
 #[derive(Clone, Debug, Default)]
 pub struct CheckSummary {
@@ -352,6 +355,7 @@ fn check_ambiguous_unqualified_calls(program: &Program, summary: &mut CheckSumma
 
 fn check_duplicate_intents(program: &Program, summary: &mut CheckSummary) {
     let mut seen = HashMap::<String, (String, String, String)>::new();
+    let mut seen_functions = Vec::<Function>::new();
     for function in &program.functions {
         if !function.public {
             continue;
@@ -389,11 +393,69 @@ fn check_duplicate_intents(program: &Program, summary: &mut CheckSummary) {
                 .with_repair("Reuse the existing symbol or make the new intent more specific."),
             );
         } else {
+            let seen_program = Program {
+                modules: Vec::new(),
+                functions: seen_functions.clone(),
+            };
+            for candidate in query_intent(&seen_program, intent, 3) {
+                let reason_count = candidate
+                    .reasons
+                    .iter()
+                    .filter(|reason| reason.as_str() != "name")
+                    .count();
+                if candidate.score < NEAR_DUPLICATE_INTENT_SCORE
+                    || reason_count < NEAR_DUPLICATE_INTENT_MIN_REASONS
+                    || candidate.function.symbol() == function.symbol()
+                    || candidate
+                        .function
+                        .intent
+                        .as_deref()
+                        .is_some_and(|candidate_intent| {
+                            normalize_intent(candidate_intent) == normalized
+                        })
+                {
+                    continue;
+                }
+                summary.diagnostics.push(
+                    Diagnostic::warning(
+                        "NearDuplicateIntent",
+                        format!(
+                            "Public function `{}` has an intent similar to `{}`.",
+                            function.name,
+                            candidate.function.symbol()
+                        ),
+                        Some(function.target()),
+                    )
+                    .with_data("candidate", candidate.function.symbol())
+                    .with_data("candidate_target", candidate.function.target())
+                    .with_data(
+                        "candidate_intent",
+                        candidate.function.intent.unwrap_or_default(),
+                    )
+                    .with_data("intent", intent)
+                    .with_data("score", format!("{:.3}", candidate.score))
+                    .with_data("reasons", candidate.reasons.join(", "))
+                    .with_command_repair(
+                        "Review existing intent matches",
+                        vec![
+                            "bin/serow".to_string(),
+                            "query".to_string(),
+                            "intent".to_string(),
+                            intent.clone(),
+                        ],
+                    )
+                    .with_repair(
+                        "Reuse the closest existing symbol or make the new intent more specific.",
+                    ),
+                );
+                break;
+            }
             seen.insert(
                 normalized,
                 (function.target(), function.symbol(), intent.clone()),
             );
         }
+        seen_functions.push(function.clone());
     }
 }
 

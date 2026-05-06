@@ -178,3 +178,7 @@
 - Added structured diagnostic repair-action contract validation for unattended certification.
 - `bin/serow certify --profile unattended` now emits `RepairActionContractViolation` if a diagnostic repair action has an unsupported kind, empty label/argv component, non-`bin/serow` command prefix, missing subcommand, or unknown `patch`/`query` subcommand.
 - Added Rust coverage for both valid command repair actions and malformed synthetic repair actions, and confirmed the real missing-version repair action passes the stricter contract.
+- Added near-duplicate public intent warnings to the Rust checker and Python reference checker.
+- Exact normalized duplicate public intents remain `PossibleDuplicate` errors, while high-overlap token-ranked matches now emit `NearDuplicateIntent` warnings with candidate symbol, score, overlap reasons, and a `query intent` structured repair action in Rust.
+- Added Rust and Python regression tests proving a similar-but-not-exact `sum_pair` intent points back to an existing `add` symbol without turning into an exact duplicate error.
+- Updated the agent bootstrap contract, README, `serow.project`, and Progress docs to advertise near-duplicate semantic reuse warnings.

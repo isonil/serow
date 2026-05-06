@@ -77,7 +77,7 @@ Contract blocks currently support:
 
 ## Intent Ledger
 
-Public function intents are checked against the project ledger. The bootstrap currently rejects exact normalized duplicate public intents with `PossibleDuplicate` diagnostics. These diagnostics point agents back to `bin/serow query intent "<description>"` so they can reuse an existing symbol or make the new intent more specific before adding public behavior.
+Public function intents are checked against the project ledger. The bootstrap rejects exact normalized duplicate public intents with `PossibleDuplicate` diagnostics, and warns on high-overlap token-ranked public intents with `NearDuplicateIntent` diagnostics. These diagnostics point agents back to `bin/serow query intent "<description>"` so they can reuse an existing symbol or make the new intent more specific before adding public behavior.
 
 Intent queries use deterministic token ranking. The query path filters common stopwords, lightly normalizes content tokens such as plural forms and `integer`/`integers` to `int`, weights stronger fields like name and intent above executable evidence, and returns stable score-ordered results. This is a lexical reuse aid, not semantic embedding search.
 
@@ -121,7 +121,7 @@ Effects are explicit on every public function. The bootstrap recognizes `effects
 - implementations, contracts, examples, and properties are well-typed within the bootstrap expression subset
 - all examples passed
 - all executable calls satisfy declared `requires` preconditions
-- no exact duplicate public intents are present
+- no exact duplicate public intents are present; near-duplicate public intents are warnings during normal checking and certification-blocking diagnostics during `certify`
 - `pure` functions do not call effectful functions in checked expressions
 - bare function calls resolve unambiguously, or call sites use qualified references
 - sampled properties passed
