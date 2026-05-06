@@ -212,3 +212,6 @@
 - The set-impl patch replaces an existing implementation expression through the structured patch interface, rejects empty expressions and functions without implementation sections, preserves ambiguous-target protection, and rewrites through the canonical formatter.
 - Added Rust integration coverage proving `patch set-impl` replaces an implementation while leaving the result checkable.
 - Updated the agent bootstrap contract, README, `serow.project`, and Progress docs to advertise structured implementation replacement.
+- Expanded duplicate-intent diagnostics so both exact `PossibleDuplicate` errors and `NearDuplicateIntent` warnings include structured `shared_terms`, `new_only_terms`, and `candidate_only_terms` data.
+- Exposed canonical intent-token extraction in the Rust ledger and Python reference bootstrap so reuse diagnostics use the same stopword filtering and light token normalization as intent search, with a raw normalized-word fallback for very short exact intents.
+- Added Rust and Python regression coverage proving duplicate and near-duplicate intent diagnostics report actionable overlap and difference data.

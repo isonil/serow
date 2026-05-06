@@ -77,7 +77,7 @@ This phase exists because the original Serow premise is not only "AI-first synta
 - Improve semantic reuse checks:
   - upgrade intent search from exact normalization to token ranking, then semantic similarity when dependencies permit
   - warn before adding near-duplicate public behavior _(Started: the checker emits `NearDuplicateIntent` warnings for high-overlap token-ranked public intents and points agents back to `query intent`.)_
-  - make duplicate-intent diagnostics explain likely reuse candidates and differences
+  - make duplicate-intent diagnostics explain likely reuse candidates and differences _(Started: `PossibleDuplicate` and `NearDuplicateIntent` diagnostics now include shared intent terms plus new-only and candidate-only term differences.)_
 - Expand capabilities and effects:
   - replace the current coarse `pure` vs effectful rule with structured capabilities _(Started: direct calls now require the caller's declared capabilities to include the callee's concrete non-`pure` capabilities.)_
   - require public functions to declare the minimum capabilities they need _(Started: underdeclared direct-call capabilities are checker errors; over-declared concrete capabilities now warn when resolved non-self direct callees establish a smaller required capability set.)_

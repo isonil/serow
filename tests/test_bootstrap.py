@@ -207,7 +207,14 @@ pub fn same_id(x: Int) -> Int
             )
             program, parse_diagnostics = parse_files([str(source)])
             summary = check_program(program, parse_diagnostics)
-            self.assertIn("PossibleDuplicate", [diagnostic.code for diagnostic in summary.diagnostics])
+            self.assertTrue(
+                any(
+                    diagnostic.code == "PossibleDuplicate"
+                    and diagnostic.data.get("shared_terms") == "return, x"
+                    for diagnostic in summary.diagnostics
+                ),
+                summary.diagnostics,
+            )
 
     def test_near_duplicate_public_intent_is_warned(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -250,6 +257,9 @@ pub fn sum_pair(x: Int, y: Int) -> Int
                     diagnostic.code == "NearDuplicateIntent"
                     and diagnostic.severity == "warning"
                     and diagnostic.data.get("candidate") == "@test.intent.add.v1"
+                    and diagnostic.data.get("shared_terms") == "sum"
+                    and diagnostic.data.get("new_only_terms") == "int, two"
+                    and diagnostic.data.get("candidate_only_terms") == "arithmetic"
                     for diagnostic in summary.diagnostics
                 ),
                 summary.diagnostics,

@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Tuple
 
 from .diagnostics import Diagnostic
 from .evaluator import EvaluationError, Evaluator, resolve_function
-from .ledger import query_intent
+from .ledger import intent_terms, query_intent
 from .model import Function, Program
 
 
@@ -122,6 +122,7 @@ def _check_duplicate_intents(program: Program, summary: CheckSummary) -> None:
             continue
         if normalized in seen:
             first = seen[normalized]
+            differences = _intent_differences(function.intent, first.intent or "")
             summary.diagnostics.append(
                 Diagnostic(
                     severity="error",
@@ -133,6 +134,9 @@ def _check_duplicate_intents(program: Program, summary: CheckSummary) -> None:
                         "first_symbol": first.symbol,
                         "first_intent": first.intent,
                         "intent": function.intent,
+                        "shared_terms": ", ".join(differences["shared"]),
+                        "new_only_terms": ", ".join(differences["left_only"]),
+                        "candidate_only_terms": ", ".join(differences["right_only"]),
                     },
                     repairs=[
                         f'Run `bin/serow query intent "{function.intent}"` and reuse the existing symbol or make the intent more specific.'
@@ -151,6 +155,7 @@ def _check_duplicate_intents(program: Program, summary: CheckSummary) -> None:
                     or _normalize_intent(candidate_intent) == normalized
                 ):
                     continue
+                differences = _intent_differences(function.intent, candidate_intent)
                 summary.diagnostics.append(
                     Diagnostic(
                         severity="warning",
@@ -164,6 +169,9 @@ def _check_duplicate_intents(program: Program, summary: CheckSummary) -> None:
                             "intent": function.intent,
                             "score": f"{candidate.score:.3f}",
                             "reasons": ", ".join(candidate.reasons),
+                            "shared_terms": ", ".join(differences["shared"]),
+                            "new_only_terms": ", ".join(differences["left_only"]),
+                            "candidate_only_terms": ", ".join(differences["right_only"]),
                         },
                         repairs=[
                             f'Run `bin/serow query intent "{function.intent}"` and reuse the closest existing symbol or make the intent more specific.'
@@ -173,6 +181,25 @@ def _check_duplicate_intents(program: Program, summary: CheckSummary) -> None:
                 break
             seen[normalized] = function
         seen_functions.append(function)
+
+
+def _intent_differences(left: str, right: str) -> Dict[str, List[str]]:
+    left_terms = intent_terms(left)
+    right_terms = intent_terms(right)
+    if not left_terms or not right_terms:
+        left_terms = _normalized_intent_words(left)
+        right_terms = _normalized_intent_words(right)
+    left_set = set(left_terms)
+    right_set = set(right_terms)
+    return {
+        "shared": sorted(left_set & right_set),
+        "left_only": sorted(left_set - right_set),
+        "right_only": sorted(right_set - left_set),
+    }
+
+
+def _normalized_intent_words(intent: str) -> List[str]:
+    return sorted(set(_normalize_intent(intent).split()))
 
 
 def _normalize_intent(intent: str) -> str:

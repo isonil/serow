@@ -89,6 +89,12 @@ pub fn query_intent(program: &Program, text: &str, limit: usize) -> Vec<QueryMat
     matches
 }
 
+pub fn intent_terms(text: &str) -> Vec<String> {
+    let mut terms = tokens(text).into_iter().collect::<Vec<_>>();
+    terms.sort();
+    terms
+}
+
 pub fn query_symbol(program: &Program, text: &str, limit: usize) -> Vec<QueryMatch> {
     let needle = text.to_lowercase();
     let mut matches = Vec::new();

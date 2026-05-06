@@ -43,6 +43,10 @@ def query_intent(program: Program, text: str, limit: int = 10) -> List[QueryMatc
     return sorted(matches, key=lambda item: (-item.score, item.function.symbol))[:limit]
 
 
+def intent_terms(text: str) -> List[str]:
+    return sorted(_tokens(text))
+
+
 def query_symbol(program: Program, text: str, limit: int = 20) -> List[QueryMatch]:
     needle = text.lower()
     matches: List[QueryMatch] = []

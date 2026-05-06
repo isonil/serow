@@ -21,8 +21,8 @@ Date: 2026-05-06
   - executable examples
   - executable `requires` preconditions before calls
   - executable `ensures` contracts against example calls
-  - exact normalized duplicate public intent detection
-  - near-duplicate public intent warnings using deterministic token-ranked intent overlap
+  - exact normalized duplicate public intent detection with shared/new-only/candidate-only term difference data
+  - near-duplicate public intent warnings using deterministic token-ranked intent overlap with shared/new-only/candidate-only term difference data
   - ambiguous bare-call diagnostics with qualified-reference repair guidance
   - sampled `forall` properties over `Int`, `Bool`, and `Text`
   - inferred cross-module dependencies from function calls in implementations, contracts, examples, and properties
@@ -513,6 +513,25 @@ bin/serow certify --profile unattended --json
 bin/serow plan --json
 ```
 
+Additional verification after adding intent-reuse overlap/difference diagnostics:
+
+```sh
+bin/serow query intent "explain duplicate public intent reuse candidates and differences" --json
+bin/serow query symbol "intent" --json
+cargo fmt --check
+cargo clippy -- -D warnings
+cargo test intent -- --nocapture
+cargo test
+python3 -m unittest tests.test_bootstrap.BootstrapTests.test_duplicate_public_intent_is_reported tests.test_bootstrap.BootstrapTests.test_near_duplicate_public_intent_is_warned
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+bin/serow agent --json
+```
+
 `cargo test` includes integration coverage for `bin/serow patch add-function`.
 
 `bin/serow check --json` currently reports:
@@ -533,7 +552,7 @@ bin/serow plan --json
 ## Known Limits
 
 - This is not yet a full compiler; it is a parser/checker/ledger bootstrap.
-- Intent duplicate errors are exact after simple normalization; near-duplicate warnings and intent search use deterministic token ranking with stopwords and light token normalization, but they are not semantic similarity yet.
+- Intent duplicate errors are exact after simple normalization; near-duplicate warnings and intent search use deterministic token ranking with stopwords and light token normalization. Duplicate and near-duplicate diagnostics expose token overlap/differences, but they are not semantic similarity yet.
 - Type checking covers the current expression subset but does not yet model user-defined data types, generics, or effect polymorphism.
 - Expression support is intentionally small: literals, variables, direct or qualified calls, arithmetic, comparisons, booleans, and one-line `if ... then ... else ...`.
 - Properties are sampled, not proven.

@@ -1362,7 +1362,7 @@ fn agent_json() -> String {
             "  \"public_function_requirements\": {},\n",
             "  \"supported_bootstrap_types\": {},\n",
             "  \"verification_gates\": {},\n",
-            "  \"diagnostic_json\": {{\"repairs\": \"legacy human-readable repair strings\", \"repair_actions\": \"machine-readable command actions when available\"}},\n",
+            "  \"diagnostic_json\": {{\"repairs\": \"legacy human-readable repair strings\", \"repair_actions\": \"machine-readable command actions when available\", \"intent_reuse\": \"PossibleDuplicate and NearDuplicateIntent include shared_terms, new_only_terms, and candidate_only_terms data\"}},\n",
             "  \"known_limits\": {}\n",
             "}}"
         ),
@@ -1399,6 +1399,7 @@ fn agent_json() -> String {
             "Properties are sampled, not proven.",
             "Migration acknowledgements are source-level notes; they do not prove behavioral compatibility.",
             "Exact duplicate public intents are errors; high-overlap token-ranked intent matches are warnings.",
+            "Duplicate and near-duplicate intent diagnostics include shared and differing intent terms.",
             "Intent search is deterministic token ranking with stopwords and light normalization, not semantic embeddings.",
             "Qualified calls support `module.name(...)`, `module.name.vN(...)`, and exact `@module.name.vN(...)` references.",
             "`serow patch set-version` can bump a symbol version when parsed call sites do not pin the old canonical version.",
@@ -1602,6 +1603,7 @@ fn print_agent_bootstrap() {
     println!("diagnostic json:");
     println!("  repairs: human-readable compatibility strings");
     println!("  repair_actions: machine-readable command actions when available");
+    println!("  intent reuse diagnostics report shared and differing intent terms");
     println!("  unattended certification validates structured repair action commands");
     println!("identity:");
     println!("  source may declare `version vN`; omitted versions default to v1");

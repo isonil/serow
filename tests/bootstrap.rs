@@ -504,6 +504,10 @@ pub fn same_id(x: Int) -> Int
             .iter()
             .any(|diagnostic| diagnostic.code == "PossibleDuplicate"
                 && diagnostic
+                    .data
+                    .iter()
+                    .any(|(key, value)| key == "shared_terms" && value == "return, x")
+                && diagnostic
                     .repairs
                     .iter()
                     .any(|repair| repair.contains("bin/serow query intent"))),
@@ -563,6 +567,18 @@ pub fn sum_pair(x: Int, y: Int) -> Int
                     .data
                     .iter()
                     .any(|(key, value)| key == "candidate" && value == "@test.intent.add.v1")
+                && diagnostic
+                    .data
+                    .iter()
+                    .any(|(key, value)| key == "shared_terms" && value == "sum")
+                && diagnostic
+                    .data
+                    .iter()
+                    .any(|(key, value)| key == "new_only_terms" && value == "int, two")
+                && diagnostic
+                    .data
+                    .iter()
+                    .any(|(key, value)| key == "candidate_only_terms" && value == "arithmetic")
                 && diagnostic
                     .repair_actions
                     .iter()

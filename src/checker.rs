@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::diagnostic::{Diagnostic, Severity};
 use crate::eval::{Evaluator, Value, called_functions, resolve_function};
-use crate::ledger::query_intent;
+use crate::ledger::{intent_terms, query_intent};
 use crate::model::{Function, Program};
 use crate::project::load_architecture;
 use crate::typecheck::infer_expression_type;
@@ -368,6 +368,7 @@ fn check_duplicate_intents(program: &Program, summary: &mut CheckSummary) {
             continue;
         }
         if let Some((first_target, first_symbol, first_intent)) = seen.get(&normalized) {
+            let differences = intent_differences(intent, first_intent);
             summary.diagnostics.push(
                 Diagnostic::error(
                     "PossibleDuplicate",
@@ -381,6 +382,9 @@ fn check_duplicate_intents(program: &Program, summary: &mut CheckSummary) {
                 .with_data("first_symbol", first_symbol.clone())
                 .with_data("first_intent", first_intent.clone())
                 .with_data("intent", intent)
+                .with_data("shared_terms", differences.shared.join(", "))
+                .with_data("new_only_terms", differences.left_only.join(", "))
+                .with_data("candidate_only_terms", differences.right_only.join(", "))
                 .with_command_repair(
                     "Find existing functions with the same intent",
                     vec![
@@ -416,6 +420,8 @@ fn check_duplicate_intents(program: &Program, summary: &mut CheckSummary) {
                 {
                     continue;
                 }
+                let candidate_intent = candidate.function.intent.clone().unwrap_or_default();
+                let differences = intent_differences(intent, &candidate_intent);
                 summary.diagnostics.push(
                     Diagnostic::warning(
                         "NearDuplicateIntent",
@@ -428,13 +434,13 @@ fn check_duplicate_intents(program: &Program, summary: &mut CheckSummary) {
                     )
                     .with_data("candidate", candidate.function.symbol())
                     .with_data("candidate_target", candidate.function.target())
-                    .with_data(
-                        "candidate_intent",
-                        candidate.function.intent.unwrap_or_default(),
-                    )
+                    .with_data("candidate_intent", candidate_intent)
                     .with_data("intent", intent)
                     .with_data("score", format!("{:.3}", candidate.score))
                     .with_data("reasons", candidate.reasons.join(", "))
+                    .with_data("shared_terms", differences.shared.join(", "))
+                    .with_data("new_only_terms", differences.left_only.join(", "))
+                    .with_data("candidate_only_terms", differences.right_only.join(", "))
                     .with_command_repair(
                         "Review existing intent matches",
                         vec![
@@ -457,6 +463,49 @@ fn check_duplicate_intents(program: &Program, summary: &mut CheckSummary) {
         }
         seen_functions.push(function.clone());
     }
+}
+
+struct IntentDifferences {
+    shared: Vec<String>,
+    left_only: Vec<String>,
+    right_only: Vec<String>,
+}
+
+fn intent_differences(left: &str, right: &str) -> IntentDifferences {
+    let mut left_terms = intent_terms(left);
+    let mut right_terms = intent_terms(right);
+    if left_terms.is_empty() || right_terms.is_empty() {
+        left_terms = normalized_intent_words(left);
+        right_terms = normalized_intent_words(right);
+    }
+    let left_set = left_terms.iter().cloned().collect::<HashSet<_>>();
+    let right_set = right_terms.iter().cloned().collect::<HashSet<_>>();
+
+    let mut shared = left_set
+        .intersection(&right_set)
+        .cloned()
+        .collect::<Vec<_>>();
+    shared.sort();
+    let mut left_only = left_set.difference(&right_set).cloned().collect::<Vec<_>>();
+    left_only.sort();
+    let mut right_only = right_set.difference(&left_set).cloned().collect::<Vec<_>>();
+    right_only.sort();
+
+    IntentDifferences {
+        shared,
+        left_only,
+        right_only,
+    }
+}
+
+fn normalized_intent_words(intent: &str) -> Vec<String> {
+    let mut words = normalize_intent(intent)
+        .split_whitespace()
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    words.sort();
+    words.dedup();
+    words
 }
 
 fn normalize_intent(intent: &str) -> String {
