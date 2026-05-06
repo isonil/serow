@@ -29,6 +29,7 @@ pub struct ChangedSymbol {
     pub evidence: EvidenceCoverage,
     pub evidence_delta: Option<EvidenceDelta>,
     pub evidence_weakening: Vec<EvidenceWeakening>,
+    pub implementation_change: Option<ImplementationChange>,
     pub version_explicit: bool,
     pub impact: Vec<ImpactDependent>,
     pub impact_coverage: Vec<ImpactEvidenceCoverage>,
@@ -62,6 +63,12 @@ pub struct EvidenceWeakening {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PublicBehaviorChange {
     pub changed: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ImplementationChange {
+    pub before: String,
+    pub after: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -155,6 +162,15 @@ pub fn plan_paths(paths: &[String]) -> ChangePlan {
                 .to_string(),
         );
     }
+    if changed_symbols.iter().any(|symbol| {
+        symbol.implementation_change.is_some()
+            && !executable_evidence_strengthened(symbol.evidence_delta.as_ref())
+    }) {
+        residual_risks.push(
+            "Changed public symbols modify implementations without adding executable evidence compared with HEAD."
+                .to_string(),
+        );
+    }
 
     let ok = summary.ok() && residual_risks.is_empty();
     ChangePlan {
@@ -233,6 +249,35 @@ pub fn unattended_public_behavior_change_diagnostics(paths: &[String]) -> Vec<Di
                 .with_data("changed", changed)
                 .with_repair(
                     "Preserve the existing public contract surface or introduce a new explicit version before unattended certification.",
+                ),
+            )
+        })
+        .collect()
+}
+
+pub fn unattended_implementation_change_diagnostics(paths: &[String]) -> Vec<Diagnostic> {
+    plan_paths(paths)
+        .changed_symbols
+        .into_iter()
+        .filter_map(|symbol| {
+            let implementation_change = symbol.implementation_change?;
+            if executable_evidence_strengthened(symbol.evidence_delta.as_ref()) {
+                return None;
+            }
+            Some(
+                Diagnostic::error(
+                    "ImplementationChangeNeedsEvidence",
+                    format!(
+                        "Public function `{}` changes its implementation without adding executable evidence.",
+                        symbol.function.name
+                    ),
+                    Some(symbol.function.target()),
+                )
+                .with_data("symbol", symbol.function.symbol())
+                .with_data("before", implementation_change.before)
+                .with_data("after", implementation_change.after)
+                .with_repair(
+                    "Add executable evidence covering the implementation change or introduce a new explicit version/migration decision before unattended certification.",
                 ),
             )
         })
@@ -365,6 +410,8 @@ fn changed_symbol(
     let evidence_weakening = baseline_function
         .map(|baseline_function| evidence_weakening(baseline_function, function))
         .unwrap_or_default();
+    let implementation_change = baseline_function
+        .and_then(|baseline_function| implementation_change(baseline_function, function));
     let mut residual_risks = Vec::new();
     if !function.version_explicit {
         residual_risks.push(
@@ -406,6 +453,19 @@ fn changed_symbol(
                 .to_string(),
         );
     }
+    if implementation_change.is_some() {
+        if executable_evidence_strengthened(evidence_delta.as_ref()) {
+            residual_risks.push(
+                "Implementation changed compared with HEAD; verify the added executable evidence explains the change."
+                    .to_string(),
+            );
+        } else {
+            residual_risks.push(
+                "Implementation changed compared with HEAD without added executable evidence."
+                    .to_string(),
+            );
+        }
+    }
     ChangedSymbol {
         function: function.clone(),
         baseline_evidence,
@@ -413,6 +473,7 @@ fn changed_symbol(
         evidence,
         evidence_delta,
         evidence_weakening,
+        implementation_change,
         version_explicit: function.version_explicit,
         impact,
         impact_coverage,
@@ -445,6 +506,22 @@ fn public_behavior_change(before: &Function, after: &Function) -> Option<PublicB
     } else {
         Some(PublicBehaviorChange { changed })
     }
+}
+
+fn implementation_change(before: &Function, after: &Function) -> Option<ImplementationChange> {
+    let before = normalized_implementation(before.implementation.as_deref());
+    let after = normalized_implementation(after.implementation.as_deref());
+    if before == after {
+        None
+    } else {
+        Some(ImplementationChange { before, after })
+    }
+}
+
+fn executable_evidence_strengthened(delta: Option<&EvidenceDelta>) -> bool {
+    delta.is_some_and(|delta| {
+        delta.requires > 0 || delta.ensures > 0 || delta.examples > 0 || delta.properties > 0
+    })
 }
 
 fn impact_evidence_coverage(
@@ -645,6 +722,16 @@ fn normalized_properties(lines: &[String]) -> Vec<String> {
         properties.push(current);
     }
     properties
+}
+
+fn normalized_implementation(implementation: Option<&str>) -> String {
+    implementation
+        .unwrap_or("")
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 fn baseline_functions(paths: &[PathBuf]) -> HashMap<String, Function> {

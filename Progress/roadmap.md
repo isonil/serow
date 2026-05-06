@@ -81,10 +81,10 @@ This phase exists because the original Serow premise is not only "AI-first synta
   - require public functions to declare the minimum capabilities they need
   - make capability expansion visible in certification and dependent-impact output
 - Add machine-readable change plans:
-  - add a command such as `bin/serow plan <paths...> --json` that summarizes changed symbols, affected dependents, evidence coverage, version decisions, and residual risk _(Started: `bin/serow plan [paths...] [--json]` reports selected changed symbols, evidence counts, HEAD evidence deltas when available, evidence-weakening rows, explicit-version state, transitive impact rows, impact-edge coverage rows, checker diagnostics, and residual risks.)_
+  - add a command such as `bin/serow plan <paths...> --json` that summarizes changed symbols, affected dependents, evidence coverage, version decisions, and residual risk _(Started: `bin/serow plan [paths...] [--json]` reports selected changed symbols, normalized implementation changes against HEAD, evidence counts, HEAD evidence deltas when available, evidence-weakening rows, explicit-version state, transitive impact rows, impact-edge coverage rows, checker diagnostics, and residual risks.)_
   - keep the output deterministic so weaker agents can follow it without interpreting prose
 - Guard against evidence drift:
-  - flag patches that change implementation and evidence together unless the changed evidence is explained by a structured migration record
+  - flag patches that change implementation and evidence together unless the changed evidence is explained by a structured migration record _(Started: same-symbol implementation-only changes are reported by `serow plan` and rejected by unattended certification when no executable evidence is added; structured migration records do not exist yet.)_
   - report examples/properties that no longer exercise the changed implementation path
   - add mutation or lightweight fuzz checks to catch examples that are too shallow to detect broken implementations
 - Add strict certification profiles:

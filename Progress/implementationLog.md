@@ -152,3 +152,7 @@
 - `bin/serow certify --profile unattended` now emits `UncoveredImpactEvidence` when a changed public symbol has an impacted dependent call edge that is inside the certified change set but is not exercised by an executable example or sampled property.
 - Added Rust integration coverage proving a change set that includes both target and dependent still fails unattended certification when the dependent evidence is shallow.
 - Updated agent bootstrap output, README, and Progress docs to document the new impact coverage gate.
+- Added normalized public implementation-change detection against Git `HEAD` to `bin/serow plan [--json]`.
+- Changed-symbol plan rows now include `implementation_change` with before/after implementation text when a tracked public function keeps the same canonical symbol but changes its body.
+- `bin/serow certify --profile unattended` now emits `ImplementationChangeNeedsEvidence` when a changed tracked public symbol modifies its implementation without adding executable evidence.
+- Added Rust integration coverage proving plan JSON reports implementation drift and unattended certification rejects an implementation-only public change while normal certification still passes.

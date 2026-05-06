@@ -12,7 +12,8 @@ use crate::patch::{
 };
 use crate::plan::{
     ChangePlan, EvidenceCoverage, EvidenceDelta, EvidenceWeakening, ImpactEvidenceCoverage,
-    PublicBehaviorChange, plan_paths, unattended_evidence_weakening_diagnostics,
+    ImplementationChange, PublicBehaviorChange, plan_paths,
+    unattended_evidence_weakening_diagnostics, unattended_implementation_change_diagnostics,
     unattended_public_behavior_change_diagnostics, unattended_unchecked_impact_diagnostics,
     unattended_uncovered_impact_evidence_diagnostics,
 };
@@ -247,6 +248,9 @@ fn run_check(args: &[String], certify: bool) -> i32 {
         summary
             .diagnostics
             .extend(unattended_public_behavior_change_diagnostics(&paths));
+        summary
+            .diagnostics
+            .extend(unattended_implementation_change_diagnostics(&paths));
         summary
             .diagnostics
             .extend(unattended_unchecked_impact_diagnostics(&paths));
@@ -626,6 +630,11 @@ fn print_plan(plan: &ChangePlan) {
                 weakening.kind, weakening.before, weakening.after
             );
         }
+        if let Some(change) = &symbol.implementation_change {
+            println!("  implementation changed:");
+            println!("    before: {}", change.before);
+            println!("    after: {}", change.after);
+        }
         println!("  explicit version: {}", symbol.version_explicit);
         println!("  impacted dependents: {}", symbol.impact.len());
         let covered_edges = symbol
@@ -707,6 +716,7 @@ fn changed_symbols_json(plan: &ChangePlan) -> String {
                     "      \"evidence_delta\": {},\n",
                     "      \"evidence_weakening\": {},\n",
                     "      \"function\": {},\n",
+                    "      \"implementation_change\": {},\n",
                     "      \"impact\": {},\n",
                     "      \"impact_coverage\": {},\n",
                     "      \"residual_risks\": {},\n",
@@ -722,6 +732,7 @@ fn changed_symbols_json(plan: &ChangePlan) -> String {
                 evidence_delta_option_json(symbol.evidence_delta.as_ref()),
                 evidence_weakening_json(&symbol.evidence_weakening),
                 function_ref_json(&symbol.function),
+                implementation_change_json(symbol.implementation_change.as_ref()),
                 impact_rows_json(&symbol.impact),
                 impact_coverage_json(&symbol.impact_coverage),
                 string_array_json(&symbol.residual_risks),
@@ -742,6 +753,18 @@ fn evidence_coverage_option_json(evidence: Option<&EvidenceCoverage>) -> String 
 fn behavior_change_json(change: Option<&PublicBehaviorChange>) -> String {
     change
         .map(|change| format!("{{\"changed\": {}}}", string_array_json(&change.changed)))
+        .unwrap_or_else(|| "null".to_string())
+}
+
+fn implementation_change_json(change: Option<&ImplementationChange>) -> String {
+    change
+        .map(|change| {
+            format!(
+                "{{\"after\": {}, \"before\": {}}}",
+                json_string(&change.after),
+                json_string(&change.before)
+            )
+        })
         .unwrap_or_else(|| "null".to_string())
 }
 
@@ -1051,7 +1074,7 @@ fn agent_json() -> String {
         (
             "plan",
             "serow plan [paths...] [--json]",
-            "Summarize changed public symbols, evidence coverage, HEAD evidence deltas, impact-edge coverage, and residual risk.",
+            "Summarize changed public symbols, implementation changes, evidence coverage, HEAD evidence deltas, impact-edge coverage, and residual risk.",
         ),
         (
             "query dependents",
@@ -1146,6 +1169,8 @@ fn agent_json() -> String {
             "`serow certify --profile unattended` fails when a tracked public symbol changes its public contract surface without a new symbol version.",
             "`serow certify --profile unattended` fails when changed tracked public symbols have transitive dependents outside the certified change set.",
             "`serow certify --profile unattended` fails when impacted dependent call edges lack executable example or sampled property coverage.",
+            "`serow certify --profile unattended` fails when changed tracked public symbols modify implementations without adding executable evidence.",
+            "`serow plan` reports implementation changes against HEAD for changed tracked public symbols.",
             "`serow plan` reports whether impacted dependent call edges are covered by executable examples or sampled properties.",
             "Ambiguous bare calls are rejected; use a qualified reference when names or versions overlap.",
             "Expression support is intentionally small.",
@@ -1301,6 +1326,7 @@ fn print_agent_bootstrap() {
     println!("  serow patch fill-hole <path> <symbol-or-name> <expression> [--json]");
     println!("  serow patch set-version <path> <symbol-or-name> <version> [--json]");
     println!("  serow plan [paths...] [--json]");
+    println!("    reports same-symbol implementation changes against HEAD");
     println!("    reports impact-edge coverage by executable examples/properties");
     println!("  serow query dependents <symbol-or-name> [paths...] [--json]");
     println!("  serow query impact <symbol-or-name> [paths...] [--json]");
@@ -1324,6 +1350,9 @@ fn print_agent_bootstrap() {
     println!("  unattended certification requires explicit public versions");
     println!(
         "  unattended certification rejects tracked public contract-surface changes that keep the same symbol version"
+    );
+    println!(
+        "  unattended certification rejects tracked implementation changes without added executable evidence"
     );
     println!(
         "  unattended certification rejects impacted dependent call edges without executable evidence coverage"
