@@ -634,9 +634,7 @@ fn check_static_types(function: &Function, program: &Program, summary: &mut Chec
 fn check_effects(program: &Program, summary: &mut CheckSummary) {
     let mut reported = HashSet::<(String, String, String)>::new();
     for function in &program.functions {
-        if !is_pure(function) {
-            continue;
-        }
+        let function_capabilities = effect_capabilities(function);
         for (context, expression) in function_expressions(function) {
             let Ok(call_names) = called_functions(&expression) else {
                 continue;
@@ -645,19 +643,24 @@ fn check_effects(program: &Program, summary: &mut CheckSummary) {
                 let Ok(callee) = resolve_function(&call_reference.raw, &program.functions) else {
                     continue;
                 };
-                if is_pure(callee) {
+                let missing_capabilities = callee_required_capabilities(callee)
+                    .difference(&function_capabilities)
+                    .cloned()
+                    .collect::<Vec<_>>();
+                if missing_capabilities.is_empty() {
                     continue;
                 }
                 let key = (function.symbol(), callee.symbol(), context.to_string());
                 if !reported.insert(key) {
                     continue;
                 }
+                let missing = capability_label(missing_capabilities);
                 summary.diagnostics.push(
                     Diagnostic::error(
                         "EffectViolation",
                         format!(
-                            "Pure function `{}` calls effectful function `{}`.",
-                            function.name, callee.name
+                            "Function `{}` calls `{}` without declaring required capabilities: {}.",
+                            function.name, callee.name, missing
                         ),
                         Some(function.target()),
                     )
@@ -665,10 +668,11 @@ fn check_effects(program: &Program, summary: &mut CheckSummary) {
                     .with_data("function_effects", effect_label(function))
                     .with_data("callee", callee.symbol())
                     .with_data("callee_effects", effect_label(callee))
+                    .with_data("missing_effects", missing)
                     .with_data("context", context)
                     .with_data("expression", &expression)
                     .with_repair(
-                        "Remove the effectful call, call a pure function, or declare the caller's required effects.",
+                        "Remove the call, call a function with declared capabilities already available to the caller, or declare the caller's required effects.",
                     ),
                 );
             }
@@ -676,8 +680,17 @@ fn check_effects(program: &Program, summary: &mut CheckSummary) {
     }
 }
 
-fn is_pure(function: &Function) -> bool {
-    function.effects.len() == 1 && function.effects[0] == "pure"
+fn callee_required_capabilities(function: &Function) -> HashSet<String> {
+    effect_capabilities(function)
+}
+
+fn effect_capabilities(function: &Function) -> HashSet<String> {
+    function
+        .effects
+        .iter()
+        .filter(|effect| effect.as_str() != "pure")
+        .cloned()
+        .collect()
 }
 
 fn effect_label(function: &Function) -> String {
@@ -686,6 +699,12 @@ fn effect_label(function: &Function) -> String {
     } else {
         function.effects.join(", ")
     }
+}
+
+fn capability_label(mut capabilities: Vec<String>) -> String {
+    capabilities.sort();
+    capabilities.dedup();
+    capabilities.join(", ")
 }
 
 fn function_type_variables(function: &Function, include_result: bool) -> HashMap<String, String> {

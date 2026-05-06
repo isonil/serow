@@ -187,3 +187,7 @@
 - `bin/serow certify --profile unattended` now emits `ImplementationChangeNeedsSensitiveEvidence` when added implementation evidence directly calls the changed function but also passes against the `HEAD` implementation, unless acknowledged by an `implementation-change` migration.
 - Added Rust integration coverage for both HEAD-insensitive implementation evidence and evidence that distinguishes the changed implementation from `HEAD`.
 - Updated the agent bootstrap contract, README, `serow.project`, and Progress docs to document the new lightweight shallow-evidence check.
+- Tightened effect capability checking from a pure/effectful split to direct-call capability subset validation.
+- The Rust checker and Python reference checker now emit `EffectViolation` when any function calls a resolved callee without declaring all of the callee's concrete non-`pure` capabilities.
+- Added Rust and Python regression coverage showing an `[io]` caller cannot call a `[network]` callee unless it declares `network`, while a caller declaring `[io, network]` is accepted.
+- Updated the agent bootstrap contract, README, and Progress docs to document structured direct-call capability validation.

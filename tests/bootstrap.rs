@@ -261,6 +261,97 @@ pub fn bad(x: Int) -> Int
 }
 
 #[test]
+fn effectful_function_must_declare_specific_called_capabilities() {
+    let dir = unique_temp_dir("serow-specific-effects");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("effects.serow");
+    fs::write(
+        &source,
+        r#"module test.effects
+
+pub fn read_file(x: Int) -> Int
+  intent "Return x while modeling a file read."
+  contract
+    ensures result == x
+  examples
+    read_file(1) == 1
+  properties
+    forall x: Int:
+      read_file(x) == x
+  effects [io]
+  impl
+    x
+
+pub fn fetch_remote(x: Int) -> Int
+  intent "Return x while modeling a network request."
+  contract
+    ensures result == x
+  examples
+    fetch_remote(1) == 1
+  properties
+    forall x: Int:
+      fetch_remote(x) == x
+  effects [network]
+  impl
+    x
+
+pub fn declared_io_only(x: Int) -> Int
+  intent "Call a network operation while only declaring io."
+  contract
+    ensures result == x
+  examples
+    declared_io_only(1) == 1
+  properties
+    forall x: Int:
+      declared_io_only(x) == x
+  effects [io]
+  impl
+    fetch_remote(read_file(x))
+
+pub fn declared_both(x: Int) -> Int
+  intent "Call io and network operations while declaring both capabilities."
+  contract
+    ensures result == x
+  examples
+    declared_both(1) == 1
+  properties
+    forall x: Int:
+      declared_both(x) == x
+  effects [io, network]
+  impl
+    fetch_remote(read_file(x))
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "EffectViolation"
+                && diagnostic.data.iter().any(|(key, value)| key == "function"
+                    && value == "@test.effects.declared_io_only.v1")
+                && diagnostic
+                    .data
+                    .iter()
+                    .any(|(key, value)| key == "missing_effects" && value == "network")),
+        "{:#?}",
+        summary.diagnostics
+    );
+    assert!(
+        !summary.diagnostics.iter().any(|diagnostic| diagnostic
+            .data
+            .iter()
+            .any(|(key, value)| key == "function" && value == "@test.effects.declared_both.v1")),
+        "{:#?}",
+        summary.diagnostics
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn duplicate_public_intent_is_reported() {
     let dir = unique_temp_dir("serow-duplicate-intent");
     fs::create_dir_all(&dir).expect("create temp dir");

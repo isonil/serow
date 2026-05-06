@@ -15,7 +15,7 @@
 - Add typed holes with structured repair diagnostics.
 - Add module dependencies and architecture checks. _(Started: explicit `use <module>` declarations are checked against `serow.project` `may_depend_on` policies.)_
 - Infer module dependencies from function calls in executable expressions. _(Started: implementations, `requires`, `ensures`, examples, and sampled property bodies now contribute inferred cross-module dependencies.)_
-- Add effect validation. _(Started: bootstrap checking now prevents `pure` functions from calling functions with non-`pure` effects.)_
+- Add effect validation. _(Started: bootstrap checking now requires direct callers to declare every concrete capability required by callees.)_
 - Add deterministic formatting. _(Started: `bin/serow fmt` rewrites the bootstrap textual projection and `--check` reports drift.)_
 
 ## Phase 2: Agent-Native Workflow
@@ -77,8 +77,8 @@ This phase exists because the original Serow premise is not only "AI-first synta
   - warn before adding near-duplicate public behavior _(Started: the checker emits `NearDuplicateIntent` warnings for high-overlap token-ranked public intents and points agents back to `query intent`.)_
   - make duplicate-intent diagnostics explain likely reuse candidates and differences
 - Expand capabilities and effects:
-  - replace the current coarse `pure` vs effectful rule with structured capabilities
-  - require public functions to declare the minimum capabilities they need
+  - replace the current coarse `pure` vs effectful rule with structured capabilities _(Started: direct calls now require the caller's declared capabilities to include the callee's concrete non-`pure` capabilities.)_
+  - require public functions to declare the minimum capabilities they need _(Started: underdeclared direct-call capabilities are checker errors; over-declared unused capabilities are not yet rejected.)_
   - make capability expansion visible in certification and dependent-impact output _(Started: `serow plan` now reports declared capability changes against `HEAD`, and unattended certification rejects added capabilities as `CapabilityExpansionNeedsMigration` unless acknowledged by a `capability-expansion` migration.)_
 - Add machine-readable change plans:
   - add a command such as `bin/serow plan <paths...> --json` that summarizes changed symbols, affected dependents, evidence coverage, version decisions, and residual risk _(Started: `bin/serow plan [paths...] [--json]` reports selected changed symbols, declared capability changes and normalized implementation changes against HEAD, evidence counts, HEAD evidence deltas when available, evidence-weakening rows, explicit-version state, transitive impact rows, impact-edge coverage rows, checker diagnostics, and residual risks.)_

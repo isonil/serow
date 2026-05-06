@@ -293,6 +293,85 @@ pub fn bad(x: Int) -> Int
             summary = check_program(program, parse_diagnostics)
             self.assertIn("EffectViolation", [diagnostic.code for diagnostic in summary.diagnostics])
 
+    def test_effectful_function_must_declare_specific_called_capabilities(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "effects.serow"
+            source.write_text(
+                """module test.effects
+
+pub fn read_file(x: Int) -> Int
+  intent "Return x while modeling a file read."
+  contract
+    ensures result == x
+  examples
+    read_file(1) == 1
+  properties
+    forall x: Int:
+      read_file(x) == x
+  effects [io]
+  impl
+    x
+
+pub fn fetch_remote(x: Int) -> Int
+  intent "Return x while modeling a network request."
+  contract
+    ensures result == x
+  examples
+    fetch_remote(1) == 1
+  properties
+    forall x: Int:
+      fetch_remote(x) == x
+  effects [network]
+  impl
+    x
+
+pub fn declared_io_only(x: Int) -> Int
+  intent "Call a network operation while only declaring io."
+  contract
+    ensures result == x
+  examples
+    declared_io_only(1) == 1
+  properties
+    forall x: Int:
+      declared_io_only(x) == x
+  effects [io]
+  impl
+    fetch_remote(read_file(x))
+
+pub fn declared_both(x: Int) -> Int
+  intent "Call io and network operations while declaring both capabilities."
+  contract
+    ensures result == x
+  examples
+    declared_both(1) == 1
+  properties
+    forall x: Int:
+      declared_both(x) == x
+  effects [io, network]
+  impl
+    fetch_remote(read_file(x))
+""",
+                encoding="utf-8",
+            )
+            program, parse_diagnostics = parse_files([str(source)])
+            summary = check_program(program, parse_diagnostics)
+            self.assertTrue(
+                any(
+                    diagnostic.code == "EffectViolation"
+                    and diagnostic.data.get("function") == "@test.effects.declared_io_only.v1"
+                    and diagnostic.data.get("missing_effects") == "network"
+                    for diagnostic in summary.diagnostics
+                ),
+                summary.diagnostics,
+            )
+            self.assertFalse(
+                any(
+                    diagnostic.data.get("function") == "@test.effects.declared_both.v1"
+                    for diagnostic in summary.diagnostics
+                ),
+                summary.diagnostics,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

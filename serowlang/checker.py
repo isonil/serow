@@ -242,36 +242,41 @@ def _check_function_shape(function: Function, summary: CheckSummary) -> None:
 def _check_effects(program: Program, summary: CheckSummary) -> None:
     reported = set()
     for function in program.functions:
-        if not _is_pure(function):
-            continue
+        function_capabilities = _effect_capabilities(function)
         for context, expression in _function_expressions(function):
             for call_name in _called_functions(expression):
                 try:
                     callee = resolve_function(call_name, program.functions)
                 except EvaluationError:
                     continue
-                if _is_pure(callee):
+                missing_capabilities = sorted(_effect_capabilities(callee) - function_capabilities)
+                if not missing_capabilities:
                     continue
                 key = (function.symbol, callee.symbol, context)
                 if key in reported:
                     continue
                 reported.add(key)
+                missing = ", ".join(missing_capabilities)
                 summary.diagnostics.append(
                     Diagnostic(
                         severity="error",
                         code="EffectViolation",
-                        message=f"Pure function `{function.name}` calls effectful function `{callee.name}`.",
+                        message=(
+                            f"Function `{function.name}` calls `{callee.name}` without declaring "
+                            f"required capabilities: {missing}."
+                        ),
                         target=function.target,
                         data={
                             "function": function.symbol,
                             "function_effects": _effect_label(function),
                             "callee": callee.symbol,
                             "callee_effects": _effect_label(callee),
+                            "missing_effects": missing,
                             "context": context,
                             "expression": expression,
                         },
                         repairs=[
-                            "Remove the effectful call, call a pure function, or declare the caller's required effects."
+                            "Remove the call, call a function with declared capabilities already available to the caller, or declare the caller's required effects."
                         ],
                     )
                 )
@@ -300,8 +305,8 @@ def _is_qualified_call(call: str) -> bool:
     return call.startswith("@") or "." in call
 
 
-def _is_pure(function: Function) -> bool:
-    return function.effects == ["pure"]
+def _effect_capabilities(function: Function) -> set:
+    return {effect for effect in function.effects if effect != "pure"}
 
 
 def _effect_label(function: Function) -> str:

@@ -9,7 +9,7 @@ The current implementation is a bootstrap toolchain written in dependency-free R
 - mandatory contracts and properties
 - source-level public symbol versions
 - qualified function references (`module.name(...)` or `@module.name.vN(...)`)
-- explicit effects
+- explicit effects with direct-call capability subset checks
 - explicit and inferred module dependencies checked against `serow.project`
 - exact duplicate public intent errors and near-duplicate intent warnings
 - structured JSON diagnostics with machine-readable repair actions where available

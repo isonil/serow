@@ -1301,6 +1301,7 @@ fn agent_json() -> String {
             "Exact duplicate public intents are errors; high-overlap token-ranked intent matches are warnings.",
             "Intent search is deterministic token ranking with stopwords and light normalization, not semantic embeddings.",
             "Qualified calls support `module.name(...)`, `module.name.vN(...)`, and exact `@module.name.vN(...)` references.",
+            "`bin/serow check` requires callers to declare every concrete capability required by direct callees.",
             "`serow certify --profile unattended` fails when changed public symbols weaken executable evidence compared with HEAD unless acknowledged by migration.",
             "`serow certify --profile unattended` fails when a tracked public symbol changes its public contract surface without a new symbol version unless acknowledged by migration.",
             "`serow certify --profile unattended` fails when changed public symbols expand declared capabilities unless acknowledged by capability migration.",
@@ -1517,6 +1518,7 @@ fn print_agent_bootstrap() {
     println!(
         "  unattended certification rejects capability expansion without explicit migration acknowledgement"
     );
+    println!("  direct function calls require the caller to declare each callee capability");
     println!(
         "  migration records can explicitly acknowledge intentional unattended gate decisions"
     );
