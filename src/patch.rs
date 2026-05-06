@@ -445,6 +445,31 @@ pub fn set_version(path: &str, target: &str, version: &str) -> PatchSummary {
     })
 }
 
+pub fn set_effects(path: &str, target: &str, effects: &str) -> PatchSummary {
+    let effects = effects.trim();
+    let Some(parsed_effects) = parse_effect_declaration(effects) else {
+        let mut summary = PatchSummary::default();
+        summary.diagnostics.push(
+            Diagnostic::error(
+                "InvalidPatchTarget",
+                format!("Invalid effects declaration `{effects}`."),
+                Some(path.to_string()),
+            )
+            .with_repair("Use `pure` or a bracketed capability list like `[io, network]`."),
+        );
+        return summary;
+    };
+
+    patch_function(path, target, |function| {
+        if function.effects == parsed_effects {
+            false
+        } else {
+            function.effects = parsed_effects;
+            true
+        }
+    })
+}
+
 fn patch_function(
     path: &str,
     target: &str,
@@ -634,6 +659,30 @@ fn is_valid_version(version: &str) -> bool {
         return false;
     };
     !rest.is_empty() && rest.chars().all(|char| char.is_ascii_digit())
+}
+
+fn parse_effect_declaration(text: &str) -> Option<Vec<String>> {
+    if text == "pure" {
+        return Some(vec!["pure".to_string()]);
+    }
+    if !text.starts_with('[') || !text.ends_with(']') {
+        return None;
+    }
+    let inner = text[1..text.len() - 1].trim();
+    if inner.is_empty() {
+        return None;
+    }
+    let mut effects = Vec::new();
+    for raw_effect in inner.split(',') {
+        let effect = raw_effect.trim();
+        if effect == "pure" || !is_valid_ident(effect) {
+            return None;
+        }
+        if !effects.iter().any(|existing| existing == effect) {
+            effects.push(effect.to_string());
+        }
+    }
+    Some(effects)
 }
 
 fn is_valid_ident(name: &str) -> bool {

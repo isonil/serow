@@ -383,6 +383,82 @@ pub fn declared_extra(x: Int) -> Int
 }
 
 #[test]
+fn patch_set_effects_repairs_effect_capability_diagnostics() {
+    let dir = unique_temp_dir("serow-patch-set-effects");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("effects.serow");
+    fs::write(
+        &source,
+        r#"module test.effects
+
+pub fn read_file(x: Int) -> Int
+  intent "Return x while modeling a file read."
+  contract
+    ensures result == x
+  examples
+    read_file(1) == 1
+  properties
+    forall x: Int:
+      read_file(x) == x
+  effects [io]
+  impl
+    x
+
+pub fn declared_pure(x: Int) -> Int
+  intent "Call an IO operation while declaring pure effects."
+  contract
+    ensures result == x
+  examples
+    declared_pure(1) == 1
+  properties
+    forall x: Int:
+      declared_pure(x) == x
+  effects pure
+  impl
+    read_file(x)
+"#,
+    )
+    .expect("write fixture");
+
+    let before = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["check", source.to_str().expect("utf8 path"), "--json"])
+        .output()
+        .expect("run serow check");
+    assert!(!before.status.success(), "{before:#?}");
+    let stdout = String::from_utf8(before.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("EffectViolation"), "{stdout}");
+    assert!(
+        stdout.contains("\"command\": [\"bin/serow\", \"patch\", \"set-effects\""),
+        "{stdout}"
+    );
+    assert!(stdout.contains("\"[io]\""), "{stdout}");
+
+    let patch = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-effects",
+            source.to_str().expect("utf8 path"),
+            "@test.effects.declared_pure.v1",
+            "[io]",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch set-effects");
+    assert!(patch.status.success(), "{patch:#?}");
+    let patch_stdout = String::from_utf8(patch.stdout).expect("stdout is utf8");
+    assert!(patch_stdout.contains("\"changed\": 1"), "{patch_stdout}");
+    let updated = fs::read_to_string(&source).expect("read updated fixture");
+    assert!(updated.contains("  effects [io]"), "{updated}");
+
+    let after = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["check", source.to_str().expect("utf8 path"), "--json"])
+        .output()
+        .expect("rerun serow check");
+    assert!(after.status.success(), "{after:#?}");
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn duplicate_public_intent_is_reported() {
     let dir = unique_temp_dir("serow-duplicate-intent");
     fs::create_dir_all(&dir).expect("create temp dir");

@@ -659,6 +659,11 @@ fn check_effects(program: &Program, summary: &mut CheckSummary) {
                 if !reported.insert(key) {
                     continue;
                 }
+                let mut suggested_capabilities =
+                    function_capabilities.iter().cloned().collect::<Vec<_>>();
+                suggested_capabilities.extend(missing_capabilities.iter().cloned());
+                let suggested_effects =
+                    effect_declaration_from_capabilities(suggested_capabilities);
                 let missing = capability_label(missing_capabilities);
                 summary.diagnostics.push(
                     Diagnostic::error(
@@ -678,6 +683,17 @@ fn check_effects(program: &Program, summary: &mut CheckSummary) {
                     .with_data("expression", &expression)
                     .with_repair(
                         "Remove the call, call a function with declared capabilities already available to the caller, or declare the caller's required effects.",
+                    )
+                    .with_command_repair(
+                        "Declare the required effect capabilities",
+                        vec![
+                            "bin/serow".to_string(),
+                            "patch".to_string(),
+                            "set-effects".to_string(),
+                            function.source_path.clone(),
+                            function.symbol(),
+                            suggested_effects,
+                        ],
                     ),
                 );
             }
@@ -693,7 +709,9 @@ fn check_effects(program: &Program, summary: &mut CheckSummary) {
             continue;
         }
         let unused = capability_label(unused_capabilities);
-        let required = capability_label(required_by_resolved_callees.into_iter().collect());
+        let required_capabilities = required_by_resolved_callees.into_iter().collect::<Vec<_>>();
+        let suggested_effects = effect_declaration_from_capabilities(required_capabilities.clone());
+        let required = capability_label(required_capabilities);
         summary.diagnostics.push(
             Diagnostic::warning(
                 "UnusedEffectCapability",
@@ -709,6 +727,17 @@ fn check_effects(program: &Program, summary: &mut CheckSummary) {
             .with_data("unused_effects", unused)
             .with_repair(
                 "Remove unused declared capabilities or add executable calls/evidence that require them before certification.",
+            )
+            .with_command_repair(
+                "Remove unused effect capabilities",
+                vec![
+                    "bin/serow".to_string(),
+                    "patch".to_string(),
+                    "set-effects".to_string(),
+                    function.source_path.clone(),
+                    function.symbol(),
+                    suggested_effects,
+                ],
             ),
         );
     }
@@ -739,6 +768,16 @@ fn capability_label(mut capabilities: Vec<String>) -> String {
     capabilities.sort();
     capabilities.dedup();
     capabilities.join(", ")
+}
+
+fn effect_declaration_from_capabilities(mut capabilities: Vec<String>) -> String {
+    capabilities.sort();
+    capabilities.dedup();
+    if capabilities.is_empty() {
+        "pure".to_string()
+    } else {
+        format!("[{}]", capabilities.join(", "))
+    }
 }
 
 fn function_type_variables(function: &Function, include_result: bool) -> HashMap<String, String> {

@@ -195,3 +195,8 @@
 - `UnusedEffectCapability` now warns when a function has resolved non-self direct callees and declares concrete capabilities that none of those callees require, while still allowing effectful leaf functions until Serow has external effect primitive syntax.
 - Added Rust and Python regression coverage for an over-declared `[io, network, disk]` wrapper that only calls `[io]` and `[network]` callees.
 - Updated the agent bootstrap contract, README, `serow.project`, and Progress docs to document direct-call capability minimality warnings.
+- Added `bin/serow patch set-effects <path> <symbol-or-name> <effects> [--json]`.
+- The set-effects patch replaces a function's explicit effect declaration through the structured patch interface, accepting `pure` or a bracketed concrete capability list such as `[io, network]`.
+- `EffectViolation` and `UnusedEffectCapability` diagnostics now include command-style repair actions pointing at `patch set-effects`, and unattended repair-action contract validation accepts the new patch subcommand.
+- Added Rust integration coverage proving `patch set-effects` repairs an effect capability diagnostic.
+- Updated the agent bootstrap contract, README, `serow.project`, and Progress docs to document structured effect declaration patches.

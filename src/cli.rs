@@ -8,7 +8,7 @@ use crate::model::Function;
 use crate::parser::parse_paths;
 use crate::patch::{
     PatchSummary, add_contract, add_example, add_function, add_migration, add_property, add_use,
-    fill_hole, set_version,
+    fill_hole, set_effects, set_version,
 };
 use crate::plan::{
     CapabilityChange, ChangePlan, EvidenceCoverage, EvidenceDelta, EvidenceDrift,
@@ -113,6 +113,7 @@ fn run_patch(args: &[String]) -> i32 {
         "add-property" => run_patch_add_property(&args[1..]),
         "add-use" => run_patch_add_use(&args[1..]),
         "fill-hole" => run_patch_fill_hole(&args[1..]),
+        "set-effects" => run_patch_set_effects(&args[1..]),
         "set-version" => run_patch_set_version(&args[1..]),
         _ => {
             print_patch_usage();
@@ -218,6 +219,21 @@ fn run_patch_fill_hole(args: &[String]) -> i32 {
         return 2;
     };
     let summary = fill_hole(path, target, expression);
+    if json_output {
+        println!("{}", patch_json(&summary));
+    } else {
+        print_patch_summary(&summary);
+    }
+    i32::from(!summary.ok())
+}
+
+fn run_patch_set_effects(args: &[String]) -> i32 {
+    let (args, json_output) = split_flag(args, "--json");
+    let [path, target, effects] = args.as_slice() else {
+        print_patch_usage();
+        return 2;
+    };
+    let summary = set_effects(path, target, effects);
     if json_output {
         println!("{}", patch_json(&summary));
     } else {
@@ -1202,6 +1218,11 @@ fn agent_json() -> String {
             "Replace an existing typed implementation hole with an expression.",
         ),
         (
+            "patch set-effects",
+            "serow patch set-effects <path> <symbol-or-name> <effects> [--json]",
+            "Replace a function's explicit effect capability declaration.",
+        ),
+        (
             "patch set-version",
             "serow patch set-version <path> <symbol-or-name> <version> [--json]",
             "Declare an explicit source-level version on an existing function.",
@@ -1472,6 +1493,7 @@ fn print_agent_bootstrap() {
     );
     println!("  serow patch add-use <path> <module> <dependency> [--json]");
     println!("  serow patch fill-hole <path> <symbol-or-name> <expression> [--json]");
+    println!("  serow patch set-effects <path> <symbol-or-name> <effects> [--json]");
     println!("  serow patch set-version <path> <symbol-or-name> <version> [--json]");
     println!("  serow plan [paths...] [--json]");
     println!("    reports declared capability changes against HEAD");
@@ -1546,6 +1568,7 @@ fn print_usage() {
     );
     eprintln!("  serow patch add-use <path> <module> <dependency> [--json]");
     eprintln!("  serow patch fill-hole <path> <symbol-or-name> <expression> [--json]");
+    eprintln!("  serow patch set-effects <path> <symbol-or-name> <effects> [--json]");
     eprintln!("  serow patch set-version <path> <symbol-or-name> <version> [--json]");
     eprintln!("  serow plan [paths...] [--json]");
     eprintln!("  serow query dependents <symbol-or-name> [paths...] [--json]");
@@ -1573,6 +1596,7 @@ fn print_patch_usage() {
     );
     eprintln!("  serow patch add-use <path> <module> <dependency> [--json]");
     eprintln!("  serow patch fill-hole <path> <symbol-or-name> <expression> [--json]");
+    eprintln!("  serow patch set-effects <path> <symbol-or-name> <effects> [--json]");
     eprintln!("  serow patch set-version <path> <symbol-or-name> <version> [--json]");
 }
 
