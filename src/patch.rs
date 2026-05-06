@@ -695,6 +695,104 @@ pub fn set_intent(path: &str, target: &str, intent: &str) -> PatchSummary {
     })
 }
 
+pub fn rename_function(path: &str, target: &str, new_name: &str) -> PatchSummary {
+    let new_name = new_name.trim();
+    if !is_valid_ident(new_name) {
+        let mut summary = PatchSummary::default();
+        summary.diagnostics.push(
+            Diagnostic::error(
+                "InvalidPatchTarget",
+                format!("Invalid function name `{new_name}`."),
+                Some(path.to_string()),
+            )
+            .with_repair("Use an identifier like `new_name`."),
+        );
+        return summary;
+    }
+
+    let mut summary = PatchSummary::default();
+    let (mut program, parse_diagnostics) = parse_paths(&[path.to_string()]);
+    let has_parse_errors = has_errors(&parse_diagnostics);
+    summary.diagnostics.extend(parse_diagnostics);
+    if has_parse_errors {
+        return summary;
+    }
+
+    let symbol = match resolve_patch_target(&program, target, path) {
+        Ok(symbol) => symbol,
+        Err(diagnostic) => {
+            summary.diagnostics.push(*diagnostic);
+            return summary;
+        }
+    };
+
+    let Some((module_index, function_index)) = find_module_function(&program, &symbol) else {
+        summary.diagnostics.push(Diagnostic::error(
+            "PatchTargetNotFound",
+            format!("Function `{target}` was not found."),
+            Some(path.to_string()),
+        ));
+        return summary;
+    };
+
+    let target_function = program.modules[module_index].functions[function_index].clone();
+    if target_function.name == new_name {
+        return summary;
+    }
+
+    let requested_symbol = format!(
+        "@{}.{}.{}",
+        target_function.module,
+        new_name,
+        target_function.version()
+    );
+    if let Some(existing) = program
+        .functions
+        .iter()
+        .find(|candidate| candidate.symbol() == requested_symbol)
+    {
+        summary.diagnostics.push(
+            Diagnostic::error(
+                "PatchConflict",
+                format!("Public symbol `{requested_symbol}` already exists."),
+                Some(existing.target()),
+            )
+            .with_data("symbol", requested_symbol)
+            .with_repair("Choose a different name or version the existing public symbol."),
+        );
+        return summary;
+    }
+
+    let original_program = program.clone();
+    for module in &mut program.modules {
+        for function in &mut module.functions {
+            rewrite_function_call_references(
+                function,
+                &original_program,
+                &target_function,
+                new_name,
+            );
+            if function.symbol() == symbol {
+                function.name = new_name.to_string();
+            }
+        }
+    }
+    rebuild_function_index(&mut program);
+
+    let formatted = format_program(&program);
+    match fs::write(path, formatted) {
+        Ok(()) => {
+            summary.changed = 1;
+        }
+        Err(error) => summary.diagnostics.push(Diagnostic::error(
+            "WriteError",
+            format!("Could not write `{path}`: {error}"),
+            Some(path.to_string()),
+        )),
+    }
+    summary
+}
+
 pub fn set_version(path: &str, target: &str, version: &str) -> PatchSummary {
     let version = version.trim();
     if !is_valid_version(version) {
@@ -770,6 +868,216 @@ pub fn set_version(path: &str, target: &str, version: &str) -> PatchSummary {
         function.version_explicit = true;
         Ok(true)
     })
+}
+
+fn rebuild_function_index(program: &mut Program) {
+    program.functions = program
+        .modules
+        .iter()
+        .flat_map(|module| module.functions.iter().cloned())
+        .collect();
+}
+
+fn rewrite_function_call_references(
+    function: &mut Function,
+    program: &Program,
+    target: &Function,
+    new_name: &str,
+) {
+    if let Some(implementation) = &mut function.implementation {
+        *implementation =
+            rewrite_expression_call_references(implementation, program, target, new_name);
+    }
+    for requirement in &mut function.requires {
+        *requirement = rewrite_expression_call_references(requirement, program, target, new_name);
+    }
+    for contract in &mut function.contracts {
+        *contract = rewrite_expression_call_references(contract, program, target, new_name);
+    }
+    for example in &mut function.examples {
+        *example = rewrite_expression_call_references(example, program, target, new_name);
+    }
+    for property in &mut function.properties {
+        if property.trim().starts_with("forall ") && property.trim().ends_with(':') {
+            continue;
+        }
+        *property = rewrite_expression_call_references(property, program, target, new_name);
+    }
+}
+
+fn rewrite_expression_call_references(
+    expression: &str,
+    program: &Program,
+    target: &Function,
+    new_name: &str,
+) -> String {
+    let mut rewritten = String::new();
+    let mut index = 0;
+    while index < expression.len() {
+        let rest = &expression[index..];
+        if rest.starts_with('"') {
+            let end = string_literal_end(expression, index);
+            rewritten.push_str(&expression[index..end]);
+            index = end;
+            continue;
+        }
+        let Some(end) = identifier_end(expression, index) else {
+            let char = rest
+                .chars()
+                .next()
+                .expect("index is inside expression bounds");
+            rewritten.push(char);
+            index += char.len_utf8();
+            continue;
+        };
+        let reference_text = &expression[index..end];
+        let next_non_space = expression[end..]
+            .char_indices()
+            .find(|(_, char)| !char.is_whitespace())
+            .map(|(offset, char)| (end + offset, char));
+        let replacement = if next_non_space.is_some_and(|(_, char)| char == '(') {
+            resolved_call_replacement(reference_text, program, target, new_name)
+        } else {
+            None
+        };
+        if let Some(replacement) = replacement {
+            rewritten.push_str(&replacement);
+        } else {
+            rewritten.push_str(reference_text);
+        }
+        index = end;
+    }
+    rewritten
+}
+
+fn string_literal_end(expression: &str, start: usize) -> usize {
+    let mut escaped = false;
+    for (offset, char) in expression[start + 1..].char_indices() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        if char == '\\' {
+            escaped = true;
+            continue;
+        }
+        if char == '"' {
+            return start + 1 + offset + char.len_utf8();
+        }
+    }
+    expression.len()
+}
+
+fn identifier_end(expression: &str, start: usize) -> Option<usize> {
+    let rest = &expression[start..];
+    let mut chars = rest.char_indices();
+    let (_, first) = chars.next()?;
+    if first == '@' {
+        let mut end = start + first.len_utf8();
+        let mut saw_ident_char = false;
+        for (offset, char) in chars {
+            if is_ident_reference_char(char) {
+                saw_ident_char = true;
+                end = start + offset + char.len_utf8();
+            } else {
+                break;
+            }
+        }
+        return saw_ident_char.then_some(end);
+    }
+    if !(first.is_ascii_alphabetic() || first == '_') {
+        return None;
+    }
+    let mut end = start + first.len_utf8();
+    for (offset, char) in chars {
+        if is_ident_reference_char(char) {
+            end = start + offset + char.len_utf8();
+        } else {
+            break;
+        }
+    }
+    Some(end)
+}
+
+fn is_ident_reference_char(char: char) -> bool {
+    char.is_ascii_alphanumeric() || char == '_' || char == '.'
+}
+
+fn renamed_call_reference(
+    reference_text: &str,
+    program: &Program,
+    target: &Function,
+    new_name: &str,
+) -> String {
+    let reference = crate::eval::CallReference::parse(reference_text);
+    let exact = format!("@{}.{}.{}", target.module, new_name, target.version());
+    if reference.raw.starts_with('@') {
+        return exact;
+    }
+    match (&reference.module, &reference.version) {
+        (Some(module), Some(version)) => format!("{module}.{new_name}.{version}"),
+        (Some(module), None)
+            if module_name_version_count(program, module, new_name, target) == 0 =>
+        {
+            format!("{module}.{new_name}")
+        }
+        (Some(_), None) => exact,
+        (None, Some(_)) => exact,
+        (None, None) if bare_name_count(program, new_name, target) == 0 => new_name.to_string(),
+        (None, None) => exact,
+    }
+}
+
+fn resolved_call_replacement(
+    reference_text: &str,
+    program: &Program,
+    target: &Function,
+    new_name: &str,
+) -> Option<String> {
+    let callee = resolve_function(reference_text, &program.functions).ok()?;
+    if callee.symbol() == target.symbol() {
+        return Some(renamed_call_reference(
+            reference_text,
+            program,
+            target,
+            new_name,
+        ));
+    }
+    let reference = crate::eval::CallReference::parse(reference_text);
+    let new_name_would_be_ambiguous = bare_name_count(program, new_name, target) > 0;
+    if reference.module.is_none()
+        && reference.version.is_none()
+        && callee.name == new_name
+        && new_name_would_be_ambiguous
+    {
+        return Some(callee.symbol());
+    }
+    None
+}
+
+fn bare_name_count(program: &Program, name: &str, target: &Function) -> usize {
+    program
+        .functions
+        .iter()
+        .filter(|function| function.symbol() != target.symbol() && function.name == name)
+        .count()
+}
+
+fn module_name_version_count(
+    program: &Program,
+    module: &str,
+    name: &str,
+    target: &Function,
+) -> usize {
+    program
+        .functions
+        .iter()
+        .filter(|function| {
+            function.symbol() != target.symbol()
+                && function.module == module
+                && function.name == name
+        })
+        .count()
 }
 
 #[derive(Clone, Debug)]

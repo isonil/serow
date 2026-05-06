@@ -48,6 +48,7 @@ bin/serow patch add-migration examples/math.serow @core.math.add.v1 implementati
 bin/serow patch add-property examples/math.serow @core.math.add.v1 "forall x: Int, y: Int:" "add(x, y) == add(y, x)"
 bin/serow patch add-use examples/math.serow app.main core.math
 bin/serow patch fill-hole examples/math.serow @core.math.double.v1 "x * 2"
+bin/serow patch rename-function examples/math.serow @core.math.add.v1 sum
 bin/serow patch set-contract examples/math.serow @core.math.add.v1 ensures "result == x + y"
 bin/serow patch set-effects examples/math.serow @core.math.add.v1 pure
 bin/serow patch set-example examples/math.serow @core.math.add.v1 1 "add(2, 3) == 5"
@@ -58,6 +59,8 @@ bin/serow patch set-version examples/math.serow @core.math.add.v1 v1
 ```
 
 `patch set-version` can also bump an existing public symbol to a new `vN` when the parsed patch input has no call sites pinned to the old canonical version. If a caller uses `module.name.v1(...)` or `@module.name.v1(...)`, the patch fails with a `VersionPinnedDependent` diagnostic so the caller is handled deliberately.
+
+`patch rename-function` changes a public function name and rewrites resolved call references in the patched source. When the new bare name would be ambiguous, rewritten call sites use the exact `@module.name.vN(...)` form.
 
 `patch set-impl` replaces an existing implementation expression through the structured patch interface. It does not replace certification: changed public implementations are still reported by `serow plan` and gated by `certify --profile unattended`.
 

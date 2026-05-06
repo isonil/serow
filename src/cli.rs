@@ -9,8 +9,8 @@ use crate::model::Function;
 use crate::parser::parse_paths;
 use crate::patch::{
     PatchSummary, add_contract, add_example, add_function, add_migration, add_property, add_use,
-    fill_hole, set_contract, set_effects, set_example, set_impl, set_intent, set_property,
-    set_version,
+    fill_hole, rename_function, set_contract, set_effects, set_example, set_impl, set_intent,
+    set_property, set_version,
 };
 use crate::plan::{
     CapabilityChange, ChangePlan, EvidenceCoverage, EvidenceDelta, EvidenceDrift,
@@ -115,6 +115,7 @@ fn run_patch(args: &[String]) -> i32 {
         "add-property" => run_patch_add_property(&args[1..]),
         "add-use" => run_patch_add_use(&args[1..]),
         "fill-hole" => run_patch_fill_hole(&args[1..]),
+        "rename-function" => run_patch_rename_function(&args[1..]),
         "set-contract" => run_patch_set_contract(&args[1..]),
         "set-effects" => run_patch_set_effects(&args[1..]),
         "set-example" => run_patch_set_example(&args[1..]),
@@ -226,6 +227,21 @@ fn run_patch_fill_hole(args: &[String]) -> i32 {
         return 2;
     };
     let summary = fill_hole(path, target, expression);
+    if json_output {
+        println!("{}", patch_json(&summary));
+    } else {
+        print_patch_summary(&summary);
+    }
+    i32::from(!summary.ok())
+}
+
+fn run_patch_rename_function(args: &[String]) -> i32 {
+    let (args, json_output) = split_flag(args, "--json");
+    let [path, target, new_name] = args.as_slice() else {
+        print_patch_usage();
+        return 2;
+    };
+    let summary = rename_function(path, target, new_name);
     if json_output {
         println!("{}", patch_json(&summary));
     } else {
@@ -1387,6 +1403,11 @@ fn agent_json() -> String {
             "Replace an existing typed implementation hole with an expression.",
         ),
         (
+            "patch rename-function",
+            "serow patch rename-function <path> <symbol-or-name> <new-name> [--json]",
+            "Rename a public function and rewrite resolved call references in the patched source.",
+        ),
+        (
             "patch set-contract",
             "serow patch set-contract <path> <symbol-or-name> <requires|ensures> [index] <expression> [--json]",
             "Set or replace a missing, single, or indexed contract clause through the structured patch interface.",
@@ -1523,6 +1544,7 @@ fn agent_json() -> String {
             "Intent search is deterministic token ranking with stopwords and light normalization, not semantic embeddings.",
             "Qualified calls support `module.name(...)`, `module.name.vN(...)`, and exact `@module.name.vN(...)` references.",
             "`serow patch set-version` can bump a symbol version when parsed call sites do not pin the old canonical version.",
+            "`serow patch rename-function` rewrites resolved call references in the patched source and uses exact calls when a new bare name would be ambiguous.",
             "`serow patch set-impl` rewrites existing implementation expressions but does not bypass plan or certification gates.",
             "`bin/serow check` requires callers to declare every concrete capability required by direct callees.",
             "`bin/serow check` warns when a function declares concrete capabilities not required by resolved non-self direct callees.",
@@ -1695,6 +1717,7 @@ fn print_agent_bootstrap() {
     );
     println!("  serow patch add-use <path> <module> <dependency> [--json]");
     println!("  serow patch fill-hole <path> <symbol-or-name> <expression> [--json]");
+    println!("  serow patch rename-function <path> <symbol-or-name> <new-name> [--json]");
     println!(
         "  serow patch set-contract <path> <symbol-or-name> <requires|ensures> [index] <expression> [--json]"
     );
@@ -1738,6 +1761,9 @@ fn print_agent_bootstrap() {
     println!("  unattended certification requires explicit public versions");
     println!(
         "  patch set-version can bump versions unless parsed call sites pin the old canonical symbol"
+    );
+    println!(
+        "  patch rename-function rewrites resolved call references and exact-qualifies ambiguous new bare names"
     );
     println!(
         "  unattended certification rejects tracked public contract-surface changes that keep the same symbol version"
@@ -1784,6 +1810,7 @@ fn print_usage() {
     );
     eprintln!("  serow patch add-use <path> <module> <dependency> [--json]");
     eprintln!("  serow patch fill-hole <path> <symbol-or-name> <expression> [--json]");
+    eprintln!("  serow patch rename-function <path> <symbol-or-name> <new-name> [--json]");
     eprintln!(
         "  serow patch set-contract <path> <symbol-or-name> <requires|ensures> [index] <expression> [--json]"
     );
@@ -1822,6 +1849,7 @@ fn print_patch_usage() {
     );
     eprintln!("  serow patch add-use <path> <module> <dependency> [--json]");
     eprintln!("  serow patch fill-hole <path> <symbol-or-name> <expression> [--json]");
+    eprintln!("  serow patch rename-function <path> <symbol-or-name> <new-name> [--json]");
     eprintln!(
         "  serow patch set-contract <path> <symbol-or-name> <requires|ensures> [index] <expression> [--json]"
     );

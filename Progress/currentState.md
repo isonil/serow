@@ -71,6 +71,7 @@ Date: 2026-05-06
   - `bin/serow patch add-property <path> <symbol-or-name> <forall-header> <expression> [--json]`
   - `bin/serow patch add-use <path> <module> <dependency> [--json]`
   - `bin/serow patch fill-hole <path> <symbol-or-name> <expression> [--json]`
+  - `bin/serow patch rename-function <path> <symbol-or-name> <new-name> [--json]`
   - `bin/serow patch set-contract <path> <symbol-or-name> <requires|ensures> [index] <expression> [--json]`
   - `bin/serow patch set-effects <path> <symbol-or-name> <effects> [--json]`
   - `bin/serow patch set-example <path> <symbol-or-name> [index] <expression> [--json]`
@@ -84,6 +85,7 @@ Date: 2026-05-06
 - `patch set-impl` replaces an existing implementation expression through the structured patch interface; public implementation-change policy remains enforced by `serow plan` and unattended certification.
 - `patch set-intent` sets or replaces a function intent through the structured patch interface while preserving ambiguous-target protection.
 - `patch set-version` now supports dependent-aware public version bumps when parsed call sites do not pin the old canonical symbol, and rejects pinned `module.name.vN(...)` or `@module.name.vN(...)` callers with `VersionPinnedDependent`.
+- `patch rename-function` renames a public function and rewrites resolved call references in the patched source, using exact `@module.name.vN(...)` references when the new bare name would be ambiguous.
 - Structured JSON diagnostic repair actions:
   - command repair actions are emitted as `repair_actions` alongside legacy `repairs`
   - currently used for format drift, missing module dependencies, duplicate-intent lookup, implicit-version fixes in unattended certification, and effect capability declaration repairs
@@ -613,6 +615,22 @@ bin/serow plan --json
 bin/serow agent --json
 ```
 
+Additional verification after adding structured function rename patches:
+
+```sh
+bin/serow query intent "rename public function symbol through structured patch" --json
+bin/serow query symbol rename-function --json
+cargo test patch_rename_function -- --nocapture
+cargo fmt --check
+cargo clippy -- -D warnings
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+```
+
 `cargo test` includes integration coverage for `bin/serow patch add-function`.
 
 `bin/serow check --json` currently reports:
@@ -638,7 +656,7 @@ bin/serow agent --json
 - Expression support is intentionally small: literals, variables, direct or qualified calls, arithmetic, comparisons, booleans, and one-line `if ... then ... else ...`.
 - Properties are sampled, not proven.
 - Effects checking is intentionally conservative direct-call capability subset validation; it warns on unused declared capabilities only when resolved non-self direct callees establish a required capability set, and it does not yet model effect polymorphism or external effect primitives.
-- Structured patch coverage is intentionally narrow: module `use` insertion, public function skeleton insertion, evidence insertion, migration acknowledgement insertion, indexed contract/example/property replacement, intent replacement, effect declaration replacement, implementation expression replacement, version declaration and pinned-call-aware version bumps, and typed-hole filling are implemented.
+- Structured patch coverage is intentionally narrow: module `use` insertion, public function skeleton insertion, public function rename with in-file resolved call rewrites, evidence insertion, migration acknowledgement insertion, indexed contract/example/property replacement, intent replacement, effect declaration replacement, implementation expression replacement, version declaration and pinned-call-aware version bumps, and typed-hole filling are implemented.
 - Evidence patching can append or replace individual contract/example/property items, but dependent impact and evidence policy are still enforced by `serow plan` and unattended certification rather than by the patch command itself.
 - Formatting parses and re-emits the bootstrap projection; comments are not preserved yet.
 - The hand-written JSON output should eventually be replaced with `serde_json` once external dependencies are allowed/desired.

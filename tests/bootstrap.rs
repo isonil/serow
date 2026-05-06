@@ -3206,6 +3206,159 @@ pub fn id(x: Int) -> Int
 }
 
 #[test]
+fn patch_rename_function_updates_resolved_call_references() {
+    let dir = unique_temp_dir("serow-patch-rename-function");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("rename.serow");
+    fs::write(
+        &source,
+        r#"module app.main
+
+pub fn add(x: Int, y: Int) -> Int
+  intent "Return the arithmetic sum of x and y."
+  version v1
+  contract
+    ensures result == x + y
+  examples
+    add(2, 3) == 5
+  properties
+    forall x: Int, y: Int:
+      add(x, y) == add(y, x)
+  effects pure
+  impl
+    x + y
+
+pub fn double(x: Int) -> Int
+  intent "Return x added to itself."
+  version v1
+  contract
+    ensures result == x * 2
+  examples
+    double(3) == 6
+  properties
+    forall x: Int:
+      double(x) == add(x, x)
+  effects pure
+  impl
+    add(x, x)
+"#,
+    )
+    .expect("write fixture");
+
+    let patch = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "rename-function",
+            source.to_str().expect("utf8 path"),
+            "@app.main.add.v1",
+            "sum",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch rename-function");
+    assert!(patch.status.success(), "{patch:#?}");
+    let stdout = String::from_utf8(patch.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"changed\": 1"), "{stdout}");
+
+    let updated = fs::read_to_string(&source).expect("read updated fixture");
+    assert!(
+        updated.contains("pub fn sum(x: Int, y: Int) -> Int"),
+        "{updated}"
+    );
+    assert!(updated.contains("    sum(2, 3) == 5"), "{updated}");
+    assert!(
+        updated.contains("      sum(x, y) == sum(y, x)"),
+        "{updated}"
+    );
+    assert!(
+        updated.contains("      double(x) == sum(x, x)"),
+        "{updated}"
+    );
+    assert!(updated.contains("    sum(x, x)"), "{updated}");
+    assert!(!updated.contains("pub fn add("), "{updated}");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(summary.ok(), "{:#?}", summary.diagnostics);
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn patch_rename_function_uses_exact_calls_when_bare_name_would_collide() {
+    let dir = unique_temp_dir("serow-patch-rename-function-collision");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("rename_collision.serow");
+    fs::write(
+        &source,
+        r#"module app.main
+
+pub fn add(x: Int, y: Int) -> Int
+  intent "Return the arithmetic sum of x and y."
+  version v1
+  contract
+    ensures result == x + y
+  examples
+    add(2, 3) == 5
+  properties
+    forall x: Int, y: Int:
+      add(x, y) == add(y, x)
+  effects pure
+  impl
+    x + y
+
+module lib.other
+
+pub fn sum(x: Int) -> Int
+  intent "Return x unchanged through an existing sum-named helper."
+  version v1
+  contract
+    ensures result == x
+  examples
+    sum(4) == 4
+  properties
+    forall x: Int:
+      sum(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let patch = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "rename-function",
+            source.to_str().expect("utf8 path"),
+            "@app.main.add.v1",
+            "sum",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch rename-function");
+    assert!(patch.status.success(), "{patch:#?}");
+
+    let updated = fs::read_to_string(&source).expect("read updated fixture");
+    assert!(
+        updated.contains("pub fn sum(x: Int, y: Int) -> Int"),
+        "{updated}"
+    );
+    assert!(
+        updated.contains("    @app.main.sum.v1(2, 3) == 5"),
+        "{updated}"
+    );
+    assert!(
+        updated.contains("      @app.main.sum.v1(x, y) == @app.main.sum.v1(y, x)"),
+        "{updated}"
+    );
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(summary.ok(), "{:#?}", summary.diagnostics);
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn patch_set_contract_replaces_missing_or_single_clause() {
     let dir = unique_temp_dir("serow-patch-set-contract");
     fs::create_dir_all(&dir).expect("create temp dir");

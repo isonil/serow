@@ -161,6 +161,7 @@ fn repair_action_issue(action: &RepairAction) -> Option<String> {
                 "add-property",
                 "add-use",
                 "fill-hole",
+                "rename-function",
                 "set-contract",
                 "set-effects",
                 "set-example",

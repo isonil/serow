@@ -154,6 +154,8 @@ JSON diagnostics include stable core fields such as `severity`, `code`, `message
 
 `bin/serow patch fill-hole <path> <symbol-or-name> <expression> [--json]` replaces an existing typed implementation hole with the supplied expression. It does not overwrite a non-hole implementation; use normal source editing for intentional rewrites until Serow has dependent-aware implementation migration commands.
 
+`bin/serow patch rename-function <path> <symbol-or-name> <new-name> [--json]` renames an existing public function and rewrites resolved call references in the patched source file. Bare, module-qualified, version-qualified, and exact symbol calls that resolve to the old symbol are updated. If the new bare name would collide with another public function in the patched source, rewritten bare call sites use the exact `@module.name.vN(...)` form to avoid introducing ambiguous calls.
+
 `bin/serow patch set-impl <path> <symbol-or-name> <expression> [--json]` replaces an existing implementation expression. It rejects empty expressions, rejects functions without implementation sections, rejects ambiguous bare targets, and rewrites through the canonical formatter. This is a structured edit primitive, not a certification bypass: changed tracked public implementations are still reported by `serow plan` and gated by `certify --profile unattended`.
 
 `bin/serow patch set-contract <path> <symbol-or-name> <requires|ensures> [index] <expression> [--json]` creates a missing contract clause, replaces a single existing contract clause, or replaces a specific existing clause when passed a 1-based index before the expression. It rejects invalid clause names, empty expressions, ambiguous bare targets, invalid indexes, and out-of-range indexes.

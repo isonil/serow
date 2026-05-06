@@ -233,3 +233,7 @@
 - The new evidence setters create missing executable evidence, replace a single existing item, or replace a specific item with a 1-based index, while preserving ambiguous-target protection and canonical formatting.
 - Added Rust integration coverage for single evidence replacement, indexed example/property replacement, multi-evidence ambiguity, and out-of-range property indexes.
 - Updated command discovery docs, `serow.project`, README, and Progress notes to advertise structured example and property replacement.
+- Added `bin/serow patch rename-function <path> <symbol-or-name> <new-name> [--json]`.
+- The rename patch validates the new function name, rejects duplicate canonical symbols, renames the public declaration, and rewrites resolved call references in implementations, contracts, examples, and properties in the patched source.
+- Rewritten bare calls use the exact `@module.name.vN(...)` form when the requested new bare name would collide with another public function and become ambiguous.
+- Added Rust integration coverage for normal function renames and collision-aware exact call rewriting.
