@@ -13,7 +13,7 @@ The current implementation is a bootstrap toolchain written in dependency-free R
 - explicit and inferred module dependencies checked against `serow.project`
 - exact duplicate public intent errors and near-duplicate intent warnings
 - structured JSON diagnostics with machine-readable repair actions where available
-- a semantic ledger for agent queries, including token-ranked intent search and transitive impact paths
+- a semantic ledger for agent queries, including token-ranked intent search, direct callees, direct dependents, and transitive impact paths
 - a first machine-readable change plan for changed symbols, public contract-surface changes, capability changes, public implementation changes, implementation evidence coverage and HEAD-sensitivity, implementation/evidence drift, migration acknowledgements, impact, impact-edge evidence coverage, HEAD evidence deltas, and residual risk
 - unattended certification gates for explicit versions, same-version public contract-surface changes, capability expansion, implementation changes without added executable evidence, added implementation evidence that does not call the changed function or would still pass against the HEAD implementation, implementation/evidence drift, evidence weakening against Git `HEAD`, unchecked dependent impact, and uncovered impacted call edges, with explicit migration records for intentional decisions
 - strict-profile validation for structured diagnostic repair actions
@@ -59,6 +59,7 @@ Query the project ledger:
 ```sh
 bin/serow query intent "add two integers"
 bin/serow query symbol add
+bin/serow query callees @core.math.add.v1
 bin/serow query dependents @core.math.add.v1
 bin/serow query impact @core.math.add.v1
 ```

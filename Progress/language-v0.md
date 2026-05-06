@@ -85,6 +85,8 @@ Public symbols carry a source-level version in their canonical symbol identity, 
 
 `bin/serow query dependents <symbol-or-name> [paths...] [--json]` reports direct dependents discovered from implementation, contract, example, and property expressions. The bootstrap resolves call edges with the same rule as the checker: bare calls must resolve unambiguously, while qualified calls can target `module.name(...)`, `module.name.vN(...)`, or exact `@module.name.vN(...)` references.
 
+`bin/serow query callees <symbol-or-name> [paths...] [--json]` reports direct outgoing callees discovered from implementation, contract, example, and property expressions. It is the forward-call companion to `query dependents`, intended for auditing a symbol's immediate dependencies, required capabilities, and call contexts before edits.
+
 `bin/serow query impact <symbol-or-name> [paths...] [--json]` reports direct and transitive dependents through resolved call paths. Each row includes the dependent, target, path depth, a symbol path from dependent to target, and the immediate call sites connecting the dependent to the next function on that path. Ambiguous bare calls are skipped in ledger output because the checker already rejects them.
 
 Duplicate unqualified function names are allowed when call sites are disambiguated with qualified references. Ambiguous bare calls produce `AmbiguousUnqualifiedCall` diagnostics instead of silently choosing a candidate.

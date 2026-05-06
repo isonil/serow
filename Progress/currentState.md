@@ -38,6 +38,7 @@ Date: 2026-05-06
   - `bin/serow query intent "<description>"` with deterministic token-ranked matching
   - `bin/serow query symbol "<name>"`
   - `bin/serow query symbols`
+  - `bin/serow query callees "<symbol-or-name>"`
   - `bin/serow query dependents "<symbol-or-name>"`
   - `bin/serow query impact "<symbol-or-name>"` with direct and transitive dependent paths
 - Symbol query JSON exposes source-level version metadata separately from the canonical symbol string.
@@ -103,6 +104,7 @@ bin/serow query intent "sum integers" --json
 bin/serow query intent "rank existing public functions by intent tokens" --json
 bin/serow query symbol abs --json
 bin/serow query symbols --json
+bin/serow query callees @core.math.abs.v1 --json
 bin/serow query dependents @core.math.add.v1 --json
 bin/serow query impact @core.math.add.v1 --json
 bin/serow agent
@@ -470,6 +472,25 @@ bin/serow certify --profile unattended --json
 bin/serow plan --json
 ```
 
+Additional verification after adding direct callee ledger queries:
+
+```sh
+bin/serow query intent "list direct callees for a public symbol" --json
+bin/serow query symbol callees --json
+cargo fmt --check
+cargo test callees_query_reports_direct_call_sites -- --nocapture
+bin/serow query callees @core.math.abs.v1 --json
+cargo clippy -- -D warnings
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+bin/serow agent --json
+```
+
 `cargo test` includes integration coverage for `bin/serow patch add-function`.
 
 `bin/serow check --json` currently reports:
@@ -500,7 +521,7 @@ bin/serow plan --json
 - Formatting parses and re-emits the bootstrap projection; comments are not preserved yet.
 - The hand-written JSON output should eventually be replaced with `serde_json` once external dependencies are allowed/desired.
 - Structured repair actions currently cover only command-style fixes already exposed by the bootstrap CLI.
-- `query dependents` reports direct resolved call edges; use `query impact` for direct and transitive dependent paths. Ambiguous bare calls are intentionally skipped by ledger queries because they are checker errors.
+- `query callees` and `query dependents` report direct resolved call edges; use `query impact` for direct and transitive dependent paths. Ambiguous bare calls are intentionally skipped by ledger queries because they are checker errors.
 - `serow plan` is an early reporting primitive; it treats explicit path arguments as the selected change set and compares public contract-surface, declared capabilities, normalized implementation text, and evidence sections against `HEAD` when a tracked baseline is available. It reports whether added examples/properties directly call changed implementations, whether that added evidence would fail against the `HEAD` implementation, and whether impacted dependent call edges are covered by executable examples or sampled properties, but it does not yet compare full implementation AST behavior.
 - Normal certification still accepts omitted symbol versions for compatibility; `certify --profile unattended` requires explicit public versions, rejects same-version public contract-surface changes, rejects capability expansion without a migration acknowledgement, rejects same-version implementation changes without added executable evidence, rejects added implementation evidence that does not call the changed function, rejects added implementation evidence that also passes against the `HEAD` implementation, rejects evidence weakening against `HEAD`, rejects unchecked transitive impact, rejects uncovered impacted call edges unless an explicit migration acknowledgement records the intentional decision, and validates structured repair action commands before accepting diagnostics. It does not yet enforce the rest of the unattended safety roadmap.
 

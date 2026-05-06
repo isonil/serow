@@ -24,6 +24,13 @@ pub struct Dependent {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Callee {
+    pub function: Function,
+    pub target: Function,
+    pub call_sites: Vec<CallSite>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ImpactDependent {
     pub function: Function,
     pub target: Function,
@@ -178,6 +185,63 @@ pub fn query_dependents(program: &Program, text: &str) -> Vec<Dependent> {
     }
     dependents.sort_by_key(|dependent| dependent.function.symbol());
     dependents
+}
+
+pub fn query_callees(program: &Program, text: &str) -> Vec<Callee> {
+    let callers = program
+        .functions
+        .iter()
+        .filter(|function| function.symbol() == text || function.name == text)
+        .cloned()
+        .collect::<Vec<_>>();
+    if callers.is_empty() {
+        return Vec::new();
+    }
+    let caller_symbols = callers.iter().map(Function::symbol).collect::<HashSet<_>>();
+    let mut edges: HashMap<(String, String), Callee> = HashMap::new();
+    for function in &program.functions {
+        if !caller_symbols.contains(&function.symbol()) {
+            continue;
+        }
+        for (context, expression) in function_expressions(function) {
+            let Ok(call_references) = called_functions(&expression) else {
+                continue;
+            };
+            for call_reference in call_references {
+                let Ok(callee) = resolve_function(&call_reference.raw, &program.functions) else {
+                    continue;
+                };
+                if function.symbol() == callee.symbol() {
+                    continue;
+                }
+                let edge = edges
+                    .entry((function.symbol(), callee.symbol()))
+                    .or_insert_with(|| Callee {
+                        function: function.clone(),
+                        target: callee.clone(),
+                        call_sites: Vec::new(),
+                    });
+                if !edge
+                    .call_sites
+                    .iter()
+                    .any(|site| site.context == context && site.expression == expression)
+                {
+                    edge.call_sites.push(CallSite {
+                        context: context.to_string(),
+                        expression: expression.clone(),
+                    });
+                }
+            }
+        }
+    }
+    let mut callees = edges.into_values().collect::<Vec<_>>();
+    callees.sort_by(|left, right| {
+        left.function
+            .symbol()
+            .cmp(&right.function.symbol())
+            .then_with(|| left.target.symbol().cmp(&right.target.symbol()))
+    });
+    callees
 }
 
 pub fn query_impact(program: &Program, text: &str) -> Vec<ImpactDependent> {

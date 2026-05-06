@@ -1176,6 +1176,93 @@ pub fn bump(x: Int) -> Int
 }
 
 #[test]
+fn callees_query_reports_direct_call_sites() {
+    let dir = unique_temp_dir("serow-callees");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("callees.serow");
+    fs::write(
+        &source,
+        r#"module core.math
+
+pub fn inc(x: Int) -> Int
+  intent "Increment x."
+  contract
+    ensures result == x + 1
+  examples
+    inc(1) == 2
+  properties
+    forall x: Int:
+      inc(x) == x + 1
+  effects pure
+  impl
+    x + 1
+
+pub fn dec(x: Int) -> Int
+  intent "Decrement x."
+  contract
+    ensures result == x - 1
+  examples
+    dec(1) == 0
+  properties
+    forall x: Int:
+      dec(x) == x - 1
+  effects pure
+  impl
+    x - 1
+
+module app.main
+
+use core.math
+
+pub fn round_trip(x: Int) -> Int
+  intent "Increment then decrement x through the math module."
+  contract
+    ensures result == x
+  examples
+    round_trip(1) == 1
+  properties
+    forall x: Int:
+      round_trip(x) == dec(inc(x))
+  effects pure
+  impl
+    dec(inc(x))
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "query",
+            "callees",
+            "@app.main.round_trip.v1",
+            source.to_str().expect("utf8 path"),
+            "--json",
+        ])
+        .output()
+        .expect("run serow query callees");
+
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(
+        stdout.contains("\"symbol\": \"@app.main.round_trip.v1\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"symbol\": \"@core.math.inc.v1\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"symbol\": \"@core.math.dec.v1\""),
+        "{stdout}"
+    );
+    assert!(stdout.contains("\"caller\""), "{stdout}");
+    assert!(stdout.contains("\"callee\""), "{stdout}");
+    assert!(stdout.contains("\"context\": \"impl\""), "{stdout}");
+    assert!(stdout.contains("\"context\": \"property\""), "{stdout}");
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn impact_query_reports_transitive_call_paths() {
     let dir = unique_temp_dir("serow-impact");
     fs::create_dir_all(&dir).expect("create temp dir");

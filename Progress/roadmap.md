@@ -36,6 +36,7 @@ This phase exists to make Serow more useful to AI implementers before production
   - make ambiguous call resolution produce actionable diagnostics instead of silently skipping dependency and dependent analysis _(Started: ambiguous bare calls now produce `AmbiguousUnqualifiedCall`; duplicate bare function names are allowed when calls are qualified.)_
 - Strengthen the ledger:
   - improve intent search beyond exact duplicate normalization, starting with better token ranking before semantic embeddings _(Started: intent query now uses deterministic weighted token search with stopword filtering and light token normalization.)_
+  - expose direct outgoing callees for a symbol so agents can inspect immediate dependency, effect, and evidence call contexts _(Started: `query callees` reports resolved direct callees with call sites.)_
   - expose direct and transitive dependents where call resolution is unambiguous _(Started: `query impact` reports reverse call paths with depth and immediate call sites.)_
   - make version and dependent information usable in change-impact diagnostics
 - Expand diagnostics as an action protocol:

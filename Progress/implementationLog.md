@@ -205,3 +205,6 @@
 - Version bumps are rejected as `VersionPinnedDependent` when a parsed call site uses `module.name.vN(...)` or exact `@module.name.vN(...)` for the current symbol, with data listing the pinned callers and a repair action to inspect dependents.
 - Added Rust integration coverage for successful standalone version bumps and rejected pinned-call version bumps.
 - Updated the agent bootstrap contract, README, `serow.project`, and Progress docs to document pinned-call-aware version patching.
+- Added `bin/serow query callees <symbol-or-name> [paths...] [--json]` to report direct outgoing call edges for a public symbol.
+- Callee query rows include caller, callee, source/version metadata, and resolved implementation/contract/example/property call sites, mirroring the existing direct dependent ledger style in the forward direction.
+- Updated the agent bootstrap contract, README, `serow.project`, and Progress docs to advertise the forward-call ledger query.

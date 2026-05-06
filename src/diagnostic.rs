@@ -167,7 +167,14 @@ fn repair_action_issue(action: &RepairAction) -> Option<String> {
         ),
         "query" => validate_nested_command(
             action,
-            &["dependents", "impact", "intent", "symbol", "symbols"],
+            &[
+                "callees",
+                "dependents",
+                "impact",
+                "intent",
+                "symbol",
+                "symbols",
+            ],
         ),
         other => Some(format!("unknown Serow subcommand `{other}`")),
     }

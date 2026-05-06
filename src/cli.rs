@@ -2,7 +2,8 @@ use crate::checker::{CheckSummary, check_program, enforce_unattended_profile};
 use crate::diagnostic::{Diagnostic, has_errors, validate_repair_actions};
 use crate::formatter::{FormatSummary, format_paths};
 use crate::ledger::{
-    Dependent, ImpactDependent, query_dependents, query_impact, query_intent, query_symbol, symbols,
+    Callee, Dependent, ImpactDependent, query_callees, query_dependents, query_impact,
+    query_intent, query_symbol, symbols,
 };
 use crate::model::Function;
 use crate::parser::parse_paths;
@@ -329,6 +330,21 @@ fn run_query(args: &[String]) -> i32 {
     };
 
     match query_command {
+        "callees" => {
+            let (paths, json_output) = split_paths_and_json(&args[2..]);
+            let (program, parse_diagnostics) = parse_paths(&paths);
+            if has_errors(&parse_diagnostics) {
+                println!("{}", diagnostics_json(false, &parse_diagnostics));
+                return 1;
+            }
+            let callees = query_callees(&program, text_or_flag);
+            if json_output {
+                println!("{}", callees_json(&callees));
+            } else {
+                print_callees(&callees);
+            }
+            0
+        }
         "dependents" => {
             let (paths, json_output) = split_paths_and_json(&args[2..]);
             let (program, parse_diagnostics) = parse_paths(&paths);
@@ -609,6 +625,21 @@ fn print_dependents(dependents: &[Dependent]) {
             "  source: {}:{}",
             row.function.source_path, row.function.line
         );
+        for call_site in &row.call_sites {
+            println!("  {}: {}", call_site.context, call_site.expression);
+        }
+    }
+}
+
+fn print_callees(callees: &[Callee]) {
+    if callees.is_empty() {
+        println!("no matches");
+        return;
+    }
+    for row in callees {
+        println!("{} calls {}", row.function.symbol(), row.target.symbol());
+        println!("  {}", row.target.signature());
+        println!("  source: {}:{}", row.target.source_path, row.target.line);
         for call_site in &row.call_sites {
             println!("  {}: {}", call_site.context, call_site.expression);
         }
@@ -1072,6 +1103,28 @@ fn dependents_json(dependents: &[Dependent]) -> String {
     format!("{{\n  \"ok\": true,\n  \"results\": [\n    {rows}\n  ]\n}}")
 }
 
+fn callees_json(callees: &[Callee]) -> String {
+    let rows = callees
+        .iter()
+        .map(|callee| {
+            format!(
+                concat!(
+                    "{{\n",
+                    "      \"call_sites\": {},\n",
+                    "      \"callee\": {},\n",
+                    "      \"caller\": {}\n",
+                    "    }}"
+                ),
+                call_sites_json(&callee.call_sites),
+                function_ref_json(&callee.target),
+                function_ref_json(&callee.function),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",\n    ");
+    format!("{{\n  \"ok\": true,\n  \"results\": [\n    {rows}\n  ]\n}}")
+}
+
 fn impact_json(impact: &[ImpactDependent]) -> String {
     format!(
         "{{\n  \"ok\": true,\n  \"results\": {}\n}}",
@@ -1231,6 +1284,11 @@ fn agent_json() -> String {
             "plan",
             "serow plan [paths...] [--json]",
             "Summarize changed public symbols, migration acknowledgements, capability changes, implementation changes, implementation evidence coverage and HEAD-sensitivity, implementation/evidence drift, evidence coverage, HEAD evidence deltas, impact-edge coverage, and residual risk.",
+        ),
+        (
+            "query callees",
+            "serow query callees <symbol-or-name> [paths...] [--json]",
+            "List direct callees discovered from resolved function calls.",
         ),
         (
             "query dependents",
@@ -1503,6 +1561,7 @@ fn print_agent_bootstrap() {
     println!("    reports whether added implementation evidence fails against HEAD");
     println!("    reports implementation/evidence drift against HEAD");
     println!("    reports impact-edge coverage by executable examples/properties");
+    println!("  serow query callees <symbol-or-name> [paths...] [--json]");
     println!("  serow query dependents <symbol-or-name> [paths...] [--json]");
     println!("  serow query impact <symbol-or-name> [paths...] [--json]");
     println!("  serow query intent <text> [paths...] [--json]  # token-ranked");
@@ -1575,6 +1634,7 @@ fn print_usage() {
     eprintln!("  serow patch set-effects <path> <symbol-or-name> <effects> [--json]");
     eprintln!("  serow patch set-version <path> <symbol-or-name> <version> [--json]");
     eprintln!("  serow plan [paths...] [--json]");
+    eprintln!("  serow query callees <symbol-or-name> [paths...] [--json]");
     eprintln!("  serow query dependents <symbol-or-name> [paths...] [--json]");
     eprintln!("  serow query impact <symbol-or-name> [paths...] [--json]");
     eprintln!("  serow query intent <text> [paths...] [--json]");
@@ -1606,6 +1666,7 @@ fn print_patch_usage() {
 
 fn print_query_usage() {
     eprintln!("usage:");
+    eprintln!("  serow query callees <symbol-or-name> [paths...] [--json]");
     eprintln!("  serow query dependents <symbol-or-name> [paths...] [--json]");
     eprintln!("  serow query impact <symbol-or-name> [paths...] [--json]");
     eprintln!("  serow query intent <text> [paths...] [--json]");
