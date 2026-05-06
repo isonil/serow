@@ -43,6 +43,7 @@
     "unattended_rejects_evidence_weakening": true,
     "unattended_rejects_implementation_change_without_evidence": true,
     "unattended_rejects_implementation_change_with_shallow_added_evidence": true,
+    "unattended_rejects_implementation_change_with_head_insensitive_evidence": true,
     "unattended_rejects_implementation_evidence_drift_without_migration": true,
     "unattended_rejects_unchecked_impact": true,
     "migration_records_acknowledge_unattended_gate_decisions": true,

@@ -4,7 +4,7 @@ use std::process::Command;
 
 use crate::checker::{CheckSummary, check_program};
 use crate::diagnostic::{Diagnostic, Severity};
-use crate::eval::{called_functions, resolve_function};
+use crate::eval::{Evaluator, Value, called_functions, resolve_function};
 use crate::ledger::{CallSite, ImpactDependent, query_impact};
 use crate::model::{Function, MigrationRecord};
 use crate::parser::{discover_sources, parse_paths, parse_source};
@@ -92,9 +92,12 @@ pub struct ImplementationChange {
 pub struct ImplementationEvidenceCoverage {
     pub added_examples: Vec<String>,
     pub added_properties: Vec<String>,
+    pub behavior_sensitive: bool,
     pub covered: bool,
     pub coverage: Vec<CallSite>,
     pub reason: String,
+    pub sensitivity: Vec<CallSite>,
+    pub sensitivity_reason: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -220,6 +223,20 @@ pub fn plan_paths(paths: &[String]) -> ChangePlan {
     }) {
         residual_risks.push(
             "Changed public symbols add executable evidence that does not call the changed function."
+                .to_string(),
+        );
+    }
+    if changed_symbols.iter().any(|symbol| {
+        symbol.implementation_change.is_some()
+            && executable_evidence_strengthened(symbol.evidence_delta.as_ref())
+            && symbol
+                .implementation_evidence
+                .as_ref()
+                .is_some_and(|coverage| coverage.covered && !coverage.behavior_sensitive)
+            && !has_migration(&symbol.function, "implementation-change")
+    }) {
+        residual_risks.push(
+            "Changed public symbols add executable evidence that also passes against the HEAD implementation."
                 .to_string(),
         );
     }
@@ -405,12 +422,60 @@ pub fn unattended_implementation_change_diagnostics(paths: &[String]) -> Vec<Dia
                 && symbol
                     .implementation_evidence
                     .as_ref()
-                    .is_some_and(|coverage| coverage.covered)
+                    .is_some_and(|coverage| coverage.covered && coverage.behavior_sensitive)
             {
                 return None;
             }
             if executable_evidence_strengthened(symbol.evidence_delta.as_ref()) {
                 let coverage = symbol.implementation_evidence;
+                if coverage.as_ref().is_some_and(|coverage| coverage.covered) {
+                    return Some(
+                        Diagnostic::error(
+                            "ImplementationChangeNeedsSensitiveEvidence",
+                            format!(
+                                "Public function `{}` changes its implementation, but the added executable evidence also passes against the HEAD implementation.",
+                                symbol.function.name
+                            ),
+                            Some(symbol.function.target()),
+                        )
+                        .with_data("symbol", symbol.function.symbol())
+                        .with_data("before", implementation_change.before)
+                        .with_data("after", implementation_change.after)
+                        .with_data(
+                            "added_examples",
+                            coverage
+                                .as_ref()
+                                .map(|coverage| coverage.added_examples.join("\n"))
+                                .unwrap_or_default(),
+                        )
+                        .with_data(
+                            "added_properties",
+                            coverage
+                                .as_ref()
+                                .map(|coverage| coverage.added_properties.join("\n"))
+                                .unwrap_or_default(),
+                        )
+                        .with_data(
+                            "sensitivity_reason",
+                            coverage
+                                .as_ref()
+                                .map(|coverage| coverage.sensitivity_reason.clone())
+                                .unwrap_or_default(),
+                        )
+                        .with_command_repair(
+                            "Review implementation evidence sensitivity",
+                            vec![
+                                "bin/serow".to_string(),
+                                "plan".to_string(),
+                                symbol.function.source_path.clone(),
+                                "--json".to_string(),
+                            ],
+                        )
+                        .with_repair(
+                            "Add executable evidence that would fail against the HEAD implementation, or add an explicit implementation-change migration decision.",
+                        ),
+                    );
+                }
                 return Some(
                     Diagnostic::error(
                         "ImplementationChangeNeedsCoveringEvidence",
@@ -754,10 +819,20 @@ fn changed_symbol(
                 .as_ref()
                 .is_some_and(|coverage| coverage.covered)
             {
-                residual_risks.push(
-                    "Implementation changed compared with HEAD; verify the added executable evidence explains the change."
-                        .to_string(),
-                );
+                if implementation_evidence
+                    .as_ref()
+                    .is_some_and(|coverage| coverage.behavior_sensitive)
+                {
+                    residual_risks.push(
+                        "Implementation changed compared with HEAD; verify the added executable evidence explains the change."
+                            .to_string(),
+                    );
+                } else {
+                    residual_risks.push(
+                        "Implementation changed compared with HEAD, but added executable evidence also passes against the HEAD implementation."
+                            .to_string(),
+                    );
+                }
             } else {
                 residual_risks.push(
                     "Implementation changed compared with HEAD, but added executable evidence does not call the changed function."
@@ -949,6 +1024,14 @@ fn implementation_evidence_coverage(
             }),
     );
     let covered = !coverage.is_empty();
+    let sensitivity = implementation_evidence_sensitivity(
+        &added_examples,
+        &added_properties,
+        before,
+        after,
+        program,
+    );
+    let behavior_sensitive = !sensitivity.is_empty();
     let reason = if covered {
         format!(
             "Added executable evidence directly calls changed function `{}`.",
@@ -965,13 +1048,188 @@ fn implementation_evidence_coverage(
             after.symbol()
         )
     };
+    let sensitivity_reason = if behavior_sensitive {
+        format!(
+            "Added executable evidence fails against the HEAD implementation of `{}`.",
+            after.symbol()
+        )
+    } else if added_examples.is_empty() && added_properties.is_empty() {
+        format!(
+            "No added executable examples or sampled properties can distinguish changed function `{}` from HEAD.",
+            after.symbol()
+        )
+    } else {
+        format!(
+            "Added executable examples/properties also pass against the HEAD implementation of `{}`.",
+            after.symbol()
+        )
+    };
     ImplementationEvidenceCoverage {
         added_examples,
         added_properties,
+        behavior_sensitive,
         covered,
         coverage,
         reason,
+        sensitivity,
+        sensitivity_reason,
     }
+}
+
+fn implementation_evidence_sensitivity(
+    added_examples: &[String],
+    added_properties: &[String],
+    before: &Function,
+    after: &Function,
+    program: &crate::model::Program,
+) -> Vec<CallSite> {
+    let baseline_program = program_with_baseline_function(program, before);
+    let mut sensitivity = added_examples
+        .iter()
+        .filter(|example| {
+            expression_calls_symbol(example, &after.symbol(), program)
+                && evidence_fails_against_program(example, &HashMap::new(), &baseline_program)
+        })
+        .map(|example| CallSite {
+            context: "example".to_string(),
+            expression: example.clone(),
+        })
+        .collect::<Vec<_>>();
+    sensitivity.extend(
+        added_properties
+            .iter()
+            .filter_map(|property| property_block_from_text(property))
+            .filter(|property| {
+                expression_calls_symbol(&property.expression, &after.symbol(), program)
+            })
+            .filter(|property| property_fails_against_program(property, &baseline_program))
+            .map(|property| CallSite {
+                context: "property".to_string(),
+                expression: property.expression,
+            }),
+    );
+    sensitivity
+}
+
+fn program_with_baseline_function(
+    program: &crate::model::Program,
+    before: &Function,
+) -> crate::model::Program {
+    let mut baseline = program.clone();
+    for function in &mut baseline.functions {
+        if function.symbol() == before.symbol() {
+            *function = before.clone();
+        }
+    }
+    for module in &mut baseline.modules {
+        for function in &mut module.functions {
+            if function.symbol() == before.symbol() {
+                *function = before.clone();
+            }
+        }
+    }
+    baseline
+}
+
+#[derive(Clone, Debug)]
+struct PlanPropertyBlock {
+    variables: Vec<(String, String)>,
+    expression: String,
+}
+
+fn property_block_from_text(property: &str) -> Option<PlanPropertyBlock> {
+    let mut lines = property
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty());
+    let header = lines.next()?;
+    if !header.starts_with("forall ") || !header.ends_with(':') {
+        return None;
+    }
+    let expression = lines.next()?.to_string();
+    let variables_text = &header["forall ".len()..header.len() - 1];
+    let variables = variables_text
+        .split(',')
+        .filter_map(|raw_var| {
+            raw_var
+                .split_once(':')
+                .map(|(name, type_name)| (name.trim().to_string(), type_name.trim().to_string()))
+        })
+        .collect::<Vec<_>>();
+    Some(PlanPropertyBlock {
+        variables,
+        expression,
+    })
+}
+
+fn property_fails_against_program(
+    property: &PlanPropertyBlock,
+    program: &crate::model::Program,
+) -> bool {
+    let sample_sets = property
+        .variables
+        .iter()
+        .map(|(_, type_name)| samples_for_type(type_name))
+        .collect::<Option<Vec<_>>>();
+    let Some(sample_sets) = sample_sets else {
+        return false;
+    };
+    for values in cartesian_product(&sample_sets) {
+        let bindings = property
+            .variables
+            .iter()
+            .zip(values)
+            .map(|((name, _), value)| (name.clone(), value))
+            .collect::<HashMap<_, _>>();
+        if evidence_fails_against_program(&property.expression, &bindings, program) {
+            return true;
+        }
+    }
+    false
+}
+
+fn evidence_fails_against_program(
+    expression: &str,
+    variables: &HashMap<String, Value>,
+    program: &crate::model::Program,
+) -> bool {
+    let mut evaluator = Evaluator::new(&program.functions);
+    !matches!(evaluator.eval(expression, variables), Ok(Value::Bool(true)))
+}
+
+fn samples_for_type(type_name: &str) -> Option<Vec<Value>> {
+    match type_name {
+        "Int" => Some(vec![
+            Value::Int(-2),
+            Value::Int(-1),
+            Value::Int(0),
+            Value::Int(1),
+            Value::Int(2),
+        ]),
+        "Bool" => Some(vec![Value::Bool(false), Value::Bool(true)]),
+        "Text" => Some(vec![
+            Value::Text(String::new()),
+            Value::Text("a".to_string()),
+            Value::Text("Serow".to_string()),
+        ]),
+        _ => None,
+    }
+}
+
+fn cartesian_product(sample_sets: &[Vec<Value>]) -> Vec<Vec<Value>> {
+    let mut combinations = vec![Vec::new()];
+    for sample_set in sample_sets {
+        let mut next = Vec::new();
+        for prefix in &combinations {
+            for value in sample_set {
+                let mut combined = prefix.clone();
+                combined.push(value.clone());
+                next.push(combined);
+            }
+        }
+        combinations = next;
+    }
+    combinations
 }
 
 fn impact_evidence_coverage(

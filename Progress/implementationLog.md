@@ -182,3 +182,8 @@
 - Exact normalized duplicate public intents remain `PossibleDuplicate` errors, while high-overlap token-ranked matches now emit `NearDuplicateIntent` warnings with candidate symbol, score, overlap reasons, and a `query intent` structured repair action in Rust.
 - Added Rust and Python regression tests proving a similar-but-not-exact `sum_pair` intent points back to an existing `add` symbol without turning into an exact duplicate error.
 - Updated the agent bootstrap contract, README, `serow.project`, and Progress docs to advertise near-duplicate semantic reuse warnings.
+- Added HEAD-sensitivity analysis for added implementation evidence.
+- `serow plan --json` now reports whether added examples/properties for a changed implementation would fail against the Git `HEAD` implementation for the same canonical symbol.
+- `bin/serow certify --profile unattended` now emits `ImplementationChangeNeedsSensitiveEvidence` when added implementation evidence directly calls the changed function but also passes against the `HEAD` implementation, unless acknowledged by an `implementation-change` migration.
+- Added Rust integration coverage for both HEAD-insensitive implementation evidence and evidence that distinguishes the changed implementation from `HEAD`.
+- Updated the agent bootstrap contract, README, `serow.project`, and Progress docs to document the new lightweight shallow-evidence check.

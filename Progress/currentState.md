@@ -48,13 +48,14 @@ Date: 2026-05-06
   - `bin/serow plan [paths...] [--json]`
   - explicit paths are treated as the change set
   - without paths, Git status is used to discover changed `.serow` files
-  - reports changed public symbols, public contract-surface changes against HEAD, declared capability changes against HEAD, normalized public implementation changes against HEAD, implementation evidence coverage for added examples/properties, implementation/evidence drift rows, migration acknowledgements, evidence counts, HEAD evidence deltas when a tracked baseline is available, evidence-weakening rows, explicit-version state, transitive impact rows, impacted dependent call-edge coverage, checker diagnostics, and residual risks
+  - reports changed public symbols, public contract-surface changes against HEAD, declared capability changes against HEAD, normalized public implementation changes against HEAD, implementation evidence coverage for added examples/properties, whether added implementation evidence fails against the HEAD implementation, implementation/evidence drift rows, migration acknowledgements, evidence counts, HEAD evidence deltas when a tracked baseline is available, evidence-weakening rows, explicit-version state, transitive impact rows, impacted dependent call-edge coverage, checker diagnostics, and residual risks
 - Strict certification profile:
   - `bin/serow certify --profile unattended`
   - currently requires public functions to declare explicit source-level versions instead of relying on the bootstrap `v1` default
   - rejects changed tracked public symbols that modify their public contract surface without changing the canonical symbol version
   - rejects changed tracked public symbols that modify their implementation without adding executable evidence
   - rejects changed tracked public symbols when added executable examples/properties for an implementation change do not call the changed function
+  - rejects changed tracked public symbols when added executable examples/properties for an implementation change also pass against the Git `HEAD` implementation
   - rejects changed tracked public symbols that modify their implementation and executable evidence together without an implementation-change migration acknowledgement
   - rejects changed tracked public symbols that remove or narrow executable evidence compared with Git `HEAD`
   - rejects changed tracked public symbols with transitive dependents outside the certified change set
@@ -364,6 +365,25 @@ bin/serow plan --json
 bin/serow agent --json
 ```
 
+Additional verification after adding implementation evidence HEAD-sensitivity:
+
+```sh
+bin/serow query intent "detect shallow executable evidence for implementation changes" --json
+bin/serow query intent "mutation or fuzz checks catch examples too shallow" --json
+bin/serow query symbol ImplementationChangeNeedsCoveringEvidence --json
+cargo fmt --check
+cargo test implementation_evidence -- --nocapture
+cargo clippy -- -D warnings
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow agent --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+```
+
 `cargo test` includes integration coverage for `bin/serow patch add-function`.
 
 `bin/serow check --json` currently reports:
@@ -395,8 +415,8 @@ bin/serow agent --json
 - The hand-written JSON output should eventually be replaced with `serde_json` once external dependencies are allowed/desired.
 - Structured repair actions currently cover only command-style fixes already exposed by the bootstrap CLI.
 - `query dependents` reports direct resolved call edges; use `query impact` for direct and transitive dependent paths. Ambiguous bare calls are intentionally skipped by ledger queries because they are checker errors.
-- `serow plan` is an early reporting primitive; it treats explicit path arguments as the selected change set and compares public contract-surface, declared capabilities, normalized implementation text, and evidence sections against `HEAD` when a tracked baseline is available. It reports whether added examples/properties directly call changed implementations and whether impacted dependent call edges are covered by executable examples or sampled properties, but it does not yet compare full implementation AST behavior.
-- Normal certification still accepts omitted symbol versions for compatibility; `certify --profile unattended` requires explicit public versions, rejects same-version public contract-surface changes, rejects capability expansion without a migration acknowledgement, rejects same-version implementation changes without added executable evidence, rejects added implementation evidence that does not call the changed function, rejects evidence weakening against `HEAD`, rejects unchecked transitive impact, rejects uncovered impacted call edges unless an explicit migration acknowledgement records the intentional decision, and validates structured repair action commands before accepting diagnostics. It does not yet enforce the rest of the unattended safety roadmap.
+- `serow plan` is an early reporting primitive; it treats explicit path arguments as the selected change set and compares public contract-surface, declared capabilities, normalized implementation text, and evidence sections against `HEAD` when a tracked baseline is available. It reports whether added examples/properties directly call changed implementations, whether that added evidence would fail against the `HEAD` implementation, and whether impacted dependent call edges are covered by executable examples or sampled properties, but it does not yet compare full implementation AST behavior.
+- Normal certification still accepts omitted symbol versions for compatibility; `certify --profile unattended` requires explicit public versions, rejects same-version public contract-surface changes, rejects capability expansion without a migration acknowledgement, rejects same-version implementation changes without added executable evidence, rejects added implementation evidence that does not call the changed function, rejects added implementation evidence that also passes against the `HEAD` implementation, rejects evidence weakening against `HEAD`, rejects unchecked transitive impact, rejects uncovered impacted call edges unless an explicit migration acknowledgement records the intentional decision, and validates structured repair action commands before accepting diagnostics. It does not yet enforce the rest of the unattended safety roadmap.
 
 ## Current Strategic Direction
 

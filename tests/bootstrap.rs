@@ -1803,6 +1803,16 @@ pub fn inc(x: Int) -> Int
         "{plan_stdout}"
     );
     assert!(
+        plan_stdout.contains("\"behavior_sensitive\": false"),
+        "{plan_stdout}"
+    );
+    assert!(
+        plan_stdout.contains(
+            "Added executable examples/properties also pass against the HEAD implementation"
+        ),
+        "{plan_stdout}"
+    );
+    assert!(
         plan_stdout.contains(
             "Changed public symbols modify implementations and executable evidence in the same patch without acknowledgement"
         ),
@@ -1818,6 +1828,10 @@ pub fn inc(x: Int) -> Int
     let stdout = String::from_utf8(unattended.stdout).expect("stdout is utf8");
     assert!(
         stdout.contains("ImplementationEvidenceDriftNeedsMigration"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("ImplementationChangeNeedsSensitiveEvidence"),
         "{stdout}"
     );
     assert!(
@@ -1846,6 +1860,84 @@ pub fn inc(x: Int) -> Int
         .output()
         .expect("run acknowledged unattended certify");
     assert!(acknowledged.status.success(), "{acknowledged:#?}");
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn implementation_evidence_sensitivity_reports_head_distinguishing_examples() {
+    let dir = unique_temp_dir("serow-implementation-evidence-sensitivity");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("checked.serow");
+    fs::write(
+        &source,
+        r#"module core.math
+
+pub fn inc(x: Int) -> Int
+  intent "Increment x."
+  version v1
+  contract
+    ensures result == x + 1
+  examples
+    inc(1) == 2
+  properties
+    forall x: Int:
+      inc(x) == x + 1
+  effects pure
+  impl
+    x + 1
+"#,
+    )
+    .expect("write fixture");
+
+    git(&dir, &["init"]);
+    git(&dir, &["add", "checked.serow"]);
+    git(&dir, &["commit", "-m", "baseline"]);
+
+    fs::write(
+        &source,
+        r#"module core.math
+
+pub fn inc(x: Int) -> Int
+  intent "Increment x."
+  version v1
+  migration
+    public-behavior-change "This fixture intentionally changes increment behavior."
+  contract
+    ensures result == x + 2
+  examples
+    inc(1) == 3
+    inc(2) == 4
+  properties
+    forall x: Int:
+      inc(x) == x + 2
+  effects pure
+  impl
+    x + 2
+"#,
+    )
+    .expect("change implementation fixture");
+
+    let plan = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args(["plan", "--json"])
+        .output()
+        .expect("run serow plan");
+    assert!(!plan.status.success(), "{plan:#?}");
+    let plan_stdout = String::from_utf8(plan.stdout).expect("stdout is utf8");
+    assert!(
+        plan_stdout.contains("\"behavior_sensitive\": true"),
+        "{plan_stdout}"
+    );
+    assert!(
+        plan_stdout.contains(
+            "\"sensitivity\": [{\"context\": \"example\", \"expression\": \"inc(1) == 3\"}"
+        ),
+        "{plan_stdout}"
+    );
+    assert!(
+        plan_stdout.contains("Added executable evidence fails against the HEAD implementation"),
+        "{plan_stdout}"
+    );
     let _ = fs::remove_dir_all(dir);
 }
 
