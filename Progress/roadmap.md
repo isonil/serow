@@ -53,7 +53,7 @@ This phase exists to make Serow more useful to AI implementers before production
   - declare explicit source-level versions through structured patches _(Started: `patch set-version` makes an existing function's public version explicit and rejects duplicate canonical symbols.)_
   - update effect declarations through structured patches _(Started: `patch set-effects` replaces a function's explicit capability declaration and effect diagnostics can point at it.)_
   - rename or version symbols with dependent-aware diagnostics _(Started: `patch set-version` can bump a public version when parsed call sites do not pin the old canonical symbol, and rejects pinned `module.name.vN(...)` / `@module.name.vN(...)` callers with `VersionPinnedDependent`.)_
-  - update examples/properties/contracts through AST-aware edits
+  - update examples/properties/contracts/implementations through AST-aware edits _(Started: evidence commands append contracts, examples, and properties; `patch set-impl` replaces existing implementation expressions.)_
 - Tighten agent certification:
   - require warning-free diagnostics where appropriate
   - make certification include identity, dependency, effect, intent, and repair-action consistency checks

@@ -3026,6 +3026,57 @@ fn structured_patches_complete_public_skeleton() {
 }
 
 #[test]
+fn patch_set_impl_replaces_existing_implementation() {
+    let dir = unique_temp_dir("serow-patch-set-impl");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("set_impl.serow");
+    fs::write(
+        &source,
+        r#"module app.main
+
+pub fn double(x: Int) -> Int
+  intent "Return two times x."
+  version v1
+  contract
+    ensures result == x * 2
+  examples
+    double(3) == 6
+  properties
+    forall x: Int:
+      double(x) == x + x
+  effects pure
+  impl
+    x + x
+"#,
+    )
+    .expect("write fixture");
+
+    let patch = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-impl",
+            source.to_str().expect("utf8 path"),
+            "@app.main.double.v1",
+            "x * 2",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch set-impl");
+    assert!(patch.status.success(), "{patch:#?}");
+    let stdout = String::from_utf8(patch.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"changed\": 1"), "{stdout}");
+
+    let updated = fs::read_to_string(&source).expect("read updated fixture");
+    assert!(updated.contains("  impl\n    x * 2"), "{updated}");
+    assert!(!updated.contains("  impl\n    x + x"), "{updated}");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(summary.ok(), "{:#?}", summary.diagnostics);
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn structured_patch_target_must_be_unambiguous() {
     let dir = unique_temp_dir("serow-patch-ambiguous-target");
     fs::create_dir_all(&dir).expect("create temp dir");

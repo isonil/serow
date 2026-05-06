@@ -208,3 +208,7 @@
 - Added `bin/serow query callees <symbol-or-name> [paths...] [--json]` to report direct outgoing call edges for a public symbol.
 - Callee query rows include caller, callee, source/version metadata, and resolved implementation/contract/example/property call sites, mirroring the existing direct dependent ledger style in the forward direction.
 - Updated the agent bootstrap contract, README, `serow.project`, and Progress docs to advertise the forward-call ledger query.
+- Added `bin/serow patch set-impl <path> <symbol-or-name> <expression> [--json]`.
+- The set-impl patch replaces an existing implementation expression through the structured patch interface, rejects empty expressions and functions without implementation sections, preserves ambiguous-target protection, and rewrites through the canonical formatter.
+- Added Rust integration coverage proving `patch set-impl` replaces an implementation while leaving the result checkable.
+- Updated the agent bootstrap contract, README, `serow.project`, and Progress docs to advertise structured implementation replacement.

@@ -390,6 +390,36 @@ pub fn fill_hole(path: &str, target: &str, expression: &str) -> PatchSummary {
     })
 }
 
+pub fn set_impl(path: &str, target: &str, expression: &str) -> PatchSummary {
+    let expression = expression.trim();
+    if expression.is_empty() {
+        let mut summary = PatchSummary::default();
+        summary.diagnostics.push(Diagnostic::error(
+            "InvalidPatchTarget",
+            "Implementation expression must not be empty.",
+            Some(path.to_string()),
+        ));
+        return summary;
+    }
+    patch_function_checked(path, target, |function| {
+        let Some(implementation) = &function.implementation else {
+            return Err(Box::new(Diagnostic::error(
+                "PatchConflict",
+                format!(
+                    "Function `{}` has no implementation section to replace.",
+                    function.name
+                ),
+                Some(function.target()),
+            )));
+        };
+        if implementation.trim() == expression {
+            return Ok(false);
+        }
+        function.implementation = Some(expression.to_string());
+        Ok(true)
+    })
+}
+
 pub fn set_version(path: &str, target: &str, version: &str) -> PatchSummary {
     let version = version.trim();
     if !is_valid_version(version) {

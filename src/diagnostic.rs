@@ -162,6 +162,7 @@ fn repair_action_issue(action: &RepairAction) -> Option<String> {
                 "add-use",
                 "fill-hole",
                 "set-effects",
+                "set-impl",
                 "set-version",
             ],
         ),
