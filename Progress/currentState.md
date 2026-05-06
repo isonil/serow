@@ -71,13 +71,13 @@ Date: 2026-05-06
   - `bin/serow patch add-property <path> <symbol-or-name> <forall-header> <expression> [--json]`
   - `bin/serow patch add-use <path> <module> <dependency> [--json]`
   - `bin/serow patch fill-hole <path> <symbol-or-name> <expression> [--json]`
-  - `bin/serow patch set-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]`
+  - `bin/serow patch set-contract <path> <symbol-or-name> <requires|ensures> [index] <expression> [--json]`
   - `bin/serow patch set-effects <path> <symbol-or-name> <effects> [--json]`
   - `bin/serow patch set-impl <path> <symbol-or-name> <expression> [--json]`
   - `bin/serow patch set-intent <path> <symbol-or-name> <intent> [--json]`
   - `bin/serow patch set-version <path> <symbol-or-name> <version> [--json]`
 - Structured evidence patches reject ambiguous bare targets and preserve canonical formatting.
-- `patch set-contract` creates a missing `requires` or `ensures` clause or replaces a single existing clause, and rejects multi-clause replacements until indexed contract patches exist.
+- `patch set-contract` creates a missing `requires` or `ensures` clause, replaces a single existing clause, or replaces a specific clause when passed a 1-based index.
 - `patch set-impl` replaces an existing implementation expression through the structured patch interface; public implementation-change policy remains enforced by `serow plan` and unattended certification.
 - `patch set-intent` sets or replaces a function intent through the structured patch interface while preserving ambiguous-target protection.
 - `patch set-version` now supports dependent-aware public version bumps when parsed call sites do not pin the old canonical symbol, and rejects pinned `module.name.vN(...)` or `@module.name.vN(...)` callers with `VersionPinnedDependent`.
@@ -561,6 +561,25 @@ bin/serow query intent "set or replace a public function contract clause through
 bin/serow query symbol set-contract --json
 cargo fmt --check
 cargo test patch_set_contract_replaces_missing_or_single_clause -- --nocapture
+cargo clippy -- -D warnings
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow agent --json
+bin/serow plan --json
+```
+
+Additional verification after adding indexed `patch set-contract` replacement:
+
+```sh
+bin/serow query intent "replace a specific contract clause by index" --json
+bin/serow query symbol set-contract --json
+bin/serow query symbol set_contract --json
+cargo test patch_set_contract_replaces_missing_or_single_clause
+cargo fmt --check
 cargo clippy -- -D warnings
 cargo test
 python3 -m unittest discover -s tests

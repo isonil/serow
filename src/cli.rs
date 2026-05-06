@@ -233,11 +233,21 @@ fn run_patch_fill_hole(args: &[String]) -> i32 {
 
 fn run_patch_set_contract(args: &[String]) -> i32 {
     let (args, json_output) = split_flag(args, "--json");
-    let [path, target, clause, expression] = args.as_slice() else {
-        print_patch_usage();
-        return 2;
+    let (path, target, clause, index, expression) = match args.as_slice() {
+        [path, target, clause, expression] => (path, target, clause, None, expression),
+        [path, target, clause, index, expression] => match parse_contract_patch_index(index) {
+            Some(index) => (path, target, clause, Some(index), expression),
+            None => {
+                eprintln!("invalid contract clause index `{index}`; use a 1-based integer");
+                return 2;
+            }
+        },
+        _ => {
+            print_patch_usage();
+            return 2;
+        }
     };
-    let summary = set_contract(path, target, clause, expression);
+    let summary = set_contract(path, target, clause, index, expression);
     if json_output {
         println!("{}", patch_json(&summary));
     } else {
@@ -511,6 +521,11 @@ fn split_flag(args: &[String], flag: &str) -> (Vec<String>, bool) {
         }
     }
     (rest, found)
+}
+
+fn parse_contract_patch_index(value: &str) -> Option<usize> {
+    let index = value.parse::<usize>().ok()?;
+    (index > 0).then_some(index)
 }
 
 fn split_certify_profile(args: &[String]) -> Result<(Vec<String>, CertifyProfile), ()> {
@@ -1320,8 +1335,8 @@ fn agent_json() -> String {
         ),
         (
             "patch set-contract",
-            "serow patch set-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]",
-            "Set or replace a missing or single contract clause through the structured patch interface.",
+            "serow patch set-contract <path> <symbol-or-name> <requires|ensures> [index] <expression> [--json]",
+            "Set or replace a missing, single, or indexed contract clause through the structured patch interface.",
         ),
         (
             "patch set-effects",
@@ -1618,7 +1633,7 @@ fn print_agent_bootstrap() {
     println!("  serow patch add-use <path> <module> <dependency> [--json]");
     println!("  serow patch fill-hole <path> <symbol-or-name> <expression> [--json]");
     println!(
-        "  serow patch set-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]"
+        "  serow patch set-contract <path> <symbol-or-name> <requires|ensures> [index] <expression> [--json]"
     );
     println!("  serow patch set-effects <path> <symbol-or-name> <effects> [--json]");
     println!("  serow patch set-impl <path> <symbol-or-name> <expression> [--json]");
@@ -1703,7 +1718,7 @@ fn print_usage() {
     eprintln!("  serow patch add-use <path> <module> <dependency> [--json]");
     eprintln!("  serow patch fill-hole <path> <symbol-or-name> <expression> [--json]");
     eprintln!(
-        "  serow patch set-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]"
+        "  serow patch set-contract <path> <symbol-or-name> <requires|ensures> [index] <expression> [--json]"
     );
     eprintln!("  serow patch set-effects <path> <symbol-or-name> <effects> [--json]");
     eprintln!("  serow patch set-impl <path> <symbol-or-name> <expression> [--json]");
@@ -1737,7 +1752,7 @@ fn print_patch_usage() {
     eprintln!("  serow patch add-use <path> <module> <dependency> [--json]");
     eprintln!("  serow patch fill-hole <path> <symbol-or-name> <expression> [--json]");
     eprintln!(
-        "  serow patch set-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]"
+        "  serow patch set-contract <path> <symbol-or-name> <requires|ensures> [index] <expression> [--json]"
     );
     eprintln!("  serow patch set-effects <path> <symbol-or-name> <effects> [--json]");
     eprintln!("  serow patch set-impl <path> <symbol-or-name> <expression> [--json]");

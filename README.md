@@ -59,7 +59,7 @@ bin/serow patch set-version examples/math.serow @core.math.add.v1 v1
 
 `patch set-impl` replaces an existing implementation expression through the structured patch interface. It does not replace certification: changed public implementations are still reported by `serow plan` and gated by `certify --profile unattended`.
 
-`patch set-contract` creates a missing contract clause or replaces a single existing `requires` or `ensures` clause. It rejects multi-clause replacements until the patch protocol has indexed contract edits.
+`patch set-contract` creates a missing contract clause, replaces a single existing `requires` or `ensures` clause, or replaces a specific clause when passed a 1-based index before the expression.
 
 `patch set-intent` sets or replaces a function intent through the structured patch interface. It rejects empty intents and ambiguous bare targets.
 

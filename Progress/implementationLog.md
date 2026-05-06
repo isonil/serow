@@ -219,6 +219,9 @@
 - The set-intent patch sets or replaces a function intent through the structured patch interface, rejects empty intents, preserves ambiguous-target protection, and rewrites through the canonical formatter.
 - Updated command discovery docs, `serow.project`, and Progress notes to advertise structured intent replacement.
 - Added `bin/serow patch set-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]`.
-- The set-contract patch creates a missing `requires` or `ensures` clause or replaces a single existing clause, rejects empty expressions and invalid clause names, preserves ambiguous-target protection, and rejects multi-clause replacements until Serow has indexed contract patching.
+- The initial set-contract patch created a missing `requires` or `ensures` clause or replaced a single existing clause, rejected empty expressions and invalid clause names, preserved ambiguous-target protection, and rejected multi-clause replacements until Serow had indexed contract patching.
 - Added Rust integration coverage proving `patch set-contract` can repair a wrong postcondition, add a missing precondition clause, and reject ambiguous multi-clause replacement.
+- Extended `bin/serow patch set-contract` with an optional 1-based clause index before the expression.
+- Indexed contract patches now replace a specific existing `requires` or `ensures` clause while preserving the older missing/single-clause behavior.
+- Added Rust integration coverage for indexed contract replacement and out-of-range index diagnostics.
 - Updated command discovery docs, `serow.project`, README, and Progress notes to advertise structured contract clause replacement.

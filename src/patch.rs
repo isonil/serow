@@ -245,7 +245,13 @@ pub fn add_contract(path: &str, target: &str, clause: &str, expression: &str) ->
     })
 }
 
-pub fn set_contract(path: &str, target: &str, clause: &str, expression: &str) -> PatchSummary {
+pub fn set_contract(
+    path: &str,
+    target: &str,
+    clause: &str,
+    index: Option<usize>,
+    expression: &str,
+) -> PatchSummary {
     let mut summary = PatchSummary::default();
     let clause = clause.trim();
     let expression = expression.trim();
@@ -269,32 +275,50 @@ pub fn set_contract(path: &str, target: &str, clause: &str, expression: &str) ->
         return summary;
     }
     patch_function_checked(path, target, |function| {
-        let existing_count = if clause == "requires" {
-            function.requires.len()
-        } else {
-            function.contracts.len()
-        };
-        if existing_count > 1 {
-            return Err(Box::new(
-                Diagnostic::error(
-                    "PatchConflict",
-                    format!(
-                        "Function `{}` has multiple `{clause}` contract clauses.",
-                        function.name
-                    ),
-                    Some(function.target()),
-                )
-                .with_repair(
-                    "Use `patch add-contract` for additional clauses or edit the contract manually.",
-                ),
-            ));
-        }
-
+        let function_name = function.name.clone();
+        let function_target = function.target();
         let lines = if clause == "requires" {
             &mut function.requires
         } else {
             &mut function.contracts
         };
+        if let Some(index) = index {
+            if index == 0 || index > lines.len() {
+                return Err(Box::new(
+                    Diagnostic::error(
+                        "PatchConflict",
+                        format!(
+                            "Function `{}` has no `{clause}` contract clause at index {index}.",
+                            function_name
+                        ),
+                        Some(function_target.clone()),
+                    )
+                    .with_data("clause_count", lines.len().to_string())
+                    .with_repair("Use a 1-based index for an existing contract clause."),
+                ));
+            }
+            let existing = &mut lines[index - 1];
+            if existing.trim() == expression {
+                return Ok(false);
+            }
+            *existing = expression.to_string();
+            return Ok(true);
+        }
+
+        if lines.len() > 1 {
+            return Err(Box::new(
+                Diagnostic::error(
+                    "PatchConflict",
+                    format!(
+                        "Function `{}` has multiple `{clause}` contract clauses.",
+                        function_name
+                    ),
+                    Some(function_target),
+                )
+                .with_repair("Pass a 1-based clause index to replace a specific clause."),
+            ));
+        }
+
         match lines.as_mut_slice() {
             [existing] if existing.trim() == expression => Ok(false),
             [existing] => {

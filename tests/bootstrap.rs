@@ -3326,6 +3326,52 @@ pub fn id(x: Int) -> Int
         "{rejected_stdout}"
     );
 
+    let indexed = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-contract",
+            source.to_str().expect("utf8 path"),
+            "@app.main.id.v1",
+            "ensures",
+            "2",
+            "result == x + 0",
+            "--json",
+        ])
+        .output()
+        .expect("run indexed serow patch set-contract");
+    assert!(indexed.status.success(), "{indexed:#?}");
+    let indexed_stdout = String::from_utf8(indexed.stdout).expect("stdout is utf8");
+    assert!(
+        indexed_stdout.contains("\"changed\": 1"),
+        "{indexed_stdout}"
+    );
+    let with_indexed_ensure = fs::read_to_string(&source).expect("read indexed fixture");
+    assert!(
+        with_indexed_ensure
+            .contains("  contract\n    ensures result == x\n    ensures result == x + 0"),
+        "{with_indexed_ensure}"
+    );
+
+    let rejected_index = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-contract",
+            source.to_str().expect("utf8 path"),
+            "@app.main.id.v1",
+            "ensures",
+            "3",
+            "result == x",
+            "--json",
+        ])
+        .output()
+        .expect("run rejected indexed serow patch set-contract");
+    assert!(!rejected_index.status.success(), "{rejected_index:#?}");
+    let rejected_index_stdout = String::from_utf8(rejected_index.stdout).expect("stdout is utf8");
+    assert!(
+        rejected_index_stdout.contains("no `ensures` contract clause at index 3"),
+        "{rejected_index_stdout}"
+    );
+
     let _ = fs::remove_dir_all(dir);
 }
 
