@@ -320,6 +320,19 @@ pub fn declared_both(x: Int) -> Int
   effects [io, network]
   impl
     fetch_remote(read_file(x))
+
+pub fn declared_extra(x: Int) -> Int
+  intent "Call io and network operations while also declaring disk."
+  contract
+    ensures result == x
+  examples
+    declared_extra(1) == 1
+  properties
+    forall x: Int:
+      declared_extra(x) == x
+  effects [io, network, disk]
+  impl
+    fetch_remote(read_file(x))
 "#,
     )
     .expect("write fixture");
@@ -345,6 +358,24 @@ pub fn declared_both(x: Int) -> Int
             .data
             .iter()
             .any(|(key, value)| key == "function" && value == "@test.effects.declared_both.v1")),
+        "{:#?}",
+        summary.diagnostics
+    );
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "UnusedEffectCapability"
+                && diagnostic.severity == serow::diagnostic::Severity::Warning
+                && diagnostic
+                    .data
+                    .iter()
+                    .any(|(key, value)| key == "function"
+                        && value == "@test.effects.declared_extra.v1")
+                && diagnostic
+                    .data
+                    .iter()
+                    .any(|(key, value)| key == "unused_effects" && value == "disk")),
         "{:#?}",
         summary.diagnostics
     );

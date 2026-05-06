@@ -191,3 +191,7 @@
 - The Rust checker and Python reference checker now emit `EffectViolation` when any function calls a resolved callee without declaring all of the callee's concrete non-`pure` capabilities.
 - Added Rust and Python regression coverage showing an `[io]` caller cannot call a `[network]` callee unless it declares `network`, while a caller declaring `[io, network]` is accepted.
 - Updated the agent bootstrap contract, README, and Progress docs to document structured direct-call capability validation.
+- Added conservative unused declared-capability warnings to the Rust checker and Python reference checker.
+- `UnusedEffectCapability` now warns when a function has resolved non-self direct callees and declares concrete capabilities that none of those callees require, while still allowing effectful leaf functions until Serow has external effect primitive syntax.
+- Added Rust and Python regression coverage for an over-declared `[io, network, disk]` wrapper that only calls `[io]` and `[network]` callees.
+- Updated the agent bootstrap contract, README, `serow.project`, and Progress docs to document direct-call capability minimality warnings.

@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "0.4.20-rust-bootstrap",
+  "version": "0.4.21-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -38,6 +38,7 @@
     "qualified_function_references": true,
     "effects_are_explicit": true,
     "direct_calls_require_declared_callee_capabilities": true,
+    "direct_call_unused_declared_capabilities_warned": true,
     "typed_holes_allowed": true,
     "unattended_rejects_same_version_public_contract_surface_change": true,
     "unattended_rejects_capability_expansion_without_migration": true,

@@ -26,7 +26,7 @@ Date: 2026-05-06
   - ambiguous bare-call diagnostics with qualified-reference repair guidance
   - sampled `forall` properties over `Int`, `Bool`, and `Text`
   - inferred cross-module dependencies from function calls in implementations, contracts, examples, and properties
-  - conservative structured effect capability validation: direct callers must declare every concrete non-`pure` capability required by resolved callees
+  - conservative structured effect capability validation: direct callers must declare every concrete non-`pure` capability required by resolved callees, and resolved direct-call wrappers warn on concrete capabilities not required by non-self callees
 - Source-level public symbol versions with `version vN`; omitted versions default to `v1` for compatibility.
 - Source-level function migration acknowledgements with `migration` records for `public-behavior-change`, `capability-expansion`, `evidence-weakening`, `implementation-change`, and `impact-review`.
 - Qualified function references in executable expressions:
@@ -404,6 +404,27 @@ bin/serow certify --profile unattended --json
 bin/serow plan --json
 ```
 
+Additional verification after adding unused declared-capability warnings:
+
+```sh
+bin/serow query intent "require public functions to declare only capabilities they need" --json
+bin/serow query symbol EffectViolation --json
+bin/serow query intent "warn about unused declared effect capabilities" --json
+bin/serow query symbol capability --json
+cargo fmt --check
+cargo test effectful_function_must_declare_specific_called_capabilities -- --nocapture
+python3 -m unittest tests.test_bootstrap.BootstrapTests.test_effectful_function_must_declare_specific_called_capabilities
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+cargo clippy -- -D warnings
+cargo test
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+bin/serow agent --json
+```
+
 `cargo test` includes integration coverage for `bin/serow patch add-function`.
 
 `bin/serow check --json` currently reports:
@@ -428,7 +449,7 @@ bin/serow plan --json
 - Type checking covers the current expression subset but does not yet model user-defined data types, generics, or effect polymorphism.
 - Expression support is intentionally small: literals, variables, direct or qualified calls, arithmetic, comparisons, booleans, and one-line `if ... then ... else ...`.
 - Properties are sampled, not proven.
-- Effects checking is intentionally conservative direct-call capability subset validation; it does not yet infer unused over-declared capabilities or model effect polymorphism.
+- Effects checking is intentionally conservative direct-call capability subset validation; it warns on unused declared capabilities only when resolved non-self direct callees establish a required capability set, and it does not yet model effect polymorphism or external effect primitives.
 - Structured patch coverage is intentionally narrow: module `use` insertion, public function skeleton insertion, append-only evidence insertion, migration acknowledgement insertion, and typed-hole filling are implemented.
 - Evidence patching is intentionally append-only; implementation patching only fills typed holes and does not yet model dependent-aware rewrites.
 - Formatting parses and re-emits the bootstrap projection; comments are not preserved yet.

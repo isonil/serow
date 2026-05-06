@@ -350,6 +350,19 @@ pub fn declared_both(x: Int) -> Int
   effects [io, network]
   impl
     fetch_remote(read_file(x))
+
+pub fn declared_extra(x: Int) -> Int
+  intent "Call io and network operations while also declaring disk."
+  contract
+    ensures result == x
+  examples
+    declared_extra(1) == 1
+  properties
+    forall x: Int:
+      declared_extra(x) == x
+  effects [io, network, disk]
+  impl
+    fetch_remote(read_file(x))
 """,
                 encoding="utf-8",
             )
@@ -367,6 +380,16 @@ pub fn declared_both(x: Int) -> Int
             self.assertFalse(
                 any(
                     diagnostic.data.get("function") == "@test.effects.declared_both.v1"
+                    for diagnostic in summary.diagnostics
+                ),
+                summary.diagnostics,
+            )
+            self.assertTrue(
+                any(
+                    diagnostic.code == "UnusedEffectCapability"
+                    and diagnostic.severity == "warning"
+                    and diagnostic.data.get("function") == "@test.effects.declared_extra.v1"
+                    and diagnostic.data.get("unused_effects") == "disk"
                     for diagnostic in summary.diagnostics
                 ),
                 summary.diagnostics,

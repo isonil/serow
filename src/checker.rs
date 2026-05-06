@@ -635,6 +635,7 @@ fn check_effects(program: &Program, summary: &mut CheckSummary) {
     let mut reported = HashSet::<(String, String, String)>::new();
     for function in &program.functions {
         let function_capabilities = effect_capabilities(function);
+        let mut required_by_resolved_callees = HashSet::<String>::new();
         for (context, expression) in function_expressions(function) {
             let Ok(call_names) = called_functions(&expression) else {
                 continue;
@@ -643,7 +644,11 @@ fn check_effects(program: &Program, summary: &mut CheckSummary) {
                 let Ok(callee) = resolve_function(&call_reference.raw, &program.functions) else {
                     continue;
                 };
-                let missing_capabilities = callee_required_capabilities(callee)
+                let callee_capabilities = callee_required_capabilities(callee);
+                if callee.symbol() != function.symbol() {
+                    required_by_resolved_callees.extend(callee_capabilities.iter().cloned());
+                }
+                let missing_capabilities = callee_capabilities
                     .difference(&function_capabilities)
                     .cloned()
                     .collect::<Vec<_>>();
@@ -677,6 +682,35 @@ fn check_effects(program: &Program, summary: &mut CheckSummary) {
                 );
             }
         }
+        if required_by_resolved_callees.is_empty() {
+            continue;
+        }
+        let unused_capabilities = function_capabilities
+            .difference(&required_by_resolved_callees)
+            .cloned()
+            .collect::<Vec<_>>();
+        if unused_capabilities.is_empty() {
+            continue;
+        }
+        let unused = capability_label(unused_capabilities);
+        let required = capability_label(required_by_resolved_callees.into_iter().collect());
+        summary.diagnostics.push(
+            Diagnostic::warning(
+                "UnusedEffectCapability",
+                format!(
+                    "Function `{}` declares capabilities not required by its resolved direct callees: {}.",
+                    function.name, unused
+                ),
+                Some(function.target()),
+            )
+            .with_data("function", function.symbol())
+            .with_data("function_effects", effect_label(function))
+            .with_data("required_effects", required)
+            .with_data("unused_effects", unused)
+            .with_repair(
+                "Remove unused declared capabilities or add executable calls/evidence that require them before certification.",
+            ),
+        );
     }
 }
 

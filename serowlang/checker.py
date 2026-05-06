@@ -243,13 +243,17 @@ def _check_effects(program: Program, summary: CheckSummary) -> None:
     reported = set()
     for function in program.functions:
         function_capabilities = _effect_capabilities(function)
+        required_by_resolved_callees = set()
         for context, expression in _function_expressions(function):
             for call_name in _called_functions(expression):
                 try:
                     callee = resolve_function(call_name, program.functions)
                 except EvaluationError:
                     continue
-                missing_capabilities = sorted(_effect_capabilities(callee) - function_capabilities)
+                callee_capabilities = _effect_capabilities(callee)
+                if callee.symbol != function.symbol:
+                    required_by_resolved_callees.update(callee_capabilities)
+                missing_capabilities = sorted(callee_capabilities - function_capabilities)
                 if not missing_capabilities:
                     continue
                 key = (function.symbol, callee.symbol, context)
@@ -280,6 +284,31 @@ def _check_effects(program: Program, summary: CheckSummary) -> None:
                         ],
                     )
                 )
+        if not required_by_resolved_callees:
+            continue
+        unused_capabilities = sorted(function_capabilities - required_by_resolved_callees)
+        if not unused_capabilities:
+            continue
+        summary.diagnostics.append(
+            Diagnostic(
+                severity="warning",
+                code="UnusedEffectCapability",
+                message=(
+                    f"Function `{function.name}` declares capabilities not required by its "
+                    f"resolved direct callees: {', '.join(unused_capabilities)}."
+                ),
+                target=function.target,
+                data={
+                    "function": function.symbol,
+                    "function_effects": _effect_label(function),
+                    "required_effects": ", ".join(sorted(required_by_resolved_callees)),
+                    "unused_effects": ", ".join(unused_capabilities),
+                },
+                repairs=[
+                    "Remove unused declared capabilities or add executable calls/evidence that require them before certification."
+                ],
+            )
+        )
 
 
 def _function_expressions(function: Function) -> List[Tuple[str, str]]:

@@ -110,7 +110,7 @@ Supported migration kinds are `public-behavior-change`, `capability-expansion`, 
 
 ## Effects
 
-Effects are explicit on every public function. The bootstrap recognizes `effects pure` as a pure capability declaration and bracketed effect lists such as `effects [io]` or `effects [io, network]` as concrete capability declarations. `bin/serow check` rejects any direct call in an implementation, contract, example, or property when the caller does not declare every non-`pure` capability required by the resolved callee. This covers the pure case as the empty capability set: a `pure` caller cannot call an `[io]` callee, and an `[io]` caller cannot call a `[network]` callee unless it also declares `network`.
+Effects are explicit on every public function. The bootstrap recognizes `effects pure` as a pure capability declaration and bracketed effect lists such as `effects [io]` or `effects [io, network]` as concrete capability declarations. `bin/serow check` rejects any direct call in an implementation, contract, example, or property when the caller does not declare every non-`pure` capability required by the resolved callee. This covers the pure case as the empty capability set: a `pure` caller cannot call an `[io]` callee, and an `[io]` caller cannot call a `[network]` callee unless it also declares `network`. The checker also warns with `UnusedEffectCapability` when a function has resolved non-self direct callees and declares concrete capabilities that none of those callees require; leaf effectful functions remain allowed because the bootstrap expression subset has no external effect primitive syntax yet.
 
 ## Certification Meaning
 
