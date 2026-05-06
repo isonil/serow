@@ -11,11 +11,11 @@ use crate::patch::{
     fill_hole, set_version,
 };
 use crate::plan::{
-    ChangePlan, EvidenceCoverage, EvidenceDelta, EvidenceWeakening, ImpactEvidenceCoverage,
-    ImplementationChange, PublicBehaviorChange, plan_paths,
-    unattended_evidence_weakening_diagnostics, unattended_implementation_change_diagnostics,
-    unattended_public_behavior_change_diagnostics, unattended_unchecked_impact_diagnostics,
-    unattended_uncovered_impact_evidence_diagnostics,
+    CapabilityChange, ChangePlan, EvidenceCoverage, EvidenceDelta, EvidenceWeakening,
+    ImpactEvidenceCoverage, ImplementationChange, PublicBehaviorChange, plan_paths,
+    unattended_capability_expansion_diagnostics, unattended_evidence_weakening_diagnostics,
+    unattended_implementation_change_diagnostics, unattended_public_behavior_change_diagnostics,
+    unattended_unchecked_impact_diagnostics, unattended_uncovered_impact_evidence_diagnostics,
 };
 
 pub fn main(args: impl Iterator<Item = String>) -> i32 {
@@ -264,6 +264,9 @@ fn run_check(args: &[String], certify: bool) -> i32 {
         summary
             .diagnostics
             .extend(unattended_public_behavior_change_diagnostics(&paths));
+        summary
+            .diagnostics
+            .extend(unattended_capability_expansion_diagnostics(&paths));
         summary
             .diagnostics
             .extend(unattended_implementation_change_diagnostics(&paths));
@@ -731,6 +734,7 @@ fn changed_symbols_json(plan: &ChangePlan) -> String {
                     "{{\n",
                     "      \"baseline_evidence\": {},\n",
                     "      \"behavior_change\": {},\n",
+                    "      \"capability_change\": {},\n",
                     "      \"evidence\": {{\"ensures\": {}, \"examples\": {}, \"properties\": {}, \"requires\": {}}},\n",
                     "      \"evidence_delta\": {},\n",
                     "      \"evidence_weakening\": {},\n",
@@ -745,6 +749,7 @@ fn changed_symbols_json(plan: &ChangePlan) -> String {
                 ),
                 evidence_coverage_option_json(symbol.baseline_evidence.as_ref()),
                 behavior_change_json(symbol.behavior_change.as_ref()),
+                capability_change_json(symbol.capability_change.as_ref()),
                 symbol.evidence.ensures,
                 symbol.evidence.examples,
                 symbol.evidence.properties,
@@ -802,6 +807,20 @@ fn implementation_change_json(change: Option<&ImplementationChange>) -> String {
                 "{{\"after\": {}, \"before\": {}}}",
                 json_string(&change.after),
                 json_string(&change.before)
+            )
+        })
+        .unwrap_or_else(|| "null".to_string())
+}
+
+fn capability_change_json(change: Option<&CapabilityChange>) -> String {
+    change
+        .map(|change| {
+            format!(
+                "{{\"added\": {}, \"after\": {}, \"before\": {}, \"removed\": {}}}",
+                string_array_json(&change.added),
+                string_array_json(&change.after),
+                string_array_json(&change.before),
+                string_array_json(&change.removed)
             )
         })
         .unwrap_or_else(|| "null".to_string())
@@ -1118,7 +1137,7 @@ fn agent_json() -> String {
         (
             "plan",
             "serow plan [paths...] [--json]",
-            "Summarize changed public symbols, migration acknowledgements, implementation changes, evidence coverage, HEAD evidence deltas, impact-edge coverage, and residual risk.",
+            "Summarize changed public symbols, migration acknowledgements, capability changes, implementation changes, evidence coverage, HEAD evidence deltas, impact-edge coverage, and residual risk.",
         ),
         (
             "query dependents",
@@ -1212,9 +1231,11 @@ fn agent_json() -> String {
             "Qualified calls support `module.name(...)`, `module.name.vN(...)`, and exact `@module.name.vN(...)` references.",
             "`serow certify --profile unattended` fails when changed public symbols weaken executable evidence compared with HEAD unless acknowledged by migration.",
             "`serow certify --profile unattended` fails when a tracked public symbol changes its public contract surface without a new symbol version unless acknowledged by migration.",
+            "`serow certify --profile unattended` fails when changed public symbols expand declared capabilities unless acknowledged by capability migration.",
             "`serow certify --profile unattended` fails when changed tracked public symbols have transitive dependents outside the certified change set unless acknowledged by impact migration.",
             "`serow certify --profile unattended` fails when impacted dependent call edges lack executable example or sampled property coverage unless acknowledged by impact migration.",
             "`serow certify --profile unattended` fails when changed tracked public symbols modify implementations without adding executable evidence unless acknowledged by migration.",
+            "`serow plan` reports declared capability changes against HEAD for changed tracked public symbols.",
             "`serow plan` reports implementation changes against HEAD for changed tracked public symbols.",
             "`serow plan` reports whether impacted dependent call edges are covered by executable examples or sampled properties.",
             "Ambiguous bare calls are rejected; use a qualified reference when names or versions overlap.",
@@ -1372,6 +1393,7 @@ fn print_agent_bootstrap() {
     println!("  serow patch fill-hole <path> <symbol-or-name> <expression> [--json]");
     println!("  serow patch set-version <path> <symbol-or-name> <version> [--json]");
     println!("  serow plan [paths...] [--json]");
+    println!("    reports declared capability changes against HEAD");
     println!("    reports same-symbol implementation changes against HEAD");
     println!("    reports impact-edge coverage by executable examples/properties");
     println!("  serow query dependents <symbol-or-name> [paths...] [--json]");
@@ -1399,6 +1421,9 @@ fn print_agent_bootstrap() {
     );
     println!(
         "  unattended certification rejects tracked implementation changes without added executable evidence"
+    );
+    println!(
+        "  unattended certification rejects capability expansion without explicit migration acknowledgement"
     );
     println!(
         "  migration records can explicitly acknowledge intentional unattended gate decisions"

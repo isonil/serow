@@ -27,7 +27,7 @@ Date: 2026-05-06
   - inferred cross-module dependencies from function calls in implementations, contracts, examples, and properties
   - conservative effect capability validation: functions declared `pure` may only call functions that are also declared `pure`
 - Source-level public symbol versions with `version vN`; omitted versions default to `v1` for compatibility.
-- Source-level function migration acknowledgements with `migration` records for `public-behavior-change`, `evidence-weakening`, `implementation-change`, and `impact-review`.
+- Source-level function migration acknowledgements with `migration` records for `public-behavior-change`, `capability-expansion`, `evidence-weakening`, `implementation-change`, and `impact-review`.
 - Qualified function references in executable expressions:
   - bare `name(...)` calls when the name is unambiguous
   - module-qualified `module.name(...)` and `module.name.vN(...)` calls
@@ -47,7 +47,7 @@ Date: 2026-05-06
   - `bin/serow plan [paths...] [--json]`
   - explicit paths are treated as the change set
   - without paths, Git status is used to discover changed `.serow` files
-  - reports changed public symbols, public contract-surface changes against HEAD, normalized public implementation changes against HEAD, migration acknowledgements, evidence counts, HEAD evidence deltas when a tracked baseline is available, evidence-weakening rows, explicit-version state, transitive impact rows, impacted dependent call-edge coverage, checker diagnostics, and residual risks
+  - reports changed public symbols, public contract-surface changes against HEAD, declared capability changes against HEAD, normalized public implementation changes against HEAD, migration acknowledgements, evidence counts, HEAD evidence deltas when a tracked baseline is available, evidence-weakening rows, explicit-version state, transitive impact rows, impacted dependent call-edge coverage, checker diagnostics, and residual risks
 - Strict certification profile:
   - `bin/serow certify --profile unattended`
   - currently requires public functions to declare explicit source-level versions instead of relying on the bootstrap `v1` default
@@ -56,7 +56,7 @@ Date: 2026-05-06
   - rejects changed tracked public symbols that remove or narrow executable evidence compared with Git `HEAD`
   - rejects changed tracked public symbols with transitive dependents outside the certified change set
   - rejects impacted dependent call edges that lack executable example or sampled property coverage
-  - accepts explicit migration acknowledgements for intentional public behavior, evidence weakening, implementation, and impact-review decisions
+  - accepts explicit migration acknowledgements for intentional public behavior, capability expansion, evidence weakening, implementation, and impact-review decisions
 - Structured patch commands:
   - `bin/serow patch add-function <path> <module> <signature> <intent> [--json]`
   - `bin/serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]`
@@ -270,6 +270,22 @@ bin/serow plan --json
 bin/serow agent --json
 ```
 
+Additional verification after adding capability expansion planning and unattended certification:
+
+```sh
+cargo test capability_expansion -- --nocapture
+cargo fmt --check
+cargo clippy -- -D warnings
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+bin/serow agent --json
+```
+
 `cargo test` includes integration coverage for `bin/serow patch add-function`.
 
 `bin/serow check --json` currently reports:
@@ -301,8 +317,8 @@ bin/serow agent --json
 - The hand-written JSON output should eventually be replaced with `serde_json` once external dependencies are allowed/desired.
 - Structured repair actions currently cover only command-style fixes already exposed by the bootstrap CLI.
 - `query dependents` reports direct resolved call edges; use `query impact` for direct and transitive dependent paths. Ambiguous bare calls are intentionally skipped by ledger queries because they are checker errors.
-- `serow plan` is an early reporting primitive; it treats explicit path arguments as the selected change set and compares public contract-surface, normalized implementation text, and evidence sections against `HEAD` when a tracked baseline is available. It reports whether impacted dependent call edges are covered by executable examples or sampled properties, but it does not yet compare full implementation AST behavior.
-- Normal certification still accepts omitted symbol versions for compatibility; `certify --profile unattended` requires explicit public versions, rejects same-version public contract-surface changes, rejects same-version implementation changes without added executable evidence, rejects evidence weakening against `HEAD`, rejects unchecked transitive impact, and rejects uncovered impacted call edges unless an explicit migration acknowledgement records the intentional decision. It does not yet enforce the rest of the unattended safety roadmap.
+- `serow plan` is an early reporting primitive; it treats explicit path arguments as the selected change set and compares public contract-surface, declared capabilities, normalized implementation text, and evidence sections against `HEAD` when a tracked baseline is available. It reports whether impacted dependent call edges are covered by executable examples or sampled properties, but it does not yet compare full implementation AST behavior.
+- Normal certification still accepts omitted symbol versions for compatibility; `certify --profile unattended` requires explicit public versions, rejects same-version public contract-surface changes, rejects capability expansion without a migration acknowledgement, rejects same-version implementation changes without added executable evidence, rejects evidence weakening against `HEAD`, rejects unchecked transitive impact, and rejects uncovered impacted call edges unless an explicit migration acknowledgement records the intentional decision. It does not yet enforce the rest of the unattended safety roadmap.
 
 ## Current Strategic Direction
 

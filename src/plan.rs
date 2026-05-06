@@ -26,6 +26,7 @@ pub struct ChangedSymbol {
     pub function: Function,
     pub baseline_evidence: Option<EvidenceCoverage>,
     pub behavior_change: Option<PublicBehaviorChange>,
+    pub capability_change: Option<CapabilityChange>,
     pub evidence: EvidenceCoverage,
     pub evidence_delta: Option<EvidenceDelta>,
     pub evidence_weakening: Vec<EvidenceWeakening>,
@@ -64,6 +65,14 @@ pub struct EvidenceWeakening {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PublicBehaviorChange {
     pub changed: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CapabilityChange {
+    pub before: Vec<String>,
+    pub after: Vec<String>,
+    pub added: Vec<String>,
+    pub removed: Vec<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -154,11 +163,23 @@ pub fn plan_paths(paths: &[String]) -> ChangePlan {
         );
     }
     if changed_symbols.iter().any(|symbol| {
-        symbol.behavior_change.is_some()
-            && !has_migration(&symbol.function, "public-behavior-change")
+        symbol
+            .behavior_change
+            .as_ref()
+            .is_some_and(|change| !public_behavior_change_acknowledged(&symbol.function, change))
     }) {
         residual_risks.push(
             "Changed public symbols modify their public contract surface without a new symbol version compared with HEAD."
+                .to_string(),
+        );
+    }
+    if changed_symbols.iter().any(|symbol| {
+        symbol.capability_change.as_ref().is_some_and(|change| {
+            !change.added.is_empty() && !has_migration(&symbol.function, "capability-expansion")
+        })
+    }) {
+        residual_risks.push(
+            "Changed public symbols expand declared capabilities without acknowledgement."
                 .to_string(),
         );
     }
@@ -250,10 +271,10 @@ pub fn unattended_public_behavior_change_diagnostics(paths: &[String]) -> Vec<Di
         .changed_symbols
         .into_iter()
         .filter_map(|symbol| {
-            if has_migration(&symbol.function, "public-behavior-change") {
+            let behavior_change = symbol.behavior_change?;
+            if public_behavior_change_acknowledged(&symbol.function, &behavior_change) {
                 return None;
             }
-            let behavior_change = symbol.behavior_change?;
             let changed = behavior_change.changed.join(", ");
             Some(
                 Diagnostic::error(
@@ -281,6 +302,52 @@ pub fn unattended_public_behavior_change_diagnostics(paths: &[String]) -> Vec<Di
                 )
                 .with_repair(
                     "Preserve the existing public contract surface or introduce a new explicit version before unattended certification.",
+                ),
+            )
+        })
+        .collect()
+}
+
+pub fn unattended_capability_expansion_diagnostics(paths: &[String]) -> Vec<Diagnostic> {
+    plan_paths(paths)
+        .changed_symbols
+        .into_iter()
+        .filter_map(|symbol| {
+            if has_migration(&symbol.function, "capability-expansion") {
+                return None;
+            }
+            let capability_change = symbol.capability_change?;
+            if capability_change.added.is_empty() {
+                return None;
+            }
+            Some(
+                Diagnostic::error(
+                    "CapabilityExpansionNeedsMigration",
+                    format!(
+                        "Public function `{}` expands its declared capabilities without acknowledgement.",
+                        symbol.function.name
+                    ),
+                    Some(symbol.function.target()),
+                )
+                .with_data("symbol", symbol.function.symbol())
+                .with_data("added", capability_change.added.join(", "))
+                .with_data("before", capability_change.before.join(", "))
+                .with_data("after", capability_change.after.join(", "))
+                .with_command_repair(
+                    "Acknowledge intentional capability expansion",
+                    vec![
+                        "bin/serow".to_string(),
+                        "patch".to_string(),
+                        "add-migration".to_string(),
+                        symbol.function.source_path.clone(),
+                        symbol.function.symbol(),
+                        "capability-expansion".to_string(),
+                        "Document why this capability expansion is required and acceptable."
+                            .to_string(),
+                    ],
+                )
+                .with_repair(
+                    "Keep the existing minimum capability set, bump the public version, or add an explicit capability-expansion migration decision before unattended certification.",
                 ),
             )
         })
@@ -478,6 +545,8 @@ fn changed_symbol(
     let baseline_evidence = baseline_function.map(evidence_coverage);
     let behavior_change = baseline_function
         .and_then(|baseline_function| public_behavior_change(baseline_function, function));
+    let capability_change = baseline_function
+        .and_then(|baseline_function| capability_change(baseline_function, function));
     let evidence_delta = baseline_evidence.as_ref().map(|baseline| EvidenceDelta {
         requires: evidence.requires as isize - baseline.requires as isize,
         ensures: evidence.ensures as isize - baseline.ensures as isize,
@@ -524,9 +593,20 @@ fn changed_symbol(
         residual_risks
             .push("Executable evidence was removed or narrowed compared with HEAD.".to_string());
     }
-    if behavior_change.is_some() && !has_migration(function, "public-behavior-change") {
+    if behavior_change
+        .as_ref()
+        .is_some_and(|change| !public_behavior_change_acknowledged(function, change))
+    {
         residual_risks.push(
             "Public contract surface changed without a new symbol version compared with HEAD."
+                .to_string(),
+        );
+    }
+    if capability_change.as_ref().is_some_and(|change| {
+        !change.added.is_empty() && !has_migration(function, "capability-expansion")
+    }) {
+        residual_risks.push(
+            "Declared capabilities expanded compared with HEAD without acknowledgement."
                 .to_string(),
         );
     }
@@ -547,6 +627,7 @@ fn changed_symbol(
         function: function.clone(),
         baseline_evidence,
         behavior_change,
+        capability_change,
         evidence,
         evidence_delta,
         evidence_weakening,
@@ -564,6 +645,11 @@ fn has_migration(function: &Function, kind: &str) -> bool {
         .migrations
         .iter()
         .any(|migration| migration.kind == kind && !migration.note.trim().is_empty())
+}
+
+fn public_behavior_change_acknowledged(function: &Function, change: &PublicBehaviorChange) -> bool {
+    has_migration(function, "public-behavior-change")
+        || (change.changed == ["effects"] && has_migration(function, "capability-expansion"))
 }
 
 fn public_behavior_change(before: &Function, after: &Function) -> Option<PublicBehaviorChange> {
@@ -591,6 +677,47 @@ fn public_behavior_change(before: &Function, after: &Function) -> Option<PublicB
     } else {
         Some(PublicBehaviorChange { changed })
     }
+}
+
+fn capability_change(before: &Function, after: &Function) -> Option<CapabilityChange> {
+    let before_effects = normalized_effects(&before.effects);
+    let after_effects = normalized_effects(&after.effects);
+    if before_effects == after_effects {
+        return None;
+    }
+    let before_capabilities = effect_capabilities(&before_effects);
+    let after_capabilities = effect_capabilities(&after_effects);
+    let mut added = after_capabilities
+        .difference(&before_capabilities)
+        .cloned()
+        .collect::<Vec<_>>();
+    added.sort();
+    let mut removed = before_capabilities
+        .difference(&after_capabilities)
+        .cloned()
+        .collect::<Vec<_>>();
+    removed.sort();
+    Some(CapabilityChange {
+        before: before_effects,
+        after: after_effects,
+        added,
+        removed,
+    })
+}
+
+fn normalized_effects(effects: &[String]) -> Vec<String> {
+    let mut normalized = normalized_lines(effects);
+    normalized.sort();
+    normalized.dedup();
+    normalized
+}
+
+fn effect_capabilities(effects: &[String]) -> HashSet<String> {
+    effects
+        .iter()
+        .filter(|effect| effect.as_str() != "pure")
+        .cloned()
+        .collect()
 }
 
 fn implementation_change(before: &Function, after: &Function) -> Option<ImplementationChange> {

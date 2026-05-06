@@ -6,6 +6,7 @@ use crate::model::{Function, MigrationRecord, ModuleDependency, Param, Program};
 
 const MIGRATION_KINDS: &[&str] = &[
     "public-behavior-change",
+    "capability-expansion",
     "evidence-weakening",
     "implementation-change",
     "impact-review",

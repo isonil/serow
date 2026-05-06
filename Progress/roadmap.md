@@ -79,9 +79,9 @@ This phase exists because the original Serow premise is not only "AI-first synta
 - Expand capabilities and effects:
   - replace the current coarse `pure` vs effectful rule with structured capabilities
   - require public functions to declare the minimum capabilities they need
-  - make capability expansion visible in certification and dependent-impact output
+  - make capability expansion visible in certification and dependent-impact output _(Started: `serow plan` now reports declared capability changes against `HEAD`, and unattended certification rejects added capabilities as `CapabilityExpansionNeedsMigration` unless acknowledged by a `capability-expansion` migration.)_
 - Add machine-readable change plans:
-  - add a command such as `bin/serow plan <paths...> --json` that summarizes changed symbols, affected dependents, evidence coverage, version decisions, and residual risk _(Started: `bin/serow plan [paths...] [--json]` reports selected changed symbols, normalized implementation changes against HEAD, evidence counts, HEAD evidence deltas when available, evidence-weakening rows, explicit-version state, transitive impact rows, impact-edge coverage rows, checker diagnostics, and residual risks.)_
+  - add a command such as `bin/serow plan <paths...> --json` that summarizes changed symbols, affected dependents, evidence coverage, version decisions, and residual risk _(Started: `bin/serow plan [paths...] [--json]` reports selected changed symbols, declared capability changes and normalized implementation changes against HEAD, evidence counts, HEAD evidence deltas when available, evidence-weakening rows, explicit-version state, transitive impact rows, impact-edge coverage rows, checker diagnostics, and residual risks.)_
   - keep the output deterministic so weaker agents can follow it without interpreting prose
 - Guard against evidence drift:
   - flag patches that change implementation and evidence together unless the changed evidence is explained by a structured migration record _(Started: same-symbol implementation-only changes are reported by `serow plan` and rejected by unattended certification when no executable evidence is added; source-level `migration` records can now acknowledge intentional implementation-change decisions.)_
@@ -90,7 +90,7 @@ This phase exists because the original Serow premise is not only "AI-first synta
 - Add strict certification profiles:
   - keep normal `bin/serow certify` useful for local iteration
   - add a stricter unattended profile, for example `bin/serow certify --profile unattended` _(Started: the profile exists, requires explicit public symbol versions, rejects evidence weakening against `HEAD`, rejects unchecked transitive impact, and rejects uncovered impacted call edges.)_
-  - make the unattended profile require no unresolved impact, no evidence weakening, no ambiguous intent reuse, no capability expansion without acknowledgement, and complete repair-action consistency _(Started: source-level migration acknowledgements can explicitly record public behavior, evidence weakening, implementation, and impact-review decisions.)_
+  - make the unattended profile require no unresolved impact, no evidence weakening, no ambiguous intent reuse, no capability expansion without acknowledgement, and complete repair-action consistency _(Started: source-level migration acknowledgements can explicitly record public behavior, capability expansion, evidence weakening, implementation, and impact-review decisions.)_
 
 ## Phase 3: Backends
 

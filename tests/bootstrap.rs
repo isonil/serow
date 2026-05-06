@@ -1523,6 +1523,113 @@ pub fn inc(x: Int) -> Int
 }
 
 #[test]
+fn capability_expansion_requires_migration_acknowledgement() {
+    let dir = unique_temp_dir("serow-capability-expansion");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("effects.serow");
+    fs::write(
+        &source,
+        r#"module core.effects
+
+pub fn identity(x: Int) -> Int
+  intent "Return x unchanged."
+  version v1
+  contract
+    ensures result == x
+  examples
+    identity(4) == 4
+  properties
+    forall x: Int:
+      identity(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    git(&dir, &["init"]);
+    git(&dir, &["add", "effects.serow"]);
+    git(&dir, &["commit", "-m", "baseline"]);
+
+    fs::write(
+        &source,
+        r#"module core.effects
+
+pub fn identity(x: Int) -> Int
+  intent "Return x unchanged."
+  version v1
+  contract
+    ensures result == x
+  examples
+    identity(4) == 4
+  properties
+    forall x: Int:
+      identity(x) == x
+  effects [io]
+  impl
+    x
+"#,
+    )
+    .expect("expand capability fixture");
+
+    let plan = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args(["plan", "--json"])
+        .output()
+        .expect("run serow plan");
+    assert!(!plan.status.success(), "{plan:#?}");
+    let plan_stdout = String::from_utf8(plan.stdout).expect("stdout is utf8");
+    assert!(
+        plan_stdout.contains("\"capability_change\""),
+        "{plan_stdout}"
+    );
+    assert!(plan_stdout.contains("\"added\": [\"io\"]"), "{plan_stdout}");
+    assert!(
+        plan_stdout.contains(
+            "Changed public symbols expand declared capabilities without acknowledgement"
+        ),
+        "{plan_stdout}"
+    );
+
+    let unattended = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args(["certify", "--profile", "unattended", "--json"])
+        .output()
+        .expect("run unattended certify");
+    assert!(!unattended.status.success(), "{unattended:#?}");
+    let stdout = String::from_utf8(unattended.stdout).expect("stdout is utf8");
+    assert!(
+        stdout.contains("CapabilityExpansionNeedsMigration"),
+        "{stdout}"
+    );
+    assert!(stdout.contains("capability-expansion"), "{stdout}");
+
+    let patch = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args([
+            "patch",
+            "add-migration",
+            "effects.serow",
+            "@core.effects.identity.v1",
+            "capability-expansion",
+            "The function now declares the IO capability required by the integration boundary.",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch add-migration");
+    assert!(patch.status.success(), "{patch:#?}");
+
+    let acknowledged = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args(["certify", "--profile", "unattended", "--json"])
+        .output()
+        .expect("run acknowledged unattended certify");
+    assert!(acknowledged.status.success(), "{acknowledged:#?}");
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn unattended_certification_rejects_public_evidence_change_without_version_bump() {
     let dir = unique_temp_dir("serow-unattended-public-behavior-change");
     fs::create_dir_all(&dir).expect("create temp dir");

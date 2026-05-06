@@ -18,6 +18,7 @@ BLOCK_SECTIONS = {"contract", "examples", "properties", "migration", "impl"}
 ALL_SECTIONS = BLOCK_SECTIONS | {"intent", "version", "effects"}
 MIGRATION_KINDS = {
     "public-behavior-change",
+    "capability-expansion",
     "evidence-weakening",
     "implementation-change",
     "impact-review",

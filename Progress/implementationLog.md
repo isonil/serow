@@ -162,3 +162,8 @@
 - Unattended certification now treats matching migration records as explicit acknowledgements for intentional public behavior, evidence weakening, implementation, and impact-review gate decisions.
 - Added command-style repair actions for unattended gate diagnostics that point to `patch add-migration`.
 - Updated agent bootstrap output, README, `serow.project`, and Progress docs to document migration acknowledgements.
+- Added declared capability-change detection against Git `HEAD` to `bin/serow plan [--json]`.
+- `serow plan` now emits `capability_change` rows with before/after effects and added/removed capabilities for tracked changed public symbols.
+- `bin/serow certify --profile unattended` now emits `CapabilityExpansionNeedsMigration` when a changed tracked public symbol adds declared capabilities without a `capability-expansion` migration acknowledgement.
+- The `capability-expansion` migration kind is accepted by the Rust bootstrap, the structured patch command, and the Python reference parser.
+- A `capability-expansion` migration also acknowledges an effects-only public surface change for the same canonical symbol, while broader public surface changes still require the existing public behavior migration or a new version.
