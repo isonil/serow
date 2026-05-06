@@ -9,7 +9,8 @@ use crate::model::Function;
 use crate::parser::parse_paths;
 use crate::patch::{
     PatchSummary, add_contract, add_example, add_function, add_migration, add_property, add_use,
-    fill_hole, set_contract, set_effects, set_impl, set_intent, set_version,
+    fill_hole, set_contract, set_effects, set_example, set_impl, set_intent, set_property,
+    set_version,
 };
 use crate::plan::{
     CapabilityChange, ChangePlan, EvidenceCoverage, EvidenceDelta, EvidenceDrift,
@@ -116,8 +117,10 @@ fn run_patch(args: &[String]) -> i32 {
         "fill-hole" => run_patch_fill_hole(&args[1..]),
         "set-contract" => run_patch_set_contract(&args[1..]),
         "set-effects" => run_patch_set_effects(&args[1..]),
+        "set-example" => run_patch_set_example(&args[1..]),
         "set-impl" => run_patch_set_impl(&args[1..]),
         "set-intent" => run_patch_set_intent(&args[1..]),
+        "set-property" => run_patch_set_property(&args[1..]),
         "set-version" => run_patch_set_version(&args[1..]),
         _ => {
             print_patch_usage();
@@ -235,7 +238,7 @@ fn run_patch_set_contract(args: &[String]) -> i32 {
     let (args, json_output) = split_flag(args, "--json");
     let (path, target, clause, index, expression) = match args.as_slice() {
         [path, target, clause, expression] => (path, target, clause, None, expression),
-        [path, target, clause, index, expression] => match parse_contract_patch_index(index) {
+        [path, target, clause, index, expression] => match parse_patch_index(index) {
             Some(index) => (path, target, clause, Some(index), expression),
             None => {
                 eprintln!("invalid contract clause index `{index}`; use a 1-based integer");
@@ -271,6 +274,31 @@ fn run_patch_set_effects(args: &[String]) -> i32 {
     i32::from(!summary.ok())
 }
 
+fn run_patch_set_example(args: &[String]) -> i32 {
+    let (args, json_output) = split_flag(args, "--json");
+    let (path, target, index, expression) = match args.as_slice() {
+        [path, target, expression] => (path, target, None, expression),
+        [path, target, index, expression] => match parse_patch_index(index) {
+            Some(index) => (path, target, Some(index), expression),
+            None => {
+                eprintln!("invalid example index `{index}`; use a 1-based integer");
+                return 2;
+            }
+        },
+        _ => {
+            print_patch_usage();
+            return 2;
+        }
+    };
+    let summary = set_example(path, target, index, expression);
+    if json_output {
+        println!("{}", patch_json(&summary));
+    } else {
+        print_patch_summary(&summary);
+    }
+    i32::from(!summary.ok())
+}
+
 fn run_patch_set_impl(args: &[String]) -> i32 {
     let (args, json_output) = split_flag(args, "--json");
     let [path, target, expression] = args.as_slice() else {
@@ -293,6 +321,31 @@ fn run_patch_set_intent(args: &[String]) -> i32 {
         return 2;
     };
     let summary = set_intent(path, target, intent);
+    if json_output {
+        println!("{}", patch_json(&summary));
+    } else {
+        print_patch_summary(&summary);
+    }
+    i32::from(!summary.ok())
+}
+
+fn run_patch_set_property(args: &[String]) -> i32 {
+    let (args, json_output) = split_flag(args, "--json");
+    let (path, target, index, forall, expression) = match args.as_slice() {
+        [path, target, forall, expression] => (path, target, None, forall, expression),
+        [path, target, index, forall, expression] => match parse_patch_index(index) {
+            Some(index) => (path, target, Some(index), forall, expression),
+            None => {
+                eprintln!("invalid property index `{index}`; use a 1-based integer");
+                return 2;
+            }
+        },
+        _ => {
+            print_patch_usage();
+            return 2;
+        }
+    };
+    let summary = set_property(path, target, index, forall, expression);
     if json_output {
         println!("{}", patch_json(&summary));
     } else {
@@ -523,7 +576,7 @@ fn split_flag(args: &[String], flag: &str) -> (Vec<String>, bool) {
     (rest, found)
 }
 
-fn parse_contract_patch_index(value: &str) -> Option<usize> {
+fn parse_patch_index(value: &str) -> Option<usize> {
     let index = value.parse::<usize>().ok()?;
     (index > 0).then_some(index)
 }
@@ -1344,6 +1397,11 @@ fn agent_json() -> String {
             "Replace a function's explicit effect capability declaration.",
         ),
         (
+            "patch set-example",
+            "serow patch set-example <path> <symbol-or-name> [index] <expression> [--json]",
+            "Set or replace a missing, single, or indexed executable example.",
+        ),
+        (
             "patch set-impl",
             "serow patch set-impl <path> <symbol-or-name> <expression> [--json]",
             "Replace an existing implementation expression through the structured patch interface.",
@@ -1352,6 +1410,11 @@ fn agent_json() -> String {
             "patch set-intent",
             "serow patch set-intent <path> <symbol-or-name> <intent> [--json]",
             "Set or replace a function's intent through the structured patch interface.",
+        ),
+        (
+            "patch set-property",
+            "serow patch set-property <path> <symbol-or-name> [index] <forall-header> <expression> [--json]",
+            "Set or replace a missing, single, or indexed sampled forall property.",
         ),
         (
             "patch set-version",
@@ -1636,8 +1699,12 @@ fn print_agent_bootstrap() {
         "  serow patch set-contract <path> <symbol-or-name> <requires|ensures> [index] <expression> [--json]"
     );
     println!("  serow patch set-effects <path> <symbol-or-name> <effects> [--json]");
+    println!("  serow patch set-example <path> <symbol-or-name> [index] <expression> [--json]");
     println!("  serow patch set-impl <path> <symbol-or-name> <expression> [--json]");
     println!("  serow patch set-intent <path> <symbol-or-name> <intent> [--json]");
+    println!(
+        "  serow patch set-property <path> <symbol-or-name> [index] <forall-header> <expression> [--json]"
+    );
     println!("  serow patch set-version <path> <symbol-or-name> <version> [--json]");
     println!("  serow plan [paths...] [--json]");
     println!("    reports declared capability changes against HEAD");
@@ -1721,8 +1788,12 @@ fn print_usage() {
         "  serow patch set-contract <path> <symbol-or-name> <requires|ensures> [index] <expression> [--json]"
     );
     eprintln!("  serow patch set-effects <path> <symbol-or-name> <effects> [--json]");
+    eprintln!("  serow patch set-example <path> <symbol-or-name> [index] <expression> [--json]");
     eprintln!("  serow patch set-impl <path> <symbol-or-name> <expression> [--json]");
     eprintln!("  serow patch set-intent <path> <symbol-or-name> <intent> [--json]");
+    eprintln!(
+        "  serow patch set-property <path> <symbol-or-name> [index] <forall-header> <expression> [--json]"
+    );
     eprintln!("  serow patch set-version <path> <symbol-or-name> <version> [--json]");
     eprintln!("  serow plan [paths...] [--json]");
     eprintln!("  serow query callees <symbol-or-name> [paths...] [--json]");
@@ -1755,8 +1826,12 @@ fn print_patch_usage() {
         "  serow patch set-contract <path> <symbol-or-name> <requires|ensures> [index] <expression> [--json]"
     );
     eprintln!("  serow patch set-effects <path> <symbol-or-name> <effects> [--json]");
+    eprintln!("  serow patch set-example <path> <symbol-or-name> [index] <expression> [--json]");
     eprintln!("  serow patch set-impl <path> <symbol-or-name> <expression> [--json]");
     eprintln!("  serow patch set-intent <path> <symbol-or-name> <intent> [--json]");
+    eprintln!(
+        "  serow patch set-property <path> <symbol-or-name> [index] <forall-header> <expression> [--json]"
+    );
     eprintln!("  serow patch set-version <path> <symbol-or-name> <version> [--json]");
 }
 

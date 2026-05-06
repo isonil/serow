@@ -3290,6 +3290,56 @@ pub fn id(x: Int) -> Int
   version v1
   contract
     ensures result == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write missing-evidence fixture");
+
+    let created_example = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-example",
+            source.to_str().expect("utf8 path"),
+            "@app.main.id.v1",
+            "id(4) == 4",
+            "--json",
+        ])
+        .output()
+        .expect("run creating serow patch set-example");
+    assert!(created_example.status.success(), "{created_example:#?}");
+
+    let created_property = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-property",
+            source.to_str().expect("utf8 path"),
+            "@app.main.id.v1",
+            "forall x: Int:",
+            "id(x) == x",
+            "--json",
+        ])
+        .output()
+        .expect("run creating serow patch set-property");
+    assert!(created_property.status.success(), "{created_property:#?}");
+
+    let created = fs::read_to_string(&source).expect("read created fixture");
+    assert!(created.contains("  examples\n    id(4) == 4"), "{created}");
+    assert!(
+        created.contains("  properties\n    forall x: Int:\n      id(x) == x"),
+        "{created}"
+    );
+
+    fs::write(
+        &source,
+        r#"module app.main
+
+pub fn id(x: Int) -> Int
+  intent "Return the input unchanged."
+  version v1
+  contract
+    ensures result == x
     ensures result != x + 1
   examples
     id(3) == 3
@@ -3369,6 +3419,187 @@ pub fn id(x: Int) -> Int
     let rejected_index_stdout = String::from_utf8(rejected_index.stdout).expect("stdout is utf8");
     assert!(
         rejected_index_stdout.contains("no `ensures` contract clause at index 3"),
+        "{rejected_index_stdout}"
+    );
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn patch_set_example_and_property_replace_missing_single_or_indexed_evidence() {
+    let dir = unique_temp_dir("serow-patch-set-evidence");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("evidence.serow");
+    fs::write(
+        &source,
+        r#"module app.main
+
+pub fn id(x: Int) -> Int
+  intent "Return the input unchanged."
+  version v1
+  contract
+    ensures result == x
+  examples
+    id(1) == 2
+  properties
+    forall x: Int:
+      id(x) == x + 1
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let example = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-example",
+            source.to_str().expect("utf8 path"),
+            "@app.main.id.v1",
+            "id(2) == 2",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch set-example");
+    assert!(example.status.success(), "{example:#?}");
+    let example_stdout = String::from_utf8(example.stdout).expect("stdout is utf8");
+    assert!(
+        example_stdout.contains("\"changed\": 1"),
+        "{example_stdout}"
+    );
+
+    let property = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-property",
+            source.to_str().expect("utf8 path"),
+            "@app.main.id.v1",
+            "forall x: Int:",
+            "id(x) == x",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch set-property");
+    assert!(property.status.success(), "{property:#?}");
+
+    let replaced = fs::read_to_string(&source).expect("read updated fixture");
+    assert!(
+        replaced.contains("  examples\n    id(2) == 2"),
+        "{replaced}"
+    );
+    assert!(
+        replaced.contains("  properties\n    forall x: Int:\n      id(x) == x"),
+        "{replaced}"
+    );
+    assert!(!replaced.contains("id(1) == 2"), "{replaced}");
+    assert!(!replaced.contains("id(x) == x + 1"), "{replaced}");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(summary.ok(), "{:#?}", summary.diagnostics);
+
+    fs::write(
+        &source,
+        r#"module app.main
+
+pub fn id(x: Int) -> Int
+  intent "Return the input unchanged."
+  version v1
+  contract
+    ensures result == x
+  examples
+    id(1) == 1
+    id(2) == 3
+  properties
+    forall x: Int:
+      id(x) == x
+    forall x: Int:
+      id(x) == x + 1
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write multi-evidence fixture");
+
+    let rejected_example = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-example",
+            source.to_str().expect("utf8 path"),
+            "@app.main.id.v1",
+            "id(2) == 2",
+            "--json",
+        ])
+        .output()
+        .expect("run rejected serow patch set-example");
+    assert!(!rejected_example.status.success(), "{rejected_example:#?}");
+    let rejected_example_stdout =
+        String::from_utf8(rejected_example.stdout).expect("stdout is utf8");
+    assert!(
+        rejected_example_stdout.contains("multiple examples"),
+        "{rejected_example_stdout}"
+    );
+
+    let indexed_example = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-example",
+            source.to_str().expect("utf8 path"),
+            "@app.main.id.v1",
+            "2",
+            "id(2) == 2",
+            "--json",
+        ])
+        .output()
+        .expect("run indexed serow patch set-example");
+    assert!(indexed_example.status.success(), "{indexed_example:#?}");
+
+    let indexed_property = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-property",
+            source.to_str().expect("utf8 path"),
+            "@app.main.id.v1",
+            "2",
+            "forall x: Int:",
+            "id(x) == x",
+            "--json",
+        ])
+        .output()
+        .expect("run indexed serow patch set-property");
+    assert!(indexed_property.status.success(), "{indexed_property:#?}");
+
+    let indexed = fs::read_to_string(&source).expect("read indexed fixture");
+    assert!(
+        indexed.contains("  examples\n    id(1) == 1\n    id(2) == 2"),
+        "{indexed}"
+    );
+    assert!(
+        indexed.contains(
+            "  properties\n    forall x: Int:\n      id(x) == x\n    forall x: Int:\n      id(x) == x"
+        ),
+        "{indexed}"
+    );
+
+    let rejected_index = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-property",
+            source.to_str().expect("utf8 path"),
+            "@app.main.id.v1",
+            "3",
+            "forall x: Int:",
+            "id(x) == x",
+            "--json",
+        ])
+        .output()
+        .expect("run rejected indexed serow patch set-property");
+    assert!(!rejected_index.status.success(), "{rejected_index:#?}");
+    let rejected_index_stdout = String::from_utf8(rejected_index.stdout).expect("stdout is utf8");
+    assert!(
+        rejected_index_stdout.contains("no property at index 3"),
         "{rejected_index_stdout}"
     );
 

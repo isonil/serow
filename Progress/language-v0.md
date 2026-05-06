@@ -158,6 +158,10 @@ JSON diagnostics include stable core fields such as `severity`, `code`, `message
 
 `bin/serow patch set-contract <path> <symbol-or-name> <requires|ensures> [index] <expression> [--json]` creates a missing contract clause, replaces a single existing contract clause, or replaces a specific existing clause when passed a 1-based index before the expression. It rejects invalid clause names, empty expressions, ambiguous bare targets, invalid indexes, and out-of-range indexes.
 
+`bin/serow patch set-example <path> <symbol-or-name> [index] <expression> [--json]` creates a missing executable example, replaces a single existing example, or replaces a specific existing example when passed a 1-based index before the expression. It rejects empty expressions, ambiguous bare targets, invalid indexes, and out-of-range indexes.
+
+`bin/serow patch set-property <path> <symbol-or-name> [index] <forall-header> <expression> [--json]` creates a missing sampled forall property, replaces a single existing property, or replaces a specific existing property when passed a 1-based index before the property header. It rejects invalid forall headers, empty expressions, ambiguous bare targets, invalid indexes, and out-of-range indexes.
+
 `bin/serow patch set-intent <path> <symbol-or-name> <intent> [--json]` sets or replaces a function's intent. It rejects empty intents, rejects ambiguous bare targets, and rewrites through the canonical formatter. Changing a public intent can still trigger duplicate or near-duplicate intent diagnostics during checking.
 
 `bin/serow patch set-effects <path> <symbol-or-name> <effects> [--json]` replaces an existing function's explicit effect capability declaration. The effects argument must be `pure` or a bracketed concrete capability list such as `[io, network]`. The command rejects ambiguous bare targets and rewrites through the canonical formatter. Capability expansion remains a public-surface change that the unattended profile gates through versioning or `capability-expansion` migration acknowledgement.

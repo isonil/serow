@@ -359,6 +359,74 @@ pub fn add_example(path: &str, target: &str, expression: &str) -> PatchSummary {
     })
 }
 
+pub fn set_example(
+    path: &str,
+    target: &str,
+    index: Option<usize>,
+    expression: &str,
+) -> PatchSummary {
+    let expression = expression.trim();
+    if expression.is_empty() {
+        let mut summary = PatchSummary::default();
+        summary.diagnostics.push(Diagnostic::error(
+            "InvalidPatchTarget",
+            "Example expression must not be empty.",
+            Some(path.to_string()),
+        ));
+        return summary;
+    }
+    patch_function_checked(path, target, |function| {
+        let function_name = function.name.clone();
+        let function_target = function.target();
+        if let Some(index) = index {
+            if index == 0 || index > function.examples.len() {
+                return Err(Box::new(
+                    Diagnostic::error(
+                        "PatchConflict",
+                        format!(
+                            "Function `{}` has no example at index {index}.",
+                            function_name
+                        ),
+                        Some(function_target),
+                    )
+                    .with_data("example_count", function.examples.len().to_string())
+                    .with_repair("Use a 1-based index for an existing example."),
+                ));
+            }
+            let existing = &mut function.examples[index - 1];
+            if existing.trim() == expression {
+                return Ok(false);
+            }
+            *existing = expression.to_string();
+            return Ok(true);
+        }
+
+        if function.examples.len() > 1 {
+            return Err(Box::new(
+                Diagnostic::error(
+                    "PatchConflict",
+                    format!("Function `{}` has multiple examples.", function_name),
+                    Some(function_target),
+                )
+                .with_repair("Pass a 1-based example index to replace a specific example."),
+            ));
+        }
+
+        match function.examples.as_mut_slice() {
+            [existing] if existing.trim() == expression => Ok(false),
+            [existing] => {
+                *existing = expression.to_string();
+                Ok(true)
+            }
+            [] => {
+                function.examples.push(expression.to_string());
+                Ok(true)
+            }
+            _ => unreachable!("multiple examples were rejected above"),
+        }
+    })
+}
+
 pub fn add_property(path: &str, target: &str, forall: &str, expression: &str) -> PatchSummary {
     let forall = forall.trim();
     let expression = expression.trim();
@@ -393,6 +461,99 @@ pub fn add_property(path: &str, target: &str, forall: &str, expression: &str) ->
             function.properties.push(forall.to_string());
             function.properties.push(expression.to_string());
             true
+        }
+    })
+}
+
+pub fn set_property(
+    path: &str,
+    target: &str,
+    index: Option<usize>,
+    forall: &str,
+    expression: &str,
+) -> PatchSummary {
+    let forall = forall.trim();
+    let expression = expression.trim();
+    if !forall.starts_with("forall ") || !forall.ends_with(':') {
+        let mut summary = PatchSummary::default();
+        summary.diagnostics.push(
+            Diagnostic::error(
+                "InvalidPatchTarget",
+                format!("Invalid property header `{forall}`."),
+                Some(path.to_string()),
+            )
+            .with_repair("Use a header like `forall x: Int:`."),
+        );
+        return summary;
+    }
+    if expression.is_empty() {
+        let mut summary = PatchSummary::default();
+        summary.diagnostics.push(Diagnostic::error(
+            "InvalidPatchTarget",
+            "Property expression must not be empty.",
+            Some(path.to_string()),
+        ));
+        return summary;
+    }
+    patch_function_checked(path, target, |function| {
+        let function_name = function.name.clone();
+        let function_target = function.target();
+        let ranges = property_block_ranges(&function.properties);
+        if let Some(index) = index {
+            if index == 0 || index > ranges.len() {
+                return Err(Box::new(
+                    Diagnostic::error(
+                        "PatchConflict",
+                        format!(
+                            "Function `{}` has no property at index {index}.",
+                            function_name
+                        ),
+                        Some(function_target),
+                    )
+                    .with_data("property_count", ranges.len().to_string())
+                    .with_repair("Use a 1-based index for an existing forall property."),
+                ));
+            }
+            let (header_index, body_index) = ranges[index - 1];
+            if function.properties[header_index].trim() == forall
+                && function.properties[body_index].trim() == expression
+            {
+                return Ok(false);
+            }
+            function.properties[header_index] = forall.to_string();
+            function.properties[body_index] = expression.to_string();
+            return Ok(true);
+        }
+
+        if ranges.len() > 1 {
+            return Err(Box::new(
+                Diagnostic::error(
+                    "PatchConflict",
+                    format!("Function `{}` has multiple properties.", function_name),
+                    Some(function_target),
+                )
+                .with_repair("Pass a 1-based property index to replace a specific property."),
+            ));
+        }
+
+        match ranges.as_slice() {
+            [(header_index, body_index)]
+                if function.properties[*header_index].trim() == forall
+                    && function.properties[*body_index].trim() == expression =>
+            {
+                Ok(false)
+            }
+            [(header_index, body_index)] => {
+                function.properties[*header_index] = forall.to_string();
+                function.properties[*body_index] = expression.to_string();
+                Ok(true)
+            }
+            [] => {
+                function.properties.push(forall.to_string());
+                function.properties.push(expression.to_string());
+                Ok(true)
+            }
+            _ => unreachable!("multiple properties were rejected above"),
         }
     })
 }
@@ -699,6 +860,23 @@ fn property_expressions(lines: &[String]) -> Vec<String> {
         }
     }
     expressions
+}
+
+fn property_block_ranges(lines: &[String]) -> Vec<(usize, usize)> {
+    let mut ranges = Vec::new();
+    let mut index = 0;
+    while index < lines.len() {
+        let line = lines[index].trim();
+        if line.starts_with("forall ") && line.ends_with(':') {
+            if index + 1 < lines.len() {
+                ranges.push((index, index + 1));
+            }
+            index += 2;
+        } else {
+            index += 1;
+        }
+    }
+    ranges
 }
 
 pub fn set_effects(path: &str, target: &str, effects: &str) -> PatchSummary {

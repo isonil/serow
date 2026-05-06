@@ -50,8 +50,10 @@ bin/serow patch add-use examples/math.serow app.main core.math
 bin/serow patch fill-hole examples/math.serow @core.math.double.v1 "x * 2"
 bin/serow patch set-contract examples/math.serow @core.math.add.v1 ensures "result == x + y"
 bin/serow patch set-effects examples/math.serow @core.math.add.v1 pure
+bin/serow patch set-example examples/math.serow @core.math.add.v1 1 "add(2, 3) == 5"
 bin/serow patch set-impl examples/math.serow @core.math.add.v1 "x + y"
 bin/serow patch set-intent examples/math.serow @core.math.add.v1 "Return the sum of x and y."
+bin/serow patch set-property examples/math.serow @core.math.add.v1 1 "forall x: Int, y: Int:" "add(x, y) == add(y, x)"
 bin/serow patch set-version examples/math.serow @core.math.add.v1 v1
 ```
 
@@ -60,6 +62,8 @@ bin/serow patch set-version examples/math.serow @core.math.add.v1 v1
 `patch set-impl` replaces an existing implementation expression through the structured patch interface. It does not replace certification: changed public implementations are still reported by `serow plan` and gated by `certify --profile unattended`.
 
 `patch set-contract` creates a missing contract clause, replaces a single existing `requires` or `ensures` clause, or replaces a specific clause when passed a 1-based index before the expression.
+
+`patch set-example` and `patch set-property` create missing executable evidence, replace a single existing item, or replace a specific item when passed a 1-based index.
 
 `patch set-intent` sets or replaces a function intent through the structured patch interface. It rejects empty intents and ambiguous bare targets.
 

@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "0.4.29-rust-bootstrap",
+  "version": "0.4.30-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -18,8 +18,10 @@
     "patch_fill_hole": "bin/serow patch fill-hole <path> <symbol-or-name> <expression>",
     "patch_set_contract": "bin/serow patch set-contract <path> <symbol-or-name> <requires|ensures> [index] <expression>",
     "patch_set_effects": "bin/serow patch set-effects <path> <symbol-or-name> <effects>",
+    "patch_set_example": "bin/serow patch set-example <path> <symbol-or-name> [index] <expression>",
     "patch_set_impl": "bin/serow patch set-impl <path> <symbol-or-name> <expression>",
     "patch_set_intent": "bin/serow patch set-intent <path> <symbol-or-name> <intent>",
+    "patch_set_property": "bin/serow patch set-property <path> <symbol-or-name> [index] <forall-header> <expression>",
     "patch_set_version": "bin/serow patch set-version <path> <symbol-or-name> <version>",
     "plan": "bin/serow plan <paths...>",
     "query_callees": "bin/serow query callees \"<symbol-or-name>\"",
@@ -47,6 +49,8 @@
     "structured_impl_rewrites": true,
     "structured_intent_rewrites": true,
     "structured_contract_rewrites": true,
+    "structured_example_rewrites": true,
+    "structured_property_rewrites": true,
     "effects_are_explicit": true,
     "direct_calls_require_declared_callee_capabilities": true,
     "direct_call_unused_declared_capabilities_warned": true,

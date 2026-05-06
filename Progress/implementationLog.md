@@ -225,3 +225,11 @@
 - Indexed contract patches now replace a specific existing `requires` or `ensures` clause while preserving the older missing/single-clause behavior.
 - Added Rust integration coverage for indexed contract replacement and out-of-range index diagnostics.
 - Updated command discovery docs, `serow.project`, README, and Progress notes to advertise structured contract clause replacement.
+
+## 2026-05-06
+
+- Added `bin/serow patch set-example <path> <symbol-or-name> [index] <expression> [--json]`.
+- Added `bin/serow patch set-property <path> <symbol-or-name> [index] <forall-header> <expression> [--json]`.
+- The new evidence setters create missing executable evidence, replace a single existing item, or replace a specific item with a 1-based index, while preserving ambiguous-target protection and canonical formatting.
+- Added Rust integration coverage for single evidence replacement, indexed example/property replacement, multi-evidence ambiguity, and out-of-range property indexes.
+- Updated command discovery docs, `serow.project`, README, and Progress notes to advertise structured example and property replacement.
