@@ -50,12 +50,15 @@ bin/serow patch add-use examples/math.serow app.main core.math
 bin/serow patch fill-hole examples/math.serow @core.math.double.v1 "x * 2"
 bin/serow patch set-effects examples/math.serow @core.math.add.v1 pure
 bin/serow patch set-impl examples/math.serow @core.math.add.v1 "x + y"
+bin/serow patch set-intent examples/math.serow @core.math.add.v1 "Return the sum of x and y."
 bin/serow patch set-version examples/math.serow @core.math.add.v1 v1
 ```
 
 `patch set-version` can also bump an existing public symbol to a new `vN` when the parsed patch input has no call sites pinned to the old canonical version. If a caller uses `module.name.v1(...)` or `@module.name.v1(...)`, the patch fails with a `VersionPinnedDependent` diagnostic so the caller is handled deliberately.
 
 `patch set-impl` replaces an existing implementation expression through the structured patch interface. It does not replace certification: changed public implementations are still reported by `serow plan` and gated by `certify --profile unattended`.
+
+`patch set-intent` sets or replaces a function intent through the structured patch interface. It rejects empty intents and ambiguous bare targets.
 
 Query the project ledger:
 

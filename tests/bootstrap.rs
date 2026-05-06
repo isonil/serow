@@ -3093,6 +3093,119 @@ pub fn double(x: Int) -> Int
 }
 
 #[test]
+fn patch_set_intent_replaces_missing_or_existing_intent() {
+    let dir = unique_temp_dir("serow-patch-set-intent");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("intent.serow");
+    fs::write(
+        &source,
+        r#"module app.main
+
+pub fn id(x: Int) -> Int
+  version v1
+  contract
+    ensures result == x
+  examples
+    id(3) == 3
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let before = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["check", source.to_str().expect("utf8 path"), "--json"])
+        .output()
+        .expect("run initial serow check");
+    assert!(!before.status.success(), "{before:#?}");
+    let before_stdout = String::from_utf8(before.stdout).expect("stdout is utf8");
+    assert!(
+        before_stdout.contains("MissingRequiredSection"),
+        "{before_stdout}"
+    );
+    assert!(
+        before_stdout.contains("\"missing\": \"intent\""),
+        "{before_stdout}"
+    );
+
+    let patch = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-intent",
+            source.to_str().expect("utf8 path"),
+            "@app.main.id.v1",
+            "Return the input unchanged.",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch set-intent");
+    assert!(patch.status.success(), "{patch:#?}");
+
+    let updated = fs::read_to_string(&source).expect("read updated fixture");
+    assert!(
+        updated.contains("  intent \"Return the input unchanged.\"\n  version v1"),
+        "{updated}"
+    );
+
+    let after = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["check", source.to_str().expect("utf8 path"), "--json"])
+        .output()
+        .expect("run repaired serow check");
+    assert!(after.status.success(), "{after:#?}");
+
+    let replacement = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-intent",
+            source.to_str().expect("utf8 path"),
+            "@app.main.id.v1",
+            "Return x unchanged.",
+            "--json",
+        ])
+        .output()
+        .expect("run replacement serow patch set-intent");
+    assert!(replacement.status.success(), "{replacement:#?}");
+
+    let replaced = fs::read_to_string(&source).expect("read replaced fixture");
+    assert!(
+        replaced.contains("  intent \"Return x unchanged.\""),
+        "{replaced}"
+    );
+    assert!(
+        !replaced.contains("Return the input unchanged."),
+        "{replaced}"
+    );
+
+    let empty = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-intent",
+            source.to_str().expect("utf8 path"),
+            "@app.main.id.v1",
+            "",
+            "--json",
+        ])
+        .output()
+        .expect("run rejected serow patch set-intent");
+    assert!(!empty.status.success(), "{empty:#?}");
+    let empty_stdout = String::from_utf8(empty.stdout).expect("stdout is utf8");
+    assert!(
+        empty_stdout.contains("InvalidPatchTarget"),
+        "{empty_stdout}"
+    );
+    assert!(
+        empty_stdout.contains("intent must not be empty"),
+        "{empty_stdout}"
+    );
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn structured_patch_target_must_be_unambiguous() {
     let dir = unique_temp_dir("serow-patch-ambiguous-target");
     fs::create_dir_all(&dir).expect("create temp dir");

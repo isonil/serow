@@ -73,9 +73,11 @@ Date: 2026-05-06
   - `bin/serow patch fill-hole <path> <symbol-or-name> <expression> [--json]`
   - `bin/serow patch set-effects <path> <symbol-or-name> <effects> [--json]`
   - `bin/serow patch set-impl <path> <symbol-or-name> <expression> [--json]`
+  - `bin/serow patch set-intent <path> <symbol-or-name> <intent> [--json]`
   - `bin/serow patch set-version <path> <symbol-or-name> <version> [--json]`
 - Structured evidence patches reject ambiguous bare targets and preserve canonical formatting.
 - `patch set-impl` replaces an existing implementation expression through the structured patch interface; public implementation-change policy remains enforced by `serow plan` and unattended certification.
+- `patch set-intent` sets or replaces a function intent through the structured patch interface while preserving ambiguous-target protection.
 - `patch set-version` now supports dependent-aware public version bumps when parsed call sites do not pin the old canonical symbol, and rejects pinned `module.name.vN(...)` or `@module.name.vN(...)` callers with `VersionPinnedDependent`.
 - Structured JSON diagnostic repair actions:
   - command repair actions are emitted as `repair_actions` alongside legacy `repairs`
@@ -532,6 +534,24 @@ bin/serow plan --json
 bin/serow agent --json
 ```
 
+Additional verification after adding `patch set-intent`:
+
+```sh
+bin/serow query intent "set or replace a public function intent through structured patch" --json
+bin/serow query symbol set-intent --json
+cargo fmt --check
+cargo test patch_set_intent_replaces_missing_or_existing_intent -- --nocapture
+cargo clippy -- -D warnings
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow agent --json
+bin/serow plan --json
+```
+
 `cargo test` includes integration coverage for `bin/serow patch add-function`.
 
 `bin/serow check --json` currently reports:
@@ -557,7 +577,7 @@ bin/serow agent --json
 - Expression support is intentionally small: literals, variables, direct or qualified calls, arithmetic, comparisons, booleans, and one-line `if ... then ... else ...`.
 - Properties are sampled, not proven.
 - Effects checking is intentionally conservative direct-call capability subset validation; it warns on unused declared capabilities only when resolved non-self direct callees establish a required capability set, and it does not yet model effect polymorphism or external effect primitives.
-- Structured patch coverage is intentionally narrow: module `use` insertion, public function skeleton insertion, append-only evidence insertion, migration acknowledgement insertion, effect declaration replacement, implementation expression replacement, version declaration and pinned-call-aware version bumps, and typed-hole filling are implemented.
+- Structured patch coverage is intentionally narrow: module `use` insertion, public function skeleton insertion, append-only evidence insertion, migration acknowledgement insertion, intent replacement, effect declaration replacement, implementation expression replacement, version declaration and pinned-call-aware version bumps, and typed-hole filling are implemented.
 - Evidence patching is intentionally append-only; implementation patching can fill typed holes or replace an existing implementation expression, while dependent impact and evidence policy are still enforced by `serow plan` and unattended certification rather than by the patch command itself.
 - Formatting parses and re-emits the bootstrap projection; comments are not preserved yet.
 - The hand-written JSON output should eventually be replaced with `serde_json` once external dependencies are allowed/desired.

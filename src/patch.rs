@@ -420,6 +420,31 @@ pub fn set_impl(path: &str, target: &str, expression: &str) -> PatchSummary {
     })
 }
 
+pub fn set_intent(path: &str, target: &str, intent: &str) -> PatchSummary {
+    let intent = intent.trim();
+    if intent.is_empty() {
+        let mut summary = PatchSummary::default();
+        summary.diagnostics.push(Diagnostic::error(
+            "InvalidPatchTarget",
+            "Function intent must not be empty.",
+            Some(path.to_string()),
+        ));
+        return summary;
+    }
+    patch_function(path, target, |function| {
+        if function
+            .intent
+            .as_deref()
+            .is_some_and(|existing| existing == intent)
+        {
+            false
+        } else {
+            function.intent = Some(intent.to_string());
+            true
+        }
+    })
+}
+
 pub fn set_version(path: &str, target: &str, version: &str) -> PatchSummary {
     let version = version.trim();
     if !is_valid_version(version) {

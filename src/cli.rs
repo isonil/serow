@@ -9,7 +9,7 @@ use crate::model::Function;
 use crate::parser::parse_paths;
 use crate::patch::{
     PatchSummary, add_contract, add_example, add_function, add_migration, add_property, add_use,
-    fill_hole, set_effects, set_impl, set_version,
+    fill_hole, set_effects, set_impl, set_intent, set_version,
 };
 use crate::plan::{
     CapabilityChange, ChangePlan, EvidenceCoverage, EvidenceDelta, EvidenceDrift,
@@ -116,6 +116,7 @@ fn run_patch(args: &[String]) -> i32 {
         "fill-hole" => run_patch_fill_hole(&args[1..]),
         "set-effects" => run_patch_set_effects(&args[1..]),
         "set-impl" => run_patch_set_impl(&args[1..]),
+        "set-intent" => run_patch_set_intent(&args[1..]),
         "set-version" => run_patch_set_version(&args[1..]),
         _ => {
             print_patch_usage();
@@ -251,6 +252,21 @@ fn run_patch_set_impl(args: &[String]) -> i32 {
         return 2;
     };
     let summary = set_impl(path, target, expression);
+    if json_output {
+        println!("{}", patch_json(&summary));
+    } else {
+        print_patch_summary(&summary);
+    }
+    i32::from(!summary.ok())
+}
+
+fn run_patch_set_intent(args: &[String]) -> i32 {
+    let (args, json_output) = split_flag(args, "--json");
+    let [path, target, intent] = args.as_slice() else {
+        print_patch_usage();
+        return 2;
+    };
+    let summary = set_intent(path, target, intent);
     if json_output {
         println!("{}", patch_json(&summary));
     } else {
@@ -1297,6 +1313,11 @@ fn agent_json() -> String {
             "Replace an existing implementation expression through the structured patch interface.",
         ),
         (
+            "patch set-intent",
+            "serow patch set-intent <path> <symbol-or-name> <intent> [--json]",
+            "Set or replace a function's intent through the structured patch interface.",
+        ),
+        (
             "patch set-version",
             "serow patch set-version <path> <symbol-or-name> <version> [--json]",
             "Declare or bump an explicit source-level version, rejecting call sites pinned to the old version.",
@@ -1577,6 +1598,7 @@ fn print_agent_bootstrap() {
     println!("  serow patch fill-hole <path> <symbol-or-name> <expression> [--json]");
     println!("  serow patch set-effects <path> <symbol-or-name> <effects> [--json]");
     println!("  serow patch set-impl <path> <symbol-or-name> <expression> [--json]");
+    println!("  serow patch set-intent <path> <symbol-or-name> <intent> [--json]");
     println!("  serow patch set-version <path> <symbol-or-name> <version> [--json]");
     println!("  serow plan [paths...] [--json]");
     println!("    reports declared capability changes against HEAD");
@@ -1658,6 +1680,7 @@ fn print_usage() {
     eprintln!("  serow patch fill-hole <path> <symbol-or-name> <expression> [--json]");
     eprintln!("  serow patch set-effects <path> <symbol-or-name> <effects> [--json]");
     eprintln!("  serow patch set-impl <path> <symbol-or-name> <expression> [--json]");
+    eprintln!("  serow patch set-intent <path> <symbol-or-name> <intent> [--json]");
     eprintln!("  serow patch set-version <path> <symbol-or-name> <version> [--json]");
     eprintln!("  serow plan [paths...] [--json]");
     eprintln!("  serow query callees <symbol-or-name> [paths...] [--json]");
@@ -1688,6 +1711,7 @@ fn print_patch_usage() {
     eprintln!("  serow patch fill-hole <path> <symbol-or-name> <expression> [--json]");
     eprintln!("  serow patch set-effects <path> <symbol-or-name> <effects> [--json]");
     eprintln!("  serow patch set-impl <path> <symbol-or-name> <expression> [--json]");
+    eprintln!("  serow patch set-intent <path> <symbol-or-name> <intent> [--json]");
     eprintln!("  serow patch set-version <path> <symbol-or-name> <version> [--json]");
 }
 

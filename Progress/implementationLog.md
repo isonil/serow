@@ -215,3 +215,6 @@
 - Expanded duplicate-intent diagnostics so both exact `PossibleDuplicate` errors and `NearDuplicateIntent` warnings include structured `shared_terms`, `new_only_terms`, and `candidate_only_terms` data.
 - Exposed canonical intent-token extraction in the Rust ledger and Python reference bootstrap so reuse diagnostics use the same stopword filtering and light token normalization as intent search, with a raw normalized-word fallback for very short exact intents.
 - Added Rust and Python regression coverage proving duplicate and near-duplicate intent diagnostics report actionable overlap and difference data.
+- Added `bin/serow patch set-intent <path> <symbol-or-name> <intent> [--json]`.
+- The set-intent patch sets or replaces a function intent through the structured patch interface, rejects empty intents, preserves ambiguous-target protection, and rewrites through the canonical formatter.
+- Updated command discovery docs, `serow.project`, and Progress notes to advertise structured intent replacement.
