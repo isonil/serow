@@ -1523,6 +1523,119 @@ pub fn inc(x: Int) -> Int
 }
 
 #[test]
+fn implementation_evidence_drift_requires_migration_acknowledgement() {
+    let dir = unique_temp_dir("serow-implementation-evidence-drift");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("checked.serow");
+    fs::write(
+        &source,
+        r#"module core.math
+
+pub fn inc(x: Int) -> Int
+  intent "Increment x."
+  version v1
+  contract
+    ensures result == x + 1
+  examples
+    inc(1) == 2
+  properties
+    forall x: Int:
+      inc(x) == x + 1
+  effects pure
+  impl
+    x + 1
+"#,
+    )
+    .expect("write fixture");
+
+    git(&dir, &["init"]);
+    git(&dir, &["add", "checked.serow"]);
+    git(&dir, &["commit", "-m", "baseline"]);
+
+    fs::write(
+        &source,
+        r#"module core.math
+
+pub fn inc(x: Int) -> Int
+  intent "Increment x."
+  version v1
+  migration
+    public-behavior-change "The added example documents the existing increment behavior."
+  contract
+    ensures result == x + 1
+  examples
+    inc(1) == 2
+    inc(2) == 3
+  properties
+    forall x: Int:
+      inc(x) == x + 1
+  effects pure
+  impl
+    1 + x
+"#,
+    )
+    .expect("change implementation and evidence fixture");
+
+    let plan = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args(["plan", "--json"])
+        .output()
+        .expect("run serow plan");
+    assert!(!plan.status.success(), "{plan:#?}");
+    let plan_stdout = String::from_utf8(plan.stdout).expect("stdout is utf8");
+    assert!(plan_stdout.contains("\"evidence_drift\""), "{plan_stdout}");
+    assert!(
+        plan_stdout.contains("\"changed\": [\"examples\"]"),
+        "{plan_stdout}"
+    );
+    assert!(
+        plan_stdout.contains(
+            "Changed public symbols modify implementations and executable evidence in the same patch without acknowledgement"
+        ),
+        "{plan_stdout}"
+    );
+
+    let unattended = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args(["certify", "--profile", "unattended", "--json"])
+        .output()
+        .expect("run unattended certify");
+    assert!(!unattended.status.success(), "{unattended:#?}");
+    let stdout = String::from_utf8(unattended.stdout).expect("stdout is utf8");
+    assert!(
+        stdout.contains("ImplementationEvidenceDriftNeedsMigration"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"changed_evidence\": \"examples\""),
+        "{stdout}"
+    );
+
+    let patch = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args([
+            "patch",
+            "add-migration",
+            "checked.serow",
+            "@core.math.inc.v1",
+            "implementation-change",
+            "Commutative addition keeps the implementation compatible with the expanded evidence.",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch add-migration");
+    assert!(patch.status.success(), "{patch:#?}");
+
+    let acknowledged = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args(["certify", "--profile", "unattended", "--json"])
+        .output()
+        .expect("run acknowledged unattended certify");
+    assert!(acknowledged.status.success(), "{acknowledged:#?}");
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn capability_expansion_requires_migration_acknowledgement() {
     let dir = unique_temp_dir("serow-capability-expansion");
     fs::create_dir_all(&dir).expect("create temp dir");

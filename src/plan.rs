@@ -29,6 +29,7 @@ pub struct ChangedSymbol {
     pub capability_change: Option<CapabilityChange>,
     pub evidence: EvidenceCoverage,
     pub evidence_delta: Option<EvidenceDelta>,
+    pub evidence_drift: Option<EvidenceDrift>,
     pub evidence_weakening: Vec<EvidenceWeakening>,
     pub implementation_change: Option<ImplementationChange>,
     pub version_explicit: bool,
@@ -60,6 +61,11 @@ pub struct EvidenceWeakening {
     pub before: usize,
     pub after: usize,
     pub removed: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EvidenceDrift {
+    pub changed: Vec<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -190,6 +196,14 @@ pub fn plan_paths(paths: &[String]) -> ChangePlan {
     }) {
         residual_risks.push(
             "Changed public symbols modify implementations without adding executable evidence compared with HEAD."
+                .to_string(),
+        );
+    }
+    if changed_symbols.iter().any(|symbol| {
+        symbol.evidence_drift.is_some() && !has_migration(&symbol.function, "implementation-change")
+    }) {
+        residual_risks.push(
+            "Changed public symbols modify implementations and executable evidence in the same patch without acknowledgement."
                 .to_string(),
         );
     }
@@ -399,6 +413,50 @@ pub fn unattended_implementation_change_diagnostics(paths: &[String]) -> Vec<Dia
         .collect()
 }
 
+pub fn unattended_implementation_evidence_drift_diagnostics(paths: &[String]) -> Vec<Diagnostic> {
+    plan_paths(paths)
+        .changed_symbols
+        .into_iter()
+        .filter_map(|symbol| {
+            if has_migration(&symbol.function, "implementation-change") {
+                return None;
+            }
+            let evidence_drift = symbol.evidence_drift?;
+            let implementation_change = symbol.implementation_change?;
+            Some(
+                Diagnostic::error(
+                    "ImplementationEvidenceDriftNeedsMigration",
+                    format!(
+                        "Public function `{}` changes its implementation and executable evidence in the same patch.",
+                        symbol.function.name
+                    ),
+                    Some(symbol.function.target()),
+                )
+                .with_data("symbol", symbol.function.symbol())
+                .with_data("changed_evidence", evidence_drift.changed.join(", "))
+                .with_data("before", implementation_change.before)
+                .with_data("after", implementation_change.after)
+                .with_command_repair(
+                    "Acknowledge intentional implementation and evidence drift",
+                    vec![
+                        "bin/serow".to_string(),
+                        "patch".to_string(),
+                        "add-migration".to_string(),
+                        symbol.function.source_path.clone(),
+                        symbol.function.symbol(),
+                        "implementation-change".to_string(),
+                        "Document why this implementation change and evidence update remain compatible."
+                            .to_string(),
+                    ],
+                )
+                .with_repair(
+                    "Separate the implementation and evidence edits, introduce a new explicit version, or add an implementation-change migration decision before unattended certification.",
+                ),
+            )
+        })
+        .collect()
+}
+
 pub fn unattended_unchecked_impact_diagnostics(paths: &[String]) -> Vec<Diagnostic> {
     let plan = plan_paths(paths);
     let changed_symbols = plan
@@ -558,6 +616,10 @@ fn changed_symbol(
         .unwrap_or_default();
     let implementation_change = baseline_function
         .and_then(|baseline_function| implementation_change(baseline_function, function));
+    let evidence_drift = implementation_change
+        .as_ref()
+        .and(behavior_change.as_ref())
+        .and_then(evidence_drift);
     let mut residual_risks = Vec::new();
     if !function.version_explicit {
         residual_risks.push(
@@ -623,6 +685,12 @@ fn changed_symbol(
             );
         }
     }
+    if evidence_drift.is_some() && !has_migration(function, "implementation-change") {
+        residual_risks.push(
+            "Implementation and executable evidence changed together compared with HEAD without acknowledgement."
+                .to_string(),
+        );
+    }
     ChangedSymbol {
         function: function.clone(),
         baseline_evidence,
@@ -630,6 +698,7 @@ fn changed_symbol(
         capability_change,
         evidence,
         evidence_delta,
+        evidence_drift,
         evidence_weakening,
         implementation_change,
         version_explicit: function.version_explicit,
@@ -676,6 +745,25 @@ fn public_behavior_change(before: &Function, after: &Function) -> Option<PublicB
         None
     } else {
         Some(PublicBehaviorChange { changed })
+    }
+}
+
+fn evidence_drift(change: &PublicBehaviorChange) -> Option<EvidenceDrift> {
+    let changed = change
+        .changed
+        .iter()
+        .filter(|section| {
+            matches!(
+                section.as_str(),
+                "requires" | "ensures" | "examples" | "properties"
+            )
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    if changed.is_empty() {
+        None
+    } else {
+        Some(EvidenceDrift { changed })
     }
 }
 

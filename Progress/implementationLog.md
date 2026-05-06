@@ -167,3 +167,7 @@
 - `bin/serow certify --profile unattended` now emits `CapabilityExpansionNeedsMigration` when a changed tracked public symbol adds declared capabilities without a `capability-expansion` migration acknowledgement.
 - The `capability-expansion` migration kind is accepted by the Rust bootstrap, the structured patch command, and the Python reference parser.
 - A `capability-expansion` migration also acknowledges an effects-only public surface change for the same canonical symbol, while broader public surface changes still require the existing public behavior migration or a new version.
+- Added implementation/evidence drift detection for changed tracked public symbols.
+- `serow plan --json` now emits `evidence_drift` rows when a same-symbol implementation change is paired with changed executable evidence.
+- `bin/serow certify --profile unattended` now emits `ImplementationEvidenceDriftNeedsMigration` unless the function has an `implementation-change` migration acknowledgement.
+- Added Rust integration coverage proving added evidence no longer masks a same-version implementation change in unattended certification.
