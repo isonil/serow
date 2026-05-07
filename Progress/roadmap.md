@@ -12,16 +12,17 @@
 
 - Stabilize the AST model and syntax grammar.
 - Add type checking beyond the current declared-type validation. _(Started: bootstrap expressions now have static type checking.)_
-- Add typed holes with structured repair diagnostics.
+- Add typed holes with structured repair diagnostics and compiler-generated obligations derived from contracts, examples, and properties.
 - Add module dependencies and architecture checks. _(Started: explicit `use <module>` declarations are checked against `serow.project` `may_depend_on` policies.)_
 - Infer module dependencies from function calls in executable expressions. _(Started: implementations, `requires`, `ensures`, examples, and sampled property bodies now contribute inferred cross-module dependencies.)_
 - Add effect validation. _(Started: bootstrap checking now requires direct callers to declare every concrete capability required by callees.)_
+- Infer the minimum required concrete capabilities for a function and surface declaration repairs while keeping source-level `effects` explicit.
 - Add deterministic formatting. _(Started: `bin/serow fmt` rewrites the bootstrap textual projection and `--check` reports drift.)_
 
 ## Phase 2: Agent-Native Workflow
 
 - Add a stable agent bootstrap command, likely `bin/serow agent --json`, so new AI sessions can discover the current language contract, workflow, commands, verification gates, and known limits from one conventional entry point. _(Started: `bin/serow agent [--json]` now prints the bootstrap contract.)_
-- Add structured patch commands. _(Started: `bin/serow patch add-use <path> <module> <dependency> [--json]` applies canonical module dependency patches, and `bin/serow patch add-function <path> <module> <signature> <intent> [--json]` inserts safe public function skeletons.)_
+- Add structured patch commands and make common agent-safe edits possible without falling back to raw text mutation. _(Started: `bin/serow patch add-use <path> <module> <dependency> [--json]` applies canonical module dependency patches, and `bin/serow patch add-function <path> <module> <signature> <intent> [--json]` inserts safe public function skeletons.)_
 - Require duplicate-intent checks before creating public symbols. _(Started: the checker rejects exact normalized duplicate public intents with `PossibleDuplicate` diagnostics that point agents back to `query intent`.)_
 - Track symbol versions and dependents. _(Started: source can declare `version vN`, omitted versions default to `v1`, ledger JSON exposes version metadata, `bin/serow query dependents <symbol-or-name> [--json]` reports direct dependents, and `bin/serow query impact <symbol-or-name> [--json]` reports direct and transitive dependent paths.)_
 - Add richer JSON diagnostics with repair actions. _(Started: diagnostics can now emit command-style `repair_actions` alongside legacy repair strings for known CLI-driven fixes.)_
@@ -43,6 +44,7 @@ This phase exists to make Serow more useful to AI implementers before production
   - continue converting high-value diagnostics into structured `repair_actions`
   - keep repair actions argv-style and safe to run without parsing prose
   - include enough structured data for agents to explain or reject repairs
+  - emit semantic change labels for public deltas such as strengthened postconditions, removed evidence, capability expansion, and versioned renames
 - Establish a stable AST/IR boundary:
   - keep the textual projection as a bootstrap format
   - move checker, formatter, ledger, and patch commands toward a shared AST model with stable node identities
@@ -52,6 +54,7 @@ This phase exists to make Serow more useful to AI implementers before production
   - insert a new public function skeleton from an intent and signature _(Started: `patch add-function` creates an explicit-version pure skeleton with a typed hole and no invented evidence.)_
   - declare explicit source-level versions through structured patches _(Started: `patch set-version` makes an existing function's public version explicit and rejects duplicate canonical symbols.)_
   - update effect declarations through structured patches _(Started: `patch set-effects` replaces a function's explicit capability declaration and effect diagnostics can point at it.)_
+  - keep structured patch coverage ahead of common agent editing needs so raw text patching is the exception, not the default
   - rename or version symbols with dependent-aware diagnostics _(Started: `patch set-version` can bump a public version when parsed call sites do not pin the old canonical symbol, and rejects pinned `module.name.vN(...)` / `@module.name.vN(...)` callers with `VersionPinnedDependent`; `patch rename-function` renames a public function and rewrites resolved call references in the patched source, exact-qualifying rewritten calls when the new bare name would be ambiguous.)_
   - update examples/properties/contracts/intents/implementations through AST-aware edits _(Started: evidence commands append contracts, examples, and properties; `patch set-contract` creates or replaces a missing, single, or indexed contract clause; `patch set-example` and `patch set-property` create or replace missing, single, or indexed executable evidence; `patch set-intent` replaces intents; `patch set-impl` replaces existing implementation expressions.)_
 - Tighten agent certification:
@@ -81,10 +84,22 @@ This phase exists because the original Serow premise is not only "AI-first synta
 - Expand capabilities and effects:
   - replace the current coarse `pure` vs effectful rule with structured capabilities _(Started: direct calls now require the caller's declared capabilities to include the callee's concrete non-`pure` capabilities.)_
   - require public functions to declare the minimum capabilities they need _(Started: underdeclared direct-call capabilities are checker errors; over-declared concrete capabilities now warn when resolved non-self direct callees establish a smaller required capability set.)_
+  - infer the minimum direct-call capability set and attach declaration repair actions without making effect declarations implicit
   - make capability expansion visible in certification and dependent-impact output _(Started: `serow plan` now reports declared capability changes against `HEAD`, and unattended certification rejects added capabilities as `CapabilityExpansionNeedsMigration` unless acknowledged by a `capability-expansion` migration.)_
+- Strengthen property testing ergonomics:
+  - record deterministic seeds for sampled property failures and make them replayable from diagnostics and certification output
+  - improve built-in sampled generators before adding custom generator syntax
+  - treat shrinking for failing sampled properties as a stretch goal after replay is stable
+  - report lightweight coverage hints for sampled evidence so shallow properties are easier to spot
 - Add machine-readable change plans:
   - add a command such as `bin/serow plan <paths...> --json` that summarizes changed symbols, affected dependents, evidence coverage, version decisions, and residual risk _(Started: `bin/serow plan [paths...] [--json]` reports selected changed symbols, declared capability changes and normalized implementation changes against HEAD, evidence counts, HEAD evidence deltas when available, evidence-weakening rows, explicit-version state, transitive impact rows, impact-edge coverage rows, checker diagnostics, and residual risks.)_
   - keep the output deterministic so weaker agents can follow it without interpreting prose
+  - promote semantic change labels in plan output so agents can consume changes as public deltas, not only textual field differences
+- Add spec-quality diagnostics:
+  - detect duplicate or vacuous executable examples
+  - detect trivially weak sampled properties that do not constrain results meaningfully
+  - detect duplicate contract clauses and other low-signal repeated evidence
+  - report obvious intent/implementation mismatch heuristics as advisory plan risks until false positives are low enough for certification gates
 - Guard against evidence drift:
   - flag patches that change implementation and evidence together unless the changed evidence is explained by a structured migration record _(Started: same-symbol implementation-only changes are reported by `serow plan` and rejected by unattended certification when no executable evidence is added; `serow plan` now reports implementation/evidence drift rows, and unattended certification rejects them unless acknowledged by an `implementation-change` migration.)_
   - report examples/properties that no longer exercise the changed implementation path _(Started: `serow plan` now reports whether added examples/properties directly call a changed function implementation, and unattended certification rejects shallow added implementation evidence as `ImplementationChangeNeedsCoveringEvidence` unless acknowledged by an `implementation-change` migration.)_
