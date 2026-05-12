@@ -691,6 +691,70 @@ pub fn id(x: Int) -> Int
 }
 
 #[test]
+fn sampled_property_failure_reports_replay_data() {
+    let dir = unique_temp_dir("serow-property-replay");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("property_replay.serow");
+    fs::write(
+        &source,
+        r#"module test.property
+
+pub fn id(x: Int) -> Int
+  intent "Return the supplied integer unchanged."
+  contract
+    ensures result == x
+  examples
+    id(1) == 1
+  properties
+    forall x: Int:
+      id(x) == 2
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    let diagnostic = summary
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "PropertyFailed")
+        .expect("property failure diagnostic");
+    assert!(
+        diagnostic
+            .data
+            .iter()
+            .any(|(key, value)| key == "property_index" && value == "1"),
+        "{diagnostic:#?}"
+    );
+    assert!(
+        diagnostic
+            .data
+            .iter()
+            .any(|(key, value)| key == "sample_index" && value == "1"),
+        "{diagnostic:#?}"
+    );
+    assert!(
+        diagnostic
+            .data
+            .iter()
+            .any(|(key, value)| key == "sample_seed"
+                && value == "@test.property.id.v1#property:1#sample:1"),
+        "{diagnostic:#?}"
+    );
+    assert!(
+        diagnostic
+            .data
+            .iter()
+            .any(|(key, value)| key == "bindings" && value == "x=-2"),
+        "{diagnostic:#?}"
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn intent_query_finds_add() {
     let (program, parse_diagnostics) = parse_paths(&["examples".to_string()]);
     assert!(parse_diagnostics.is_empty());

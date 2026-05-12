@@ -1145,13 +1145,16 @@ fn check_property(
     }
     let sample_sets = samples.into_iter().flatten().collect::<Vec<_>>();
     let combinations = cartesian_product(&sample_sets);
-    for values in combinations {
+    for (sample_offset, values) in combinations.into_iter().enumerate() {
         let bindings = property
             .variables
             .iter()
             .zip(values)
             .map(|((name, _), value)| (name.clone(), value))
             .collect::<HashMap<_, _>>();
+        let sample_index = sample_offset + 1;
+        let sample_seed = property_sample_seed(function, &property, sample_index);
+        let bindings_text = format_sample_bindings(&property.variables, &bindings);
         let mut evaluator = Evaluator::new(&program.functions);
         match evaluator.eval(&property.expression, &bindings) {
             Ok(Value::Bool(true)) => {}
@@ -1163,6 +1166,10 @@ fn check_property(
                         Some(function.target()),
                     )
                     .with_data("property", property.expression)
+                    .with_data("property_index", property.index.to_string())
+                    .with_data("sample_index", sample_index.to_string())
+                    .with_data("sample_seed", sample_seed)
+                    .with_data("bindings", bindings_text)
                     .with_data("actual", actual.to_string())
                     .with_repair("Fix implementation or narrow the property."),
                 );
@@ -1171,7 +1178,11 @@ fn check_property(
             Err(error) => {
                 summary.diagnostics.push(
                     Diagnostic::error("PropertyEvaluationError", error, Some(function.target()))
-                        .with_data("property", property.expression),
+                        .with_data("property", property.expression)
+                        .with_data("property_index", property.index.to_string())
+                        .with_data("sample_index", sample_index.to_string())
+                        .with_data("sample_seed", sample_seed)
+                        .with_data("bindings", bindings_text),
                 );
                 return;
             }
@@ -1181,6 +1192,7 @@ fn check_property(
 
 #[derive(Clone, Debug)]
 struct PropertyBlock {
+    index: usize,
     variables: Vec<(String, String)>,
     expression: String,
 }
@@ -1188,6 +1200,7 @@ struct PropertyBlock {
 fn property_blocks(lines: &[String]) -> Vec<PropertyBlock> {
     let mut blocks = Vec::new();
     let mut index = 0;
+    let mut property_index = 1;
     while index < lines.len() {
         let line = lines[index].trim();
         if !line.starts_with("forall ") || !line.ends_with(':') {
@@ -1203,13 +1216,39 @@ fn property_blocks(lines: &[String]) -> Vec<PropertyBlock> {
         }
         if let Some(expression) = lines.get(index + 1) {
             blocks.push(PropertyBlock {
+                index: property_index,
                 variables,
                 expression: expression.trim().to_string(),
             });
+            property_index += 1;
         }
         index += 2;
     }
     blocks
+}
+
+fn property_sample_seed(
+    function: &Function,
+    property: &PropertyBlock,
+    sample_index: usize,
+) -> String {
+    format!(
+        "{}#property:{}#sample:{}",
+        function.symbol(),
+        property.index,
+        sample_index
+    )
+}
+
+fn format_sample_bindings(
+    variables: &[(String, String)],
+    bindings: &HashMap<String, Value>,
+) -> String {
+    variables
+        .iter()
+        .filter_map(|(name, _)| bindings.get(name).map(|value| format!("{name}={value}")))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 fn samples_for_type(type_name: &str) -> Option<Vec<Value>> {

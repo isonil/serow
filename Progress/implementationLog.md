@@ -246,3 +246,6 @@
 - `DuplicateProperty` now warns when a function repeats the same sampled `forall` property block.
 - Added Rust and Python regression coverage proving repeated evidence produces warnings without hiding otherwise passing behavior.
 - Updated README, `serow.project`, agent bootstrap output, and Progress docs to document low-signal duplicate evidence warnings.
+- Added deterministic replay data to sampled property failure diagnostics in the Rust checker and Python reference checker.
+- `PropertyFailed` and `PropertyEvaluationError` now include `property_index`, `sample_index`, `sample_seed`, and sampled `bindings`.
+- Added Rust and Python regression coverage proving failing sampled properties expose replay data.

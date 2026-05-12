@@ -13,6 +13,7 @@ The current implementation is a bootstrap toolchain written in dependency-free R
 - explicit and inferred module dependencies checked against `serow.project`
 - exact duplicate public intent errors and near-duplicate intent warnings with structured overlap/difference data
 - duplicate public examples, contract clauses, and sampled property blocks reported as low-signal evidence warnings
+- sampled property failure diagnostics with deterministic sample indexes, seed strings, and bindings for replay
 - structured JSON diagnostics with machine-readable repair actions where available
 - a semantic ledger for agent queries, including token-ranked intent search, direct callees, direct dependents, and transitive impact paths
 - a first machine-readable change plan for changed symbols, public contract-surface changes, capability changes, public implementation changes, implementation evidence coverage and HEAD-sensitivity, implementation/evidence drift, migration acknowledgements, impact, impact-edge evidence coverage, HEAD evidence deltas, and residual risk

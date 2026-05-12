@@ -81,6 +81,8 @@ Public function intents are checked against the project ledger. The bootstrap re
 
 Public executable evidence is also checked for exact repetition within each function. Duplicate examples produce `DuplicateExample` warnings, duplicate `requires` or `ensures` clauses produce `DuplicateContractClause` warnings, and duplicate sampled `forall` property blocks produce `DuplicateProperty` warnings. These are low-signal evidence diagnostics: `bin/serow check` can still succeed with warnings, while `bin/serow certify` rejects warnings.
 
+Sampled property failures are deterministic in the bootstrap. `PropertyFailed` and `PropertyEvaluationError` diagnostics include `property_index`, `sample_index`, `sample_seed`, and the sampled `bindings` so agents can rerun certification and identify the exact failing sample without inferring the checker's sample order.
+
 Intent queries use deterministic token ranking. The query path filters common stopwords, lightly normalizes content tokens such as plural forms and `integer`/`integers` to `int`, weights stronger fields like name and intent above executable evidence, and returns stable score-ordered results. This is a lexical reuse aid, not semantic embedding search.
 
 Public symbols carry a source-level version in their canonical symbol identity, for example `@core.math.add.v1`. The textual projection accepts a function-level `version vN` section after `intent`; omitted versions default to `v1` for compatibility with older bootstrap sources. Ledger JSON exposes the version as a separate `version` field so agents can depend on it without parsing the symbol string.

@@ -1503,7 +1503,7 @@ fn agent_json() -> String {
             "  \"public_function_requirements\": {},\n",
             "  \"supported_bootstrap_types\": {},\n",
             "  \"verification_gates\": {},\n",
-            "  \"diagnostic_json\": {{\"repairs\": \"legacy human-readable repair strings\", \"repair_actions\": \"machine-readable command actions when available\", \"intent_reuse\": \"PossibleDuplicate and NearDuplicateIntent include shared_terms, new_only_terms, and candidate_only_terms data\"}},\n",
+            "  \"diagnostic_json\": {{\"repairs\": \"legacy human-readable repair strings\", \"repair_actions\": \"machine-readable command actions when available\", \"intent_reuse\": \"PossibleDuplicate and NearDuplicateIntent include shared_terms, new_only_terms, and candidate_only_terms data\", \"property_replay\": \"PropertyFailed and PropertyEvaluationError include property_index, sample_index, sample_seed, and bindings\"}},\n",
             "  \"known_limits\": {}\n",
             "}}"
         ),
@@ -1537,7 +1537,7 @@ fn agent_json() -> String {
         ]),
         str_array_json(&[
             "No full compiler or generated backend exists yet.",
-            "Properties are sampled, not proven.",
+            "Properties are sampled, not proven; failing sampled properties report deterministic replay data.",
             "Migration acknowledgements are source-level notes; they do not prove behavioral compatibility.",
             "Exact duplicate public intents are errors; high-overlap token-ranked intent matches are warnings.",
             "`bin/serow check` warns on duplicate examples, contract clauses, and sampled property blocks.",
@@ -1757,6 +1757,7 @@ fn print_agent_bootstrap() {
     println!("  repair_actions: machine-readable command actions when available");
     println!("  intent reuse diagnostics report shared and differing intent terms");
     println!("  duplicate examples, contracts, and properties are low-signal evidence warnings");
+    println!("  failing sampled properties report sample_seed and bindings replay data");
     println!("  unattended certification validates structured repair action commands");
     println!("identity:");
     println!("  source may declare `version vN`; omitted versions default to v1");

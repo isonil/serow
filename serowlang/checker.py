@@ -1,4 +1,5 @@
 import itertools
+import json
 import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Tuple
@@ -275,7 +276,7 @@ def _check_repeated_evidence(function: Function, summary: CheckSummary) -> None:
     _report_repeated_lines(function, "ensures", function.contracts, summary)
     properties = [
         "forall " + ", ".join(f"{name}: {type_name}" for name, type_name in variables) + f": {expression}"
-        for variables, expression in _property_blocks(function.properties)
+        for _, variables, expression in _property_blocks(function.properties)
     ]
     _report_repeated_lines(function, "property", properties, summary)
 
@@ -401,7 +402,7 @@ def _function_expressions(function: Function) -> List[Tuple[str, str]]:
     expressions.extend(("requires", requirement) for requirement in function.requires)
     expressions.extend(("contract", contract) for contract in function.contracts)
     expressions.extend(("example", example) for example in function.examples)
-    expressions.extend(("property", expression) for _, expression in _property_blocks(function.properties))
+    expressions.extend(("property", expression) for _, _, expression in _property_blocks(function.properties))
     return expressions
 
 
@@ -577,8 +578,8 @@ def _check_contracts(
             )
 
 
-def _check_property(function: Function, block: Tuple[List[Tuple[str, str]], str], evaluator: Evaluator, summary: CheckSummary) -> None:
-    variables, expression = block
+def _check_property(function: Function, block: Tuple[int, List[Tuple[str, str]], str], evaluator: Evaluator, summary: CheckSummary) -> None:
+    property_index, variables, expression = block
     samples = [_samples_for_type(type_name) for _, type_name in variables]
     if any(sample is None for sample in samples):
         summary.diagnostics.append(
@@ -592,8 +593,15 @@ def _check_property(function: Function, block: Tuple[List[Tuple[str, str]], str]
         )
         return
 
-    for values in itertools.product(*samples):
+    for sample_index, values in enumerate(itertools.product(*samples), start=1):
         bindings = {name: value for (name, _), value in zip(variables, values)}
+        sample_data = {
+            "property": expression,
+            "property_index": str(property_index),
+            "sample_index": str(sample_index),
+            "sample_seed": _property_sample_seed(function, property_index, sample_index),
+            "bindings": _format_sample_bindings(variables, bindings),
+        }
         try:
             ok = evaluator.eval(expression, bindings)
         except EvaluationError as exc:
@@ -603,7 +611,7 @@ def _check_property(function: Function, block: Tuple[List[Tuple[str, str]], str]
                     code="PropertyEvaluationError",
                     message=str(exc),
                     target=function.target,
-                    data={"property": expression, "bindings": bindings},
+                    data=sample_data,
                 )
             )
             return
@@ -614,16 +622,17 @@ def _check_property(function: Function, block: Tuple[List[Tuple[str, str]], str]
                     code="PropertyFailed",
                     message="Sampled property evaluated to false.",
                     target=function.target,
-                    data={"property": expression, "bindings": bindings},
+                    data=sample_data,
                     repairs=["Fix implementation or narrow the property."],
                 )
             )
             return
 
 
-def _property_blocks(lines: List[str]) -> List[Tuple[List[Tuple[str, str]], str]]:
-    blocks: List[Tuple[List[Tuple[str, str]], str]] = []
+def _property_blocks(lines: List[str]) -> List[Tuple[int, List[Tuple[str, str]], str]]:
+    blocks: List[Tuple[int, List[Tuple[str, str]], str]] = []
     index = 0
+    property_index = 1
     while index < len(lines):
         line = lines[index].strip()
         if not line:
@@ -639,9 +648,26 @@ def _property_blocks(lines: List[str]) -> List[Tuple[List[Tuple[str, str]], str]
             variables.append((name, type_name))
         if index + 1 < len(lines):
             expression = lines[index + 1].strip()
-            blocks.append((variables, expression))
+            blocks.append((property_index, variables, expression))
+            property_index += 1
         index += 2
     return blocks
+
+
+def _property_sample_seed(function: Function, property_index: int, sample_index: int) -> str:
+    return f"{function.symbol}#property:{property_index}#sample:{sample_index}"
+
+
+def _format_sample_bindings(variables: List[Tuple[str, str]], bindings: Dict[str, Any]) -> str:
+    return ", ".join(f"{name}={_format_sample_value(bindings[name])}" for name, _ in variables)
+
+
+def _format_sample_value(value: Any) -> str:
+    if isinstance(value, bool):
+        return str(value).lower()
+    if isinstance(value, str):
+        return json.dumps(value)
+    return str(value)
 
 
 def _samples_for_type(type_name: str):
