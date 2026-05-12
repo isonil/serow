@@ -97,7 +97,7 @@ This phase exists because the original Serow premise is not only "AI-first synta
   - promote semantic change labels in plan output so agents can consume changes as public deltas, not only textual field differences
 - Add spec-quality diagnostics:
   - detect duplicate or vacuous executable examples _(Started: exact duplicate executable examples now warn as low-signal repeated evidence.)_
-  - detect trivially weak sampled properties that do not constrain results meaningfully
+  - detect trivially weak sampled properties that do not constrain results meaningfully _(Started: sampled properties that do not directly call the function under test now warn as `ShallowProperty`.)_
   - detect duplicate contract clauses and other low-signal repeated evidence _(Started: exact duplicate `requires`, `ensures`, and sampled property blocks now warn.)_
   - report obvious intent/implementation mismatch heuristics as advisory plan risks until false positives are low enough for certification gates
 - Guard against evidence drift:

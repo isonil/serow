@@ -691,6 +691,56 @@ pub fn id(x: Int) -> Int
 }
 
 #[test]
+fn sampled_property_without_target_call_warns_as_shallow() {
+    let dir = unique_temp_dir("serow-shallow-property");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("shallow_property.serow");
+    fs::write(
+        &source,
+        r#"module test.property
+
+pub fn id(x: Int) -> Int
+  version v1
+  intent "Return the supplied integer unchanged."
+  contract
+    ensures result == x
+  examples
+    id(1) == 1
+  properties
+    forall x: Int:
+      x == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    let diagnostic = summary
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "ShallowProperty")
+        .expect("shallow property diagnostic");
+    assert!(
+        diagnostic
+            .data
+            .iter()
+            .any(|(key, value)| key == "property_index" && value == "1"),
+        "{diagnostic:#?}"
+    );
+    assert!(
+        diagnostic
+            .data
+            .iter()
+            .any(|(key, value)| key == "property" && value == "x == x"),
+        "{diagnostic:#?}"
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn sampled_property_failure_reports_replay_data() {
     let dir = unique_temp_dir("serow-property-replay");
     fs::create_dir_all(&dir).expect("create temp dir");

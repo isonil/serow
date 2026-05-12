@@ -53,6 +53,8 @@ def check_program(program: Program, parse_diagnostics: List[Diagnostic]) -> Chec
     for function in program.functions:
         _check_function_shape(function, summary)
         _check_repeated_evidence(function, summary)
+    for function in program.functions:
+        _check_property_constraints(function, program, summary)
     _check_effects(program, summary)
     for function in program.functions:
         _check_executable_evidence(function, evaluator, summary)
@@ -321,6 +323,44 @@ def _report_repeated_lines(
 
 def _normalize_evidence(evidence: str) -> str:
     return " ".join(evidence.split())
+
+
+def _check_property_constraints(function: Function, program: Program, summary: CheckSummary) -> None:
+    if not function.public:
+        return
+    for property_index, _, expression in _property_blocks(function.properties):
+        calls = _called_functions(expression)
+        callees: List[str] = []
+        unresolved = False
+        calls_function = False
+        for call in calls:
+            try:
+                callee = resolve_function(call, program.functions)
+            except EvaluationError:
+                unresolved = True
+                continue
+            callees.append(callee.symbol)
+            if callee.symbol == function.symbol:
+                calls_function = True
+        if unresolved or calls_function:
+            continue
+        summary.diagnostics.append(
+            Diagnostic(
+                severity="warning",
+                code="ShallowProperty",
+                message=f"Sampled property for `{function.name}` does not directly call the function under test.",
+                target=function.target,
+                data={
+                    "function": function.symbol,
+                    "property_index": str(property_index),
+                    "property": expression,
+                    "resolved_callees": ", ".join(callees),
+                },
+                repairs=[
+                    "Add a sampled property that calls the function result, or replace this property with stronger behavioral evidence."
+                ],
+            )
+        )
 
 
 def _check_effects(program: Program, summary: CheckSummary) -> None:

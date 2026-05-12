@@ -249,3 +249,6 @@
 - Added deterministic replay data to sampled property failure diagnostics in the Rust checker and Python reference checker.
 - `PropertyFailed` and `PropertyEvaluationError` now include `property_index`, `sample_index`, `sample_seed`, and sampled `bindings`.
 - Added Rust and Python regression coverage proving failing sampled properties expose replay data.
+- Added low-signal shallow property diagnostics to the Rust checker and Python reference checker.
+- `ShallowProperty` now warns when a sampled property for a public function does not directly call the function under test, making tautological or unrelated properties visible before certification.
+- Added Rust and Python regression coverage proving shallow sampled properties report their property index and expression.

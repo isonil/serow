@@ -55,6 +55,9 @@ pub fn check_program(program: &Program, parse_diagnostics: Vec<Diagnostic>) -> C
     for function in &program.functions {
         check_static_types(function, program, &mut summary);
     }
+    for function in &program.functions {
+        check_property_constraints(function, program, &mut summary);
+    }
     check_effects(program, &mut summary);
     for function in &program.functions {
         check_executable_evidence(function, program, &mut summary);
@@ -676,6 +679,51 @@ fn report_repeated_lines(
 
 fn normalize_evidence(evidence: &str) -> String {
     evidence.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn check_property_constraints(function: &Function, program: &Program, summary: &mut CheckSummary) {
+    if !function.public {
+        return;
+    }
+    for property in property_blocks(&function.properties) {
+        let Ok(call_references) = called_functions(&property.expression) else {
+            continue;
+        };
+        let mut callees = Vec::new();
+        let mut unresolved = false;
+        let calls_function = call_references.iter().any(|call_reference| {
+            match resolve_function(&call_reference.raw, &program.functions) {
+                Ok(callee) => {
+                    callees.push(callee.symbol());
+                    callee.symbol() == function.symbol()
+                }
+                Err(_) => {
+                    unresolved = true;
+                    false
+                }
+            }
+        });
+        if unresolved || calls_function {
+            continue;
+        }
+        summary.diagnostics.push(
+            Diagnostic::warning(
+                "ShallowProperty",
+                format!(
+                    "Sampled property for `{}` does not directly call the function under test.",
+                    function.name
+                ),
+                Some(function.target()),
+            )
+            .with_data("function", function.symbol())
+            .with_data("property_index", property.index.to_string())
+            .with_data("property", property.expression)
+            .with_data("resolved_callees", callees.join(", "))
+            .with_repair(
+                "Add a sampled property that calls the function result, or replace this property with stronger behavioral evidence.",
+            ),
+        );
+    }
 }
 
 fn check_static_types(function: &Function, program: &Program, summary: &mut CheckSummary) {
