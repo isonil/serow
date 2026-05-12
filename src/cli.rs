@@ -986,6 +986,9 @@ fn print_plan(plan: &ChangePlan) {
             );
             println!("    {}", coverage.sensitivity_reason);
         }
+        for risk in &symbol.intent_implementation_risks {
+            println!("  intent/implementation risk: {risk}");
+        }
         for migration in &symbol.migrations {
             println!("  migration: {} - {}", migration.kind, migration.note);
         }
@@ -1086,6 +1089,7 @@ fn changed_symbols_json(plan: &ChangePlan) -> String {
                     "      \"function\": {},\n",
                     "      \"implementation_change\": {},\n",
                     "      \"implementation_evidence\": {},\n",
+                    "      \"intent_implementation_risks\": {},\n",
                     "      \"impact\": {},\n",
                     "      \"impact_coverage\": {},\n",
                     "      \"migrations\": {},\n",
@@ -1108,6 +1112,7 @@ fn changed_symbols_json(plan: &ChangePlan) -> String {
                 function_ref_json(&symbol.function),
                 implementation_change_json(symbol.implementation_change.as_ref()),
                 implementation_evidence_json(symbol.implementation_evidence.as_ref()),
+                string_array_json(&symbol.intent_implementation_risks),
                 impact_rows_json(&symbol.impact),
                 impact_coverage_json(&symbol.impact_coverage),
                 migrations_json(&symbol.migrations),
@@ -1655,7 +1660,7 @@ fn agent_json() -> String {
         (
             "plan",
             "serow plan [paths...] [--json]",
-            "Summarize changed public symbols, semantic change labels, direct-call capability analysis, migration acknowledgements, capability changes, implementation changes, implementation evidence coverage and HEAD-sensitivity, implementation/evidence drift, evidence coverage, HEAD evidence deltas, impact-edge coverage, and residual risk.",
+            "Summarize changed public symbols, semantic change labels, direct-call capability analysis, advisory intent/implementation risks, migration acknowledgements, capability changes, implementation changes, implementation evidence coverage and HEAD-sensitivity, implementation/evidence drift, evidence coverage, HEAD evidence deltas, impact-edge coverage, and residual risk.",
         ),
         (
             "query callees",
@@ -1719,7 +1724,7 @@ fn agent_json() -> String {
             "  \"supported_bootstrap_types\": {},\n",
             "  \"verification_gates\": {},\n",
             "  \"diagnostic_json\": {{\"repairs\": \"legacy human-readable repair strings\", \"repair_actions\": \"machine-readable command actions when available\", \"intent_reuse\": \"PossibleDuplicate and NearDuplicateIntent include shared_terms, new_only_terms, and candidate_only_terms data\", \"property_replay\": \"PropertyFailed and PropertyEvaluationError include property_index, sample_index, sample_seed, bindings, and a replay command action\", \"property_shrinking\": \"PropertyFailed includes shrunk_sample_index, shrunk_sample_seed, and shrunk_bindings when a simpler failing sampled binding is found\"}},\n",
-            "  \"plan_json\": {{\"semantic_changes\": \"changed symbols include deterministic labels with acknowledgement state and details for public deltas\"}},\n",
+            "  \"plan_json\": {{\"semantic_changes\": \"changed symbols include deterministic labels with acknowledgement state and details for public deltas\", \"intent_implementation_risks\": \"changed symbols include advisory lexical arithmetic intent/implementation mismatch risks\"}},\n",
             "  \"known_limits\": {}\n",
             "}}"
         ),
@@ -1777,6 +1782,7 @@ fn agent_json() -> String {
             "`serow certify --profile unattended` validates structured repair actions before accepting diagnostics.",
             "`serow plan` reports declared capability changes against HEAD for changed tracked public symbols.",
             "`serow plan` reports semantic change labels for changed symbols so agents can consume public deltas directly.",
+            "`serow plan` reports advisory intent/implementation mismatch risks for obvious arithmetic operation conflicts.",
             "`serow plan` reports inferred direct-call capability requirements and suggested effect declarations for changed symbols.",
             "`serow plan` reports implementation changes against HEAD for changed tracked public symbols.",
             "`serow plan` reports whether added examples/properties directly call changed implementations.",
@@ -1958,6 +1964,7 @@ fn print_agent_bootstrap() {
     println!("  serow patch set-version <path> <symbol-or-name> <version> [--json]");
     println!("  serow plan [paths...] [--json]");
     println!("    reports inferred direct-call capability requirements");
+    println!("    reports advisory intent/implementation mismatch risks");
     println!("    reports declared capability changes against HEAD");
     println!("    reports same-symbol implementation changes against HEAD");
     println!("    reports whether added evidence directly calls changed implementations");

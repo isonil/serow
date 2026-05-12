@@ -4,8 +4,8 @@ use std::process::Command;
 
 use crate::checker::{CheckSummary, check_program};
 use crate::diagnostic::{Diagnostic, Severity};
-use crate::eval::{Evaluator, Value, called_functions, resolve_function};
-use crate::ledger::{CallSite, ImpactDependent, query_impact};
+use crate::eval::{Evaluator, Token, Value, called_functions, resolve_function, tokenize};
+use crate::ledger::{CallSite, ImpactDependent, intent_terms, query_impact};
 use crate::model::{Function, MigrationRecord};
 use crate::parser::{discover_sources, parse_paths, parse_source};
 use crate::sampling::{cartesian_product, samples_for_type};
@@ -35,6 +35,7 @@ pub struct ChangedSymbol {
     pub evidence_weakening: Vec<EvidenceWeakening>,
     pub implementation_change: Option<ImplementationChange>,
     pub implementation_evidence: Option<ImplementationEvidenceCoverage>,
+    pub intent_implementation_risks: Vec<String>,
     pub version_explicit: bool,
     pub migrations: Vec<MigrationRecord>,
     pub impact: Vec<ImpactDependent>,
@@ -265,6 +266,15 @@ pub fn plan_paths(paths: &[String]) -> ChangePlan {
     }) {
         residual_risks.push(
             "Changed public symbols modify implementations and executable evidence in the same patch without acknowledgement."
+                .to_string(),
+        );
+    }
+    if changed_symbols
+        .iter()
+        .any(|symbol| !symbol.intent_implementation_risks.is_empty())
+    {
+        residual_risks.push(
+            "Changed public symbols have advisory intent/implementation mismatch risks."
                 .to_string(),
         );
     }
@@ -782,6 +792,7 @@ fn changed_symbol(
         .as_ref()
         .and(behavior_change.as_ref())
         .and_then(evidence_drift);
+    let intent_implementation_risks = intent_implementation_risks(function, program);
     let mut residual_risks = Vec::new();
     if !function.version_explicit {
         residual_risks.push(
@@ -873,6 +884,7 @@ fn changed_symbol(
                 .to_string(),
         );
     }
+    residual_risks.extend(intent_implementation_risks.iter().cloned());
     let semantic_changes = semantic_changes(SemanticChangeInput {
         function,
         behavior_change: behavior_change.as_ref(),
@@ -882,6 +894,7 @@ fn changed_symbol(
         evidence_weakening: &evidence_weakening,
         implementation_change: implementation_change.as_ref(),
         implementation_evidence: implementation_evidence.as_ref(),
+        intent_implementation_risks: &intent_implementation_risks,
         impact: &impact,
         impact_coverage: &impact_coverage,
     });
@@ -898,6 +911,7 @@ fn changed_symbol(
         evidence_weakening,
         implementation_change,
         implementation_evidence,
+        intent_implementation_risks,
         version_explicit: function.version_explicit,
         migrations: function.migrations.clone(),
         impact,
@@ -916,6 +930,7 @@ struct SemanticChangeInput<'a> {
     evidence_weakening: &'a [EvidenceWeakening],
     implementation_change: Option<&'a ImplementationChange>,
     implementation_evidence: Option<&'a ImplementationEvidenceCoverage>,
+    intent_implementation_risks: &'a [String],
     impact: &'a [ImpactDependent],
     impact_coverage: &'a [ImpactEvidenceCoverage],
 }
@@ -997,6 +1012,13 @@ fn semantic_changes(input: SemanticChangeInput<'_>) -> Vec<SemanticChange> {
                 implementation_evidence_details(coverage),
             ));
         }
+    }
+    if !input.intent_implementation_risks.is_empty() {
+        changes.push(semantic_change(
+            "intent_implementation_mismatch_risk",
+            false,
+            input.intent_implementation_risks.to_vec(),
+        ));
     }
     if !input.impact.is_empty() {
         changes.push(semantic_change(
@@ -1254,6 +1276,195 @@ fn function_expressions(function: &Function) -> Vec<String> {
         }),
     );
     expressions
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ArithmeticIntent {
+    Addition,
+    Subtraction,
+    Multiplication,
+    Division,
+    Remainder,
+}
+
+impl ArithmeticIntent {
+    fn label(self) -> &'static str {
+        match self {
+            ArithmeticIntent::Addition => "addition",
+            ArithmeticIntent::Subtraction => "subtraction",
+            ArithmeticIntent::Multiplication => "multiplication",
+            ArithmeticIntent::Division => "division",
+            ArithmeticIntent::Remainder => "remainder",
+        }
+    }
+
+    fn operator(self) -> &'static str {
+        match self {
+            ArithmeticIntent::Addition => "+",
+            ArithmeticIntent::Subtraction => "-",
+            ArithmeticIntent::Multiplication => "*",
+            ArithmeticIntent::Division => "//",
+            ArithmeticIntent::Remainder => "%",
+        }
+    }
+}
+
+#[derive(Default)]
+struct ArithmeticOperations {
+    addition: bool,
+    subtraction: bool,
+    multiplication: bool,
+    division: bool,
+    remainder: bool,
+}
+
+impl ArithmeticOperations {
+    fn has(&self, intent: ArithmeticIntent) -> bool {
+        match intent {
+            ArithmeticIntent::Addition => self.addition,
+            ArithmeticIntent::Subtraction => self.subtraction,
+            ArithmeticIntent::Multiplication => self.multiplication,
+            ArithmeticIntent::Division => self.division,
+            ArithmeticIntent::Remainder => self.remainder,
+        }
+    }
+
+    fn conflicting_labels(&self, expected: ArithmeticIntent) -> Vec<&'static str> {
+        [
+            ArithmeticIntent::Addition,
+            ArithmeticIntent::Subtraction,
+            ArithmeticIntent::Multiplication,
+            ArithmeticIntent::Division,
+            ArithmeticIntent::Remainder,
+        ]
+        .into_iter()
+        .filter(|intent| *intent != expected && self.has(*intent))
+        .map(ArithmeticIntent::label)
+        .collect()
+    }
+}
+
+fn intent_implementation_risks(
+    function: &Function,
+    program: &crate::model::Program,
+) -> Vec<String> {
+    let Some(expected) = arithmetic_intent(function) else {
+        return Vec::new();
+    };
+    let Some(implementation) = &function.implementation else {
+        return Vec::new();
+    };
+    if implementation.contains("HOLE(") {
+        return Vec::new();
+    }
+    if implementation_satisfies_arithmetic_intent(implementation, expected, program) {
+        return Vec::new();
+    }
+    let operations = arithmetic_operations(implementation);
+    let conflicts = operations.conflicting_labels(expected);
+    let suffix = if conflicts.is_empty() {
+        format!(
+            "implementation does not use `{}` or call a helper whose name/intent indicates {}",
+            expected.operator(),
+            expected.label()
+        )
+    } else {
+        format!(
+            "implementation uses {} but not `{}` or a helper whose name/intent indicates {}",
+            conflicts.join(", "),
+            expected.operator(),
+            expected.label()
+        )
+    };
+    vec![format!(
+        "Intent/name indicates {}; {suffix}.",
+        expected.label()
+    )]
+}
+
+fn arithmetic_intent(function: &Function) -> Option<ArithmeticIntent> {
+    let mut terms = intent_terms(&function.name)
+        .into_iter()
+        .collect::<HashSet<_>>();
+    if let Some(intent) = &function.intent {
+        terms.extend(intent_terms(intent));
+    }
+    let matches = [
+        (
+            ArithmeticIntent::Addition,
+            ["add", "sum", "plus", "increment", "increase"].as_slice(),
+        ),
+        (
+            ArithmeticIntent::Subtraction,
+            [
+                "subtract",
+                "subtraction",
+                "difference",
+                "minus",
+                "decrement",
+                "decrease",
+            ]
+            .as_slice(),
+        ),
+        (
+            ArithmeticIntent::Multiplication,
+            ["multiply", "multiplication", "product"].as_slice(),
+        ),
+        (
+            ArithmeticIntent::Division,
+            ["divide", "division", "quotient"].as_slice(),
+        ),
+        (
+            ArithmeticIntent::Remainder,
+            ["remainder", "modulo"].as_slice(),
+        ),
+    ]
+    .into_iter()
+    .filter(|(_, keywords)| keywords.iter().any(|keyword| terms.contains(*keyword)))
+    .map(|(intent, _)| intent)
+    .collect::<Vec<_>>();
+    match matches.as_slice() {
+        [intent] => Some(*intent),
+        _ => None,
+    }
+}
+
+fn implementation_satisfies_arithmetic_intent(
+    expression: &str,
+    expected: ArithmeticIntent,
+    program: &crate::model::Program,
+) -> bool {
+    let operations = arithmetic_operations(expression);
+    if operations.has(expected) {
+        return true;
+    }
+    let Ok(call_references) = called_functions(expression) else {
+        return false;
+    };
+    call_references.into_iter().any(|call_reference| {
+        resolve_function(&call_reference.raw, &program.functions)
+            .ok()
+            .and_then(arithmetic_intent)
+            .is_some_and(|callee_intent| callee_intent == expected)
+    })
+}
+
+fn arithmetic_operations(expression: &str) -> ArithmeticOperations {
+    let Ok(tokens) = tokenize(expression) else {
+        return ArithmeticOperations::default();
+    };
+    let mut operations = ArithmeticOperations::default();
+    for token in tokens {
+        match token {
+            Token::Plus => operations.addition = true,
+            Token::Minus => operations.subtraction = true,
+            Token::Star => operations.multiplication = true,
+            Token::SlashSlash => operations.division = true,
+            Token::Percent => operations.remainder = true,
+            _ => {}
+        }
+    }
+    operations
 }
 
 fn implementation_change(before: &Function, after: &Function) -> Option<ImplementationChange> {

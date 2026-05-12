@@ -271,3 +271,7 @@
 - Changed-symbol plan rows now include `semantic_changes` with deterministic labels, acknowledgement state, and details for public deltas such as evidence weakening, capability expansion, implementation changes, implementation evidence sensitivity, impacted dependents, uncovered impact evidence, and direct-call capability declaration issues.
 - Human-readable plan output now summarizes semantic change labels for changed symbols.
 - Added Rust integration assertions proving plan JSON reports semantic labels for evidence weakening, implementation changes, and capability expansion.
+- Added advisory intent/implementation mismatch risks to `bin/serow plan`.
+- Changed-symbol plan rows now include `intent_implementation_risks` when a function name or intent clearly indicates an arithmetic operation but the implementation uses a conflicting operator or does not use the expected operator/helper.
+- The advisory also appears as a `intent_implementation_mismatch_risk` semantic change label and a residual plan risk, but it is not a checker or certification gate.
+- Added Rust integration coverage proving a function whose intent says arithmetic sum while its implementation subtracts is reported by plan JSON.

@@ -1912,6 +1912,59 @@ pub fn bump(x: Int) -> Int
 }
 
 #[test]
+fn plan_json_reports_intent_implementation_mismatch_risks() {
+    let dir = unique_temp_dir("serow-plan-intent-implementation-risk");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("plan.serow");
+    fs::write(
+        &source,
+        r#"module core.math
+
+pub fn add_pair(x: Int, y: Int) -> Int
+  intent "Return the arithmetic sum of x and y."
+  version v1
+  contract
+    ensures result == x - y
+  examples
+    add_pair(4, 2) == 2
+  properties
+    forall x: Int:
+      add_pair(x, 0) == x
+  effects pure
+  impl
+    x - y
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["plan", source.to_str().expect("utf8 path"), "--json"])
+        .output()
+        .expect("run serow plan");
+
+    assert!(!output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(
+        stdout.contains("\"intent_implementation_risks\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("Intent/name indicates addition"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"label\": \"intent_implementation_mismatch_risk\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout
+            .contains("Changed public symbols have advisory intent/implementation mismatch risks"),
+        "{stdout}"
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn plan_json_reports_evidence_weakening_against_head() {
     let dir = unique_temp_dir("serow-plan-evidence-weakening");
     fs::create_dir_all(&dir).expect("create temp dir");
