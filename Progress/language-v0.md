@@ -149,7 +149,7 @@ This is a deliberately weak early version of certification. Later phases should 
 
 ## Property Replay
 
-`bin/serow replay property <sample-seed> [paths...] [--json]` reruns one sampled property binding from a deterministic checker seed such as `@module.name.v1#property:1#sample:1`. The command locates the exact public symbol, property index, and sample index, rebuilds the sampled bindings, evaluates only that property expression, and reports the actual result. It exits successfully only when the replayed property evaluates to `true`.
+`bin/serow replay property <sample-seed> [paths...] [--json]` reruns one sampled property binding from a deterministic checker seed such as `@module.name.v1#property:1#sample:1`. The command locates the exact public symbol, property index, and sample index, rebuilds the sampled bindings, evaluates only that property expression, and reports the actual result. It exits successfully only when the replayed property evaluates to `true`. When the replayed property still fails and a simpler failing sampled binding exists, the replay diagnostic includes the same `shrunk_sample_index`, `shrunk_sample_seed`, and `shrunk_bindings` fields as the original checker diagnostic.
 
 ## Diagnostics
 

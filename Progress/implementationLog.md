@@ -295,3 +295,6 @@
 - Hole diagnostics now report the public symbol, signature, hole type, expected return type, and obligations derived from return type, preconditions, postconditions, examples, and sampled properties.
 - Added Rust and Python regression coverage proving typed-hole diagnostics expose those obligations.
 - Verified with `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`, `python3 -m unittest discover -s tests`, `bin/serow fmt --check --json`, `bin/serow check --json`, `bin/serow certify --json`, `bin/serow certify --profile unattended --json`, `bin/serow plan --json`, and `bin/serow agent --json`.
+- Preserved deterministic shrinking metadata through single-sample property replay.
+- `bin/serow replay property` now includes `shrunk_sample_index`, `shrunk_sample_seed`, and `shrunk_bindings` in replayed `PropertyFailed` diagnostics when a simpler failing sampled binding exists.
+- Added Rust regression coverage proving replay JSON carries the same shrink hint fields as the original checker diagnostic.

@@ -3,7 +3,9 @@ use std::collections::HashMap;
 use crate::diagnostic::{Diagnostic, has_errors};
 use crate::eval::{Evaluator, Value};
 use crate::model::{Function, Program};
-use crate::sampling::{format_sample_bindings, nth_cartesian_sample, samples_for_type};
+use crate::sampling::{
+    find_shrunk_property_failure, format_sample_bindings, nth_cartesian_sample, samples_for_type,
+};
 
 #[derive(Clone, Debug)]
 pub struct PropertyReplaySummary {
@@ -149,6 +151,7 @@ pub fn replay_property(program: &Program, sample_seed: &str) -> PropertyReplaySu
         };
     };
 
+    let sample_values = values.clone();
     let bindings = property
         .variables
         .iter()
@@ -175,20 +178,36 @@ pub fn replay_property(program: &Program, sample_seed: &str) -> PropertyReplaySu
                     result: Some(result),
                 }
             } else {
+                let mut diagnostic = Diagnostic::error(
+                    "PropertyFailed",
+                    "Replayed sampled property evaluated to false.",
+                    Some(function.target()),
+                )
+                .with_data("property", property.expression.clone())
+                .with_data("property_index", property.index.to_string())
+                .with_data("sample_index", parsed_seed.sample_index.to_string())
+                .with_data("sample_seed", expected_seed)
+                .with_data("bindings", result.bindings.clone())
+                .with_data("actual", result.actual.clone());
+                if let Some(shrunk) = find_shrunk_property_failure(
+                    &property.variables,
+                    &property.expression,
+                    &program.functions,
+                    &concrete_samples,
+                    &sample_values,
+                    parsed_seed.sample_index,
+                ) {
+                    diagnostic = diagnostic
+                        .with_data("shrunk_sample_index", shrunk.sample_index.to_string())
+                        .with_data(
+                            "shrunk_sample_seed",
+                            property_sample_seed(&function, property.index, shrunk.sample_index),
+                        )
+                        .with_data("shrunk_bindings", shrunk.bindings);
+                }
                 PropertyReplaySummary {
                     diagnostics: vec![
-                        Diagnostic::error(
-                            "PropertyFailed",
-                            "Replayed sampled property evaluated to false.",
-                            Some(function.target()),
-                        )
-                        .with_data("property", property.expression)
-                        .with_data("property_index", property.index.to_string())
-                        .with_data("sample_index", parsed_seed.sample_index.to_string())
-                        .with_data("sample_seed", expected_seed)
-                        .with_data("bindings", result.bindings.clone())
-                        .with_data("actual", result.actual.clone())
-                        .with_repair("Fix implementation or narrow the property."),
+                        diagnostic.with_repair("Fix implementation or narrow the property."),
                     ],
                     result: Some(result),
                 }

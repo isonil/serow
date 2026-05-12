@@ -29,7 +29,7 @@ Date: 2026-05-12
   - sampled `forall` properties over deterministic `Int`, `Bool`, and `Text` sample sets
   - deterministic sampled-property failure replay data with property indexes, sample indexes, seed strings, sampled bindings, and single-sample replay repair actions
   - deterministic sampled-property shrink data for failing properties when a simpler failing binding exists in the built-in samples
-  - single-sample property replay via `bin/serow replay property <sample-seed> [paths...] [--json]`
+  - single-sample property replay via `bin/serow replay property <sample-seed> [paths...] [--json]`, including the same deterministic shrink hint fields as checker failures when a simpler failing binding exists
   - inferred cross-module dependencies from function calls in implementations, contracts, examples, and properties
   - conservative structured effect capability validation: direct callers must declare every concrete non-`pure` capability required by resolved callees, and resolved direct-call wrappers warn on concrete capabilities not required by non-self callees
 - Source-level public symbol versions with `version vN`; omitted versions default to `v1` for compatibility.
@@ -908,6 +908,25 @@ bin/serow query symbol set-signature --json
 cargo fmt --check
 cargo clippy -- -D warnings
 cargo test patch_set_signature -- --nocapture
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+bin/serow agent --json
+```
+
+Additional verification after preserving shrink hints in property replay:
+
+```sh
+bin/serow query intent "preserve shrunk property failure data during replay" --json
+bin/serow query symbol replay --json
+bin/serow query symbol property --json
+cargo fmt --check
+cargo test sampled_property_failure_reports_replay_data -- --nocapture
+cargo clippy -- -D warnings
 cargo test
 python3 -m unittest discover -s tests
 bin/serow fmt --check --json

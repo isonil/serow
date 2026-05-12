@@ -6,7 +6,7 @@ use crate::ledger::{intent_terms, query_intent};
 use crate::model::{Function, Program};
 use crate::project::load_architecture;
 use crate::sampling::{
-    cartesian_product, format_sample_bindings, sample_complexity, samples_for_type,
+    cartesian_product, find_shrunk_property_failure, format_sample_bindings, samples_for_type,
 };
 use crate::typecheck::infer_expression_type;
 
@@ -1321,8 +1321,9 @@ fn check_property(
                 .with_data("bindings", bindings_text)
                 .with_data("actual", actual.to_string());
                 if let Some(shrunk) = find_shrunk_property_failure(
-                    &property,
-                    program,
+                    &property.variables,
+                    &property.expression,
+                    &program.functions,
                     &sample_sets,
                     &sample_values,
                     sample_index,
@@ -1363,66 +1364,6 @@ fn check_property(
             }
         }
     }
-}
-
-#[derive(Clone, Debug)]
-struct ShrunkPropertyFailure {
-    sample_index: usize,
-    bindings: String,
-}
-
-fn find_shrunk_property_failure(
-    property: &PropertyBlock,
-    program: &Program,
-    sample_sets: &[Vec<Value>],
-    original_values: &[Value],
-    original_sample_index: usize,
-) -> Option<ShrunkPropertyFailure> {
-    let original_complexity = sample_complexity(original_values);
-    let mut best: Option<(usize, usize, String)> = None;
-    for (sample_offset, values) in cartesian_product(sample_sets).into_iter().enumerate() {
-        let sample_index = sample_offset + 1;
-        if sample_index == original_sample_index {
-            continue;
-        }
-        let complexity = sample_complexity(&values);
-        if complexity > original_complexity {
-            continue;
-        }
-        let bindings = property
-            .variables
-            .iter()
-            .zip(values.iter().cloned())
-            .map(|((name, _), value)| (name.clone(), value))
-            .collect::<HashMap<_, _>>();
-        let mut evaluator = Evaluator::new(&program.functions);
-        match evaluator.eval(&property.expression, &bindings) {
-            Ok(Value::Bool(true)) | Err(_) => continue,
-            Ok(_) => {}
-        }
-        let is_better = match best.as_ref() {
-            Some((best_complexity, best_index, _)) => {
-                complexity < *best_complexity
-                    || (complexity == *best_complexity && sample_index < *best_index)
-            }
-            None => true,
-        };
-        if is_better {
-            best = Some((
-                complexity,
-                sample_index,
-                format_sample_bindings(&property.variables, &bindings),
-            ));
-        }
-    }
-    best.and_then(|(complexity, sample_index, bindings)| {
-        (complexity < original_complexity
-            || (complexity == original_complexity && sample_index < original_sample_index))
-            .then_some(ShrunkPropertyFailure {
-                sample_index,
-                bindings,
-            })
-    })
 }
 
 #[derive(Clone, Debug)]

@@ -91,7 +91,7 @@ bin/serow query dependents @core.math.add.v1
 bin/serow query impact @core.math.add.v1
 ```
 
-Replay a failing sampled property from a diagnostic seed. Built-in property samples currently include `Int` values `-2, -1, 0, 1, 2, -10, 10`, both `Bool` values, and representative `Text` values including empty, short, spaced, and numeric-looking strings.
+Replay a failing sampled property from a diagnostic seed. Built-in property samples currently include `Int` values `-2, -1, 0, 1, 2, -10, 10`, both `Bool` values, and representative `Text` values including empty, short, spaced, and numeric-looking strings. Failed replay diagnostics include shrink hint fields when a simpler failing sampled binding exists.
 
 ```sh
 bin/serow replay property "@core.math.add.v1#property:1#sample:1" examples/math.serow --json

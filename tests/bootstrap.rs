@@ -1009,6 +1009,15 @@ pub fn id(x: Int) -> Int
     );
     assert!(stdout.contains("\"bindings\": \"x=-2\""), "{stdout}");
     assert!(stdout.contains("\"actual\": \"false\""), "{stdout}");
+    assert!(
+        stdout.contains("\"shrunk_sample_index\": \"3\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"shrunk_sample_seed\": \"@test.property.id.v1#property:1#sample:3\""),
+        "{stdout}"
+    );
+    assert!(stdout.contains("\"shrunk_bindings\": \"x=0\""), "{stdout}");
     let _ = fs::remove_dir_all(dir);
 }
 
