@@ -1830,6 +1830,11 @@ pub fn bump(x: Int) -> Int
     assert!(stdout.contains("\"version_explicit\": true"), "{stdout}");
     assert!(stdout.contains("\"examples\": 1"), "{stdout}");
     assert!(stdout.contains("\"properties\": 1"), "{stdout}");
+    assert!(stdout.contains("\"property_coverage\""), "{stdout}");
+    assert!(stdout.contains("\"property_index\": 1"), "{stdout}");
+    assert!(stdout.contains("\"sample_count\": 7"), "{stdout}");
+    assert!(stdout.contains("\"direct_call\": true"), "{stdout}");
+    assert!(stdout.contains("\"vacuous\": false"), "{stdout}");
     assert!(stdout.contains("\"impact\""), "{stdout}");
     assert!(stdout.contains("\"depth\": 1"), "{stdout}");
     assert!(stdout.contains("\"impact_coverage\""), "{stdout}");

@@ -32,6 +32,7 @@ pub struct ChangedSymbol {
     pub evidence: EvidenceCoverage,
     pub evidence_delta: Option<EvidenceDelta>,
     pub evidence_drift: Option<EvidenceDrift>,
+    pub property_coverage: Vec<PropertyCoverageHint>,
     pub evidence_weakening: Vec<EvidenceWeakening>,
     pub implementation_change: Option<ImplementationChange>,
     pub implementation_evidence: Option<ImplementationEvidenceCoverage>,
@@ -130,6 +131,17 @@ pub struct ImpactEvidenceCoverage {
     pub covered: bool,
     pub coverage: Vec<CallSite>,
     pub reason: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PropertyCoverageHint {
+    pub property_index: usize,
+    pub expression: String,
+    pub variables: Vec<String>,
+    pub sample_count: usize,
+    pub direct_call: bool,
+    pub vacuous: bool,
+    pub unsupported_types: Vec<String>,
 }
 
 pub fn plan_paths(paths: &[String]) -> ChangePlan {
@@ -778,6 +790,7 @@ fn changed_symbol(
         examples: evidence.examples as isize - baseline.examples as isize,
         properties: evidence.properties as isize - baseline.properties as isize,
     });
+    let property_coverage = property_coverage_hints(function, program);
     let evidence_weakening = baseline_function
         .map(|baseline_function| evidence_weakening(baseline_function, function))
         .unwrap_or_default();
@@ -908,6 +921,7 @@ fn changed_symbol(
         evidence,
         evidence_delta,
         evidence_drift,
+        property_coverage,
         evidence_weakening,
         implementation_change,
         implementation_evidence,
@@ -1657,6 +1671,54 @@ fn property_block_from_text(property: &str) -> Option<PlanPropertyBlock> {
         variables,
         expression,
     })
+}
+
+fn property_coverage_hints(
+    function: &Function,
+    program: &crate::model::Program,
+) -> Vec<PropertyCoverageHint> {
+    normalized_properties(&function.properties)
+        .into_iter()
+        .enumerate()
+        .filter_map(|(index, property)| {
+            let block = property_block_from_text(&property)?;
+            let variables = block
+                .variables
+                .iter()
+                .map(|(name, type_name)| format!("{name}: {type_name}"))
+                .collect::<Vec<_>>();
+            let mut unsupported_types = block
+                .variables
+                .iter()
+                .filter(|(_, type_name)| samples_for_type(type_name).is_none())
+                .map(|(_, type_name)| type_name.clone())
+                .collect::<Vec<_>>();
+            unsupported_types.sort();
+            unsupported_types.dedup();
+            let sample_count = if unsupported_types.is_empty() {
+                block
+                    .variables
+                    .iter()
+                    .filter_map(|(_, type_name)| samples_for_type(type_name))
+                    .map(|samples| samples.len())
+                    .try_fold(1usize, |count, len| count.checked_mul(len))
+                    .unwrap_or(usize::MAX)
+            } else {
+                0
+            };
+            let direct_call =
+                expression_calls_symbol(&block.expression, &function.symbol(), program);
+            Some(PropertyCoverageHint {
+                property_index: index + 1,
+                expression: block.expression,
+                variables,
+                sample_count,
+                direct_call,
+                vacuous: block.variables.is_empty(),
+                unsupported_types,
+            })
+        })
+        .collect()
 }
 
 fn property_fails_against_program(

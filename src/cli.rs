@@ -15,9 +15,9 @@ use crate::patch::{
 use crate::plan::{
     CapabilityAnalysis, CapabilityChange, ChangePlan, EvidenceCoverage, EvidenceDelta,
     EvidenceDrift, EvidenceWeakening, ImpactEvidenceCoverage, ImplementationChange,
-    ImplementationEvidenceCoverage, PublicBehaviorChange, SemanticChange, plan_paths,
-    unattended_capability_expansion_diagnostics, unattended_evidence_weakening_diagnostics,
-    unattended_implementation_change_diagnostics,
+    ImplementationEvidenceCoverage, PropertyCoverageHint, PublicBehaviorChange, SemanticChange,
+    plan_paths, unattended_capability_expansion_diagnostics,
+    unattended_evidence_weakening_diagnostics, unattended_implementation_change_diagnostics,
     unattended_implementation_evidence_drift_diagnostics,
     unattended_public_behavior_change_diagnostics, unattended_unchecked_impact_diagnostics,
     unattended_uncovered_impact_evidence_diagnostics,
@@ -917,6 +917,24 @@ fn print_plan(plan: &ChangePlan) {
             symbol.evidence.examples,
             symbol.evidence.properties
         );
+        if !symbol.property_coverage.is_empty() {
+            println!("  sampled property coverage:");
+            for hint in &symbol.property_coverage {
+                let unsupported = if hint.unsupported_types.is_empty() {
+                    "none".to_string()
+                } else {
+                    hint.unsupported_types.join(", ")
+                };
+                println!(
+                    "    property {}: {} samples, direct_call={}, vacuous={}, unsupported_types={}",
+                    hint.property_index,
+                    hint.sample_count,
+                    hint.direct_call,
+                    hint.vacuous,
+                    unsupported
+                );
+            }
+        }
         if let Some(delta) = &symbol.evidence_delta {
             println!(
                 "  evidence delta from HEAD: {} requires, {} ensures, {} examples, {} properties",
@@ -1085,6 +1103,7 @@ fn changed_symbols_json(plan: &ChangePlan) -> String {
                     "      \"evidence\": {{\"ensures\": {}, \"examples\": {}, \"properties\": {}, \"requires\": {}}},\n",
                     "      \"evidence_delta\": {},\n",
                     "      \"evidence_drift\": {},\n",
+                    "      \"property_coverage\": {},\n",
                     "      \"evidence_weakening\": {},\n",
                     "      \"function\": {},\n",
                     "      \"implementation_change\": {},\n",
@@ -1108,6 +1127,7 @@ fn changed_symbols_json(plan: &ChangePlan) -> String {
                 symbol.evidence.requires,
                 evidence_delta_option_json(symbol.evidence_delta.as_ref()),
                 evidence_drift_json(symbol.evidence_drift.as_ref()),
+                property_coverage_json(&symbol.property_coverage),
                 evidence_weakening_json(&symbol.evidence_weakening),
                 function_ref_json(&symbol.function),
                 implementation_change_json(symbol.implementation_change.as_ref()),
@@ -1275,6 +1295,39 @@ fn evidence_drift_json(drift: Option<&EvidenceDrift>) -> String {
     drift
         .map(|drift| format!("{{\"changed\": {}}}", string_array_json(&drift.changed)))
         .unwrap_or_else(|| "null".to_string())
+}
+
+fn property_coverage_json(hints: &[PropertyCoverageHint]) -> String {
+    if hints.is_empty() {
+        return "[]".to_string();
+    }
+    let rows = hints
+        .iter()
+        .map(|hint| {
+            format!(
+                concat!(
+                    "{{",
+                    "\"direct_call\": {}, ",
+                    "\"expression\": {}, ",
+                    "\"property_index\": {}, ",
+                    "\"sample_count\": {}, ",
+                    "\"unsupported_types\": {}, ",
+                    "\"vacuous\": {}, ",
+                    "\"variables\": {}",
+                    "}}"
+                ),
+                hint.direct_call,
+                json_string(&hint.expression),
+                hint.property_index,
+                hint.sample_count,
+                string_array_json(&hint.unsupported_types),
+                hint.vacuous,
+                string_array_json(&hint.variables)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("[{rows}]")
 }
 
 fn evidence_weakening_json(weakening: &[EvidenceWeakening]) -> String {
@@ -1660,7 +1713,7 @@ fn agent_json() -> String {
         (
             "plan",
             "serow plan [paths...] [--json]",
-            "Summarize changed public symbols, semantic change labels, direct-call capability analysis, advisory intent/implementation risks, migration acknowledgements, capability changes, implementation changes, implementation evidence coverage and HEAD-sensitivity, implementation/evidence drift, evidence coverage, HEAD evidence deltas, impact-edge coverage, and residual risk.",
+            "Summarize changed public symbols, semantic change labels, direct-call capability analysis, sampled-property coverage hints, advisory intent/implementation risks, migration acknowledgements, capability changes, implementation changes, implementation evidence coverage and HEAD-sensitivity, implementation/evidence drift, evidence coverage, HEAD evidence deltas, impact-edge coverage, and residual risk.",
         ),
         (
             "query callees",
@@ -1724,7 +1777,7 @@ fn agent_json() -> String {
             "  \"supported_bootstrap_types\": {},\n",
             "  \"verification_gates\": {},\n",
             "  \"diagnostic_json\": {{\"repairs\": \"legacy human-readable repair strings\", \"repair_actions\": \"machine-readable command actions when available\", \"intent_reuse\": \"PossibleDuplicate and NearDuplicateIntent include shared_terms, new_only_terms, and candidate_only_terms data\", \"property_replay\": \"PropertyFailed and PropertyEvaluationError include property_index, sample_index, sample_seed, bindings, and a replay command action\", \"property_shrinking\": \"PropertyFailed includes shrunk_sample_index, shrunk_sample_seed, and shrunk_bindings when a simpler failing sampled binding is found\"}},\n",
-            "  \"plan_json\": {{\"semantic_changes\": \"changed symbols include deterministic labels with acknowledgement state and details for public deltas\", \"intent_implementation_risks\": \"changed symbols include advisory lexical arithmetic intent/implementation mismatch risks\"}},\n",
+            "  \"plan_json\": {{\"semantic_changes\": \"changed symbols include deterministic labels with acknowledgement state and details for public deltas\", \"property_coverage\": \"changed symbols include sampled-property sample counts, direct-call flags, vacuous flags, and unsupported generator types\", \"intent_implementation_risks\": \"changed symbols include advisory lexical arithmetic intent/implementation mismatch risks\"}},\n",
             "  \"known_limits\": {}\n",
             "}}"
         ),
@@ -1782,6 +1835,7 @@ fn agent_json() -> String {
             "`serow certify --profile unattended` validates structured repair actions before accepting diagnostics.",
             "`serow plan` reports declared capability changes against HEAD for changed tracked public symbols.",
             "`serow plan` reports semantic change labels for changed symbols so agents can consume public deltas directly.",
+            "`serow plan` reports sampled-property coverage hints for changed symbols.",
             "`serow plan` reports advisory intent/implementation mismatch risks for obvious arithmetic operation conflicts.",
             "`serow plan` reports inferred direct-call capability requirements and suggested effect declarations for changed symbols.",
             "`serow plan` reports implementation changes against HEAD for changed tracked public symbols.",
@@ -1964,6 +2018,7 @@ fn print_agent_bootstrap() {
     println!("  serow patch set-version <path> <symbol-or-name> <version> [--json]");
     println!("  serow plan [paths...] [--json]");
     println!("    reports inferred direct-call capability requirements");
+    println!("    reports sampled-property coverage hints");
     println!("    reports advisory intent/implementation mismatch risks");
     println!("    reports declared capability changes against HEAD");
     println!("    reports same-symbol implementation changes against HEAD");

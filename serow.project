@@ -65,6 +65,7 @@
     "direct_calls_require_declared_callee_capabilities": true,
     "direct_call_unused_declared_capabilities_warned": true,
     "plan_reports_direct_call_capability_analysis": true,
+    "plan_reports_sampled_property_coverage_hints": true,
     "plan_reports_intent_implementation_risks": true,
     "plan_reports_semantic_change_labels": true,
     "typed_holes_allowed": true,

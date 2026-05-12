@@ -54,7 +54,7 @@ Date: 2026-05-12
   - `bin/serow plan [paths...] [--json]`
   - explicit paths are treated as the change set
   - without paths, Git status is used to discover changed `.serow` files
-  - reports changed public symbols, semantic change labels with acknowledgement state and details, inferred direct-call capability requirements and suggested effect declarations, advisory intent/implementation mismatch risks, public contract-surface changes against HEAD, declared capability changes against HEAD, normalized public implementation changes against HEAD, implementation evidence coverage for added examples/properties, whether added implementation evidence fails against the HEAD implementation, implementation/evidence drift rows, migration acknowledgements, evidence counts, HEAD evidence deltas when a tracked baseline is available, evidence-weakening rows, explicit-version state, transitive impact rows, impacted dependent call-edge coverage, checker diagnostics, and residual risks
+  - reports changed public symbols, semantic change labels with acknowledgement state and details, inferred direct-call capability requirements and suggested effect declarations, sampled-property coverage hints, advisory intent/implementation mismatch risks, public contract-surface changes against HEAD, declared capability changes against HEAD, normalized public implementation changes against HEAD, implementation evidence coverage for added examples/properties, whether added implementation evidence fails against the HEAD implementation, implementation/evidence drift rows, migration acknowledgements, evidence counts, HEAD evidence deltas when a tracked baseline is available, evidence-weakening rows, explicit-version state, transitive impact rows, impacted dependent call-edge coverage, checker diagnostics, and residual risks
 - Strict certification profile:
   - `bin/serow certify --profile unattended`
   - currently requires public functions to declare explicit source-level versions instead of relying on the bootstrap `v1` default
@@ -833,6 +833,25 @@ bin/serow plan --json
 bin/serow agent --json
 ```
 
+Additional verification after adding sampled-property coverage hints to change plans:
+
+```sh
+bin/serow query intent "report lightweight coverage hints for sampled executable properties" --json
+bin/serow query symbol coverage --json
+cargo fmt
+cargo test plan_json_reports_changed_symbols_and_impact -- --nocapture
+cargo fmt --check
+cargo clippy -- -D warnings
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan examples/math.serow --json
+bin/serow agent --json
+```
+
 `cargo test` includes integration coverage for `bin/serow patch add-function`.
 
 `bin/serow check --json` currently reports:
@@ -864,7 +883,7 @@ bin/serow agent --json
 - The hand-written JSON output should eventually be replaced with `serde_json` once external dependencies are allowed/desired.
 - Structured repair actions currently cover only command-style fixes already exposed by the bootstrap CLI.
 - `query callees` and `query dependents` report direct resolved call edges; use `query impact` for direct and transitive dependent paths. Ambiguous bare calls are intentionally skipped by ledger queries because they are checker errors.
-- `serow plan` is an early reporting primitive; it treats explicit path arguments as the selected change set, reports semantic change labels plus inferred direct-call capability requirements, suggested effect declarations, and advisory lexical arithmetic intent/implementation mismatch risks for changed symbols, and compares public contract-surface, declared capabilities, normalized implementation text, and evidence sections against `HEAD` when a tracked baseline is available. It reports whether added examples/properties directly call changed implementations, whether that added evidence would fail against the `HEAD` implementation, and whether impacted dependent call edges are covered by executable examples or sampled properties, but it does not yet compare full implementation AST behavior.
+- `serow plan` is an early reporting primitive; it treats explicit path arguments as the selected change set, reports semantic change labels plus inferred direct-call capability requirements, suggested effect declarations, sampled-property coverage hints, and advisory lexical arithmetic intent/implementation mismatch risks for changed symbols, and compares public contract-surface, declared capabilities, normalized implementation text, and evidence sections against `HEAD` when a tracked baseline is available. It reports whether added examples/properties directly call changed implementations, whether that added evidence would fail against the `HEAD` implementation, and whether impacted dependent call edges are covered by executable examples or sampled properties, but it does not yet compare full implementation AST behavior.
 - Normal certification still accepts omitted symbol versions for compatibility; `certify --profile unattended` requires explicit public versions, rejects same-version public contract-surface changes, rejects capability expansion without a migration acknowledgement, rejects same-version implementation changes without added executable evidence, rejects added implementation evidence that does not call the changed function, rejects added implementation evidence that also passes against the `HEAD` implementation, rejects evidence weakening against `HEAD`, rejects unchecked transitive impact, rejects uncovered impacted call edges unless an explicit migration acknowledgement records the intentional decision, and validates structured repair action commands before accepting diagnostics. Normal certification also rejects warnings such as duplicate, vacuous, or shallow low-signal evidence and unused direct-call capabilities. It does not yet enforce the rest of the unattended safety roadmap.
 
 ## Current Strategic Direction
