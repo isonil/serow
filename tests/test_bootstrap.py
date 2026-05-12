@@ -42,6 +42,44 @@ pub fn add(x: Int, y: Int) -> Int
             codes = [diagnostic.code for diagnostic in summary.diagnostics]
             self.assertIn("ExampleFailed", codes)
 
+    def test_typed_hole_reports_structured_obligations(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "hole.serow"
+            source.write_text(
+                """module test.hole
+
+pub fn bump(x: Int) -> Int
+  intent "Return one more than x."
+  version v1
+  contract
+    requires x >= 0
+    ensures result == x + 1
+  examples
+    bump(1) == 2
+  properties
+    forall x: Int:
+      bump(x) == x + 1
+  effects pure
+  impl
+    HOLE(Int)
+""",
+                encoding="utf-8",
+            )
+            program, parse_diagnostics = parse_files([str(source)])
+            summary = check_program(program, parse_diagnostics)
+            diagnostic = next(
+                diagnostic
+                for diagnostic in summary.diagnostics
+                if diagnostic.code == "TypedHole"
+            )
+            self.assertEqual(diagnostic.data.get("symbol"), "@test.hole.bump.v1")
+            self.assertEqual(diagnostic.data.get("expected_type"), "Int")
+            obligations = diagnostic.data.get("obligations", "")
+            self.assertIn("requires 1: x >= 0", obligations)
+            self.assertIn("ensures 1: result == x + 1", obligations)
+            self.assertIn("example 1: bump(1) == 2", obligations)
+            self.assertIn("property 1: forall x: Int: bump(x) == x + 1", obligations)
+
     def test_intent_query_finds_add(self):
         program, parse_diagnostics = parse_files(["examples"])
         self.assertFalse(parse_diagnostics)

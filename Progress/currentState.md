@@ -15,7 +15,7 @@ Date: 2026-05-12
   - module dependency declarations against `serow.project` architecture policy
   - missing public sections
   - duplicate symbols
-  - typed holes in implementations
+  - typed holes in implementations with structured obligations derived from signatures, contracts, examples, and sampled properties
   - static expression type checking for implementations, contracts, examples, and properties
   - function call arity and argument-type validation in the bootstrap expression subset
   - executable examples

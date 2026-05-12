@@ -1872,7 +1872,7 @@ fn agent_json() -> String {
             "  \"public_function_requirements\": {},\n",
             "  \"supported_bootstrap_types\": {},\n",
             "  \"verification_gates\": {},\n",
-            "  \"diagnostic_json\": {{\"repairs\": \"legacy human-readable repair strings\", \"repair_actions\": \"machine-readable command actions when available\", \"intent_reuse\": \"PossibleDuplicate and NearDuplicateIntent include shared_terms, new_only_terms, and candidate_only_terms data\", \"duplicate_evidence\": \"Duplicate evidence diagnostics include indexed remove-evidence patch command actions\", \"property_replay\": \"PropertyFailed and PropertyEvaluationError include property_index, sample_index, sample_seed, bindings, and a replay command action\", \"property_shrinking\": \"PropertyFailed includes shrunk_sample_index, shrunk_sample_seed, and shrunk_bindings when a simpler failing sampled binding is found\"}},\n",
+            "  \"diagnostic_json\": {{\"repairs\": \"legacy human-readable repair strings\", \"repair_actions\": \"machine-readable command actions when available\", \"typed_holes\": \"TypedHole diagnostics include symbol, signature, hole_type, expected_type, and obligations data\", \"intent_reuse\": \"PossibleDuplicate and NearDuplicateIntent include shared_terms, new_only_terms, and candidate_only_terms data\", \"duplicate_evidence\": \"Duplicate evidence diagnostics include indexed remove-evidence patch command actions\", \"property_replay\": \"PropertyFailed and PropertyEvaluationError include property_index, sample_index, sample_seed, bindings, and a replay command action\", \"property_shrinking\": \"PropertyFailed includes shrunk_sample_index, shrunk_sample_seed, and shrunk_bindings when a simpler failing sampled binding is found\"}},\n",
             "  \"plan_json\": {{\"semantic_changes\": \"changed symbols include deterministic labels with acknowledgement state and details for public deltas\", \"property_coverage\": \"changed symbols include sampled-property sample counts, direct-call flags, vacuous flags, and unsupported generator types\", \"intent_implementation_risks\": \"changed symbols include advisory lexical arithmetic intent/implementation mismatch risks\"}},\n",
             "  \"known_limits\": {}\n",
             "}}"
@@ -2154,6 +2154,7 @@ fn print_agent_bootstrap() {
     println!(
         "  failing sampled properties report sample_seed, bindings, optional shrunk bindings, and a replay command action"
     );
+    println!("  typed holes report symbol, expected type, and implementation obligations");
     println!(
         "  built-in property samples cover boundary and representative Int, Bool, and Text values"
     );

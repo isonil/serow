@@ -66,6 +66,76 @@ pub fn add(x: Int, y: Int) -> Int
 }
 
 #[test]
+fn typed_hole_reports_structured_obligations() {
+    let dir = unique_temp_dir("serow-typed-hole-obligations");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("hole.serow");
+    fs::write(
+        &source,
+        r#"module test.hole
+
+pub fn bump(x: Int) -> Int
+  intent "Return one more than x."
+  version v1
+  contract
+    requires x >= 0
+    ensures result == x + 1
+  examples
+    bump(1) == 2
+  properties
+    forall x: Int:
+      bump(x) == x + 1
+  effects pure
+  impl
+    HOLE(Int)
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    let diagnostic = summary
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "TypedHole")
+        .expect("typed hole diagnostic");
+    assert!(
+        diagnostic
+            .data
+            .iter()
+            .any(|(key, value)| key == "symbol" && value == "@test.hole.bump.v1"),
+        "{diagnostic:#?}"
+    );
+    assert!(
+        diagnostic
+            .data
+            .iter()
+            .any(|(key, value)| key == "expected_type" && value == "Int"),
+        "{diagnostic:#?}"
+    );
+    let obligations = diagnostic
+        .data
+        .iter()
+        .find(|(key, _)| key == "obligations")
+        .map(|(_, value)| value.as_str())
+        .expect("typed hole obligations");
+    assert!(obligations.contains("requires 1: x >= 0"), "{obligations}");
+    assert!(
+        obligations.contains("ensures 1: result == x + 1"),
+        "{obligations}"
+    );
+    assert!(
+        obligations.contains("example 1: bump(1) == 2"),
+        "{obligations}"
+    );
+    assert!(
+        obligations.contains("property 1: forall x: Int: bump(x) == x + 1"),
+        "{obligations}"
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn requires_clause_is_enforced_for_examples() {
     let dir = unique_temp_dir("serow-requires");
     fs::create_dir_all(&dir).expect("create temp dir");

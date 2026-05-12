@@ -531,26 +531,36 @@ fn normalize_intent(intent: &str) -> String {
 }
 
 fn check_function_shape(function: &Function, summary: &mut CheckSummary) {
-    if function
+    if let Some(implementation) = function
         .implementation
         .as_deref()
-        .is_some_and(|implementation| implementation.contains("HOLE("))
+        .filter(|implementation| implementation.contains("HOLE("))
     {
         summary.holes += 1;
-        let severity = if function.public {
-            Severity::Error
+        let hole_type = typed_hole_type(implementation).unwrap_or_else(|| "unknown".to_string());
+        let obligations = typed_hole_obligations(function);
+        let mut diagnostic = if function.public {
+            Diagnostic::error(
+                "TypedHole",
+                "Implementation contains a typed hole.",
+                Some(function.target()),
+            )
         } else {
-            Severity::Warning
+            Diagnostic::warning(
+                "TypedHole",
+                "Implementation contains a typed hole.",
+                Some(function.target()),
+            )
         };
-        summary.diagnostics.push(Diagnostic {
-            severity,
-            code: "TypedHole".to_string(),
-            message: "Implementation contains a typed hole.".to_string(),
-            target: Some(function.target()),
-            data: Vec::new(),
-            repairs: vec!["Fill the hole or keep the function out of certification.".to_string()],
-            repair_actions: Vec::new(),
-        });
+        diagnostic = diagnostic
+            .with_data("symbol", function.symbol())
+            .with_data("signature", function.signature())
+            .with_data("hole_type", hole_type)
+            .with_data("expected_type", function.return_type.clone())
+            .with_data("obligation_count", obligations.len().to_string())
+            .with_data("obligations", obligations.join("; "))
+            .with_repair("Fill the hole or keep the function out of certification.");
+        summary.diagnostics.push(diagnostic);
     }
 
     if function.public {
@@ -612,6 +622,40 @@ fn check_function_shape(function: &Function, summary: &mut CheckSummary) {
             Some(function.target()),
         ));
     }
+}
+
+fn typed_hole_type(implementation: &str) -> Option<String> {
+    let start = implementation.find("HOLE(")? + "HOLE(".len();
+    let end = implementation[start..].find(')')? + start;
+    let type_name = implementation[start..end].trim();
+    (!type_name.is_empty()).then(|| type_name.to_string())
+}
+
+fn typed_hole_obligations(function: &Function) -> Vec<String> {
+    let mut obligations = Vec::new();
+    obligations.push(format!("return {}", function.return_type));
+    for (index, requirement) in function.requires.iter().enumerate() {
+        obligations.push(format!("requires {}: {}", index + 1, requirement));
+    }
+    for (index, contract) in function.contracts.iter().enumerate() {
+        obligations.push(format!("ensures {}: {}", index + 1, contract));
+    }
+    for (index, example) in function.examples.iter().enumerate() {
+        obligations.push(format!("example {}: {}", index + 1, example));
+    }
+    for property in property_blocks(&function.properties) {
+        let variables = property
+            .variables
+            .iter()
+            .map(|(name, type_name)| format!("{name}: {type_name}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        obligations.push(format!(
+            "property {}: forall {}: {}",
+            property.index, variables, property.expression
+        ));
+    }
+    obligations
 }
 
 fn check_repeated_evidence(function: &Function, summary: &mut CheckSummary) {

@@ -291,4 +291,7 @@
 - The signature patch replaces a function's argument list and return type while rejecting invalid signatures and signatures whose name differs from the target function, leaving renames to `patch rename-function`.
 - Updated command discovery docs, `serow.project`, README, and Progress notes to advertise structured signature replacement.
 - Added Rust integration coverage proving `patch set-signature` rewrites the canonical function header and rejects accidental renames.
+- Added structured implementation-obligation data to `TypedHole` diagnostics in the Rust checker and Python reference checker.
+- Hole diagnostics now report the public symbol, signature, hole type, expected return type, and obligations derived from return type, preconditions, postconditions, examples, and sampled properties.
+- Added Rust and Python regression coverage proving typed-hole diagnostics expose those obligations.
 - Verified with `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`, `python3 -m unittest discover -s tests`, `bin/serow fmt --check --json`, `bin/serow check --json`, `bin/serow certify --json`, `bin/serow certify --profile unattended --json`, `bin/serow plan --json`, and `bin/serow agent --json`.

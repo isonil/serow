@@ -155,6 +155,8 @@ This is a deliberately weak early version of certification. Later phases should 
 
 JSON diagnostics include stable core fields such as `severity`, `code`, `message`, optional `target`, and optional `data`. Diagnostics can also include legacy human-readable `repairs` strings and machine-readable `repair_actions`. The first repair action kind is `command`, encoded with a human label and an argv-style `command` array so agents can run known CLI repairs without parsing prose. Current command actions cover canonical formatting, missing `use` declarations, duplicate-intent ledger lookup, duplicate evidence removal, explicit-version fixes for unattended certification, effect capability declaration repairs, and sampled-property replay.
 
+`TypedHole` diagnostics include structured `data` for the target symbol, signature, hole type, expected return type, and implementation obligations derived from the function's return type, `requires`, `ensures`, examples, and sampled `forall` properties. These obligations are hints for filling the hole; the checker still validates the resulting implementation through the normal static and executable evidence gates.
+
 ## Structured Patches
 
 `bin/serow patch add-use <path> <module> <dependency> [--json]` adds a top-level `use <dependency>` declaration to an existing module in one source file. The patch command parses the source, edits the AST-level module dependency list, and rewrites the file through the canonical formatter. It is intentionally narrow: parse errors stop the patch, unknown module targets are rejected, and existing dependencies are left unchanged.

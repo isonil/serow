@@ -2,7 +2,7 @@ import itertools
 import json
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from .diagnostics import Diagnostic
 from .evaluator import EvaluationError, Evaluator, resolve_function
@@ -213,12 +213,21 @@ def _normalize_intent(intent: str) -> str:
 def _check_function_shape(function: Function, summary: CheckSummary) -> None:
     if function.impl and HOLE_RE.search(function.impl):
         summary.holes += 1
+        obligations = _typed_hole_obligations(function)
         summary.diagnostics.append(
             Diagnostic(
                 severity="error" if function.public else "warning",
                 code="TypedHole",
                 message="Implementation contains a typed hole.",
                 target=function.target,
+                data={
+                    "symbol": function.symbol,
+                    "signature": function.signature,
+                    "hole_type": _typed_hole_type(function.impl) or "unknown",
+                    "expected_type": function.return_type,
+                    "obligation_count": str(len(obligations)),
+                    "obligations": "; ".join(obligations),
+                },
                 repairs=["Fill the hole or keep the function out of certification."],
             )
         )
@@ -267,7 +276,33 @@ def _check_function_shape(function: Function, summary: CheckSummary) -> None:
                 message=f"Return type `{function.return_type}` is not executable in the bootstrap checker.",
                 target=function.target,
             )
-            )
+        )
+
+
+def _typed_hole_type(implementation: str) -> Optional[str]:
+    start = implementation.find("HOLE(")
+    if start < 0:
+        return None
+    start += len("HOLE(")
+    end = implementation.find(")", start)
+    if end < 0:
+        return None
+    type_name = implementation[start:end].strip()
+    return type_name or None
+
+
+def _typed_hole_obligations(function: Function) -> List[str]:
+    obligations = [f"return {function.return_type}"]
+    for index, requirement in enumerate(function.requires, start=1):
+        obligations.append(f"requires {index}: {requirement}")
+    for index, contract in enumerate(function.contracts, start=1):
+        obligations.append(f"ensures {index}: {contract}")
+    for index, example in enumerate(function.examples, start=1):
+        obligations.append(f"example {index}: {example}")
+    for property_index, variables, expression in _property_blocks(function.properties):
+        variables_text = ", ".join(f"{name}: {type_name}" for name, type_name in variables)
+        obligations.append(f"property {property_index}: forall {variables_text}: {expression}")
+    return obligations
 
 
 def _check_repeated_evidence(function: Function, summary: CheckSummary) -> None:
