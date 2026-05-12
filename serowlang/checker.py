@@ -673,6 +673,18 @@ def _check_property(function: Function, block: Tuple[int, List[Tuple[str, str]],
             )
             return
         if ok is not True:
+            shrunk = _find_shrunk_property_failure(
+                function,
+                property_index,
+                variables,
+                expression,
+                evaluator,
+                samples,
+                list(values),
+                sample_index,
+            )
+            if shrunk:
+                sample_data.update(shrunk)
             summary.diagnostics.append(
                 Diagnostic(
                     severity="error",
@@ -684,6 +696,66 @@ def _check_property(function: Function, block: Tuple[int, List[Tuple[str, str]],
                 )
             )
             return
+
+
+def _find_shrunk_property_failure(
+    function: Function,
+    property_index: int,
+    variables: List[Tuple[str, str]],
+    expression: str,
+    evaluator: Evaluator,
+    samples,
+    original_values: List[Any],
+    original_sample_index: int,
+) -> Dict[str, str]:
+    original_complexity = _sample_complexity(original_values)
+    best = None
+    for candidate_index, candidate_values in enumerate(itertools.product(*samples), start=1):
+        if candidate_index == original_sample_index:
+            continue
+        candidate_values = list(candidate_values)
+        complexity = _sample_complexity(candidate_values)
+        if complexity > original_complexity:
+            continue
+        bindings = {name: value for (name, _), value in zip(variables, candidate_values)}
+        try:
+            ok = evaluator.eval(expression, bindings)
+        except EvaluationError:
+            continue
+        if ok is True:
+            continue
+        if best is None or (complexity, candidate_index) < (best[0], best[1]):
+            best = (
+                complexity,
+                candidate_index,
+                _format_sample_bindings(variables, bindings),
+            )
+    if best is None:
+        return {}
+    complexity, sample_index, bindings_text = best
+    if complexity > original_complexity or (
+        complexity == original_complexity and sample_index >= original_sample_index
+    ):
+        return {}
+    return {
+        "shrunk_sample_index": str(sample_index),
+        "shrunk_sample_seed": _property_sample_seed(function, property_index, sample_index),
+        "shrunk_bindings": bindings_text,
+    }
+
+
+def _sample_complexity(values: List[Any]) -> int:
+    return sum(_value_complexity(value) for value in values)
+
+
+def _value_complexity(value: Any) -> int:
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return abs(value)
+    if isinstance(value, str):
+        return len(value)
+    return 0
 
 
 def _property_blocks(lines: List[str]) -> List[Tuple[int, List[Tuple[str, str]], str]]:

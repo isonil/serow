@@ -28,6 +28,7 @@ Date: 2026-05-12
   - ambiguous bare-call diagnostics with qualified-reference repair guidance
   - sampled `forall` properties over deterministic `Int`, `Bool`, and `Text` sample sets
   - deterministic sampled-property failure replay data with property indexes, sample indexes, seed strings, sampled bindings, and single-sample replay repair actions
+  - deterministic sampled-property shrink data for failing properties when a simpler failing binding exists in the built-in samples
   - single-sample property replay via `bin/serow replay property <sample-seed> [paths...] [--json]`
   - inferred cross-module dependencies from function calls in implementations, contracts, examples, and properties
   - conservative structured effect capability validation: direct callers must declare every concrete non-`pure` capability required by resolved callees, and resolved direct-call wrappers warn on concrete capabilities not required by non-self callees
@@ -792,6 +793,26 @@ bin/serow plan --json
 bin/serow agent --json
 ```
 
+Additional verification after adding sampled property shrinking metadata:
+
+```sh
+bin/serow query intent "shrink failing sampled property counterexamples" --json
+bin/serow query symbol shrink --json
+cargo fmt --check
+cargo clippy -- -D warnings
+cargo test sampled_property_failure_reports_replay_data -- --nocapture
+cargo test expanded_int_property_samples_find_larger_counterexample -- --nocapture
+cargo test
+python3 -m unittest tests.test_bootstrap.BootstrapTests.test_sampled_property_failure_reports_replay_data tests.test_bootstrap.BootstrapTests.test_expanded_int_property_samples_find_larger_counterexample
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+bin/serow agent --json
+```
+
 `cargo test` includes integration coverage for `bin/serow patch add-function`.
 
 `bin/serow check --json` currently reports:
@@ -815,7 +836,7 @@ bin/serow agent --json
 - Intent duplicate errors are exact after simple normalization; near-duplicate warnings and intent search use deterministic token ranking with stopwords and light token normalization. Duplicate and near-duplicate diagnostics expose token overlap/differences, but they are not semantic similarity yet.
 - Type checking covers the current expression subset but does not yet model user-defined data types, generics, or effect polymorphism.
 - Expression support is intentionally small: literals, variables, direct or qualified calls, arithmetic, comparisons, booleans, and one-line `if ... then ... else ...`.
-- Properties are sampled, not proven; built-in samples are fixed small sets for `Int`, `Bool`, and `Text`. Failing sampled properties report replay data and can be rerun one sample at a time with `bin/serow replay property`.
+- Properties are sampled, not proven; built-in samples are fixed small sets for `Int`, `Bool`, and `Text`. Failing sampled properties report replay data, include simpler shrunk failing bindings when available, and can be rerun one sample at a time with `bin/serow replay property`.
 - Effects checking is intentionally conservative direct-call capability subset validation; it warns on unused declared capabilities only when resolved non-self direct callees establish a required capability set, and it does not yet model effect polymorphism or external effect primitives.
 - Structured patch coverage is intentionally narrow: module `use` insertion, public function skeleton insertion, public function rename with in-file resolved call rewrites, evidence insertion, migration acknowledgement insertion, indexed contract/example/property replacement, intent replacement, effect declaration replacement, implementation expression replacement, version declaration and pinned-call-aware version bumps, and typed-hole filling are implemented.
 - Evidence patching can append or replace individual contract/example/property items, but dependent impact and evidence policy are still enforced by `serow plan` and unattended certification rather than by the patch command itself.

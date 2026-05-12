@@ -5,7 +5,9 @@ use crate::eval::{Evaluator, Value, called_functions, resolve_function};
 use crate::ledger::{intent_terms, query_intent};
 use crate::model::{Function, Program};
 use crate::project::load_architecture;
-use crate::sampling::{cartesian_product, format_sample_bindings, samples_for_type};
+use crate::sampling::{
+    cartesian_product, format_sample_bindings, sample_complexity, samples_for_type,
+};
 use crate::typecheck::infer_expression_type;
 
 const REQUIRED_PUBLIC_SECTIONS: &[&str] = &[
@@ -1213,6 +1215,7 @@ fn check_property(
     let sample_sets = samples.into_iter().flatten().collect::<Vec<_>>();
     let combinations = cartesian_product(&sample_sets);
     for (sample_offset, values) in combinations.into_iter().enumerate() {
+        let sample_values = values.clone();
         let bindings = property
             .variables
             .iter()
@@ -1233,20 +1236,36 @@ fn check_property(
                     sample_seed.clone(),
                     function.source_path.clone(),
                 ];
+                let mut diagnostic = Diagnostic::error(
+                    "PropertyFailed",
+                    "Sampled property evaluated to false.",
+                    Some(function.target()),
+                )
+                .with_data("property", property.expression.clone())
+                .with_data("property_index", property.index.to_string())
+                .with_data("sample_index", sample_index.to_string())
+                .with_data("sample_seed", sample_seed)
+                .with_data("bindings", bindings_text)
+                .with_data("actual", actual.to_string());
+                if let Some(shrunk) = find_shrunk_property_failure(
+                    &property,
+                    program,
+                    &sample_sets,
+                    &sample_values,
+                    sample_index,
+                ) {
+                    diagnostic = diagnostic
+                        .with_data("shrunk_sample_index", shrunk.sample_index.to_string())
+                        .with_data(
+                            "shrunk_sample_seed",
+                            property_sample_seed(function, &property, shrunk.sample_index),
+                        )
+                        .with_data("shrunk_bindings", shrunk.bindings);
+                }
                 summary.diagnostics.push(
-                    Diagnostic::error(
-                        "PropertyFailed",
-                        "Sampled property evaluated to false.",
-                        Some(function.target()),
-                    )
-                    .with_data("property", property.expression)
-                    .with_data("property_index", property.index.to_string())
-                    .with_data("sample_index", sample_index.to_string())
-                    .with_data("sample_seed", sample_seed)
-                    .with_data("bindings", bindings_text)
-                    .with_data("actual", actual.to_string())
-                    .with_command_repair("Replay this property sample", replay_command)
-                    .with_repair("Fix implementation or narrow the property."),
+                    diagnostic
+                        .with_command_repair("Replay this property sample", replay_command)
+                        .with_repair("Fix implementation or narrow the property."),
                 );
                 return;
             }
@@ -1271,6 +1290,66 @@ fn check_property(
             }
         }
     }
+}
+
+#[derive(Clone, Debug)]
+struct ShrunkPropertyFailure {
+    sample_index: usize,
+    bindings: String,
+}
+
+fn find_shrunk_property_failure(
+    property: &PropertyBlock,
+    program: &Program,
+    sample_sets: &[Vec<Value>],
+    original_values: &[Value],
+    original_sample_index: usize,
+) -> Option<ShrunkPropertyFailure> {
+    let original_complexity = sample_complexity(original_values);
+    let mut best: Option<(usize, usize, String)> = None;
+    for (sample_offset, values) in cartesian_product(sample_sets).into_iter().enumerate() {
+        let sample_index = sample_offset + 1;
+        if sample_index == original_sample_index {
+            continue;
+        }
+        let complexity = sample_complexity(&values);
+        if complexity > original_complexity {
+            continue;
+        }
+        let bindings = property
+            .variables
+            .iter()
+            .zip(values.iter().cloned())
+            .map(|((name, _), value)| (name.clone(), value))
+            .collect::<HashMap<_, _>>();
+        let mut evaluator = Evaluator::new(&program.functions);
+        match evaluator.eval(&property.expression, &bindings) {
+            Ok(Value::Bool(true)) | Err(_) => continue,
+            Ok(_) => {}
+        }
+        let is_better = match best.as_ref() {
+            Some((best_complexity, best_index, _)) => {
+                complexity < *best_complexity
+                    || (complexity == *best_complexity && sample_index < *best_index)
+            }
+            None => true,
+        };
+        if is_better {
+            best = Some((
+                complexity,
+                sample_index,
+                format_sample_bindings(&property.variables, &bindings),
+            ));
+        }
+    }
+    best.and_then(|(complexity, sample_index, bindings)| {
+        (complexity < original_complexity
+            || (complexity == original_complexity && sample_index < original_sample_index))
+            .then_some(ShrunkPropertyFailure {
+                sample_index,
+                bindings,
+            })
+    })
 }
 
 #[derive(Clone, Debug)]

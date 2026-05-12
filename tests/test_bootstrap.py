@@ -431,6 +431,12 @@ pub fn id(x: Int) -> Int
                 "@test.property.id.v1#property:1#sample:1",
             )
             self.assertEqual(diagnostic.data.get("bindings"), "x=-2")
+            self.assertEqual(diagnostic.data.get("shrunk_sample_index"), "3")
+            self.assertEqual(
+                diagnostic.data.get("shrunk_sample_seed"),
+                "@test.property.id.v1#property:1#sample:3",
+            )
+            self.assertEqual(diagnostic.data.get("shrunk_bindings"), "x=0")
 
     def test_expanded_int_property_samples_find_larger_counterexample(self):
         with tempfile.TemporaryDirectory() as directory:

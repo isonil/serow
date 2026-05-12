@@ -77,3 +77,15 @@ pub(crate) fn format_sample_bindings(
         .collect::<Vec<_>>()
         .join(", ")
 }
+
+pub(crate) fn sample_complexity(values: &[Value]) -> usize {
+    values.iter().map(value_complexity).sum()
+}
+
+fn value_complexity(value: &Value) -> usize {
+    match value {
+        Value::Int(value) => value.unsigned_abs() as usize,
+        Value::Bool(value) => usize::from(*value),
+        Value::Text(value) => value.chars().count(),
+    }
+}

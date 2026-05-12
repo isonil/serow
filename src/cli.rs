@@ -1718,7 +1718,7 @@ fn agent_json() -> String {
             "  \"public_function_requirements\": {},\n",
             "  \"supported_bootstrap_types\": {},\n",
             "  \"verification_gates\": {},\n",
-            "  \"diagnostic_json\": {{\"repairs\": \"legacy human-readable repair strings\", \"repair_actions\": \"machine-readable command actions when available\", \"intent_reuse\": \"PossibleDuplicate and NearDuplicateIntent include shared_terms, new_only_terms, and candidate_only_terms data\", \"property_replay\": \"PropertyFailed and PropertyEvaluationError include property_index, sample_index, sample_seed, bindings, and a replay command action\"}},\n",
+            "  \"diagnostic_json\": {{\"repairs\": \"legacy human-readable repair strings\", \"repair_actions\": \"machine-readable command actions when available\", \"intent_reuse\": \"PossibleDuplicate and NearDuplicateIntent include shared_terms, new_only_terms, and candidate_only_terms data\", \"property_replay\": \"PropertyFailed and PropertyEvaluationError include property_index, sample_index, sample_seed, bindings, and a replay command action\", \"property_shrinking\": \"PropertyFailed includes shrunk_sample_index, shrunk_sample_seed, and shrunk_bindings when a simpler failing sampled binding is found\"}},\n",
             "  \"plan_json\": {{\"semantic_changes\": \"changed symbols include deterministic labels with acknowledgement state and details for public deltas\"}},\n",
             "  \"known_limits\": {}\n",
             "}}"
@@ -1753,7 +1753,7 @@ fn agent_json() -> String {
         ]),
         str_array_json(&[
             "No full compiler or generated backend exists yet.",
-            "Properties are sampled, not proven; built-in samples cover boundary and representative Int, Bool, and Text values, and failing sampled properties report deterministic replay data that can be replayed with `serow replay property`.",
+            "Properties are sampled, not proven; built-in samples cover boundary and representative Int, Bool, and Text values, and failing sampled properties report deterministic replay data that can be replayed with `serow replay property`; PropertyFailed diagnostics also include a simpler shrunk sampled binding when one is found.",
             "Migration acknowledgements are source-level notes; they do not prove behavioral compatibility.",
             "Exact duplicate public intents are errors; high-overlap token-ranked intent matches are warnings.",
             "`bin/serow check` warns on duplicate examples, contract clauses, sampled property blocks, sampled properties with no bound variables, and sampled properties that do not call the function under test.",
@@ -1988,7 +1988,7 @@ fn print_agent_bootstrap() {
         "  duplicate evidence, vacuous forall blocks, and shallow properties are low-signal evidence warnings"
     );
     println!(
-        "  failing sampled properties report sample_seed, bindings, and a replay command action"
+        "  failing sampled properties report sample_seed, bindings, optional shrunk bindings, and a replay command action"
     );
     println!(
         "  built-in property samples cover boundary and representative Int, Bool, and Text values"

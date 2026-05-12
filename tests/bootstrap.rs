@@ -852,6 +852,26 @@ pub fn id(x: Int) -> Int
         "{diagnostic:#?}"
     );
     assert!(
+        diagnostic
+            .data
+            .iter()
+            .any(|(key, value)| key == "shrunk_sample_index" && value == "3"),
+        "{diagnostic:#?}"
+    );
+    assert!(
+        diagnostic.data.iter().any(|(key, value)| {
+            key == "shrunk_sample_seed" && value == "@test.property.id.v1#property:1#sample:3"
+        }),
+        "{diagnostic:#?}"
+    );
+    assert!(
+        diagnostic
+            .data
+            .iter()
+            .any(|(key, value)| key == "shrunk_bindings" && value == "x=0"),
+        "{diagnostic:#?}"
+    );
+    assert!(
         diagnostic.repair_actions.iter().any(|action| {
             action.command
                 == vec![
