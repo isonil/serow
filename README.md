@@ -60,6 +60,7 @@ bin/serow patch set-example examples/math.serow @core.math.add.v1 1 "add(2, 3) =
 bin/serow patch set-impl examples/math.serow @core.math.add.v1 "x + y"
 bin/serow patch set-intent examples/math.serow @core.math.add.v1 "Return the sum of x and y."
 bin/serow patch set-property examples/math.serow @core.math.add.v1 1 "forall x: Int, y: Int:" "add(x, y) == add(y, x)"
+bin/serow patch set-signature examples/math.serow @core.math.add.v1 "add(x: Int, y: Int) -> Int"
 bin/serow patch set-version examples/math.serow @core.math.add.v1 v1
 ```
 
@@ -72,6 +73,8 @@ bin/serow patch set-version examples/math.serow @core.math.add.v1 v1
 `patch set-contract` creates a missing contract clause, replaces a single existing `requires` or `ensures` clause, or replaces a specific clause when passed a 1-based index before the expression.
 
 `patch set-example` and `patch set-property` create missing executable evidence, replace a single existing item, or replace a specific item when passed a 1-based index.
+
+`patch set-signature` replaces a function's argument list and return type while keeping the public name unchanged. Use `patch rename-function` for renames. Public signature changes remain public contract-surface changes that `serow plan` and unattended certification gate.
 
 `patch remove-contract`, `patch remove-example`, and `patch remove-property` remove one indexed evidence item. Duplicate-evidence diagnostics point at these commands for the repeated item.
 

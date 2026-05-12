@@ -86,6 +86,7 @@ Date: 2026-05-12
   - `bin/serow patch set-impl <path> <symbol-or-name> <expression> [--json]`
   - `bin/serow patch set-intent <path> <symbol-or-name> <intent> [--json]`
   - `bin/serow patch set-property <path> <symbol-or-name> [index] <forall-header> <expression> [--json]`
+  - `bin/serow patch set-signature <path> <symbol-or-name> <signature> [--json]`
   - `bin/serow patch set-version <path> <symbol-or-name> <version> [--json]`
 - Structured evidence patches reject ambiguous bare targets and preserve canonical formatting.
 - `patch set-contract` creates a missing `requires` or `ensures` clause, replaces a single existing clause, or replaces a specific clause when passed a 1-based index.
@@ -93,6 +94,7 @@ Date: 2026-05-12
 - Duplicate public evidence diagnostics include structured repair actions pointing at indexed `patch remove-contract`, `patch remove-example`, and `patch remove-property` commands for the repeated item.
 - `patch set-impl` creates a missing implementation section or replaces an existing implementation expression through the structured patch interface; public implementation-change policy remains enforced by `serow plan` and unattended certification.
 - `patch set-intent` sets or replaces a function intent through the structured patch interface while preserving ambiguous-target protection.
+- `patch set-signature` replaces a function's argument list and return type while preserving the existing function name; use `patch rename-function` for name changes.
 - `patch set-version` now supports dependent-aware public version bumps when parsed call sites do not pin the old canonical symbol, and rejects pinned `module.name.vN(...)` or `@module.name.vN(...)` callers with `VersionPinnedDependent`.
 - `patch rename-function` renames a public function and rewrites resolved call references in the patched source, using exact `@module.name.vN(...)` references when the new bare name would be ambiguous.
 - Structured JSON diagnostic repair actions:
@@ -887,6 +889,25 @@ cargo test repeated_public_evidence_is_warned -- --nocapture
 cargo test patch_remove_evidence_removes_indexed_items -- --nocapture
 cargo fmt --check
 cargo clippy -- -D warnings
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+bin/serow agent --json
+```
+
+Additional verification after adding structured signature replacement:
+
+```sh
+bin/serow query intent "change public function signature through structured patches" --json
+bin/serow query symbol signature --json
+bin/serow query symbol set-signature --json
+cargo fmt --check
+cargo clippy -- -D warnings
+cargo test patch_set_signature -- --nocapture
 cargo test
 python3 -m unittest discover -s tests
 bin/serow fmt --check --json

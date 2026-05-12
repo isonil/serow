@@ -774,6 +774,44 @@ pub fn set_intent(path: &str, target: &str, intent: &str) -> PatchSummary {
     })
 }
 
+pub fn set_signature(path: &str, target: &str, signature: &str) -> PatchSummary {
+    let signature = signature.trim();
+    let Some((name, params, return_type)) = parse_signature(signature) else {
+        let mut summary = PatchSummary::default();
+        summary.diagnostics.push(
+            Diagnostic::error(
+                "InvalidPatchTarget",
+                format!("Invalid function signature `{signature}`."),
+                Some(path.to_string()),
+            )
+            .with_repair("Use a signature like `name(x: Int, y: Int) -> Int`."),
+        );
+        return summary;
+    };
+
+    patch_function_checked(path, target, |function| {
+        if function.name != name {
+            return Err(Box::new(
+                Diagnostic::error(
+                    "PatchConflict",
+                    format!(
+                        "Signature name `{name}` does not match target function `{}`.",
+                        function.name
+                    ),
+                    Some(function.target()),
+                )
+                .with_repair("Use `patch rename-function` for public function renames."),
+            ));
+        }
+        if function.params == params && function.return_type == return_type {
+            return Ok(false);
+        }
+        function.params = params;
+        function.return_type = return_type;
+        Ok(true)
+    })
+}
+
 pub fn rename_function(path: &str, target: &str, new_name: &str) -> PatchSummary {
     let new_name = new_name.trim();
     if !is_valid_ident(new_name) {

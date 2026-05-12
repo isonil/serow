@@ -3749,6 +3749,82 @@ pub fn double(x: Int) -> Int
 }
 
 #[test]
+fn patch_set_signature_replaces_argument_and_return_types() {
+    let dir = unique_temp_dir("serow-patch-set-signature");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("signature.serow");
+    fs::write(
+        &source,
+        r#"module app.main
+
+pub fn keep(x: Int) -> Int
+  intent "Return the provided value."
+  version v1
+  contract
+    ensures result == x
+  examples
+    keep(3) == 3
+  properties
+    forall x: Int:
+      keep(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let patch = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-signature",
+            source.to_str().expect("utf8 path"),
+            "@app.main.keep.v1",
+            "keep(value: Bool) -> Bool",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch set-signature");
+    assert!(patch.status.success(), "{patch:#?}");
+    let stdout = String::from_utf8(patch.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"changed\": 1"), "{stdout}");
+
+    let updated = fs::read_to_string(&source).expect("read updated fixture");
+    assert!(
+        updated.contains("pub fn keep(value: Bool) -> Bool"),
+        "{updated}"
+    );
+    assert!(!updated.contains("pub fn keep(x: Int) -> Int"), "{updated}");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    assert!(parse_diagnostics.is_empty(), "{parse_diagnostics:#?}");
+    assert_eq!(
+        program.functions[0].signature(),
+        "keep(value: Bool) -> Bool"
+    );
+
+    let rejected = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-signature",
+            source.to_str().expect("utf8 path"),
+            "@app.main.keep.v1",
+            "renamed(value: Bool) -> Bool",
+            "--json",
+        ])
+        .output()
+        .expect("run rejected serow patch set-signature");
+    assert!(!rejected.status.success(), "{rejected:#?}");
+    let rejected_stdout = String::from_utf8(rejected.stdout).expect("stdout is utf8");
+    assert!(
+        rejected_stdout.contains("does not match target function"),
+        "{rejected_stdout}"
+    );
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn patch_set_intent_replaces_missing_or_existing_intent() {
     let dir = unique_temp_dir("serow-patch-set-intent");
     fs::create_dir_all(&dir).expect("create temp dir");

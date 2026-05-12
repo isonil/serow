@@ -171,6 +171,7 @@ fn repair_action_issue(action: &RepairAction) -> Option<String> {
                 "set-impl",
                 "set-intent",
                 "set-property",
+                "set-signature",
                 "set-version",
             ],
         ),

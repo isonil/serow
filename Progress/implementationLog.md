@@ -287,3 +287,8 @@
   - `bin/serow patch remove-property <path> <symbol-or-name> <index> [--json]`
 - Duplicate public evidence diagnostics now attach command-style repair actions pointing at the repeated evidence item.
 - Added Rust integration coverage proving indexed evidence removal rewrites canonical source and duplicate-evidence diagnostics expose the new repair commands.
+- Added `bin/serow patch set-signature <path> <symbol-or-name> <signature> [--json]`.
+- The signature patch replaces a function's argument list and return type while rejecting invalid signatures and signatures whose name differs from the target function, leaving renames to `patch rename-function`.
+- Updated command discovery docs, `serow.project`, README, and Progress notes to advertise structured signature replacement.
+- Added Rust integration coverage proving `patch set-signature` rewrites the canonical function header and rejects accidental renames.
+- Verified with `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`, `python3 -m unittest discover -s tests`, `bin/serow fmt --check --json`, `bin/serow check --json`, `bin/serow certify --json`, `bin/serow certify --profile unattended --json`, `bin/serow plan --json`, and `bin/serow agent --json`.
