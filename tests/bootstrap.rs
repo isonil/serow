@@ -2726,6 +2726,100 @@ pub fn identity(x: Int) -> Int
 }
 
 #[test]
+fn plan_reports_inferred_direct_call_capability_analysis() {
+    let dir = unique_temp_dir("serow-capability-analysis");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("effects.serow");
+    fs::write(
+        &source,
+        r#"module core.effects
+
+pub fn read_value(x: Int) -> Int
+  intent "Return x while modeling an IO read."
+  version v1
+  contract
+    ensures result == x
+  examples
+    read_value(4) == 4
+  properties
+    forall x: Int:
+      read_value(x) == x
+  effects [io]
+  impl
+    x
+
+pub fn send_value(x: Int) -> Int
+  intent "Return x while modeling a network send."
+  version v1
+  contract
+    ensures result == x
+  examples
+    send_value(4) == 4
+  properties
+    forall x: Int:
+      send_value(x) == x
+  effects [network]
+  impl
+    x
+
+pub fn wrapper(x: Int) -> Int
+  intent "Return x after calling IO and network operations."
+  version v1
+  contract
+    ensures result == x
+  examples
+    wrapper(4) == 4
+  properties
+    forall x: Int:
+      wrapper(x) == x
+  effects [io]
+  impl
+    send_value(read_value(x))
+
+pub fn extra_wrapper(x: Int) -> Int
+  intent "Return x while over-declaring a direct wrapper capability."
+  version v1
+  contract
+    ensures result == x
+  examples
+    extra_wrapper(4) == 4
+  properties
+    forall x: Int:
+      extra_wrapper(x) == x
+  effects [disk, io, network]
+  impl
+    send_value(read_value(x))
+"#,
+    )
+    .expect("write fixture");
+
+    let plan = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["plan", &source.to_string_lossy(), "--json"])
+        .output()
+        .expect("run serow plan");
+    assert!(!plan.status.success(), "{plan:#?}");
+    let stdout = String::from_utf8(plan.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"capability_analysis\""), "{stdout}");
+    assert!(
+        stdout.contains("\"missing_for_direct_callees\": [\"network\"]"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"unused_for_direct_callees\": [\"disk\"]"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"required_by_direct_callees\": [\"io\", \"network\"]"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"suggested_effects\": \"[io, network]\""),
+        "{stdout}"
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn unattended_certification_rejects_public_evidence_change_without_version_bump() {
     let dir = unique_temp_dir("serow-unattended-public-behavior-change");
     fs::create_dir_all(&dir).expect("create temp dir");

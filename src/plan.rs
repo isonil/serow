@@ -27,6 +27,7 @@ pub struct ChangedSymbol {
     pub function: Function,
     pub baseline_evidence: Option<EvidenceCoverage>,
     pub behavior_change: Option<PublicBehaviorChange>,
+    pub capability_analysis: CapabilityAnalysis,
     pub capability_change: Option<CapabilityChange>,
     pub evidence: EvidenceCoverage,
     pub evidence_delta: Option<EvidenceDelta>,
@@ -81,6 +82,16 @@ pub struct CapabilityChange {
     pub after: Vec<String>,
     pub added: Vec<String>,
     pub removed: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CapabilityAnalysis {
+    pub declared_effects: Vec<String>,
+    pub declared_capabilities: Vec<String>,
+    pub required_by_direct_callees: Vec<String>,
+    pub missing_for_direct_callees: Vec<String>,
+    pub unused_for_direct_callees: Vec<String>,
+    pub suggested_effects: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -740,6 +751,7 @@ fn changed_symbol(
     let baseline_evidence = baseline_function.map(evidence_coverage);
     let behavior_change = baseline_function
         .and_then(|baseline_function| public_behavior_change(baseline_function, function));
+    let capability_analysis = capability_analysis(function, program);
     let capability_change = baseline_function
         .and_then(|baseline_function| capability_change(baseline_function, function));
     let evidence_delta = baseline_evidence.as_ref().map(|baseline| EvidenceDelta {
@@ -857,6 +869,7 @@ fn changed_symbol(
         function: function.clone(),
         baseline_evidence,
         behavior_change,
+        capability_analysis,
         capability_change,
         evidence,
         evidence_delta,
@@ -956,6 +969,56 @@ fn capability_change(before: &Function, after: &Function) -> Option<CapabilityCh
     })
 }
 
+fn capability_analysis(function: &Function, program: &crate::model::Program) -> CapabilityAnalysis {
+    let declared_effects = normalized_effects(&function.effects);
+    let declared_capabilities = sorted_capabilities(effect_capabilities(&declared_effects));
+    let mut required_by_direct_callees = HashSet::<String>::new();
+    for expression in function_expressions(function) {
+        let Ok(call_references) = called_functions(&expression) else {
+            continue;
+        };
+        for call_reference in call_references {
+            let Ok(callee) = resolve_function(&call_reference.raw, &program.functions) else {
+                continue;
+            };
+            if callee.symbol() == function.symbol() {
+                continue;
+            }
+            required_by_direct_callees
+                .extend(effect_capabilities(&normalized_effects(&callee.effects)));
+        }
+    }
+    let declared_set = declared_capabilities
+        .iter()
+        .cloned()
+        .collect::<HashSet<_>>();
+    let required_set = required_by_direct_callees;
+    let required_by_direct_callees = sorted_capabilities(required_set.clone());
+    let missing_for_direct_callees =
+        sorted_capabilities(required_set.difference(&declared_set).cloned().collect());
+    let unused_for_direct_callees = if required_set.is_empty() {
+        Vec::new()
+    } else {
+        sorted_capabilities(declared_set.difference(&required_set).cloned().collect())
+    };
+    let suggested_capabilities = if required_set.is_empty()
+        || (missing_for_direct_callees.is_empty() && unused_for_direct_callees.is_empty())
+    {
+        declared_set
+    } else {
+        required_set
+    };
+    let suggested_effects = effect_declaration_from_capabilities(suggested_capabilities);
+    CapabilityAnalysis {
+        declared_effects,
+        declared_capabilities,
+        required_by_direct_callees,
+        missing_for_direct_callees,
+        unused_for_direct_callees,
+        suggested_effects,
+    }
+}
+
 fn normalized_effects(effects: &[String]) -> Vec<String> {
     let mut normalized = normalized_lines(effects);
     normalized.sort();
@@ -969,6 +1032,36 @@ fn effect_capabilities(effects: &[String]) -> HashSet<String> {
         .filter(|effect| effect.as_str() != "pure")
         .cloned()
         .collect()
+}
+
+fn sorted_capabilities(capabilities: HashSet<String>) -> Vec<String> {
+    let mut capabilities = capabilities.into_iter().collect::<Vec<_>>();
+    capabilities.sort();
+    capabilities.dedup();
+    capabilities
+}
+
+fn effect_declaration_from_capabilities(capabilities: HashSet<String>) -> String {
+    let capabilities = sorted_capabilities(capabilities);
+    if capabilities.is_empty() {
+        "pure".to_string()
+    } else {
+        format!("[{}]", capabilities.join(", "))
+    }
+}
+
+fn function_expressions(function: &Function) -> Vec<String> {
+    let mut expressions = Vec::new();
+    expressions.extend(function.implementation.iter().cloned());
+    expressions.extend(function.requires.iter().cloned());
+    expressions.extend(function.contracts.iter().cloned());
+    expressions.extend(function.examples.iter().cloned());
+    expressions.extend(
+        function.properties.iter().filter_map(|property| {
+            property_block_from_text(property).map(|block| block.expression)
+        }),
+    );
+    expressions
 }
 
 fn implementation_change(before: &Function, after: &Function) -> Option<ImplementationChange> {

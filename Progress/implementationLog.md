@@ -261,3 +261,7 @@
 - Centralized the Rust bootstrap's sampled property value generation so checker execution, property replay, and change-plan HEAD-sensitivity analysis use the same sample sets.
 - Expanded built-in sampled property values while preserving the original first samples for stable replay seeds: `Int` now also samples `-10` and `10`, and `Text` now also samples spaced and numeric-looking strings.
 - Updated the Python reference checker and added Rust/Python regression coverage proving the expanded `Int` sample set finds a larger counterexample and replays the same sample binding.
+- Added direct-call capability analysis to `bin/serow plan`.
+- Changed-symbol plan rows now include `capability_analysis` with declared effects, declared concrete capabilities, inferred non-self direct-callee capability requirements, missing direct-call capabilities, unused wrapper capabilities, and a suggested effect declaration.
+- Human-readable plan output now summarizes the same direct-call capability analysis for each changed symbol.
+- Added Rust integration coverage proving plan JSON reports both missing and unused direct-call capabilities with a deterministic suggested declaration.

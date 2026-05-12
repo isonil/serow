@@ -84,7 +84,7 @@ This phase exists because the original Serow premise is not only "AI-first synta
 - Expand capabilities and effects:
   - replace the current coarse `pure` vs effectful rule with structured capabilities _(Started: direct calls now require the caller's declared capabilities to include the callee's concrete non-`pure` capabilities.)_
   - require public functions to declare the minimum capabilities they need _(Started: underdeclared direct-call capabilities are checker errors; over-declared concrete capabilities now warn when resolved non-self direct callees establish a smaller required capability set.)_
-  - infer the minimum direct-call capability set and attach declaration repair actions without making effect declarations implicit
+  - infer the minimum direct-call capability set and attach declaration repair actions without making effect declarations implicit _(Started: effect diagnostics include `patch set-effects` repair actions, and `serow plan` now exposes per-symbol direct-call capability analysis with suggested effect declarations.)_
   - make capability expansion visible in certification and dependent-impact output _(Started: `serow plan` now reports declared capability changes against `HEAD`, and unattended certification rejects added capabilities as `CapabilityExpansionNeedsMigration` unless acknowledged by a `capability-expansion` migration.)_
 - Strengthen property testing ergonomics:
   - record deterministic seeds for sampled property failures and make them replayable from diagnostics and certification output _(Started: `PropertyFailed` and `PropertyEvaluationError` diagnostics now include `property_index`, `sample_index`, `sample_seed`, and sampled `bindings`, plus a `replay property` repair action for single-sample reruns.)_
@@ -92,7 +92,7 @@ This phase exists because the original Serow premise is not only "AI-first synta
   - treat shrinking for failing sampled properties as a stretch goal after replay is stable
   - report lightweight coverage hints for sampled evidence so shallow properties are easier to spot
 - Add machine-readable change plans:
-  - add a command such as `bin/serow plan <paths...> --json` that summarizes changed symbols, affected dependents, evidence coverage, version decisions, and residual risk _(Started: `bin/serow plan [paths...] [--json]` reports selected changed symbols, declared capability changes and normalized implementation changes against HEAD, evidence counts, HEAD evidence deltas when available, evidence-weakening rows, explicit-version state, transitive impact rows, impact-edge coverage rows, checker diagnostics, and residual risks.)_
+  - add a command such as `bin/serow plan <paths...> --json` that summarizes changed symbols, affected dependents, evidence coverage, version decisions, and residual risk _(Started: `bin/serow plan [paths...] [--json]` reports selected changed symbols, direct-call capability analysis, declared capability changes and normalized implementation changes against HEAD, evidence counts, HEAD evidence deltas when available, evidence-weakening rows, explicit-version state, transitive impact rows, impact-edge coverage rows, checker diagnostics, and residual risks.)_
   - keep the output deterministic so weaker agents can follow it without interpreting prose
   - promote semantic change labels in plan output so agents can consume changes as public deltas, not only textual field differences
 - Add spec-quality diagnostics:

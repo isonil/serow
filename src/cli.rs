@@ -13,8 +13,8 @@ use crate::patch::{
     set_property, set_version,
 };
 use crate::plan::{
-    CapabilityChange, ChangePlan, EvidenceCoverage, EvidenceDelta, EvidenceDrift,
-    EvidenceWeakening, ImpactEvidenceCoverage, ImplementationChange,
+    CapabilityAnalysis, CapabilityChange, ChangePlan, EvidenceCoverage, EvidenceDelta,
+    EvidenceDrift, EvidenceWeakening, ImpactEvidenceCoverage, ImplementationChange,
     ImplementationEvidenceCoverage, PublicBehaviorChange, plan_paths,
     unattended_capability_expansion_diagnostics, unattended_evidence_weakening_diagnostics,
     unattended_implementation_change_diagnostics,
@@ -935,6 +935,32 @@ fn print_plan(plan: &ChangePlan) {
         if let Some(drift) = &symbol.evidence_drift {
             println!("  evidence drift: {}", drift.changed.join(", "));
         }
+        println!(
+            "  direct-call capabilities: declared {}, required {}, suggested {}",
+            human_list(&symbol.capability_analysis.declared_effects),
+            human_list(&symbol.capability_analysis.required_by_direct_callees),
+            symbol.capability_analysis.suggested_effects
+        );
+        if !symbol
+            .capability_analysis
+            .missing_for_direct_callees
+            .is_empty()
+        {
+            println!(
+                "    missing: {}",
+                human_list(&symbol.capability_analysis.missing_for_direct_callees)
+            );
+        }
+        if !symbol
+            .capability_analysis
+            .unused_for_direct_callees
+            .is_empty()
+        {
+            println!(
+                "    unused: {}",
+                human_list(&symbol.capability_analysis.unused_for_direct_callees)
+            );
+        }
         if let Some(change) = &symbol.implementation_change {
             println!("  implementation changed:");
             println!("    before: {}", change.before);
@@ -1040,6 +1066,7 @@ fn changed_symbols_json(plan: &ChangePlan) -> String {
                     "{{\n",
                     "      \"baseline_evidence\": {},\n",
                     "      \"behavior_change\": {},\n",
+                    "      \"capability_analysis\": {},\n",
                     "      \"capability_change\": {},\n",
                     "      \"evidence\": {{\"ensures\": {}, \"examples\": {}, \"properties\": {}, \"requires\": {}}},\n",
                     "      \"evidence_delta\": {},\n",
@@ -1057,6 +1084,7 @@ fn changed_symbols_json(plan: &ChangePlan) -> String {
                 ),
                 evidence_coverage_option_json(symbol.baseline_evidence.as_ref()),
                 behavior_change_json(symbol.behavior_change.as_ref()),
+                capability_analysis_json(&symbol.capability_analysis),
                 capability_change_json(symbol.capability_change.as_ref()),
                 symbol.evidence.ensures,
                 symbol.evidence.examples,
@@ -1163,6 +1191,27 @@ fn capability_change_json(change: Option<&CapabilityChange>) -> String {
             )
         })
         .unwrap_or_else(|| "null".to_string())
+}
+
+fn capability_analysis_json(analysis: &CapabilityAnalysis) -> String {
+    format!(
+        concat!(
+            "{{",
+            "\"declared_capabilities\": {}, ",
+            "\"declared_effects\": {}, ",
+            "\"missing_for_direct_callees\": {}, ",
+            "\"required_by_direct_callees\": {}, ",
+            "\"suggested_effects\": {}, ",
+            "\"unused_for_direct_callees\": {}",
+            "}}"
+        ),
+        string_array_json(&analysis.declared_capabilities),
+        string_array_json(&analysis.declared_effects),
+        string_array_json(&analysis.missing_for_direct_callees),
+        string_array_json(&analysis.required_by_direct_callees),
+        json_string(&analysis.suggested_effects),
+        string_array_json(&analysis.unused_for_direct_callees)
+    )
 }
 
 fn evidence_coverage_json(evidence: &EvidenceCoverage) -> String {
@@ -1574,7 +1623,7 @@ fn agent_json() -> String {
         (
             "plan",
             "serow plan [paths...] [--json]",
-            "Summarize changed public symbols, migration acknowledgements, capability changes, implementation changes, implementation evidence coverage and HEAD-sensitivity, implementation/evidence drift, evidence coverage, HEAD evidence deltas, impact-edge coverage, and residual risk.",
+            "Summarize changed public symbols, direct-call capability analysis, migration acknowledgements, capability changes, implementation changes, implementation evidence coverage and HEAD-sensitivity, implementation/evidence drift, evidence coverage, HEAD evidence deltas, impact-edge coverage, and residual risk.",
         ),
         (
             "query callees",
@@ -1694,6 +1743,7 @@ fn agent_json() -> String {
             "`serow certify --profile unattended` fails when implementation and executable evidence change together unless acknowledged by implementation migration.",
             "`serow certify --profile unattended` validates structured repair actions before accepting diagnostics.",
             "`serow plan` reports declared capability changes against HEAD for changed tracked public symbols.",
+            "`serow plan` reports inferred direct-call capability requirements and suggested effect declarations for changed symbols.",
             "`serow plan` reports implementation changes against HEAD for changed tracked public symbols.",
             "`serow plan` reports whether added examples/properties directly call changed implementations.",
             "`serow plan` reports whether added implementation evidence would fail against the HEAD implementation.",
@@ -1800,6 +1850,14 @@ fn str_array_json(values: &[&str]) -> String {
     format!("[{}]", values.join(", "))
 }
 
+fn human_list(values: &[String]) -> String {
+    if values.is_empty() {
+        "none".to_string()
+    } else {
+        values.join(", ")
+    }
+}
+
 fn json_string(value: &str) -> String {
     let mut escaped = String::from("\"");
     for char in value.chars() {
@@ -1865,6 +1923,7 @@ fn print_agent_bootstrap() {
     );
     println!("  serow patch set-version <path> <symbol-or-name> <version> [--json]");
     println!("  serow plan [paths...] [--json]");
+    println!("    reports inferred direct-call capability requirements");
     println!("    reports declared capability changes against HEAD");
     println!("    reports same-symbol implementation changes against HEAD");
     println!("    reports whether added evidence directly calls changed implementations");
