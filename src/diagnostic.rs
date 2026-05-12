@@ -170,6 +170,7 @@ fn repair_action_issue(action: &RepairAction) -> Option<String> {
                 "set-example",
                 "set-impl",
                 "set-intent",
+                "set-migration",
                 "set-property",
                 "set-signature",
                 "set-version",

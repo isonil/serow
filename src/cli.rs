@@ -10,7 +10,8 @@ use crate::parser::parse_paths;
 use crate::patch::{
     PatchSummary, add_contract, add_example, add_function, add_migration, add_property, add_use,
     fill_hole, remove_contract, remove_example, remove_property, rename_function, set_contract,
-    set_effects, set_example, set_impl, set_intent, set_property, set_signature, set_version,
+    set_effects, set_example, set_impl, set_intent, set_migration, set_property, set_signature,
+    set_version,
 };
 use crate::plan::{
     CapabilityAnalysis, CapabilityChange, ChangePlan, EvidenceCoverage, EvidenceDelta,
@@ -164,6 +165,7 @@ fn run_patch(args: &[String]) -> i32 {
         "set-example" => run_patch_set_example(&args[1..]),
         "set-impl" => run_patch_set_impl(&args[1..]),
         "set-intent" => run_patch_set_intent(&args[1..]),
+        "set-migration" => run_patch_set_migration(&args[1..]),
         "set-property" => run_patch_set_property(&args[1..]),
         "set-signature" => run_patch_set_signature(&args[1..]),
         "set-version" => run_patch_set_version(&args[1..]),
@@ -438,6 +440,31 @@ fn run_patch_set_intent(args: &[String]) -> i32 {
         return 2;
     };
     let summary = set_intent(path, target, intent);
+    if json_output {
+        println!("{}", patch_json(&summary));
+    } else {
+        print_patch_summary(&summary);
+    }
+    i32::from(!summary.ok())
+}
+
+fn run_patch_set_migration(args: &[String]) -> i32 {
+    let (args, json_output) = split_flag(args, "--json");
+    let (path, target, kind, index, note) = match args.as_slice() {
+        [path, target, kind, note] => (path, target, kind, None, note),
+        [path, target, kind, index, note] => match parse_patch_index(index) {
+            Some(index) => (path, target, kind, Some(index), note),
+            None => {
+                eprintln!("invalid migration index `{index}`; use a 1-based integer");
+                return 2;
+            }
+        },
+        _ => {
+            print_patch_usage();
+            return 2;
+        }
+    };
+    let summary = set_migration(path, target, kind, index, note);
     if json_output {
         println!("{}", patch_json(&summary));
     } else {
@@ -1792,6 +1819,11 @@ fn agent_json() -> String {
             "Set or replace a function's intent through the structured patch interface.",
         ),
         (
+            "patch set-migration",
+            "serow patch set-migration <path> <symbol-or-name> <kind> [index] <note> [--json]",
+            "Set or replace a missing, single, or indexed migration acknowledgement.",
+        ),
+        (
             "patch set-property",
             "serow patch set-property <path> <symbol-or-name> [index] <forall-header> <expression> [--json]",
             "Set or replace a missing, single, or indexed sampled forall property.",
@@ -2113,6 +2145,7 @@ fn print_agent_bootstrap() {
     println!("  serow patch set-example <path> <symbol-or-name> [index] <expression> [--json]");
     println!("  serow patch set-impl <path> <symbol-or-name> <expression> [--json]");
     println!("  serow patch set-intent <path> <symbol-or-name> <intent> [--json]");
+    println!("  serow patch set-migration <path> <symbol-or-name> <kind> [index] <note> [--json]");
     println!(
         "  serow patch set-property <path> <symbol-or-name> [index] <forall-header> <expression> [--json]"
     );
@@ -2226,6 +2259,7 @@ fn print_usage() {
     eprintln!("  serow patch set-example <path> <symbol-or-name> [index] <expression> [--json]");
     eprintln!("  serow patch set-impl <path> <symbol-or-name> <expression> [--json]");
     eprintln!("  serow patch set-intent <path> <symbol-or-name> <intent> [--json]");
+    eprintln!("  serow patch set-migration <path> <symbol-or-name> <kind> [index] <note> [--json]");
     eprintln!(
         "  serow patch set-property <path> <symbol-or-name> [index] <forall-header> <expression> [--json]"
     );
@@ -2272,6 +2306,7 @@ fn print_patch_usage() {
     eprintln!("  serow patch set-example <path> <symbol-or-name> [index] <expression> [--json]");
     eprintln!("  serow patch set-impl <path> <symbol-or-name> <expression> [--json]");
     eprintln!("  serow patch set-intent <path> <symbol-or-name> <intent> [--json]");
+    eprintln!("  serow patch set-migration <path> <symbol-or-name> <kind> [index] <note> [--json]");
     eprintln!(
         "  serow patch set-property <path> <symbol-or-name> [index] <forall-header> <expression> [--json]"
     );

@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "0.4.43-rust-bootstrap",
+  "version": "0.4.44-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -25,6 +25,7 @@
     "patch_set_example": "bin/serow patch set-example <path> <symbol-or-name> [index] <expression>",
     "patch_set_impl": "bin/serow patch set-impl <path> <symbol-or-name> <expression>",
     "patch_set_intent": "bin/serow patch set-intent <path> <symbol-or-name> <intent>",
+    "patch_set_migration": "bin/serow patch set-migration <path> <symbol-or-name> <kind> [index] <note>",
     "patch_set_property": "bin/serow patch set-property <path> <symbol-or-name> [index] <forall-header> <expression>",
     "patch_set_signature": "bin/serow patch set-signature <path> <symbol-or-name> <signature>",
     "patch_set_version": "bin/serow patch set-version <path> <symbol-or-name> <version>",
@@ -62,6 +63,7 @@
     "structured_impl_rewrites": true,
     "structured_impl_section_setting": true,
     "structured_intent_rewrites": true,
+    "structured_migration_rewrites": true,
     "structured_signature_rewrites": true,
     "structured_contract_rewrites": true,
     "structured_example_rewrites": true,

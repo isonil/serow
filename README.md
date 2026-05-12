@@ -60,6 +60,7 @@ bin/serow patch set-effects examples/math.serow @core.math.add.v1 pure
 bin/serow patch set-example examples/math.serow @core.math.add.v1 1 "add(2, 3) == 5"
 bin/serow patch set-impl examples/math.serow @core.math.add.v1 "x + y"
 bin/serow patch set-intent examples/math.serow @core.math.add.v1 "Return the sum of x and y."
+bin/serow patch set-migration examples/math.serow @core.math.add.v1 implementation-change 1 "Document why this implementation change preserves behavior."
 bin/serow patch set-property examples/math.serow @core.math.add.v1 1 "forall x: Int, y: Int:" "add(x, y) == add(y, x)"
 bin/serow patch set-signature examples/math.serow @core.math.add.v1 "add(x: Int, y: Int) -> Int"
 bin/serow patch set-version examples/math.serow @core.math.add.v1 v1
@@ -80,6 +81,8 @@ bin/serow patch set-version examples/math.serow @core.math.add.v1 v1
 `patch remove-contract`, `patch remove-example`, and `patch remove-property` remove one indexed evidence item. Duplicate-evidence diagnostics point at these commands for the repeated item.
 
 `patch set-intent` sets or replaces a function intent through the structured patch interface. It rejects empty intents and ambiguous bare targets.
+
+`patch set-migration` creates a missing migration acknowledgement for a kind, replaces a single existing record of that kind, or replaces a specific record when passed a 1-based index before the note.
 
 Query the project ledger:
 

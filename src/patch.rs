@@ -646,26 +646,7 @@ pub fn remove_property(path: &str, target: &str, index: usize) -> PatchSummary {
 pub fn add_migration(path: &str, target: &str, kind: &str, note: &str) -> PatchSummary {
     let kind = kind.trim();
     let note = note.trim();
-    if !MIGRATION_KINDS.iter().any(|allowed| allowed == &kind) {
-        let mut summary = PatchSummary::default();
-        summary.diagnostics.push(
-            Diagnostic::error(
-                "InvalidPatchTarget",
-                format!("Invalid migration kind `{kind}`."),
-                Some(path.to_string()),
-            )
-            .with_data("allowed", MIGRATION_KINDS.join(", "))
-            .with_repair("Use a supported migration kind."),
-        );
-        return summary;
-    }
-    if note.is_empty() {
-        let mut summary = PatchSummary::default();
-        summary.diagnostics.push(Diagnostic::error(
-            "InvalidPatchTarget",
-            "Migration note must not be empty.",
-            Some(path.to_string()),
-        ));
+    if let Some(summary) = validate_migration_patch(path, kind, note) {
         return summary;
     }
     patch_function(path, target, |function| {
@@ -683,6 +664,108 @@ pub fn add_migration(path: &str, target: &str, kind: &str, note: &str) -> PatchS
             true
         }
     })
+}
+
+pub fn set_migration(
+    path: &str,
+    target: &str,
+    kind: &str,
+    index: Option<usize>,
+    note: &str,
+) -> PatchSummary {
+    let kind = kind.trim();
+    let note = note.trim();
+    if let Some(summary) = validate_migration_patch(path, kind, note) {
+        return summary;
+    }
+
+    patch_function_checked(path, target, |function| {
+        let function_name = function.name.clone();
+        let function_target = function.target();
+        let matching_indexes = function
+            .migrations
+            .iter()
+            .enumerate()
+            .filter_map(|(migration_index, migration)| {
+                (migration.kind == kind).then_some(migration_index)
+            })
+            .collect::<Vec<_>>();
+
+        if let Some(index) = index {
+            if index == 0 || index > matching_indexes.len() {
+                return Err(Box::new(
+                    Diagnostic::error(
+                        "PatchConflict",
+                        format!(
+                            "Function `{function_name}` has no `{kind}` migration record at index {index}."
+                        ),
+                        Some(function_target),
+                    )
+                    .with_data("migration_count", matching_indexes.len().to_string())
+                    .with_repair("Use a 1-based index for an existing migration record of this kind."),
+                ));
+            }
+            let migration = &mut function.migrations[matching_indexes[index - 1]];
+            if migration.note == note {
+                return Ok(false);
+            }
+            migration.note = note.to_string();
+            return Ok(true);
+        }
+
+        if matching_indexes.len() > 1 {
+            return Err(Box::new(
+                Diagnostic::error(
+                    "PatchConflict",
+                    format!("Function `{function_name}` has multiple `{kind}` migration records."),
+                    Some(function_target),
+                )
+                .with_repair("Pass a 1-based migration index to replace a specific record."),
+            ));
+        }
+
+        match matching_indexes.as_slice() {
+            [migration_index] if function.migrations[*migration_index].note == note => Ok(false),
+            [migration_index] => {
+                function.migrations[*migration_index].note = note.to_string();
+                Ok(true)
+            }
+            [] => {
+                function.migrations.push(MigrationRecord {
+                    kind: kind.to_string(),
+                    note: note.to_string(),
+                });
+                Ok(true)
+            }
+            _ => unreachable!("multiple migration records were rejected above"),
+        }
+    })
+}
+
+fn validate_migration_patch(path: &str, kind: &str, note: &str) -> Option<PatchSummary> {
+    if !MIGRATION_KINDS.iter().any(|allowed| allowed == &kind) {
+        let mut summary = PatchSummary::default();
+        summary.diagnostics.push(
+            Diagnostic::error(
+                "InvalidPatchTarget",
+                format!("Invalid migration kind `{kind}`."),
+                Some(path.to_string()),
+            )
+            .with_data("allowed", MIGRATION_KINDS.join(", "))
+            .with_repair("Use a supported migration kind."),
+        );
+        return Some(summary);
+    }
+    if note.is_empty() {
+        let mut summary = PatchSummary::default();
+        summary.diagnostics.push(Diagnostic::error(
+            "InvalidPatchTarget",
+            "Migration note must not be empty.",
+            Some(path.to_string()),
+        ));
+        return Some(summary);
+    }
+    None
 }
 
 pub fn fill_hole(path: &str, target: &str, expression: &str) -> PatchSummary {

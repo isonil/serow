@@ -298,3 +298,6 @@
 - Preserved deterministic shrinking metadata through single-sample property replay.
 - `bin/serow replay property` now includes `shrunk_sample_index`, `shrunk_sample_seed`, and `shrunk_bindings` in replayed `PropertyFailed` diagnostics when a simpler failing sampled binding exists.
 - Added Rust regression coverage proving replay JSON carries the same shrink hint fields as the original checker diagnostic.
+- Added `bin/serow patch set-migration <path> <symbol-or-name> <kind> [index] <note> [--json]`.
+- The migration setter creates a missing acknowledgement for a kind, replaces a single existing record of that kind, or replaces a specific same-kind record by 1-based index while preserving ambiguous-target protection and canonical formatting.
+- Updated agent bootstrap output, repair-action validation, README, `serow.project`, and Progress notes to advertise structured migration acknowledgement replacement.
