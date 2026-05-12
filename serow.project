@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "0.4.38-rust-bootstrap",
+  "version": "0.4.39-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -64,6 +64,7 @@
     "direct_calls_require_declared_callee_capabilities": true,
     "direct_call_unused_declared_capabilities_warned": true,
     "plan_reports_direct_call_capability_analysis": true,
+    "plan_reports_semantic_change_labels": true,
     "typed_holes_allowed": true,
     "unattended_rejects_same_version_public_contract_surface_change": true,
     "unattended_rejects_capability_expansion_without_migration": true,

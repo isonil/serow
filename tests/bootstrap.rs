@@ -1960,6 +1960,12 @@ pub fn inc(x: Int) -> Int
     assert!(stdout.contains("\"ensures\": -1"), "{stdout}");
     assert!(stdout.contains("\"properties\": -1"), "{stdout}");
     assert!(stdout.contains("\"evidence_weakening\""), "{stdout}");
+    assert!(stdout.contains("\"semantic_changes\""), "{stdout}");
+    assert!(
+        stdout.contains("\"label\": \"executable_evidence_weakened\""),
+        "{stdout}"
+    );
+    assert!(stdout.contains("\"acknowledged\": false"), "{stdout}");
     assert!(stdout.contains("\"kind\": \"examples\""), "{stdout}");
     assert!(stdout.contains("inc(2) == 3"), "{stdout}");
     assert!(stdout.contains("\"kind\": \"ensures\""), "{stdout}");
@@ -2033,6 +2039,11 @@ pub fn inc(x: Int) -> Int
     assert!(!output.status.success(), "{output:#?}");
     let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
     assert!(stdout.contains("\"implementation_change\""), "{stdout}");
+    assert!(stdout.contains("\"semantic_changes\""), "{stdout}");
+    assert!(
+        stdout.contains("\"label\": \"public_implementation_changed\""),
+        "{stdout}"
+    );
     assert!(stdout.contains("\"before\": \"x + 1\""), "{stdout}");
     assert!(stdout.contains("\"after\": \"1 + x\""), "{stdout}");
     assert!(
@@ -2678,6 +2689,10 @@ pub fn identity(x: Int) -> Int
     let plan_stdout = String::from_utf8(plan.stdout).expect("stdout is utf8");
     assert!(
         plan_stdout.contains("\"capability_change\""),
+        "{plan_stdout}"
+    );
+    assert!(
+        plan_stdout.contains("\"label\": \"capability_expanded\""),
         "{plan_stdout}"
     );
     assert!(plan_stdout.contains("\"added\": [\"io\"]"), "{plan_stdout}");

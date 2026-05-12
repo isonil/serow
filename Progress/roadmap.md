@@ -94,7 +94,7 @@ This phase exists because the original Serow premise is not only "AI-first synta
 - Add machine-readable change plans:
   - add a command such as `bin/serow plan <paths...> --json` that summarizes changed symbols, affected dependents, evidence coverage, version decisions, and residual risk _(Started: `bin/serow plan [paths...] [--json]` reports selected changed symbols, direct-call capability analysis, declared capability changes and normalized implementation changes against HEAD, evidence counts, HEAD evidence deltas when available, evidence-weakening rows, explicit-version state, transitive impact rows, impact-edge coverage rows, checker diagnostics, and residual risks.)_
   - keep the output deterministic so weaker agents can follow it without interpreting prose
-  - promote semantic change labels in plan output so agents can consume changes as public deltas, not only textual field differences
+  - promote semantic change labels in plan output so agents can consume changes as public deltas, not only textual field differences _(Started: `serow plan` changed-symbol rows now include `semantic_changes` labels with acknowledgement state and detail strings.)_
 - Add spec-quality diagnostics:
   - detect duplicate or vacuous executable examples _(Started: exact duplicate executable examples now warn as low-signal repeated evidence.)_
   - detect trivially weak sampled properties that do not constrain results meaningfully _(Started: sampled properties that do not directly call the function under test now warn as `ShallowProperty`, and `forall` blocks with no bound variables warn as `VacuousProperty`.)_

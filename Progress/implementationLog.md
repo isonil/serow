@@ -265,3 +265,7 @@
 - Changed-symbol plan rows now include `capability_analysis` with declared effects, declared concrete capabilities, inferred non-self direct-callee capability requirements, missing direct-call capabilities, unused wrapper capabilities, and a suggested effect declaration.
 - Human-readable plan output now summarizes the same direct-call capability analysis for each changed symbol.
 - Added Rust integration coverage proving plan JSON reports both missing and unused direct-call capabilities with a deterministic suggested declaration.
+- Added semantic change labels to `bin/serow plan`.
+- Changed-symbol plan rows now include `semantic_changes` with deterministic labels, acknowledgement state, and details for public deltas such as evidence weakening, capability expansion, implementation changes, implementation evidence sensitivity, impacted dependents, uncovered impact evidence, and direct-call capability declaration issues.
+- Human-readable plan output now summarizes semantic change labels for changed symbols.
+- Added Rust integration assertions proving plan JSON reports semantic labels for evidence weakening, implementation changes, and capability expansion.

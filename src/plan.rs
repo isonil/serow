@@ -39,7 +39,15 @@ pub struct ChangedSymbol {
     pub migrations: Vec<MigrationRecord>,
     pub impact: Vec<ImpactDependent>,
     pub impact_coverage: Vec<ImpactEvidenceCoverage>,
+    pub semantic_changes: Vec<SemanticChange>,
     pub residual_risks: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SemanticChange {
+    pub label: String,
+    pub acknowledged: bool,
+    pub details: Vec<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -865,6 +873,19 @@ fn changed_symbol(
                 .to_string(),
         );
     }
+    let semantic_changes = semantic_changes(SemanticChangeInput {
+        function,
+        behavior_change: behavior_change.as_ref(),
+        capability_analysis: &capability_analysis,
+        capability_change: capability_change.as_ref(),
+        evidence_drift: evidence_drift.as_ref(),
+        evidence_weakening: &evidence_weakening,
+        implementation_change: implementation_change.as_ref(),
+        implementation_evidence: implementation_evidence.as_ref(),
+        impact: &impact,
+        impact_coverage: &impact_coverage,
+    });
+
     ChangedSymbol {
         function: function.clone(),
         baseline_evidence,
@@ -881,8 +902,179 @@ fn changed_symbol(
         migrations: function.migrations.clone(),
         impact,
         impact_coverage,
+        semantic_changes,
         residual_risks,
     }
+}
+
+struct SemanticChangeInput<'a> {
+    function: &'a Function,
+    behavior_change: Option<&'a PublicBehaviorChange>,
+    capability_analysis: &'a CapabilityAnalysis,
+    capability_change: Option<&'a CapabilityChange>,
+    evidence_drift: Option<&'a EvidenceDrift>,
+    evidence_weakening: &'a [EvidenceWeakening],
+    implementation_change: Option<&'a ImplementationChange>,
+    implementation_evidence: Option<&'a ImplementationEvidenceCoverage>,
+    impact: &'a [ImpactDependent],
+    impact_coverage: &'a [ImpactEvidenceCoverage],
+}
+
+fn semantic_changes(input: SemanticChangeInput<'_>) -> Vec<SemanticChange> {
+    let mut changes = Vec::new();
+    if !input.function.version_explicit {
+        changes.push(semantic_change(
+            "implicit_public_version",
+            false,
+            vec!["version defaults to v1".to_string()],
+        ));
+    }
+    if let Some(change) = input.behavior_change {
+        changes.push(semantic_change(
+            "public_contract_surface_changed",
+            public_behavior_change_acknowledged(input.function, change),
+            change.changed.clone(),
+        ));
+    }
+    if let Some(change) = input.capability_change {
+        if !change.added.is_empty() {
+            changes.push(semantic_change(
+                "capability_expanded",
+                has_migration(input.function, "capability-expansion"),
+                change.added.clone(),
+            ));
+        }
+        if !change.removed.is_empty() {
+            changes.push(semantic_change(
+                "capability_reduced",
+                has_migration(input.function, "public-behavior-change"),
+                change.removed.clone(),
+            ));
+        }
+    }
+    if !input.evidence_weakening.is_empty() {
+        changes.push(semantic_change(
+            "executable_evidence_weakened",
+            has_migration(input.function, "evidence-weakening"),
+            input
+                .evidence_weakening
+                .iter()
+                .map(|weakening| weakening.kind.clone())
+                .collect(),
+        ));
+    }
+    if input.implementation_change.is_some() {
+        changes.push(semantic_change(
+            "public_implementation_changed",
+            implementation_change_acknowledged(input.function, input.implementation_evidence),
+            Vec::new(),
+        ));
+    }
+    if let Some(drift) = input.evidence_drift {
+        changes.push(semantic_change(
+            "implementation_evidence_changed",
+            has_migration(input.function, "implementation-change"),
+            drift.changed.clone(),
+        ));
+    }
+    if let Some(coverage) = input.implementation_evidence {
+        if !coverage.covered {
+            changes.push(semantic_change(
+                "implementation_evidence_not_covering_changed_function",
+                has_migration(input.function, "implementation-change"),
+                implementation_evidence_details(coverage),
+            ));
+        } else if !coverage.behavior_sensitive {
+            changes.push(semantic_change(
+                "implementation_evidence_not_behavior_sensitive",
+                has_migration(input.function, "implementation-change"),
+                implementation_evidence_details(coverage),
+            ));
+        } else {
+            changes.push(semantic_change(
+                "implementation_evidence_behavior_sensitive",
+                true,
+                implementation_evidence_details(coverage),
+            ));
+        }
+    }
+    if !input.impact.is_empty() {
+        changes.push(semantic_change(
+            "impacted_dependents",
+            has_migration(input.function, "impact-review"),
+            input
+                .impact
+                .iter()
+                .map(|row| row.function.symbol())
+                .collect(),
+        ));
+    }
+    let uncovered_impact = input
+        .impact_coverage
+        .iter()
+        .filter(|coverage| !coverage.covered)
+        .map(|coverage| coverage.dependent.symbol())
+        .collect::<Vec<_>>();
+    if !uncovered_impact.is_empty() {
+        changes.push(semantic_change(
+            "uncovered_impact_evidence",
+            has_migration(input.function, "impact-review"),
+            uncovered_impact,
+        ));
+    }
+    if !input
+        .capability_analysis
+        .missing_for_direct_callees
+        .is_empty()
+    {
+        changes.push(semantic_change(
+            "direct_call_capability_underdeclared",
+            false,
+            input.capability_analysis.missing_for_direct_callees.clone(),
+        ));
+    }
+    if !input
+        .capability_analysis
+        .unused_for_direct_callees
+        .is_empty()
+    {
+        changes.push(semantic_change(
+            "direct_call_capability_overdeclared",
+            false,
+            input.capability_analysis.unused_for_direct_callees.clone(),
+        ));
+    }
+    changes
+}
+
+fn semantic_change(label: &str, acknowledged: bool, details: Vec<String>) -> SemanticChange {
+    let mut details = details;
+    details.sort();
+    details.dedup();
+    SemanticChange {
+        label: label.to_string(),
+        acknowledged,
+        details,
+    }
+}
+
+fn implementation_evidence_details(coverage: &ImplementationEvidenceCoverage) -> Vec<String> {
+    let mut details = Vec::new();
+    if !coverage.added_examples.is_empty() {
+        details.push("examples".to_string());
+    }
+    if !coverage.added_properties.is_empty() {
+        details.push("properties".to_string());
+    }
+    details
+}
+
+fn implementation_change_acknowledged(
+    function: &Function,
+    evidence: Option<&ImplementationEvidenceCoverage>,
+) -> bool {
+    has_migration(function, "implementation-change")
+        || evidence.is_some_and(|coverage| coverage.covered && coverage.behavior_sensitive)
 }
 
 fn has_migration(function: &Function, kind: &str) -> bool {
