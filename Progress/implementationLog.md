@@ -258,3 +258,6 @@
 - Added `bin/serow replay property <sample-seed> [paths...] [--json]` to rerun a single sampled property binding from deterministic replay data.
 - `PropertyFailed` and `PropertyEvaluationError` diagnostics now include a structured command repair action for property replay.
 - Added Rust regression coverage proving replay diagnostics expose the command action and the replay CLI returns the same binding and actual result.
+- Centralized the Rust bootstrap's sampled property value generation so checker execution, property replay, and change-plan HEAD-sensitivity analysis use the same sample sets.
+- Expanded built-in sampled property values while preserving the original first samples for stable replay seeds: `Int` now also samples `-10` and `10`, and `Text` now also samples spaced and numeric-looking strings.
+- Updated the Python reference checker and added Rust/Python regression coverage proving the expanded `Int` sample set finds a larger counterexample and replays the same sample binding.

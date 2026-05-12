@@ -8,6 +8,7 @@ use crate::eval::{Evaluator, Value, called_functions, resolve_function};
 use crate::ledger::{CallSite, ImpactDependent, query_impact};
 use crate::model::{Function, MigrationRecord};
 use crate::parser::{discover_sources, parse_paths, parse_source};
+use crate::sampling::{cartesian_product, samples_for_type};
 
 #[derive(Clone, Debug)]
 pub struct ChangePlan {
@@ -1195,41 +1196,6 @@ fn evidence_fails_against_program(
 ) -> bool {
     let mut evaluator = Evaluator::new(&program.functions);
     !matches!(evaluator.eval(expression, variables), Ok(Value::Bool(true)))
-}
-
-fn samples_for_type(type_name: &str) -> Option<Vec<Value>> {
-    match type_name {
-        "Int" => Some(vec![
-            Value::Int(-2),
-            Value::Int(-1),
-            Value::Int(0),
-            Value::Int(1),
-            Value::Int(2),
-        ]),
-        "Bool" => Some(vec![Value::Bool(false), Value::Bool(true)]),
-        "Text" => Some(vec![
-            Value::Text(String::new()),
-            Value::Text("a".to_string()),
-            Value::Text("Serow".to_string()),
-        ]),
-        _ => None,
-    }
-}
-
-fn cartesian_product(sample_sets: &[Vec<Value>]) -> Vec<Vec<Value>> {
-    let mut combinations = vec![Vec::new()];
-    for sample_set in sample_sets {
-        let mut next = Vec::new();
-        for prefix in &combinations {
-            for value in sample_set {
-                let mut combined = prefix.clone();
-                combined.push(value.clone());
-                next.push(combined);
-            }
-        }
-        combinations = next;
-    }
-    combinations
 }
 
 fn impact_evidence_coverage(

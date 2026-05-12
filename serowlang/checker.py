@@ -731,11 +731,11 @@ def _format_sample_value(value: Any) -> str:
 
 def _samples_for_type(type_name: str):
     if type_name == "Int":
-        return [-2, -1, 0, 1, 2]
+        return [-2, -1, 0, 1, 2, -10, 10]
     if type_name == "Bool":
         return [False, True]
     if type_name == "Text":
-        return ["", "a", "Serow"]
+        return ["", "a", "Serow", "with space", "123"]
     return None
 
 

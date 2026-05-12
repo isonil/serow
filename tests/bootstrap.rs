@@ -889,6 +889,76 @@ pub fn id(x: Int) -> Int
 }
 
 #[test]
+fn expanded_int_property_samples_find_larger_counterexample() {
+    let dir = unique_temp_dir("serow-expanded-int-samples");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("expanded_samples.serow");
+    fs::write(
+        &source,
+        r#"module test.property
+
+pub fn id(x: Int) -> Int
+  intent "Return the supplied integer unchanged."
+  contract
+    ensures result == x
+  examples
+    id(1) == 1
+  properties
+    forall x: Int:
+      id(x) < 10
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    let diagnostic = summary
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "PropertyFailed")
+        .expect("property failure diagnostic");
+    assert!(
+        diagnostic
+            .data
+            .iter()
+            .any(|(key, value)| key == "sample_index" && value == "7"),
+        "{diagnostic:#?}"
+    );
+    assert!(
+        diagnostic
+            .data
+            .iter()
+            .any(|(key, value)| key == "bindings" && value == "x=10"),
+        "{diagnostic:#?}"
+    );
+    assert!(
+        diagnostic.data.iter().any(|(key, value)| {
+            key == "sample_seed" && value == "@test.property.id.v1#property:1#sample:7"
+        }),
+        "{diagnostic:#?}"
+    );
+
+    let source_arg = source.to_string_lossy().to_string();
+    let replay = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "replay",
+            "property",
+            "@test.property.id.v1#property:1#sample:7",
+            &source_arg,
+            "--json",
+        ])
+        .output()
+        .expect("run property replay");
+    assert!(!replay.status.success(), "{replay:#?}");
+    let stdout = String::from_utf8(replay.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"bindings\": \"x=10\""), "{stdout}");
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn intent_query_finds_add() {
     let (program, parse_diagnostics) = parse_paths(&["examples".to_string()]);
     assert!(parse_diagnostics.is_empty());

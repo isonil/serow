@@ -26,7 +26,7 @@ Date: 2026-05-12
   - duplicate examples, duplicate contract clauses, duplicate sampled property blocks, and sampled properties with no bound variables as low-signal evidence warnings
   - sampled properties that do not directly call the public function under test as low-signal evidence warnings
   - ambiguous bare-call diagnostics with qualified-reference repair guidance
-  - sampled `forall` properties over `Int`, `Bool`, and `Text`
+  - sampled `forall` properties over deterministic `Int`, `Bool`, and `Text` sample sets
   - deterministic sampled-property failure replay data with property indexes, sample indexes, seed strings, sampled bindings, and single-sample replay repair actions
   - single-sample property replay via `bin/serow replay property <sample-seed> [paths...] [--json]`
   - inferred cross-module dependencies from function calls in implementations, contracts, examples, and properties
@@ -733,6 +733,26 @@ bin/serow plan --json
 bin/serow agent --json
 ```
 
+Additional verification after centralizing and expanding built-in property samples:
+
+```sh
+bin/serow query intent "improve sampled property generators" --json
+bin/serow query symbol sample --json
+cargo test expanded_int_property_samples_find_larger_counterexample -- --nocapture
+python3 -m unittest tests.test_bootstrap.BootstrapTests.test_expanded_int_property_samples_find_larger_counterexample
+cargo fmt
+cargo fmt --check
+cargo clippy -- -D warnings
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+bin/serow agent --json
+```
+
 `cargo test` includes integration coverage for `bin/serow patch add-function`.
 
 `bin/serow check --json` currently reports:
@@ -756,7 +776,7 @@ bin/serow agent --json
 - Intent duplicate errors are exact after simple normalization; near-duplicate warnings and intent search use deterministic token ranking with stopwords and light token normalization. Duplicate and near-duplicate diagnostics expose token overlap/differences, but they are not semantic similarity yet.
 - Type checking covers the current expression subset but does not yet model user-defined data types, generics, or effect polymorphism.
 - Expression support is intentionally small: literals, variables, direct or qualified calls, arithmetic, comparisons, booleans, and one-line `if ... then ... else ...`.
-- Properties are sampled, not proven; failing sampled properties report replay data and can be rerun one sample at a time with `bin/serow replay property`.
+- Properties are sampled, not proven; built-in samples are fixed small sets for `Int`, `Bool`, and `Text`. Failing sampled properties report replay data and can be rerun one sample at a time with `bin/serow replay property`.
 - Effects checking is intentionally conservative direct-call capability subset validation; it warns on unused declared capabilities only when resolved non-self direct callees establish a required capability set, and it does not yet model effect polymorphism or external effect primitives.
 - Structured patch coverage is intentionally narrow: module `use` insertion, public function skeleton insertion, public function rename with in-file resolved call rewrites, evidence insertion, migration acknowledgement insertion, indexed contract/example/property replacement, intent replacement, effect declaration replacement, implementation expression replacement, version declaration and pinned-call-aware version bumps, and typed-hole filling are implemented.
 - Evidence patching can append or replace individual contract/example/property items, but dependent impact and evidence policy are still enforced by `serow plan` and unattended certification rather than by the patch command itself.

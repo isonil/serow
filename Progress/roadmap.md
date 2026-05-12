@@ -88,7 +88,7 @@ This phase exists because the original Serow premise is not only "AI-first synta
   - make capability expansion visible in certification and dependent-impact output _(Started: `serow plan` now reports declared capability changes against `HEAD`, and unattended certification rejects added capabilities as `CapabilityExpansionNeedsMigration` unless acknowledged by a `capability-expansion` migration.)_
 - Strengthen property testing ergonomics:
   - record deterministic seeds for sampled property failures and make them replayable from diagnostics and certification output _(Started: `PropertyFailed` and `PropertyEvaluationError` diagnostics now include `property_index`, `sample_index`, `sample_seed`, and sampled `bindings`, plus a `replay property` repair action for single-sample reruns.)_
-  - improve built-in sampled generators before adding custom generator syntax
+  - improve built-in sampled generators before adding custom generator syntax _(Started: checker, replay, and plan now share deterministic built-in sample sets; Int/Text sample coverage has been expanded while preserving the original first samples for stable replay seeds.)_
   - treat shrinking for failing sampled properties as a stretch goal after replay is stable
   - report lightweight coverage hints for sampled evidence so shallow properties are easier to spot
 - Add machine-readable change plans:

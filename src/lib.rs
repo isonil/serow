@@ -10,4 +10,5 @@ pub mod patch;
 pub mod plan;
 pub mod project;
 pub mod replay;
+mod sampling;
 mod typecheck;

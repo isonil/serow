@@ -5,6 +5,7 @@ use crate::eval::{Evaluator, Value, called_functions, resolve_function};
 use crate::ledger::{intent_terms, query_intent};
 use crate::model::{Function, Program};
 use crate::project::load_architecture;
+use crate::sampling::{cartesian_product, format_sample_bindings, samples_for_type};
 use crate::typecheck::infer_expression_type;
 
 const REQUIRED_PUBLIC_SECTIONS: &[&str] = &[
@@ -1320,52 +1321,6 @@ fn property_sample_seed(
         property.index,
         sample_index
     )
-}
-
-fn format_sample_bindings(
-    variables: &[(String, String)],
-    bindings: &HashMap<String, Value>,
-) -> String {
-    variables
-        .iter()
-        .filter_map(|(name, _)| bindings.get(name).map(|value| format!("{name}={value}")))
-        .collect::<Vec<_>>()
-        .join(", ")
-}
-
-fn samples_for_type(type_name: &str) -> Option<Vec<Value>> {
-    match type_name {
-        "Int" => Some(vec![
-            Value::Int(-2),
-            Value::Int(-1),
-            Value::Int(0),
-            Value::Int(1),
-            Value::Int(2),
-        ]),
-        "Bool" => Some(vec![Value::Bool(false), Value::Bool(true)]),
-        "Text" => Some(vec![
-            Value::Text(String::new()),
-            Value::Text("a".to_string()),
-            Value::Text("Serow".to_string()),
-        ]),
-        _ => None,
-    }
-}
-
-fn cartesian_product(sample_sets: &[Vec<Value>]) -> Vec<Vec<Value>> {
-    let mut combinations = vec![Vec::new()];
-    for sample_set in sample_sets {
-        let mut next = Vec::new();
-        for prefix in &combinations {
-            for value in sample_set {
-                let mut combined = prefix.clone();
-                combined.push(value.clone());
-                next.push(combined);
-            }
-        }
-        combinations = next;
-    }
-    combinations
 }
 
 fn extract_call_args<'a>(example: &'a str, function: &Function) -> Option<&'a str> {
