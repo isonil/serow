@@ -252,3 +252,6 @@
 - Added low-signal shallow property diagnostics to the Rust checker and Python reference checker.
 - `ShallowProperty` now warns when a sampled property for a public function does not directly call the function under test, making tautological or unrelated properties visible before certification.
 - Added Rust and Python regression coverage proving shallow sampled properties report their property index and expression.
+- Added low-signal vacuous property diagnostics to the Rust checker and Python reference checker.
+- `VacuousProperty` now warns when a sampled `forall` block binds no variables and is only checked once, making example-like properties visible before certification.
+- Added Rust and Python regression coverage proving vacuous sampled properties report their property index and expression.

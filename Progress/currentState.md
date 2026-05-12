@@ -23,7 +23,7 @@ Date: 2026-05-12
   - executable `ensures` contracts against example calls
   - exact normalized duplicate public intent detection with shared/new-only/candidate-only term difference data
   - near-duplicate public intent warnings using deterministic token-ranked intent overlap with shared/new-only/candidate-only term difference data
-  - duplicate examples, duplicate contract clauses, and duplicate sampled property blocks as low-signal evidence warnings
+  - duplicate examples, duplicate contract clauses, duplicate sampled property blocks, and sampled properties with no bound variables as low-signal evidence warnings
   - sampled properties that do not directly call the public function under test as low-signal evidence warnings
   - ambiguous bare-call diagnostics with qualified-reference repair guidance
   - sampled `forall` properties over `Int`, `Bool`, and `Text`
@@ -692,6 +692,26 @@ bin/serow plan --json
 bin/serow query symbol property --json
 ```
 
+Additional verification after adding vacuous sampled-property diagnostics:
+
+```sh
+bin/serow query intent "warn when sampled properties do not bind variables" --json
+bin/serow query symbol "PropertyNotExecutable" --json
+cargo test sampled_property_without_bindings_warns_as_vacuous
+python3 -m unittest tests.test_bootstrap.BootstrapTests.test_sampled_property_without_bindings_warns_as_vacuous tests.test_bootstrap.BootstrapTests.test_sampled_property_without_target_call_warns_as_shallow
+cargo fmt --check
+bin/serow fmt --check --json
+cargo clippy -- -D warnings
+cargo test
+python3 -m unittest discover -s tests
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+bin/serow agent --json
+bin/serow query symbol property --json
+```
+
 `cargo test` includes integration coverage for `bin/serow patch add-function`.
 
 `bin/serow check --json` currently reports:
@@ -724,7 +744,7 @@ bin/serow query symbol property --json
 - Structured repair actions currently cover only command-style fixes already exposed by the bootstrap CLI.
 - `query callees` and `query dependents` report direct resolved call edges; use `query impact` for direct and transitive dependent paths. Ambiguous bare calls are intentionally skipped by ledger queries because they are checker errors.
 - `serow plan` is an early reporting primitive; it treats explicit path arguments as the selected change set and compares public contract-surface, declared capabilities, normalized implementation text, and evidence sections against `HEAD` when a tracked baseline is available. It reports whether added examples/properties directly call changed implementations, whether that added evidence would fail against the `HEAD` implementation, and whether impacted dependent call edges are covered by executable examples or sampled properties, but it does not yet compare full implementation AST behavior.
-- Normal certification still accepts omitted symbol versions for compatibility; `certify --profile unattended` requires explicit public versions, rejects same-version public contract-surface changes, rejects capability expansion without a migration acknowledgement, rejects same-version implementation changes without added executable evidence, rejects added implementation evidence that does not call the changed function, rejects added implementation evidence that also passes against the `HEAD` implementation, rejects evidence weakening against `HEAD`, rejects unchecked transitive impact, rejects uncovered impacted call edges unless an explicit migration acknowledgement records the intentional decision, and validates structured repair action commands before accepting diagnostics. Normal certification also rejects warnings such as duplicate or shallow low-signal evidence and unused direct-call capabilities. It does not yet enforce the rest of the unattended safety roadmap.
+- Normal certification still accepts omitted symbol versions for compatibility; `certify --profile unattended` requires explicit public versions, rejects same-version public contract-surface changes, rejects capability expansion without a migration acknowledgement, rejects same-version implementation changes without added executable evidence, rejects added implementation evidence that does not call the changed function, rejects added implementation evidence that also passes against the `HEAD` implementation, rejects evidence weakening against `HEAD`, rejects unchecked transitive impact, rejects uncovered impacted call edges unless an explicit migration acknowledgement records the intentional decision, and validates structured repair action commands before accepting diagnostics. Normal certification also rejects warnings such as duplicate, vacuous, or shallow low-signal evidence and unused direct-call capabilities. It does not yet enforce the rest of the unattended safety roadmap.
 
 ## Current Strategic Direction
 

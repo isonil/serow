@@ -328,7 +328,24 @@ def _normalize_evidence(evidence: str) -> str:
 def _check_property_constraints(function: Function, program: Program, summary: CheckSummary) -> None:
     if not function.public:
         return
-    for property_index, _, expression in _property_blocks(function.properties):
+    for property_index, variables, expression in _property_blocks(function.properties):
+        if not variables:
+            summary.diagnostics.append(
+                Diagnostic(
+                    severity="warning",
+                    code="VacuousProperty",
+                    message=f"Sampled property for `{function.name}` has no forall bindings and is only checked once.",
+                    target=function.target,
+                    data={
+                        "function": function.symbol,
+                        "property_index": str(property_index),
+                        "property": expression,
+                    },
+                    repairs=[
+                        "Bind at least one variable in the forall header, or move this case to examples."
+                    ],
+                )
+            )
         calls = _called_functions(expression)
         callees: List[str] = []
         unresolved = False
@@ -684,6 +701,8 @@ def _property_blocks(lines: List[str]) -> List[Tuple[int, List[Tuple[str, str]],
         variables_text = line[len("forall ") : -1]
         variables = []
         for raw_var in variables_text.split(","):
+            if not raw_var.strip():
+                continue
             name, type_name = [piece.strip() for piece in raw_var.split(":", 1)]
             variables.append((name, type_name))
         if index + 1 < len(lines):

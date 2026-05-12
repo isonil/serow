@@ -686,6 +686,24 @@ fn check_property_constraints(function: &Function, program: &Program, summary: &
         return;
     }
     for property in property_blocks(&function.properties) {
+        if property.variables.is_empty() {
+            summary.diagnostics.push(
+                Diagnostic::warning(
+                    "VacuousProperty",
+                    format!(
+                        "Sampled property for `{}` has no forall bindings and is only checked once.",
+                        function.name
+                    ),
+                    Some(function.target()),
+                )
+                .with_data("function", function.symbol())
+                .with_data("property_index", property.index.to_string())
+                .with_data("property", &property.expression)
+                .with_repair(
+                    "Bind at least one variable in the forall header, or move this case to examples.",
+                ),
+            );
+        }
         let Ok(call_references) = called_functions(&property.expression) else {
             continue;
         };

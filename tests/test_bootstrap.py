@@ -364,6 +364,38 @@ pub fn id(x: Int) -> Int
             self.assertEqual(diagnostic.data.get("property_index"), "1")
             self.assertEqual(diagnostic.data.get("property"), "x == x")
 
+    def test_sampled_property_without_bindings_warns_as_vacuous(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "vacuous_property.serow"
+            source.write_text(
+                """module test.property
+
+pub fn id(x: Int) -> Int
+  version v1
+  intent "Return the supplied integer unchanged."
+  contract
+    ensures result == x
+  examples
+    id(1) == 1
+  properties
+    forall :
+      id(1) == 1
+  effects pure
+  impl
+    x
+""",
+                encoding="utf-8",
+            )
+            program, parse_diagnostics = parse_files([str(source)])
+            summary = check_program(program, parse_diagnostics)
+            diagnostic = next(
+                diagnostic
+                for diagnostic in summary.diagnostics
+                if diagnostic.code == "VacuousProperty"
+            )
+            self.assertEqual(diagnostic.data.get("property_index"), "1")
+            self.assertEqual(diagnostic.data.get("property"), "id(1) == 1")
+
     def test_sampled_property_failure_reports_replay_data(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "property_replay.serow"
