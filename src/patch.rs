@@ -652,17 +652,11 @@ pub fn set_impl(path: &str, target: &str, expression: &str) -> PatchSummary {
         return summary;
     }
     patch_function_checked(path, target, |function| {
-        let Some(implementation) = &function.implementation else {
-            return Err(Box::new(Diagnostic::error(
-                "PatchConflict",
-                format!(
-                    "Function `{}` has no implementation section to replace.",
-                    function.name
-                ),
-                Some(function.target()),
-            )));
-        };
-        if implementation.trim() == expression {
+        if function
+            .implementation
+            .as_deref()
+            .is_some_and(|implementation| implementation.trim() == expression)
+        {
             return Ok(false);
         }
         function.implementation = Some(expression.to_string());

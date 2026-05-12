@@ -1693,7 +1693,7 @@ fn agent_json() -> String {
         (
             "patch set-impl",
             "serow patch set-impl <path> <symbol-or-name> <expression> [--json]",
-            "Replace an existing implementation expression through the structured patch interface.",
+            "Set or replace an implementation expression through the structured patch interface.",
         ),
         (
             "patch set-intent",
@@ -1820,7 +1820,7 @@ fn agent_json() -> String {
             "Qualified calls support `module.name(...)`, `module.name.vN(...)`, and exact `@module.name.vN(...)` references.",
             "`serow patch set-version` can bump a symbol version when parsed call sites do not pin the old canonical version.",
             "`serow patch rename-function` rewrites resolved call references in the patched source and uses exact calls when a new bare name would be ambiguous.",
-            "`serow patch set-impl` rewrites existing implementation expressions but does not bypass plan or certification gates.",
+            "`serow patch set-impl` creates missing implementation sections or rewrites existing implementation expressions but does not bypass plan or certification gates.",
             "`bin/serow check` requires callers to declare every concrete capability required by direct callees.",
             "`bin/serow check` warns when a function declares concrete capabilities not required by resolved non-self direct callees.",
             "`serow certify --profile unattended` fails when changed public symbols weaken executable evidence compared with HEAD unless acknowledged by migration.",

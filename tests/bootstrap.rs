@@ -3656,6 +3656,65 @@ pub fn double(x: Int) -> Int
 }
 
 #[test]
+fn patch_set_impl_creates_missing_implementation_section() {
+    let dir = unique_temp_dir("serow-patch-set-missing-impl");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("missing_impl.serow");
+    fs::write(
+        &source,
+        r#"module app.main
+
+pub fn double(x: Int) -> Int
+  intent "Return two times x."
+  version v1
+  contract
+    ensures result == x * 2
+  examples
+    double(3) == 6
+  properties
+    forall x: Int:
+      double(x) == x + x
+  effects pure
+"#,
+    )
+    .expect("write fixture");
+
+    let before = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["check", source.to_str().expect("utf8 path"), "--json"])
+        .output()
+        .expect("run serow check before patch");
+    assert!(!before.status.success(), "{before:#?}");
+    let before_stdout = String::from_utf8(before.stdout).expect("stdout is utf8");
+    assert!(
+        before_stdout.contains("\"missing\": \"impl\""),
+        "{before_stdout}"
+    );
+
+    let patch = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-impl",
+            source.to_str().expect("utf8 path"),
+            "@app.main.double.v1",
+            "x * 2",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch set-impl");
+    assert!(patch.status.success(), "{patch:#?}");
+    let stdout = String::from_utf8(patch.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"changed\": 1"), "{stdout}");
+
+    let updated = fs::read_to_string(&source).expect("read updated fixture");
+    assert!(updated.contains("  impl\n    x * 2"), "{updated}");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(summary.ok(), "{:#?}", summary.diagnostics);
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn patch_set_intent_replaces_missing_or_existing_intent() {
     let dir = unique_temp_dir("serow-patch-set-intent");
     fs::create_dir_all(&dir).expect("create temp dir");

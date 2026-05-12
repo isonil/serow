@@ -279,3 +279,5 @@
 - Changed-symbol plan rows now include `property_coverage` with per-property sample counts, direct-call flags, vacuous flags, unsupported generator types, variables, and normalized body expressions.
 - Human-readable plan output now summarizes sampled-property coverage hints for changed symbols.
 - Added Rust integration assertions proving plan JSON reports sampled-property coverage data.
+- Extended `bin/serow patch set-impl <path> <symbol-or-name> <expression> [--json]` so it can create a missing implementation section as well as replace an existing implementation expression.
+- Added Rust integration coverage proving `patch set-impl` repairs a function missing only its `impl` section and leaves the result checkable.
