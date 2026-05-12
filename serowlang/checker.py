@@ -51,6 +51,7 @@ def check_program(program: Program, parse_diagnostics: List[Diagnostic]) -> Chec
     _check_duplicate_intents(program, summary)
     for function in program.functions:
         _check_function_shape(function, summary)
+        _check_repeated_evidence(function, summary)
     _check_effects(program, summary)
     for function in program.functions:
         _check_executable_evidence(function, evaluator, summary)
@@ -263,7 +264,62 @@ def _check_function_shape(function: Function, summary: CheckSummary) -> None:
                 message=f"Return type `{function.return_type}` is not executable in the bootstrap checker.",
                 target=function.target,
             )
-        )
+            )
+
+
+def _check_repeated_evidence(function: Function, summary: CheckSummary) -> None:
+    if not function.public:
+        return
+    _report_repeated_lines(function, "example", function.examples, summary)
+    _report_repeated_lines(function, "requires", function.requires, summary)
+    _report_repeated_lines(function, "ensures", function.contracts, summary)
+    properties = [
+        "forall " + ", ".join(f"{name}: {type_name}" for name, type_name in variables) + f": {expression}"
+        for variables, expression in _property_blocks(function.properties)
+    ]
+    _report_repeated_lines(function, "property", properties, summary)
+
+
+def _report_repeated_lines(
+    function: Function,
+    kind: str,
+    lines: List[str],
+    summary: CheckSummary,
+) -> None:
+    seen: Dict[str, Tuple[int, str]] = {}
+    for index, line in enumerate(lines):
+        normalized = _normalize_evidence(line)
+        if not normalized:
+            continue
+        if normalized in seen:
+            first_index, first_line = seen[normalized]
+            code = {
+                "example": "DuplicateExample",
+                "property": "DuplicateProperty",
+            }.get(kind, "DuplicateContractClause")
+            summary.diagnostics.append(
+                Diagnostic(
+                    severity="warning",
+                    code=code,
+                    message=f"Public function `{function.name}` repeats the same {kind} evidence.",
+                    target=function.target,
+                    data={
+                        "function": function.symbol,
+                        "kind": kind,
+                        "first_index": str(first_index + 1),
+                        "duplicate_index": str(index + 1),
+                        "first": first_line,
+                        "duplicate": line,
+                    },
+                    repairs=["Remove repeated evidence or replace it with a distinct behavioral case."],
+                )
+            )
+        else:
+            seen[normalized] = (index, line)
+
+
+def _normalize_evidence(evidence: str) -> str:
+    return " ".join(evidence.split())
 
 
 def _check_effects(program: Program, summary: CheckSummary) -> None:

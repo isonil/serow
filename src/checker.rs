@@ -50,6 +50,7 @@ pub fn check_program(program: &Program, parse_diagnostics: Vec<Diagnostic>) -> C
     check_duplicate_intents(program, &mut summary);
     for function in &program.functions {
         check_function_shape(function, &mut summary);
+        check_repeated_evidence(function, &mut summary);
     }
     for function in &program.functions {
         check_static_types(function, program, &mut summary);
@@ -605,6 +606,76 @@ fn check_function_shape(function: &Function, summary: &mut CheckSummary) {
             Some(function.target()),
         ));
     }
+}
+
+fn check_repeated_evidence(function: &Function, summary: &mut CheckSummary) {
+    if !function.public {
+        return;
+    }
+    report_repeated_lines(function, "example", &function.examples, summary);
+    report_repeated_lines(function, "requires", &function.requires, summary);
+    report_repeated_lines(function, "ensures", &function.contracts, summary);
+
+    let properties = property_blocks(&function.properties)
+        .into_iter()
+        .map(|property| {
+            let variables = property
+                .variables
+                .iter()
+                .map(|(name, type_name)| format!("{name}: {type_name}"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("forall {variables}: {}", property.expression)
+        })
+        .collect::<Vec<_>>();
+    report_repeated_lines(function, "property", &properties, summary);
+}
+
+fn report_repeated_lines(
+    function: &Function,
+    kind: &str,
+    lines: &[String],
+    summary: &mut CheckSummary,
+) {
+    let mut seen = HashMap::<String, (usize, String)>::new();
+    for (index, line) in lines.iter().enumerate() {
+        let normalized = normalize_evidence(line);
+        if normalized.is_empty() {
+            continue;
+        }
+        if let Some((first_index, first_line)) = seen.get(&normalized) {
+            let code = match kind {
+                "example" => "DuplicateExample",
+                "property" => "DuplicateProperty",
+                _ => "DuplicateContractClause",
+            };
+            summary.diagnostics.push(
+                Diagnostic::warning(
+                    code,
+                    format!(
+                        "Public function `{}` repeats the same {} evidence.",
+                        function.name, kind
+                    ),
+                    Some(function.target()),
+                )
+                .with_data("function", function.symbol())
+                .with_data("kind", kind)
+                .with_data("first_index", (first_index + 1).to_string())
+                .with_data("duplicate_index", (index + 1).to_string())
+                .with_data("first", first_line)
+                .with_data("duplicate", line)
+                .with_repair(
+                    "Remove repeated evidence or replace it with a distinct behavioral case.",
+                ),
+            );
+        } else {
+            seen.insert(normalized, (index, line.clone()));
+        }
+    }
+}
+
+fn normalize_evidence(evidence: &str) -> String {
+    evidence.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 fn check_static_types(function: &Function, program: &Program, summary: &mut CheckSummary) {

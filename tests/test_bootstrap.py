@@ -265,6 +265,73 @@ pub fn sum_pair(x: Int, y: Int) -> Int
                 summary.diagnostics,
             )
 
+    def test_repeated_public_evidence_is_warned(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "repeated_evidence.serow"
+            source.write_text(
+                """module test.evidence
+
+pub fn id(x: Int) -> Int
+  intent "Return x with repeated evidence."
+  contract
+    requires x == x
+    requires x == x
+    ensures result == x
+    ensures result == x
+  examples
+    id(1) == 1
+    id(1) == 1
+  properties
+    forall x: Int:
+      id(x) == x
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+""",
+                encoding="utf-8",
+            )
+            program, parse_diagnostics = parse_files([str(source)])
+            summary = check_program(program, parse_diagnostics)
+            self.assertTrue(summary.ok, [diagnostic.to_dict() for diagnostic in summary.diagnostics])
+            self.assertTrue(
+                all(diagnostic.severity == "warning" for diagnostic in summary.diagnostics),
+                summary.diagnostics,
+            )
+            self.assertTrue(
+                any(
+                    diagnostic.code == "DuplicateExample"
+                    and diagnostic.data.get("duplicate_index") == "2"
+                    for diagnostic in summary.diagnostics
+                ),
+                summary.diagnostics,
+            )
+            self.assertTrue(
+                any(
+                    diagnostic.code == "DuplicateContractClause"
+                    and diagnostic.data.get("kind") == "requires"
+                    for diagnostic in summary.diagnostics
+                ),
+                summary.diagnostics,
+            )
+            self.assertTrue(
+                any(
+                    diagnostic.code == "DuplicateContractClause"
+                    and diagnostic.data.get("kind") == "ensures"
+                    for diagnostic in summary.diagnostics
+                ),
+                summary.diagnostics,
+            )
+            self.assertTrue(
+                any(
+                    diagnostic.code == "DuplicateProperty"
+                    and diagnostic.data.get("kind") == "property"
+                    for diagnostic in summary.diagnostics
+                ),
+                summary.diagnostics,
+            )
+
     def test_pure_function_cannot_call_effectful_function(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "effects.serow"

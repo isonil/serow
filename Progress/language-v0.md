@@ -79,6 +79,8 @@ Contract blocks currently support:
 
 Public function intents are checked against the project ledger. The bootstrap rejects exact normalized duplicate public intents with `PossibleDuplicate` diagnostics, and warns on high-overlap token-ranked public intents with `NearDuplicateIntent` diagnostics. These diagnostics include the likely reuse candidate plus `shared_terms`, `new_only_terms`, and `candidate_only_terms` fields so agents can see why behavior looks reusable and what wording differs. They also point agents back to `bin/serow query intent "<description>"` so they can reuse an existing symbol or make the new intent more specific before adding public behavior.
 
+Public executable evidence is also checked for exact repetition within each function. Duplicate examples produce `DuplicateExample` warnings, duplicate `requires` or `ensures` clauses produce `DuplicateContractClause` warnings, and duplicate sampled `forall` property blocks produce `DuplicateProperty` warnings. These are low-signal evidence diagnostics: `bin/serow check` can still succeed with warnings, while `bin/serow certify` rejects warnings.
+
 Intent queries use deterministic token ranking. The query path filters common stopwords, lightly normalizes content tokens such as plural forms and `integer`/`integers` to `int`, weights stronger fields like name and intent above executable evidence, and returns stable score-ordered results. This is a lexical reuse aid, not semantic embedding search.
 
 Public symbols carry a source-level version in their canonical symbol identity, for example `@core.math.add.v1`. The textual projection accepts a function-level `version vN` section after `intent`; omitted versions default to `v1` for compatibility with older bootstrap sources. Ledger JSON exposes the version as a separate `version` field so agents can depend on it without parsing the symbol string.
@@ -124,6 +126,7 @@ Effects are explicit on every public function. The bootstrap recognizes `effects
 - all examples passed
 - all executable calls satisfy declared `requires` preconditions
 - no exact duplicate public intents are present; near-duplicate public intents are warnings during normal checking and certification-blocking diagnostics during `certify`
+- no duplicate examples, contract clauses, or sampled property blocks are present as low-signal evidence warnings
 - direct calls only target functions whose declared concrete capabilities are available to the caller
 - bare function calls resolve unambiguously, or call sites use qualified references
 - sampled properties passed

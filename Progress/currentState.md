@@ -1,6 +1,6 @@
 # Current State
 
-Date: 2026-05-06
+Date: 2026-05-12
 
 ## Implemented
 
@@ -23,6 +23,7 @@ Date: 2026-05-06
   - executable `ensures` contracts against example calls
   - exact normalized duplicate public intent detection with shared/new-only/candidate-only term difference data
   - near-duplicate public intent warnings using deterministic token-ranked intent overlap with shared/new-only/candidate-only term difference data
+  - duplicate examples, duplicate contract clauses, and duplicate sampled property blocks as low-signal evidence warnings
   - ambiguous bare-call diagnostics with qualified-reference repair guidance
   - sampled `forall` properties over `Int`, `Bool`, and `Text`
   - inferred cross-module dependencies from function calls in implementations, contracts, examples, and properties
@@ -631,6 +632,24 @@ bin/serow certify --json
 bin/serow certify --profile unattended --json
 ```
 
+Additional verification after adding duplicate evidence warnings:
+
+```sh
+bin/serow query intent "detect duplicate executable examples and repeated evidence" --json
+bin/serow query symbol duplicate --json
+bin/serow check --json
+cargo fmt --check
+cargo clippy -- -D warnings
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+bin/serow agent --json
+```
+
 `cargo test` includes integration coverage for `bin/serow patch add-function`.
 
 `bin/serow check --json` currently reports:
@@ -663,7 +682,7 @@ bin/serow certify --profile unattended --json
 - Structured repair actions currently cover only command-style fixes already exposed by the bootstrap CLI.
 - `query callees` and `query dependents` report direct resolved call edges; use `query impact` for direct and transitive dependent paths. Ambiguous bare calls are intentionally skipped by ledger queries because they are checker errors.
 - `serow plan` is an early reporting primitive; it treats explicit path arguments as the selected change set and compares public contract-surface, declared capabilities, normalized implementation text, and evidence sections against `HEAD` when a tracked baseline is available. It reports whether added examples/properties directly call changed implementations, whether that added evidence would fail against the `HEAD` implementation, and whether impacted dependent call edges are covered by executable examples or sampled properties, but it does not yet compare full implementation AST behavior.
-- Normal certification still accepts omitted symbol versions for compatibility; `certify --profile unattended` requires explicit public versions, rejects same-version public contract-surface changes, rejects capability expansion without a migration acknowledgement, rejects same-version implementation changes without added executable evidence, rejects added implementation evidence that does not call the changed function, rejects added implementation evidence that also passes against the `HEAD` implementation, rejects evidence weakening against `HEAD`, rejects unchecked transitive impact, rejects uncovered impacted call edges unless an explicit migration acknowledgement records the intentional decision, and validates structured repair action commands before accepting diagnostics. It does not yet enforce the rest of the unattended safety roadmap.
+- Normal certification still accepts omitted symbol versions for compatibility; `certify --profile unattended` requires explicit public versions, rejects same-version public contract-surface changes, rejects capability expansion without a migration acknowledgement, rejects same-version implementation changes without added executable evidence, rejects added implementation evidence that does not call the changed function, rejects added implementation evidence that also passes against the `HEAD` implementation, rejects evidence weakening against `HEAD`, rejects unchecked transitive impact, rejects uncovered impacted call edges unless an explicit migration acknowledgement records the intentional decision, and validates structured repair action commands before accepting diagnostics. Normal certification also rejects warnings such as duplicate low-signal evidence and unused direct-call capabilities. It does not yet enforce the rest of the unattended safety roadmap.
 
 ## Current Strategic Direction
 

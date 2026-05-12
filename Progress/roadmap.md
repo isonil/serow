@@ -96,9 +96,9 @@ This phase exists because the original Serow premise is not only "AI-first synta
   - keep the output deterministic so weaker agents can follow it without interpreting prose
   - promote semantic change labels in plan output so agents can consume changes as public deltas, not only textual field differences
 - Add spec-quality diagnostics:
-  - detect duplicate or vacuous executable examples
+  - detect duplicate or vacuous executable examples _(Started: exact duplicate executable examples now warn as low-signal repeated evidence.)_
   - detect trivially weak sampled properties that do not constrain results meaningfully
-  - detect duplicate contract clauses and other low-signal repeated evidence
+  - detect duplicate contract clauses and other low-signal repeated evidence _(Started: exact duplicate `requires`, `ensures`, and sampled property blocks now warn.)_
   - report obvious intent/implementation mismatch heuristics as advisory plan risks until false positives are low enough for certification gates
 - Guard against evidence drift:
   - flag patches that change implementation and evidence together unless the changed evidence is explained by a structured migration record _(Started: same-symbol implementation-only changes are reported by `serow plan` and rejected by unattended certification when no executable evidence is added; `serow plan` now reports implementation/evidence drift rows, and unattended certification rejects them unless acknowledged by an `implementation-change` migration.)_

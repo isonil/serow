@@ -237,3 +237,12 @@
 - The rename patch validates the new function name, rejects duplicate canonical symbols, renames the public declaration, and rewrites resolved call references in implementations, contracts, examples, and properties in the patched source.
 - Rewritten bare calls use the exact `@module.name.vN(...)` form when the requested new bare name would collide with another public function and become ambiguous.
 - Added Rust integration coverage for normal function renames and collision-aware exact call rewriting.
+
+## 2026-05-12
+
+- Added spec-quality repeated-evidence diagnostics to the Rust checker and Python reference checker.
+- `DuplicateExample` now warns when a public function repeats an executable example exactly after whitespace normalization.
+- `DuplicateContractClause` now warns when a function repeats a `requires` or `ensures` clause.
+- `DuplicateProperty` now warns when a function repeats the same sampled `forall` property block.
+- Added Rust and Python regression coverage proving repeated evidence produces warnings without hiding otherwise passing behavior.
+- Updated README, `serow.project`, agent bootstrap output, and Progress docs to document low-signal duplicate evidence warnings.

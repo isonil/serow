@@ -1540,6 +1540,7 @@ fn agent_json() -> String {
             "Properties are sampled, not proven.",
             "Migration acknowledgements are source-level notes; they do not prove behavioral compatibility.",
             "Exact duplicate public intents are errors; high-overlap token-ranked intent matches are warnings.",
+            "`bin/serow check` warns on duplicate examples, contract clauses, and sampled property blocks.",
             "Duplicate and near-duplicate intent diagnostics include shared and differing intent terms.",
             "Intent search is deterministic token ranking with stopwords and light normalization, not semantic embeddings.",
             "Qualified calls support `module.name(...)`, `module.name.vN(...)`, and exact `@module.name.vN(...)` references.",
@@ -1755,6 +1756,7 @@ fn print_agent_bootstrap() {
     println!("  repairs: human-readable compatibility strings");
     println!("  repair_actions: machine-readable command actions when available");
     println!("  intent reuse diagnostics report shared and differing intent terms");
+    println!("  duplicate examples, contracts, and properties are low-signal evidence warnings");
     println!("  unattended certification validates structured repair action commands");
     println!("identity:");
     println!("  source may declare `version vN`; omitted versions default to v1");

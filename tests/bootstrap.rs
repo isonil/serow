@@ -598,6 +598,99 @@ pub fn sum_pair(x: Int, y: Int) -> Int
 }
 
 #[test]
+fn repeated_public_evidence_is_warned() {
+    let dir = unique_temp_dir("serow-repeated-evidence");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("repeated_evidence.serow");
+    fs::write(
+        &source,
+        r#"module test.evidence
+
+pub fn id(x: Int) -> Int
+  intent "Return x with repeated evidence."
+  contract
+    requires x == x
+    requires x == x
+    ensures result == x
+    ensures result == x
+  examples
+    id(1) == 1
+    id(1) == 1
+  properties
+    forall x: Int:
+      id(x) == x
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(summary.ok(), "{:#?}", summary.diagnostics);
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.severity == serow::diagnostic::Severity::Warning),
+        "{:#?}",
+        summary.diagnostics
+    );
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "DuplicateExample"
+                && diagnostic
+                    .data
+                    .iter()
+                    .any(|(key, value)| key == "duplicate_index" && value == "2")),
+        "{:#?}",
+        summary.diagnostics
+    );
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "DuplicateContractClause"
+                && diagnostic
+                    .data
+                    .iter()
+                    .any(|(key, value)| key == "kind" && value == "requires")),
+        "{:#?}",
+        summary.diagnostics
+    );
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "DuplicateContractClause"
+                && diagnostic
+                    .data
+                    .iter()
+                    .any(|(key, value)| key == "kind" && value == "ensures")),
+        "{:#?}",
+        summary.diagnostics
+    );
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "DuplicateProperty"
+                && diagnostic
+                    .data
+                    .iter()
+                    .any(|(key, value)| key == "kind" && value == "property")),
+        "{:#?}",
+        summary.diagnostics
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn intent_query_finds_add() {
     let (program, parse_diagnostics) = parse_paths(&["examples".to_string()]);
     assert!(parse_diagnostics.is_empty());
