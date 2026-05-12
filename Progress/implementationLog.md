@@ -255,3 +255,6 @@
 - Added low-signal vacuous property diagnostics to the Rust checker and Python reference checker.
 - `VacuousProperty` now warns when a sampled `forall` block binds no variables and is only checked once, making example-like properties visible before certification.
 - Added Rust and Python regression coverage proving vacuous sampled properties report their property index and expression.
+- Added `bin/serow replay property <sample-seed> [paths...] [--json]` to rerun a single sampled property binding from deterministic replay data.
+- `PropertyFailed` and `PropertyEvaluationError` diagnostics now include a structured command repair action for property replay.
+- Added Rust regression coverage proving replay diagnostics expose the command action and the replay CLI returns the same binding and actual result.

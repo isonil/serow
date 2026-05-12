@@ -851,6 +851,40 @@ pub fn id(x: Int) -> Int
             .any(|(key, value)| key == "bindings" && value == "x=-2"),
         "{diagnostic:#?}"
     );
+    assert!(
+        diagnostic.repair_actions.iter().any(|action| {
+            action.command
+                == vec![
+                    "bin/serow".to_string(),
+                    "replay".to_string(),
+                    "property".to_string(),
+                    "@test.property.id.v1#property:1#sample:1".to_string(),
+                    source.to_string_lossy().to_string(),
+                ]
+        }),
+        "{diagnostic:#?}"
+    );
+
+    let source_arg = source.to_string_lossy().to_string();
+    let replay = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "replay",
+            "property",
+            "@test.property.id.v1#property:1#sample:1",
+            &source_arg,
+            "--json",
+        ])
+        .output()
+        .expect("run property replay");
+    assert!(!replay.status.success(), "{replay:#?}");
+    let stdout = String::from_utf8(replay.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"ok\": false"), "{stdout}");
+    assert!(
+        stdout.contains("\"sample_seed\": \"@test.property.id.v1#property:1#sample:1\""),
+        "{stdout}"
+    );
+    assert!(stdout.contains("\"bindings\": \"x=-2\""), "{stdout}");
+    assert!(stdout.contains("\"actual\": \"false\""), "{stdout}");
     let _ = fs::remove_dir_all(dir);
 }
 
@@ -1019,6 +1053,21 @@ fn repair_action_contract_validation_rejects_malformed_commands() {
                 "query".to_string(),
                 "symbol".to_string(),
                 "id".to_string(),
+            ],
+        ),
+        Diagnostic::error(
+            "SyntheticReplayRepair",
+            "Synthetic diagnostic with a property replay repair action.",
+            Some("test.target".to_string()),
+        )
+        .with_command_repair(
+            "Replay property sample",
+            vec![
+                "bin/serow".to_string(),
+                "replay".to_string(),
+                "property".to_string(),
+                "@test.property.id.v1#property:1#sample:1".to_string(),
+                "examples/math.serow".to_string(),
             ],
         ),
     ];

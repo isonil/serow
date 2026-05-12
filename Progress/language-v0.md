@@ -81,7 +81,7 @@ Public function intents are checked against the project ledger. The bootstrap re
 
 Public executable evidence is also checked for exact repetition within each function. Duplicate examples produce `DuplicateExample` warnings, duplicate `requires` or `ensures` clauses produce `DuplicateContractClause` warnings, and duplicate sampled `forall` property blocks produce `DuplicateProperty` warnings. A sampled property with no bound variables produces a `VacuousProperty` warning because it is only checked once. A sampled property that does not directly call the public function under test produces a `ShallowProperty` warning because it may not constrain the function result. These are low-signal evidence diagnostics: `bin/serow check` can still succeed with warnings, while `bin/serow certify` rejects warnings.
 
-Sampled property failures are deterministic in the bootstrap. `PropertyFailed` and `PropertyEvaluationError` diagnostics include `property_index`, `sample_index`, `sample_seed`, and the sampled `bindings` so agents can rerun certification and identify the exact failing sample without inferring the checker's sample order.
+Sampled property failures are deterministic in the bootstrap. `PropertyFailed` and `PropertyEvaluationError` diagnostics include `property_index`, `sample_index`, `sample_seed`, and the sampled `bindings` so agents can identify the exact failing sample without inferring the checker's sample order. These diagnostics also include a command repair action for `bin/serow replay property <sample-seed> [paths...] [--json]`, which reruns only that sampled binding.
 
 Intent queries use deterministic token ranking. The query path filters common stopwords, lightly normalizes content tokens such as plural forms and `integer`/`integers` to `int`, weights stronger fields like name and intent above executable evidence, and returns stable score-ordered results. This is a lexical reuse aid, not semantic embedding search.
 
@@ -143,9 +143,13 @@ This is a deliberately weak early version of certification. Later phases should 
 
 `bin/serow agent [--json]` prints the current bootstrap contract for AI implementers. The JSON form is the stable entry point for discovering workflow requirements, supported commands, public function requirements, verification gates, and known limits without reading repository notes first.
 
+## Property Replay
+
+`bin/serow replay property <sample-seed> [paths...] [--json]` reruns one sampled property binding from a deterministic checker seed such as `@module.name.v1#property:1#sample:1`. The command locates the exact public symbol, property index, and sample index, rebuilds the sampled bindings, evaluates only that property expression, and reports the actual result. It exits successfully only when the replayed property evaluates to `true`.
+
 ## Diagnostics
 
-JSON diagnostics include stable core fields such as `severity`, `code`, `message`, optional `target`, and optional `data`. Diagnostics can also include legacy human-readable `repairs` strings and machine-readable `repair_actions`. The first repair action kind is `command`, encoded with a human label and an argv-style `command` array so agents can run known CLI repairs without parsing prose. Current command actions cover canonical formatting, missing `use` declarations, duplicate-intent ledger lookup, explicit-version fixes for unattended certification, and effect capability declaration repairs.
+JSON diagnostics include stable core fields such as `severity`, `code`, `message`, optional `target`, and optional `data`. Diagnostics can also include legacy human-readable `repairs` strings and machine-readable `repair_actions`. The first repair action kind is `command`, encoded with a human label and an argv-style `command` array so agents can run known CLI repairs without parsing prose. Current command actions cover canonical formatting, missing `use` declarations, duplicate-intent ledger lookup, explicit-version fixes for unattended certification, effect capability declaration repairs, and sampled-property replay.
 
 ## Structured Patches
 

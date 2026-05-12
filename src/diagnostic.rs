@@ -182,6 +182,7 @@ fn repair_action_issue(action: &RepairAction) -> Option<String> {
                 "symbols",
             ],
         ),
+        "replay" => validate_nested_command(action, &["property"]),
         other => Some(format!("unknown Serow subcommand `{other}`")),
     }
 }

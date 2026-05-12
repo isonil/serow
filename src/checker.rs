@@ -1225,6 +1225,13 @@ fn check_property(
         match evaluator.eval(&property.expression, &bindings) {
             Ok(Value::Bool(true)) => {}
             Ok(actual) => {
+                let replay_command = vec![
+                    "bin/serow".to_string(),
+                    "replay".to_string(),
+                    "property".to_string(),
+                    sample_seed.clone(),
+                    function.source_path.clone(),
+                ];
                 summary.diagnostics.push(
                     Diagnostic::error(
                         "PropertyFailed",
@@ -1237,18 +1244,27 @@ fn check_property(
                     .with_data("sample_seed", sample_seed)
                     .with_data("bindings", bindings_text)
                     .with_data("actual", actual.to_string())
+                    .with_command_repair("Replay this property sample", replay_command)
                     .with_repair("Fix implementation or narrow the property."),
                 );
                 return;
             }
             Err(error) => {
+                let replay_command = vec![
+                    "bin/serow".to_string(),
+                    "replay".to_string(),
+                    "property".to_string(),
+                    sample_seed.clone(),
+                    function.source_path.clone(),
+                ];
                 summary.diagnostics.push(
                     Diagnostic::error("PropertyEvaluationError", error, Some(function.target()))
                         .with_data("property", property.expression)
                         .with_data("property_index", property.index.to_string())
                         .with_data("sample_index", sample_index.to_string())
                         .with_data("sample_seed", sample_seed)
-                        .with_data("bindings", bindings_text),
+                        .with_data("bindings", bindings_text)
+                        .with_command_repair("Replay this property sample", replay_command),
                 );
                 return;
             }

@@ -22,6 +22,7 @@ use crate::plan::{
     unattended_public_behavior_change_diagnostics, unattended_unchecked_impact_diagnostics,
     unattended_uncovered_impact_evidence_diagnostics,
 };
+use crate::replay::{PropertyReplaySummary, replay_property};
 
 pub fn main(args: impl Iterator<Item = String>) -> i32 {
     let args = args.collect::<Vec<_>>();
@@ -38,6 +39,7 @@ pub fn main(args: impl Iterator<Item = String>) -> i32 {
         "patch" => run_patch(&args[1..]),
         "plan" => run_plan(&args[1..]),
         "query" => run_query(&args[1..]),
+        "replay" => run_replay(&args[1..]),
         "-h" | "--help" | "help" => {
             print_usage();
             0
@@ -48,6 +50,44 @@ pub fn main(args: impl Iterator<Item = String>) -> i32 {
             2
         }
     }
+}
+
+fn run_replay(args: &[String]) -> i32 {
+    let Some(replay_command) = args.first().map(String::as_str) else {
+        print_replay_usage();
+        return 2;
+    };
+    match replay_command {
+        "property" => run_replay_property(&args[1..]),
+        _ => {
+            print_replay_usage();
+            2
+        }
+    }
+}
+
+fn run_replay_property(args: &[String]) -> i32 {
+    let Some(sample_seed) = args.first() else {
+        print_replay_usage();
+        return 2;
+    };
+    let (paths, json_output) = split_paths_and_json(&args[1..]);
+    let (program, parse_diagnostics) = parse_paths(&paths);
+    if has_errors(&parse_diagnostics) {
+        if json_output {
+            println!("{}", diagnostics_json(false, &parse_diagnostics));
+        } else {
+            print_replay_parse_errors(&parse_diagnostics);
+        }
+        return 1;
+    }
+    let summary = replay_property(&program, sample_seed);
+    if json_output {
+        println!("{}", property_replay_json(&summary));
+    } else {
+        print_property_replay_summary(&summary);
+    }
+    i32::from(!summary.ok())
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -722,6 +762,60 @@ fn print_patch_summary(summary: &PatchSummary) {
     }
 }
 
+fn print_replay_parse_errors(diagnostics: &[Diagnostic]) {
+    println!("serow replay property: failed");
+    for diagnostic in diagnostics {
+        let target = diagnostic
+            .target
+            .as_ref()
+            .map(|target| format!(" {target}"))
+            .unwrap_or_default();
+        println!(
+            "{}: {}:{} {}",
+            diagnostic.severity.as_str(),
+            diagnostic.code,
+            target,
+            diagnostic.message
+        );
+    }
+}
+
+fn print_property_replay_summary(summary: &PropertyReplaySummary) {
+    let status = if summary.ok() { "ok" } else { "failed" };
+    println!("serow replay property: {status}");
+    if let Some(result) = &summary.result {
+        println!("symbol: {}", result.function.symbol());
+        println!(
+            "property: {} sample: {}",
+            result.property_index, result.sample_index
+        );
+        println!("sample_seed: {}", result.sample_seed);
+        println!("bindings: {}", result.bindings);
+        println!("expression: {}", result.property);
+        println!("actual: {}", result.actual);
+    }
+    for diagnostic in &summary.diagnostics {
+        let target = diagnostic
+            .target
+            .as_ref()
+            .map(|target| format!(" {target}"))
+            .unwrap_or_default();
+        println!(
+            "{}: {}:{} {}",
+            diagnostic.severity.as_str(),
+            diagnostic.code,
+            target,
+            diagnostic.message
+        );
+        if !diagnostic.data.is_empty() {
+            println!("  data: {}", data_json(&diagnostic.data));
+        }
+        if !diagnostic.repairs.is_empty() {
+            println!("  repairs: {}", diagnostic.repairs.join(", "));
+        }
+    }
+}
+
 fn print_query_matches(matches: &[crate::ledger::QueryMatch]) {
     if matches.is_empty() {
         println!("no matches");
@@ -1169,6 +1263,41 @@ fn patch_json(summary: &PatchSummary) -> String {
     )
 }
 
+fn property_replay_json(summary: &PropertyReplaySummary) -> String {
+    let replay = summary
+        .result
+        .as_ref()
+        .map(|result| {
+            format!(
+                concat!(
+                    "{{",
+                    "\"actual\": {}, ",
+                    "\"bindings\": {}, ",
+                    "\"function\": {}, ",
+                    "\"property\": {}, ",
+                    "\"property_index\": {}, ",
+                    "\"sample_index\": {}, ",
+                    "\"sample_seed\": {}",
+                    "}}"
+                ),
+                json_string(&result.actual),
+                json_string(&result.bindings),
+                function_ref_json(&result.function),
+                json_string(&result.property),
+                result.property_index,
+                result.sample_index,
+                json_string(&result.sample_seed)
+            )
+        })
+        .unwrap_or_else(|| "null".to_string());
+    format!(
+        "{{\n  \"diagnostics\": {},\n  \"ok\": {},\n  \"replay\": {}\n}}",
+        diagnostics_array_json(&summary.diagnostics),
+        summary.ok(),
+        replay
+    )
+}
+
 fn query_matches_json(matches: &[crate::ledger::QueryMatch]) -> String {
     let rows = matches
         .iter()
@@ -1477,6 +1606,11 @@ fn agent_json() -> String {
             "serow query symbols [paths...] [--json]",
             "List all public symbols in the parsed source set.",
         ),
+        (
+            "replay property",
+            "serow replay property <sample-seed> [paths...] [--json]",
+            "Replay one deterministic sampled property binding from a checker diagnostic seed.",
+        ),
     ];
     let command_rows = commands
         .iter()
@@ -1503,7 +1637,7 @@ fn agent_json() -> String {
             "  \"public_function_requirements\": {},\n",
             "  \"supported_bootstrap_types\": {},\n",
             "  \"verification_gates\": {},\n",
-            "  \"diagnostic_json\": {{\"repairs\": \"legacy human-readable repair strings\", \"repair_actions\": \"machine-readable command actions when available\", \"intent_reuse\": \"PossibleDuplicate and NearDuplicateIntent include shared_terms, new_only_terms, and candidate_only_terms data\", \"property_replay\": \"PropertyFailed and PropertyEvaluationError include property_index, sample_index, sample_seed, and bindings\"}},\n",
+            "  \"diagnostic_json\": {{\"repairs\": \"legacy human-readable repair strings\", \"repair_actions\": \"machine-readable command actions when available\", \"intent_reuse\": \"PossibleDuplicate and NearDuplicateIntent include shared_terms, new_only_terms, and candidate_only_terms data\", \"property_replay\": \"PropertyFailed and PropertyEvaluationError include property_index, sample_index, sample_seed, bindings, and a replay command action\"}},\n",
             "  \"known_limits\": {}\n",
             "}}"
         ),
@@ -1537,7 +1671,7 @@ fn agent_json() -> String {
         ]),
         str_array_json(&[
             "No full compiler or generated backend exists yet.",
-            "Properties are sampled, not proven; failing sampled properties report deterministic replay data.",
+            "Properties are sampled, not proven; failing sampled properties report deterministic replay data and can be replayed with `serow replay property`.",
             "Migration acknowledgements are source-level notes; they do not prove behavioral compatibility.",
             "Exact duplicate public intents are errors; high-overlap token-ranked intent matches are warnings.",
             "`bin/serow check` warns on duplicate examples, contract clauses, sampled property blocks, sampled properties with no bound variables, and sampled properties that do not call the function under test.",
@@ -1743,6 +1877,7 @@ fn print_agent_bootstrap() {
     println!("  serow query intent <text> [paths...] [--json]  # token-ranked");
     println!("  serow query symbol <text> [paths...] [--json]");
     println!("  serow query symbols [paths...] [--json]");
+    println!("  serow replay property <sample-seed> [paths...] [--json]");
     println!("verification gates:");
     println!("  cargo fmt --check");
     println!("  cargo clippy -- -D warnings");
@@ -1759,7 +1894,9 @@ fn print_agent_bootstrap() {
     println!(
         "  duplicate evidence, vacuous forall blocks, and shallow properties are low-signal evidence warnings"
     );
-    println!("  failing sampled properties report sample_seed and bindings replay data");
+    println!(
+        "  failing sampled properties report sample_seed, bindings, and a replay command action"
+    );
     println!("  unattended certification validates structured repair action commands");
     println!("identity:");
     println!("  source may declare `version vN`; omitted versions default to v1");
@@ -1834,6 +1971,7 @@ fn print_usage() {
     eprintln!("  serow query intent <text> [paths...] [--json]");
     eprintln!("  serow query symbol <text> [paths...] [--json]");
     eprintln!("  serow query symbols [paths...] [--json]");
+    eprintln!("  serow replay property <sample-seed> [paths...] [--json]");
 }
 
 fn print_agent_usage() {
@@ -1876,4 +2014,9 @@ fn print_query_usage() {
     eprintln!("  serow query intent <text> [paths...] [--json]");
     eprintln!("  serow query symbol <text> [paths...] [--json]");
     eprintln!("  serow query symbols [paths...] [--json]");
+}
+
+fn print_replay_usage() {
+    eprintln!("usage:");
+    eprintln!("  serow replay property <sample-seed> [paths...] [--json]");
 }
