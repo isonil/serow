@@ -655,6 +655,7 @@ fn report_repeated_lines(
                 "property" => "DuplicateProperty",
                 _ => "DuplicateContractClause",
             };
+            let duplicate_index = index + 1;
             summary.diagnostics.push(
                 Diagnostic::warning(
                     code,
@@ -667,9 +668,13 @@ fn report_repeated_lines(
                 .with_data("function", function.symbol())
                 .with_data("kind", kind)
                 .with_data("first_index", (first_index + 1).to_string())
-                .with_data("duplicate_index", (index + 1).to_string())
+                .with_data("duplicate_index", duplicate_index.to_string())
                 .with_data("first", first_line)
                 .with_data("duplicate", line)
+                .with_command_repair(
+                    "Remove the duplicate evidence item",
+                    duplicate_evidence_repair_command(function, kind, duplicate_index),
+                )
                 .with_repair(
                     "Remove repeated evidence or replace it with a distinct behavioral case.",
                 ),
@@ -678,6 +683,30 @@ fn report_repeated_lines(
             seen.insert(normalized, (index, line.clone()));
         }
     }
+}
+
+fn duplicate_evidence_repair_command(
+    function: &Function,
+    kind: &str,
+    duplicate_index: usize,
+) -> Vec<String> {
+    let mut command = vec![
+        "bin/serow".to_string(),
+        "patch".to_string(),
+        match kind {
+            "example" => "remove-example",
+            "property" => "remove-property",
+            _ => "remove-contract",
+        }
+        .to_string(),
+        function.source_path.clone(),
+        function.symbol(),
+    ];
+    if kind == "requires" || kind == "ensures" {
+        command.push(kind.to_string());
+    }
+    command.push(duplicate_index.to_string());
+    command
 }
 
 fn normalize_evidence(evidence: &str) -> String {

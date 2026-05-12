@@ -153,7 +153,7 @@ This is a deliberately weak early version of certification. Later phases should 
 
 ## Diagnostics
 
-JSON diagnostics include stable core fields such as `severity`, `code`, `message`, optional `target`, and optional `data`. Diagnostics can also include legacy human-readable `repairs` strings and machine-readable `repair_actions`. The first repair action kind is `command`, encoded with a human label and an argv-style `command` array so agents can run known CLI repairs without parsing prose. Current command actions cover canonical formatting, missing `use` declarations, duplicate-intent ledger lookup, explicit-version fixes for unattended certification, effect capability declaration repairs, and sampled-property replay.
+JSON diagnostics include stable core fields such as `severity`, `code`, `message`, optional `target`, and optional `data`. Diagnostics can also include legacy human-readable `repairs` strings and machine-readable `repair_actions`. The first repair action kind is `command`, encoded with a human label and an argv-style `command` array so agents can run known CLI repairs without parsing prose. Current command actions cover canonical formatting, missing `use` declarations, duplicate-intent ledger lookup, duplicate evidence removal, explicit-version fixes for unattended certification, effect capability declaration repairs, and sampled-property replay.
 
 ## Structured Patches
 
@@ -166,6 +166,8 @@ JSON diagnostics include stable core fields such as `severity`, `code`, `message
 `bin/serow patch add-migration <path> <symbol-or-name> <kind> <note> [--json]` appends one migration acknowledgement. It accepts the supported migration kinds described above, rejects empty notes, rejects ambiguous bare targets, and preserves idempotence for an existing identical record.
 
 `bin/serow patch fill-hole <path> <symbol-or-name> <expression> [--json]` replaces an existing typed implementation hole with the supplied expression. It does not overwrite a non-hole implementation; use normal source editing for intentional rewrites until Serow has dependent-aware implementation migration commands.
+
+`bin/serow patch remove-contract <path> <symbol-or-name> <requires|ensures> <index> [--json]`, `bin/serow patch remove-example <path> <symbol-or-name> <index> [--json]`, and `bin/serow patch remove-property <path> <symbol-or-name> <index> [--json]` remove one indexed evidence item. Duplicate-evidence diagnostics attach these commands for the repeated item. Removing evidence can still create missing evidence or evidence-weakening risk; `serow check`, `serow plan`, and unattended certification remain the policy gates.
 
 `bin/serow patch rename-function <path> <symbol-or-name> <new-name> [--json]` renames an existing public function and rewrites resolved call references in the patched source file. Bare, module-qualified, version-qualified, and exact symbol calls that resolve to the old symbol are updated. If the new bare name would collide with another public function in the patched source, rewritten bare call sites use the exact `@module.name.vN(...)` form to avoid introducing ambiguous calls.
 

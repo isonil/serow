@@ -281,3 +281,9 @@
 - Added Rust integration assertions proving plan JSON reports sampled-property coverage data.
 - Extended `bin/serow patch set-impl <path> <symbol-or-name> <expression> [--json]` so it can create a missing implementation section as well as replace an existing implementation expression.
 - Added Rust integration coverage proving `patch set-impl` repairs a function missing only its `impl` section and leaves the result checkable.
+- Added indexed evidence-removal structured patches:
+  - `bin/serow patch remove-contract <path> <symbol-or-name> <requires|ensures> <index> [--json]`
+  - `bin/serow patch remove-example <path> <symbol-or-name> <index> [--json]`
+  - `bin/serow patch remove-property <path> <symbol-or-name> <index> [--json]`
+- Duplicate public evidence diagnostics now attach command-style repair actions pointing at the repeated evidence item.
+- Added Rust integration coverage proving indexed evidence removal rewrites canonical source and duplicate-evidence diagnostics expose the new repair commands.

@@ -12,7 +12,7 @@ The current implementation is a bootstrap toolchain written in dependency-free R
 - explicit effects with direct-call capability subset checks and conservative unused declared-capability warnings
 - explicit and inferred module dependencies checked against `serow.project`
 - exact duplicate public intent errors and near-duplicate intent warnings with structured overlap/difference data
-- duplicate public examples, contract clauses, sampled property blocks, sampled properties with no bound variables, and sampled properties that do not call the function under test reported as low-signal evidence warnings
+- duplicate public examples, contract clauses, sampled property blocks, sampled properties with no bound variables, and sampled properties that do not call the function under test reported as low-signal evidence warnings, with duplicate evidence repair actions for indexed removal
 - sampled properties over built-in `Int`, `Bool`, and `Text` sample sets, with deterministic sample indexes, seed strings, bindings, simpler shrunk failing bindings when available, and a single-sample replay command for failures
 - structured JSON diagnostics with machine-readable repair actions where available
 - a semantic ledger for agent queries, including token-ranked intent search, direct callees, direct dependents, and transitive impact paths
@@ -50,6 +50,9 @@ bin/serow patch add-migration examples/math.serow @core.math.add.v1 implementati
 bin/serow patch add-property examples/math.serow @core.math.add.v1 "forall x: Int, y: Int:" "add(x, y) == add(y, x)"
 bin/serow patch add-use examples/math.serow app.main core.math
 bin/serow patch fill-hole examples/math.serow @core.math.double.v1 "x * 2"
+bin/serow patch remove-contract examples/math.serow @core.math.add.v1 ensures 2
+bin/serow patch remove-example examples/math.serow @core.math.add.v1 2
+bin/serow patch remove-property examples/math.serow @core.math.add.v1 2
 bin/serow patch rename-function examples/math.serow @core.math.add.v1 sum
 bin/serow patch set-contract examples/math.serow @core.math.add.v1 ensures "result == x + y"
 bin/serow patch set-effects examples/math.serow @core.math.add.v1 pure
@@ -69,6 +72,8 @@ bin/serow patch set-version examples/math.serow @core.math.add.v1 v1
 `patch set-contract` creates a missing contract clause, replaces a single existing `requires` or `ensures` clause, or replaces a specific clause when passed a 1-based index before the expression.
 
 `patch set-example` and `patch set-property` create missing executable evidence, replace a single existing item, or replace a specific item when passed a 1-based index.
+
+`patch remove-contract`, `patch remove-example`, and `patch remove-property` remove one indexed evidence item. Duplicate-evidence diagnostics point at these commands for the repeated item.
 
 `patch set-intent` sets or replaces a function intent through the structured patch interface. It rejects empty intents and ambiguous bare targets.
 

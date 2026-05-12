@@ -334,6 +334,47 @@ pub fn set_contract(
     })
 }
 
+pub fn remove_contract(path: &str, target: &str, clause: &str, index: usize) -> PatchSummary {
+    let mut summary = PatchSummary::default();
+    let clause = clause.trim();
+    if clause != "requires" && clause != "ensures" {
+        summary.diagnostics.push(
+            Diagnostic::error(
+                "InvalidPatchTarget",
+                format!("Invalid contract clause `{clause}`."),
+                Some(path.to_string()),
+            )
+            .with_repair("Use `requires` or `ensures`."),
+        );
+        return summary;
+    }
+    patch_function_checked(path, target, |function| {
+        let function_name = function.name.clone();
+        let function_target = function.target();
+        let lines = if clause == "requires" {
+            &mut function.requires
+        } else {
+            &mut function.contracts
+        };
+        if index == 0 || index > lines.len() {
+            return Err(Box::new(
+                Diagnostic::error(
+                    "PatchConflict",
+                    format!(
+                        "Function `{}` has no `{clause}` contract clause at index {index}.",
+                        function_name
+                    ),
+                    Some(function_target),
+                )
+                .with_data("clause_count", lines.len().to_string())
+                .with_repair("Use a 1-based index for an existing contract clause."),
+            ));
+        }
+        lines.remove(index - 1);
+        Ok(true)
+    })
+}
+
 pub fn add_example(path: &str, target: &str, expression: &str) -> PatchSummary {
     let expression = expression.trim();
     if expression.is_empty() {
@@ -424,6 +465,27 @@ pub fn set_example(
             }
             _ => unreachable!("multiple examples were rejected above"),
         }
+    })
+}
+
+pub fn remove_example(path: &str, target: &str, index: usize) -> PatchSummary {
+    patch_function_checked(path, target, |function| {
+        if index == 0 || index > function.examples.len() {
+            return Err(Box::new(
+                Diagnostic::error(
+                    "PatchConflict",
+                    format!(
+                        "Function `{}` has no example at index {index}.",
+                        function.name
+                    ),
+                    Some(function.target()),
+                )
+                .with_data("example_count", function.examples.len().to_string())
+                .with_repair("Use a 1-based index for an existing example."),
+            ));
+        }
+        function.examples.remove(index - 1);
+        Ok(true)
     })
 }
 
@@ -555,6 +617,29 @@ pub fn set_property(
             }
             _ => unreachable!("multiple properties were rejected above"),
         }
+    })
+}
+
+pub fn remove_property(path: &str, target: &str, index: usize) -> PatchSummary {
+    patch_function_checked(path, target, |function| {
+        let ranges = property_block_ranges(&function.properties);
+        if index == 0 || index > ranges.len() {
+            return Err(Box::new(
+                Diagnostic::error(
+                    "PatchConflict",
+                    format!(
+                        "Function `{}` has no property at index {index}.",
+                        function.name
+                    ),
+                    Some(function.target()),
+                )
+                .with_data("property_count", ranges.len().to_string())
+                .with_repair("Use a 1-based index for an existing forall property."),
+            ));
+        }
+        let (header_index, body_index) = ranges[index - 1];
+        function.properties.drain(header_index..=body_index);
+        Ok(true)
     })
 }
 

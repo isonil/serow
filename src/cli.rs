@@ -9,8 +9,8 @@ use crate::model::Function;
 use crate::parser::parse_paths;
 use crate::patch::{
     PatchSummary, add_contract, add_example, add_function, add_migration, add_property, add_use,
-    fill_hole, rename_function, set_contract, set_effects, set_example, set_impl, set_intent,
-    set_property, set_version,
+    fill_hole, remove_contract, remove_example, remove_property, rename_function, set_contract,
+    set_effects, set_example, set_impl, set_intent, set_property, set_version,
 };
 use crate::plan::{
     CapabilityAnalysis, CapabilityChange, ChangePlan, EvidenceCoverage, EvidenceDelta,
@@ -155,6 +155,9 @@ fn run_patch(args: &[String]) -> i32 {
         "add-property" => run_patch_add_property(&args[1..]),
         "add-use" => run_patch_add_use(&args[1..]),
         "fill-hole" => run_patch_fill_hole(&args[1..]),
+        "remove-contract" => run_patch_remove_contract(&args[1..]),
+        "remove-example" => run_patch_remove_example(&args[1..]),
+        "remove-property" => run_patch_remove_property(&args[1..]),
         "rename-function" => run_patch_rename_function(&args[1..]),
         "set-contract" => run_patch_set_contract(&args[1..]),
         "set-effects" => run_patch_set_effects(&args[1..]),
@@ -267,6 +270,63 @@ fn run_patch_fill_hole(args: &[String]) -> i32 {
         return 2;
     };
     let summary = fill_hole(path, target, expression);
+    if json_output {
+        println!("{}", patch_json(&summary));
+    } else {
+        print_patch_summary(&summary);
+    }
+    i32::from(!summary.ok())
+}
+
+fn run_patch_remove_contract(args: &[String]) -> i32 {
+    let (args, json_output) = split_flag(args, "--json");
+    let [path, target, clause, index] = args.as_slice() else {
+        print_patch_usage();
+        return 2;
+    };
+    let Some(index) = parse_patch_index(index) else {
+        eprintln!("invalid contract clause index `{index}`; use a 1-based integer");
+        return 2;
+    };
+    let summary = remove_contract(path, target, clause, index);
+    if json_output {
+        println!("{}", patch_json(&summary));
+    } else {
+        print_patch_summary(&summary);
+    }
+    i32::from(!summary.ok())
+}
+
+fn run_patch_remove_example(args: &[String]) -> i32 {
+    let (args, json_output) = split_flag(args, "--json");
+    let [path, target, index] = args.as_slice() else {
+        print_patch_usage();
+        return 2;
+    };
+    let Some(index) = parse_patch_index(index) else {
+        eprintln!("invalid example index `{index}`; use a 1-based integer");
+        return 2;
+    };
+    let summary = remove_example(path, target, index);
+    if json_output {
+        println!("{}", patch_json(&summary));
+    } else {
+        print_patch_summary(&summary);
+    }
+    i32::from(!summary.ok())
+}
+
+fn run_patch_remove_property(args: &[String]) -> i32 {
+    let (args, json_output) = split_flag(args, "--json");
+    let [path, target, index] = args.as_slice() else {
+        print_patch_usage();
+        return 2;
+    };
+    let Some(index) = parse_patch_index(index) else {
+        eprintln!("invalid property index `{index}`; use a 1-based integer");
+        return 2;
+    };
+    let summary = remove_property(path, target, index);
     if json_output {
         println!("{}", patch_json(&summary));
     } else {
@@ -1671,6 +1731,21 @@ fn agent_json() -> String {
             "Replace an existing typed implementation hole with an expression.",
         ),
         (
+            "patch remove-contract",
+            "serow patch remove-contract <path> <symbol-or-name> <requires|ensures> <index> [--json]",
+            "Remove one indexed contract clause from an existing function.",
+        ),
+        (
+            "patch remove-example",
+            "serow patch remove-example <path> <symbol-or-name> <index> [--json]",
+            "Remove one indexed executable example from an existing function.",
+        ),
+        (
+            "patch remove-property",
+            "serow patch remove-property <path> <symbol-or-name> <index> [--json]",
+            "Remove one indexed sampled forall property from an existing function.",
+        ),
+        (
             "patch rename-function",
             "serow patch rename-function <path> <symbol-or-name> <new-name> [--json]",
             "Rename a public function and rewrite resolved call references in the patched source.",
@@ -1776,7 +1851,7 @@ fn agent_json() -> String {
             "  \"public_function_requirements\": {},\n",
             "  \"supported_bootstrap_types\": {},\n",
             "  \"verification_gates\": {},\n",
-            "  \"diagnostic_json\": {{\"repairs\": \"legacy human-readable repair strings\", \"repair_actions\": \"machine-readable command actions when available\", \"intent_reuse\": \"PossibleDuplicate and NearDuplicateIntent include shared_terms, new_only_terms, and candidate_only_terms data\", \"property_replay\": \"PropertyFailed and PropertyEvaluationError include property_index, sample_index, sample_seed, bindings, and a replay command action\", \"property_shrinking\": \"PropertyFailed includes shrunk_sample_index, shrunk_sample_seed, and shrunk_bindings when a simpler failing sampled binding is found\"}},\n",
+            "  \"diagnostic_json\": {{\"repairs\": \"legacy human-readable repair strings\", \"repair_actions\": \"machine-readable command actions when available\", \"intent_reuse\": \"PossibleDuplicate and NearDuplicateIntent include shared_terms, new_only_terms, and candidate_only_terms data\", \"duplicate_evidence\": \"Duplicate evidence diagnostics include indexed remove-evidence patch command actions\", \"property_replay\": \"PropertyFailed and PropertyEvaluationError include property_index, sample_index, sample_seed, bindings, and a replay command action\", \"property_shrinking\": \"PropertyFailed includes shrunk_sample_index, shrunk_sample_seed, and shrunk_bindings when a simpler failing sampled binding is found\"}},\n",
             "  \"plan_json\": {{\"semantic_changes\": \"changed symbols include deterministic labels with acknowledgement state and details for public deltas\", \"property_coverage\": \"changed symbols include sampled-property sample counts, direct-call flags, vacuous flags, and unsupported generator types\", \"intent_implementation_risks\": \"changed symbols include advisory lexical arithmetic intent/implementation mismatch risks\"}},\n",
             "  \"known_limits\": {}\n",
             "}}"
@@ -2004,6 +2079,11 @@ fn print_agent_bootstrap() {
     );
     println!("  serow patch add-use <path> <module> <dependency> [--json]");
     println!("  serow patch fill-hole <path> <symbol-or-name> <expression> [--json]");
+    println!(
+        "  serow patch remove-contract <path> <symbol-or-name> <requires|ensures> <index> [--json]"
+    );
+    println!("  serow patch remove-example <path> <symbol-or-name> <index> [--json]");
+    println!("  serow patch remove-property <path> <symbol-or-name> <index> [--json]");
     println!("  serow patch rename-function <path> <symbol-or-name> <new-name> [--json]");
     println!(
         "  serow patch set-contract <path> <symbol-or-name> <requires|ensures> [index] <expression> [--json]"
@@ -2110,6 +2190,11 @@ fn print_usage() {
     );
     eprintln!("  serow patch add-use <path> <module> <dependency> [--json]");
     eprintln!("  serow patch fill-hole <path> <symbol-or-name> <expression> [--json]");
+    eprintln!(
+        "  serow patch remove-contract <path> <symbol-or-name> <requires|ensures> <index> [--json]"
+    );
+    eprintln!("  serow patch remove-example <path> <symbol-or-name> <index> [--json]");
+    eprintln!("  serow patch remove-property <path> <symbol-or-name> <index> [--json]");
     eprintln!("  serow patch rename-function <path> <symbol-or-name> <new-name> [--json]");
     eprintln!(
         "  serow patch set-contract <path> <symbol-or-name> <requires|ensures> [index] <expression> [--json]"
@@ -2150,6 +2235,11 @@ fn print_patch_usage() {
     );
     eprintln!("  serow patch add-use <path> <module> <dependency> [--json]");
     eprintln!("  serow patch fill-hole <path> <symbol-or-name> <expression> [--json]");
+    eprintln!(
+        "  serow patch remove-contract <path> <symbol-or-name> <requires|ensures> <index> [--json]"
+    );
+    eprintln!("  serow patch remove-example <path> <symbol-or-name> <index> [--json]");
+    eprintln!("  serow patch remove-property <path> <symbol-or-name> <index> [--json]");
     eprintln!("  serow patch rename-function <path> <symbol-or-name> <new-name> [--json]");
     eprintln!(
         "  serow patch set-contract <path> <symbol-or-name> <requires|ensures> [index] <expression> [--json]"

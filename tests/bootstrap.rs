@@ -647,7 +647,18 @@ pub fn id(x: Int) -> Int
                 && diagnostic
                     .data
                     .iter()
-                    .any(|(key, value)| key == "duplicate_index" && value == "2")),
+                    .any(|(key, value)| key == "duplicate_index" && value == "2")
+                && diagnostic.repair_actions.iter().any(|action| {
+                    action.command
+                        == vec![
+                            "bin/serow".to_string(),
+                            "patch".to_string(),
+                            "remove-example".to_string(),
+                            source.to_string_lossy().to_string(),
+                            "@test.evidence.id.v1".to_string(),
+                            "2".to_string(),
+                        ]
+                })),
         "{:#?}",
         summary.diagnostics
     );
@@ -659,7 +670,19 @@ pub fn id(x: Int) -> Int
                 && diagnostic
                     .data
                     .iter()
-                    .any(|(key, value)| key == "kind" && value == "requires")),
+                    .any(|(key, value)| key == "kind" && value == "requires")
+                && diagnostic.repair_actions.iter().any(|action| {
+                    action.command
+                        == vec![
+                            "bin/serow".to_string(),
+                            "patch".to_string(),
+                            "remove-contract".to_string(),
+                            source.to_string_lossy().to_string(),
+                            "@test.evidence.id.v1".to_string(),
+                            "requires".to_string(),
+                            "2".to_string(),
+                        ]
+                })),
         "{:#?}",
         summary.diagnostics
     );
@@ -683,7 +706,18 @@ pub fn id(x: Int) -> Int
                 && diagnostic
                     .data
                     .iter()
-                    .any(|(key, value)| key == "kind" && value == "property")),
+                    .any(|(key, value)| key == "kind" && value == "property")
+                && diagnostic.repair_actions.iter().any(|action| {
+                    action.command
+                        == vec![
+                            "bin/serow".to_string(),
+                            "patch".to_string(),
+                            "remove-property".to_string(),
+                            source.to_string_lossy().to_string(),
+                            "@test.evidence.id.v1".to_string(),
+                            "2".to_string(),
+                        ]
+                })),
         "{:#?}",
         summary.diagnostics
     );
@@ -4377,6 +4411,132 @@ pub fn id(x: Int) -> Int
         rejected_index_stdout.contains("no property at index 3"),
         "{rejected_index_stdout}"
     );
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn patch_remove_evidence_removes_indexed_items() {
+    let dir = unique_temp_dir("serow-patch-remove-evidence");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("remove_evidence.serow");
+    fs::write(
+        &source,
+        r#"module app.main
+
+pub fn id(x: Int) -> Int
+  intent "Return the input unchanged."
+  version v1
+  contract
+    requires x == x
+    requires x != 999
+    ensures result == x
+    ensures result != x + 1
+  examples
+    id(1) == 1
+    id(2) == 2
+  properties
+    forall x: Int:
+      id(x) == x
+    forall x: Int:
+      id(x) == x + 0
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let remove_requires = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "remove-contract",
+            source.to_str().expect("utf8 path"),
+            "@app.main.id.v1",
+            "requires",
+            "2",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch remove-contract requires");
+    assert!(remove_requires.status.success(), "{remove_requires:#?}");
+
+    let remove_ensures = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "remove-contract",
+            source.to_str().expect("utf8 path"),
+            "@app.main.id.v1",
+            "ensures",
+            "2",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch remove-contract ensures");
+    assert!(remove_ensures.status.success(), "{remove_ensures:#?}");
+
+    let remove_example = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "remove-example",
+            source.to_str().expect("utf8 path"),
+            "@app.main.id.v1",
+            "2",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch remove-example");
+    assert!(remove_example.status.success(), "{remove_example:#?}");
+
+    let remove_property = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "remove-property",
+            source.to_str().expect("utf8 path"),
+            "@app.main.id.v1",
+            "2",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch remove-property");
+    assert!(remove_property.status.success(), "{remove_property:#?}");
+
+    let updated = fs::read_to_string(&source).expect("read updated fixture");
+    assert!(
+        updated.contains("  contract\n    requires x == x\n    ensures result == x"),
+        "{updated}"
+    );
+    assert!(updated.contains("  examples\n    id(1) == 1"), "{updated}");
+    assert!(
+        updated.contains("  properties\n    forall x: Int:\n      id(x) == x"),
+        "{updated}"
+    );
+    assert!(!updated.contains("x != 999"), "{updated}");
+    assert!(!updated.contains("result != x + 1"), "{updated}");
+    assert!(!updated.contains("id(2) == 2"), "{updated}");
+    assert!(!updated.contains("id(x) == x + 0"), "{updated}");
+
+    let rejected = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "remove-property",
+            source.to_str().expect("utf8 path"),
+            "@app.main.id.v1",
+            "2",
+            "--json",
+        ])
+        .output()
+        .expect("run rejected serow patch remove-property");
+    assert!(!rejected.status.success(), "{rejected:#?}");
+    let rejected_stdout = String::from_utf8(rejected.stdout).expect("stdout is utf8");
+    assert!(
+        rejected_stdout.contains("no property at index 2"),
+        "{rejected_stdout}"
+    );
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(summary.ok(), "{:#?}", summary.diagnostics);
 
     let _ = fs::remove_dir_all(dir);
 }
