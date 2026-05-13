@@ -3696,6 +3696,56 @@ fn patch_add_function_inserts_safe_public_skeleton() {
 }
 
 #[test]
+fn patch_add_function_rejects_duplicate_public_intent() {
+    let dir = unique_temp_dir("serow-patch-add-function-duplicate-intent");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("duplicate.serow");
+    fs::write(
+        &source,
+        r#"module app.main
+
+pub fn id(x: Int) -> Int
+  intent "Return x unchanged."
+  version v1
+  contract
+    ensures result == x
+  examples
+    id(1) == 1
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "add-function",
+            source.to_str().expect("utf8 path"),
+            "app.main",
+            "identity(x: Int) -> Int",
+            "Return x unchanged!",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch add-function");
+
+    assert!(!output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("PossibleDuplicate"), "{stdout}");
+    assert!(stdout.contains("\"repair_actions\""), "{stdout}");
+    assert!(stdout.contains("\"query\""), "{stdout}");
+    assert!(stdout.contains("\"intent\""), "{stdout}");
+    let unchanged = fs::read_to_string(&source).expect("read fixture");
+    assert!(!unchanged.contains("pub fn identity"), "{unchanged}");
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn patch_set_version_makes_public_identity_explicit() {
     let dir = unique_temp_dir("serow-patch-set-version");
     fs::create_dir_all(&dir).expect("create temp dir");

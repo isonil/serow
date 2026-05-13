@@ -1787,7 +1787,7 @@ fn agent_json() -> String {
         (
             "patch add-function",
             "serow patch add-function <path> <module> <signature> <intent> [--json]",
-            "Insert a public function skeleton with explicit version, intent, effects, and typed hole.",
+            "Insert a public function skeleton after rejecting exact duplicate public intents.",
         ),
         (
             "patch add-migration",
@@ -1988,6 +1988,7 @@ fn agent_json() -> String {
             "Properties are sampled, not proven; built-in samples cover boundary and representative Int, Bool, and Text values, and failing sampled properties report deterministic replay data that can be replayed with `serow replay property`; PropertyFailed diagnostics also include a simpler shrunk sampled binding when one is found.",
             "Migration acknowledgements are source-level notes; they do not prove behavioral compatibility.",
             "Exact duplicate public intents are errors; high-overlap token-ranked intent matches are warnings.",
+            "`serow patch add-function` rejects exact duplicate public intents before writing.",
             "`bin/serow check` warns on duplicate examples, contract clauses, sampled property blocks, sampled properties with no bound variables, and sampled properties that do not call the function under test.",
             "Duplicate and near-duplicate intent diagnostics include shared and differing intent terms.",
             "Intent search is deterministic token ranking with stopwords and light normalization, not semantic embeddings.",

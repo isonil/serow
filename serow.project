@@ -51,6 +51,7 @@
     ],
     "examples_are_executable": true,
     "duplicate_public_intents_rejected": true,
+    "structured_function_insertion_rejects_duplicate_intents": true,
     "duplicate_intent_diagnostics_report_term_differences": true,
     "near_duplicate_public_intents_warned": true,
     "duplicate_evidence_warned": true,

@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::diagnostic::{Diagnostic, Severity};
 use crate::eval::{Evaluator, Value, called_functions, resolve_function};
-use crate::ledger::{intent_terms, query_intent};
+use crate::ledger::{exact_intent_key, intent_terms, query_intent};
 use crate::model::{Function, Program};
 use crate::project::load_architecture;
 use crate::sampling::{
@@ -537,18 +537,7 @@ fn normalized_intent_words(intent: &str) -> Vec<String> {
 }
 
 fn normalize_intent(intent: &str) -> String {
-    let mut normalized = String::new();
-    let mut in_token = false;
-    for char in intent.chars() {
-        if char.is_ascii_alphanumeric() {
-            normalized.push(char.to_ascii_lowercase());
-            in_token = true;
-        } else if in_token {
-            normalized.push(' ');
-            in_token = false;
-        }
-    }
-    normalized.trim().to_string()
+    exact_intent_key(intent)
 }
 
 fn check_function_shape(function: &Function, summary: &mut CheckSummary) {

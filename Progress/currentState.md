@@ -116,6 +116,7 @@ Date: 2026-05-13
   - `bin/serow fmt [paths...] --check`
   - canonical `use <module>` ordering as parsed in each module
 - Empty module declarations are preserved in the parsed program so structured patches can target modules before functions exist.
+- `patch add-function` now rejects exact normalized duplicate public intents before writing, returning a `PossibleDuplicate` diagnostic with a `query intent` repair action.
 - Sample program in `examples/math.serow`.
 - Rust unit/integration tests in `tests/bootstrap.rs`.
 - Earlier Python bootstrap remains in `serowlang/` as reference code.
@@ -1073,6 +1074,25 @@ bin/serow certify --profile unattended --json
 bin/serow plan --json
 bin/serow agent --json
 git diff --check
+```
+
+Additional verification after making `patch add-function` reject exact duplicate public intents:
+
+```sh
+bin/serow query intent "reject duplicate public function intents during structured function insertion" --json
+bin/serow query symbol add-function --json
+cargo fmt --check
+cargo test add_function -- --nocapture
+cargo test agent_json_includes_machine_readable_workflow -- --nocapture
+cargo clippy -- -D warnings
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+bin/serow agent --json
 ```
 
 `cargo test` includes integration coverage for `bin/serow patch add-function`.

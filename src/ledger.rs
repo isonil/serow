@@ -95,6 +95,21 @@ pub fn intent_terms(text: &str) -> Vec<String> {
     terms
 }
 
+pub fn exact_intent_key(text: &str) -> String {
+    let mut normalized = String::new();
+    let mut in_token = false;
+    for char in text.chars() {
+        if char.is_ascii_alphanumeric() {
+            normalized.push(char.to_ascii_lowercase());
+            in_token = true;
+        } else if in_token {
+            normalized.push(' ');
+            in_token = false;
+        }
+    }
+    normalized.trim().to_string()
+}
+
 pub fn query_symbol(program: &Program, text: &str, limit: usize) -> Vec<QueryMatch> {
     let needle = text.to_lowercase();
     let mut matches = Vec::new();

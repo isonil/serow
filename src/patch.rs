@@ -3,6 +3,7 @@ use std::fs;
 use crate::diagnostic::{Diagnostic, has_errors};
 use crate::eval::{called_functions, resolve_function};
 use crate::formatter::format_program;
+use crate::ledger::exact_intent_key;
 use crate::model::{Function, MigrationRecord, ModuleDependency, Param, Program};
 
 const MIGRATION_KINDS: &[&str] = &[
@@ -242,6 +243,44 @@ pub fn add_function(path: &str, module: &str, signature: &str, intent: &str) -> 
             )
             .with_data("symbol", symbol)
             .with_repair("Choose a different name or add a new explicit version manually."),
+        );
+        return summary;
+    }
+
+    let normalized_intent = exact_intent_key(intent);
+    if !normalized_intent.is_empty()
+        && let Some(existing) = program.functions.iter().find(|candidate| {
+            candidate.public
+                && candidate.intent.as_deref().is_some_and(|candidate_intent| {
+                    exact_intent_key(candidate_intent) == normalized_intent
+                })
+        })
+    {
+        summary.diagnostics.push(
+            Diagnostic::error(
+                "PossibleDuplicate",
+                format!(
+                    "New public function `{name}` has the same intent as `{}`.",
+                    existing.symbol()
+                ),
+                Some(existing.target()),
+            )
+            .with_data("candidate", existing.symbol())
+            .with_data(
+                "candidate_intent",
+                existing.intent.clone().unwrap_or_default(),
+            )
+            .with_data("intent", intent)
+            .with_command_repair(
+                "Find existing functions with the same intent",
+                vec![
+                    "bin/serow".to_string(),
+                    "query".to_string(),
+                    "intent".to_string(),
+                    intent.to_string(),
+                ],
+            )
+            .with_repair("Reuse the existing symbol or make the new intent more specific."),
         );
         return summary;
     }
