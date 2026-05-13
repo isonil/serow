@@ -437,6 +437,46 @@ pub fn id(x: Int) -> Int
                 summary.diagnostics,
             )
 
+    def test_executable_example_without_target_call_warns_as_shallow(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "shallow_example.serow"
+            source.write_text(
+                """module test.example
+
+pub fn id(x: Int) -> Int
+  version v1
+  intent "Return the supplied integer unchanged."
+  contract
+    ensures result == x
+  examples
+    1 == 1
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+""",
+                encoding="utf-8",
+            )
+            program, parse_diagnostics = parse_files([str(source)])
+            summary = check_program(program, parse_diagnostics)
+            diagnostic = next(
+                diagnostic
+                for diagnostic in summary.diagnostics
+                if diagnostic.code == "ShallowExample"
+            )
+            self.assertEqual(diagnostic.data.get("example_index"), "1")
+            self.assertEqual(diagnostic.data.get("example"), "1 == 1")
+            self.assertTrue(
+                any(
+                    action.command[-2:] == ["@test.example.id.v1", "1"]
+                    and action.command[2] == "remove-example"
+                    for action in diagnostic.repair_actions
+                ),
+                diagnostic.to_dict(),
+            )
+
     def test_sampled_property_without_target_call_warns_as_shallow(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "shallow_property.serow"

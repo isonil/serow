@@ -59,6 +59,7 @@ pub fn check_program(program: &Program, parse_diagnostics: Vec<Diagnostic>) -> C
         check_static_types(function, program, &mut summary);
     }
     for function in &program.functions {
+        check_example_constraints(function, program, &mut summary);
         check_property_constraints(function, program, &mut summary);
     }
     check_effects(program, &mut summary);
@@ -854,6 +855,56 @@ fn check_property_constraints(function: &Function, program: &Program, summary: &
             )
             .with_repair(
                 "Add a sampled property that calls the function result, or replace this property with stronger behavioral evidence.",
+            ),
+        );
+    }
+}
+
+fn check_example_constraints(function: &Function, program: &Program, summary: &mut CheckSummary) {
+    if !function.public {
+        return;
+    }
+    for (index, example) in function.examples.iter().enumerate() {
+        let Ok(call_references) = called_functions(example) else {
+            continue;
+        };
+        let mut callees = Vec::new();
+        let mut unresolved = false;
+        let calls_function = call_references.iter().any(|call_reference| {
+            match resolve_function(&call_reference.raw, &program.functions) {
+                Ok(callee) => {
+                    callees.push(callee.symbol());
+                    callee.symbol() == function.symbol()
+                }
+                Err(_) => {
+                    unresolved = true;
+                    false
+                }
+            }
+        });
+        if unresolved || calls_function {
+            continue;
+        }
+        let example_index = index + 1;
+        summary.diagnostics.push(
+            Diagnostic::warning(
+                "ShallowExample",
+                format!(
+                    "Executable example for `{}` does not directly call the function under test.",
+                    function.name
+                ),
+                Some(function.target()),
+            )
+            .with_data("function", function.symbol())
+            .with_data("example_index", example_index.to_string())
+            .with_data("example", example)
+            .with_data("resolved_callees", callees.join(", "))
+            .with_command_repair(
+                "Remove the low-signal executable example",
+                evidence_removal_repair_command(function, "example", example_index),
+            )
+            .with_repair(
+                "Add an executable example that calls the function result, or replace this example with stronger behavioral evidence.",
             ),
         );
     }

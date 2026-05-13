@@ -54,6 +54,7 @@ def check_program(program: Program, parse_diagnostics: List[Diagnostic]) -> Chec
         _check_function_shape(function, summary)
         _check_repeated_evidence(function, summary)
     for function in program.functions:
+        _check_example_constraints(function, program, summary)
         _check_property_constraints(function, program, summary)
     _check_effects(program, summary)
     for function in program.functions:
@@ -464,6 +465,48 @@ def _check_property_constraints(function: Function, program: Program, summary: C
             )
             .with_repair(
                 "Add a sampled property that calls the function result, or replace this property with stronger behavioral evidence."
+            )
+        )
+
+
+def _check_example_constraints(function: Function, program: Program, summary: CheckSummary) -> None:
+    if not function.public:
+        return
+    for index, example in enumerate(function.examples, start=1):
+        calls = _called_functions(example)
+        callees: List[str] = []
+        unresolved = False
+        calls_function = False
+        for call in calls:
+            try:
+                callee = resolve_function(call, program.functions)
+            except EvaluationError:
+                unresolved = True
+                continue
+            callees.append(callee.symbol)
+            if callee.symbol == function.symbol:
+                calls_function = True
+        if unresolved or calls_function:
+            continue
+        summary.diagnostics.append(
+            Diagnostic(
+                severity="warning",
+                code="ShallowExample",
+                message=f"Executable example for `{function.name}` does not directly call the function under test.",
+                target=function.target,
+                data={
+                    "function": function.symbol,
+                    "example_index": str(index),
+                    "example": example,
+                    "resolved_callees": ", ".join(callees),
+                },
+            )
+            .with_command_repair(
+                "Remove the low-signal executable example",
+                _evidence_removal_repair_command(function, "example", index),
+            )
+            .with_repair(
+                "Add an executable example that calls the function result, or replace this example with stronger behavioral evidence."
             )
         )
 

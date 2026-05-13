@@ -795,6 +795,72 @@ pub fn id(x: Int) -> Int
 }
 
 #[test]
+fn executable_example_without_target_call_warns_as_shallow() {
+    let dir = unique_temp_dir("serow-shallow-example");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("shallow_example.serow");
+    fs::write(
+        &source,
+        r#"module test.example
+
+pub fn id(x: Int) -> Int
+  version v1
+  intent "Return the supplied integer unchanged."
+  contract
+    ensures result == x
+  examples
+    1 == 1
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    let diagnostic = summary
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "ShallowExample")
+        .expect("shallow example diagnostic");
+    assert!(
+        diagnostic
+            .data
+            .iter()
+            .any(|(key, value)| key == "example_index" && value == "1"),
+        "{diagnostic:#?}"
+    );
+    assert!(
+        diagnostic
+            .data
+            .iter()
+            .any(|(key, value)| key == "example" && value == "1 == 1"),
+        "{diagnostic:#?}"
+    );
+    assert!(
+        diagnostic.repair_actions.iter().any(|action| {
+            action.kind == "command"
+                && action.label == "Remove the low-signal executable example"
+                && action.command
+                    == vec![
+                        "bin/serow",
+                        "patch",
+                        "remove-example",
+                        source.to_str().unwrap(),
+                        "@test.example.id.v1",
+                        "1",
+                    ]
+        }),
+        "{diagnostic:#?}"
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn sampled_property_without_target_call_warns_as_shallow() {
     let dir = unique_temp_dir("serow-shallow-property");
     fs::create_dir_all(&dir).expect("create temp dir");

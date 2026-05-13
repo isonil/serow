@@ -15,7 +15,7 @@ The current implementation is a bootstrap toolchain written in dependency-free R
 - ambiguous bare-call diagnostics with candidate symbols and a structured symbol lookup repair action
 - missing-section diagnostics with safe structured patch actions for absent effects and implementation sections
 - typed-hole diagnostics with structured implementation obligations derived from signatures, contracts, examples, and sampled properties
-- duplicate public examples, contract clauses, sampled property blocks, sampled properties with no bound variables, and sampled properties that do not call the function under test reported as low-signal evidence warnings, with indexed removal repair actions where available
+- duplicate public examples, executable examples that do not call the function under test, contract clauses, sampled property blocks, sampled properties with no bound variables, and sampled properties that do not call the function under test reported as low-signal evidence warnings, with indexed removal repair actions where available
 - sampled properties over built-in `Int`, `Bool`, and `Text` sample sets, with deterministic sample indexes, seed strings, bindings, simpler shrunk failing bindings when available, and a single-sample replay command for failures
 - structured JSON diagnostics with machine-readable repair actions where available
 - a semantic ledger for agent queries, including token-ranked intent search, direct callees, direct dependents, and transitive impact paths
