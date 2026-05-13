@@ -96,6 +96,7 @@ Date: 2026-05-13
 - `patch set-example` and `patch set-property` create missing executable evidence, replace a single existing item, or replace a specific item when passed a 1-based index.
 - Duplicate public evidence diagnostics include structured repair actions pointing at indexed `patch remove-contract`, `patch remove-example`, and `patch remove-property` commands for the repeated item.
 - Vacuous and shallow sampled-property diagnostics include structured repair actions pointing at indexed `patch remove-property` commands for the low-signal item.
+- `MissingRequiredSection` diagnostics include conservative structured repair actions for absent non-evidence sections: `patch set-effects ... pure` and `patch set-impl ... HOLE(Type)`.
 - `patch set-impl` creates a missing implementation section or replaces an existing implementation expression through the structured patch interface; public implementation-change policy remains enforced by `serow plan` and unattended certification.
 - `patch set-intent` sets or replaces a function intent through the structured patch interface while preserving ambiguous-target protection.
 - `patch set-migration` creates a missing migration acknowledgement for a kind, replaces a single existing record of that kind, or replaces a specific record when passed a 1-based index.

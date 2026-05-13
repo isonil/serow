@@ -13,6 +13,7 @@ The current implementation is a bootstrap toolchain written in dependency-free R
 - explicit and inferred module dependencies checked against `serow.project`
 - exact duplicate public intent errors and near-duplicate intent warnings with structured overlap/difference data
 - ambiguous bare-call diagnostics with candidate symbols and a structured symbol lookup repair action
+- missing-section diagnostics with safe structured patch actions for absent effects and implementation sections
 - typed-hole diagnostics with structured implementation obligations derived from signatures, contracts, examples, and sampled properties
 - duplicate public examples, contract clauses, sampled property blocks, sampled properties with no bound variables, and sampled properties that do not call the function under test reported as low-signal evidence warnings, with indexed removal repair actions where available
 - sampled properties over built-in `Int`, `Bool`, and `Text` sample sets, with deterministic sample indexes, seed strings, bindings, simpler shrunk failing bindings when available, and a single-sample replay command for failures
@@ -74,6 +75,8 @@ bin/serow patch set-version examples/math.serow @core.math.add.v1 v1
 `patch rename-function` changes a public function name and rewrites resolved call references in the patched source. When the new bare name would be ambiguous, rewritten call sites use the exact `@module.name.vN(...)` form.
 
 `patch set-impl` creates a missing implementation section or replaces an existing implementation expression through the structured patch interface. It does not replace certification: changed public implementations are still reported by `serow plan` and gated by `certify --profile unattended`.
+
+`MissingRequiredSection` diagnostics include safe patch commands for absent non-evidence sections when available: `patch set-effects ... pure` establishes an explicit baseline declaration, and `patch set-impl ... "HOLE(Type)"` creates a typed implementation hole without inventing behavior.
 
 `patch set-contract` creates a missing contract clause, replaces a single existing `requires` or `ensures` clause, or replaces a specific clause when passed a 1-based index before the expression.
 

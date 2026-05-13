@@ -605,19 +605,44 @@ fn check_function_shape(function: &Function, summary: &mut CheckSummary) {
             missing.push("impl");
         }
         if !missing.is_empty() {
-            summary.diagnostics.push(
-                Diagnostic::error(
-                    "MissingRequiredSection",
-                    format!(
-                        "Public function `{}` is missing required sections.",
-                        function.name
-                    ),
-                    Some(function.target()),
-                )
-                .with_data("missing", missing.join(", "))
-                .with_data("required", REQUIRED_PUBLIC_SECTIONS.join(", "))
-                .with_repair("Add all required sections before certification."),
-            );
+            let mut diagnostic = Diagnostic::error(
+                "MissingRequiredSection",
+                format!(
+                    "Public function `{}` is missing required sections.",
+                    function.name
+                ),
+                Some(function.target()),
+            )
+            .with_data("missing", missing.join(", "))
+            .with_data("required", REQUIRED_PUBLIC_SECTIONS.join(", "))
+            .with_repair("Add all required sections before certification.");
+            if function.effects.is_empty() {
+                diagnostic = diagnostic.with_command_repair(
+                    "Declare a pure effect baseline",
+                    vec![
+                        "bin/serow".to_string(),
+                        "patch".to_string(),
+                        "set-effects".to_string(),
+                        function.source_path.clone(),
+                        function.symbol(),
+                        "pure".to_string(),
+                    ],
+                );
+            }
+            if function.implementation.is_none() {
+                diagnostic = diagnostic.with_command_repair(
+                    "Create a typed implementation hole",
+                    vec![
+                        "bin/serow".to_string(),
+                        "patch".to_string(),
+                        "set-impl".to_string(),
+                        function.source_path.clone(),
+                        function.symbol(),
+                        format!("HOLE({})", function.return_type),
+                    ],
+                );
+            }
+            summary.diagnostics.push(diagnostic);
         }
     }
 

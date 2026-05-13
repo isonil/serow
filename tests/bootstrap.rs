@@ -1680,6 +1680,50 @@ pub fn bump(x: Int) -> Int
 }
 
 #[test]
+fn missing_required_sections_include_safe_patch_repair_actions() {
+    let dir = unique_temp_dir("serow-missing-section-repairs");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("missing_sections.serow");
+    fs::write(
+        &source,
+        r#"module app.main
+
+pub fn id(x: Int) -> Int
+  intent "Return the input unchanged."
+  version v1
+  contract
+    ensures result == x
+  examples
+    id(3) == 3
+  properties
+    forall x: Int:
+      id(x) == x
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["check", source.to_str().expect("utf8 path"), "--json"])
+        .output()
+        .expect("run serow check --json");
+
+    assert!(!output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("MissingRequiredSection"), "{stdout}");
+    assert!(
+        stdout.contains("\"command\": [\"bin/serow\", \"patch\", \"set-effects\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"command\": [\"bin/serow\", \"patch\", \"set-impl\""),
+        "{stdout}"
+    );
+    assert!(stdout.contains("\"HOLE(Int)\""), "{stdout}");
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn declared_cross_module_call_checks() {
     let dir = unique_temp_dir("serow-declared-use");
     fs::create_dir_all(&dir).expect("create temp dir");
