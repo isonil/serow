@@ -2000,7 +2000,7 @@ fn agent_commands_json_includes_full_command_catalog() {
     let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
     assert!(stdout.contains("\"ok\": true"), "{stdout}");
     assert!(
-        stdout.contains("serow compile rust [paths...] [--json]"),
+        stdout.contains("serow compile rust [paths...] [--out-dir <dir>] [--json]"),
         "{stdout}"
     );
     assert!(stdout.contains("serow patch qualify-call"), "{stdout}");
@@ -6559,6 +6559,55 @@ pub fn greet(name: Text) -> Text
         "{}{}",
         String::from_utf8_lossy(&rustc_output.stdout),
         String::from_utf8_lossy(&rustc_output.stderr)
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn compile_rust_out_dir_writes_crate_layout() {
+    let dir = unique_temp_dir("serow-compile-rust-out-dir");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let out_dir = dir.join("generated_crate");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "compile",
+            "rust",
+            "examples/math.serow",
+            "--out-dir",
+            &out_dir.to_string_lossy(),
+            "--json",
+        ])
+        .output()
+        .expect("run compile rust --out-dir");
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("\"written_files\": ["), "{stdout}");
+    assert!(stdout.contains("Cargo.toml"), "{stdout}");
+    assert!(stdout.contains("src/lib.rs"), "{stdout}");
+
+    let cargo_toml = out_dir.join("Cargo.toml");
+    let lib_rs = out_dir.join("src").join("lib.rs");
+    assert!(cargo_toml.exists(), "{cargo_toml:?}");
+    assert!(lib_rs.exists(), "{lib_rs:?}");
+    let manifest = fs::read_to_string(&cargo_toml).expect("read generated manifest");
+    assert!(
+        manifest.contains("name = \"serow_generated\""),
+        "{manifest}"
+    );
+    let source = fs::read_to_string(&lib_rs).expect("read generated lib");
+    assert!(source.contains("pub fn serow_core_math_add_v1"), "{source}");
+
+    let cargo_output = Command::new("cargo")
+        .args(["check", "--manifest-path"])
+        .arg(&cargo_toml)
+        .output()
+        .expect("cargo check generated crate");
+    assert!(
+        cargo_output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&cargo_output.stdout),
+        String::from_utf8_lossy(&cargo_output.stderr)
     );
     let _ = fs::remove_dir_all(dir);
 }

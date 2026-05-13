@@ -18,7 +18,7 @@
     "certify": "bin/serow certify",
     "certify_unattended": "bin/serow certify --profile unattended",
     "compile_ir": "bin/serow compile ir [paths...]",
-    "compile_rust": "bin/serow compile rust [paths...]",
+    "compile_rust": "bin/serow compile rust [paths...] [--out-dir <dir>]",
     "patch_add_contract": "bin/serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression>",
     "patch_add_example": "bin/serow patch add-example <path> <symbol-or-name> <expression>",
     "patch_add_function": "bin/serow patch add-function <path> <module> <signature> <intent>",
@@ -128,7 +128,8 @@
     "plan_reports_impact_evidence_coverage": true,
     "portable_ir_backend": true,
     "rust_backend_codegen": true,
-    "rust_backend_text_codegen": true
+    "rust_backend_text_codegen": true,
+    "rust_backend_crate_layout": true
   },
   "source_roots": [
     "examples"

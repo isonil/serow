@@ -167,11 +167,11 @@ The bootstrap IR covers the current expression subset only: literals, variables,
 
 ## Rust Backend
 
-`bin/serow compile rust [paths...] [--json]` is the first production-backend slice. It runs the same checked IR lowering path first, then emits deterministic Rust source for supported functions. In text mode, stdout is the generated Rust source so it can be redirected to a backend artifact. In JSON mode, the output includes backend id `serow.rust.v0`, the input IR version, generated source text, and symbol-to-Rust-name rows.
+`bin/serow compile rust [paths...] [--out-dir <dir>] [--json]` is the first production-backend slice. It runs the same checked IR lowering path first, then emits deterministic Rust source for supported functions. In normal text mode, stdout is the generated Rust source so it can be redirected to a backend artifact. With `--out-dir <dir>`, the command writes a dependency-free Rust crate layout containing `Cargo.toml` and `src/lib.rs`; JSON output additionally reports `written_files`. JSON output includes backend id `serow.rust.v0`, the input IR version, generated source text, and symbol-to-Rust-name rows.
 
 The current Rust backend supports pure public functions over `Int`, `Bool`, and `Text`. It maps `Int` to `i64`, `Bool` to `bool`, and `Text` to owned `String` values. It emits Rust for arithmetic, integer division and remainder, text concatenation, comparisons, boolean operators, unary operators, `if`, and resolved calls to other generated functions. Canonical Serow symbols are lowered to deterministic Rust identifiers such as `@core.math.add.v1` -> `serow_core_math_add_v1`.
 
-The backend rejects unsupported code instead of emitting partial artifacts. Non-`pure` functions return `RustBackendUnsupportedEffect`; unknown future source types return `RustBackendUnsupportedType`. WASM, TypeScript, Python, external effect boundaries, ownership-friendly state transforms, and backend package/file layout are still future Phase 3 work.
+The backend rejects unsupported code instead of emitting partial artifacts. Non-`pure` functions return `RustBackendUnsupportedEffect`; unknown future source types return `RustBackendUnsupportedType`. WASM, TypeScript, Python, external effect boundaries, ownership-friendly state transforms, richer package metadata, and multi-target backend layouts are still future Phase 3 work.
 
 ## Diagnostics
 
