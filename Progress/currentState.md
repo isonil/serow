@@ -1,6 +1,6 @@
 # Current State
 
-Date: 2026-05-12
+Date: 2026-05-13
 
 ## Implemented
 
@@ -93,6 +93,7 @@ Date: 2026-05-12
 - `patch set-contract` creates a missing `requires` or `ensures` clause, replaces a single existing clause, or replaces a specific clause when passed a 1-based index.
 - `patch set-example` and `patch set-property` create missing executable evidence, replace a single existing item, or replace a specific item when passed a 1-based index.
 - Duplicate public evidence diagnostics include structured repair actions pointing at indexed `patch remove-contract`, `patch remove-example`, and `patch remove-property` commands for the repeated item.
+- Vacuous and shallow sampled-property diagnostics include structured repair actions pointing at indexed `patch remove-property` commands for the low-signal item.
 - `patch set-impl` creates a missing implementation section or replaces an existing implementation expression through the structured patch interface; public implementation-change policy remains enforced by `serow plan` and unattended certification.
 - `patch set-intent` sets or replaces a function intent through the structured patch interface while preserving ambiguous-target protection.
 - `patch set-migration` creates a missing migration acknowledgement for a kind, replaces a single existing record of that kind, or replaces a specific record when passed a 1-based index.
@@ -946,6 +947,25 @@ bin/serow query intent "update migration acknowledgement notes through structure
 bin/serow query symbol migration --json
 cargo fmt --check
 cargo test patch_set_migration -- --nocapture
+cargo clippy -- -D warnings
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+bin/serow agent --json
+```
+
+Additional verification after adding low-signal property repair actions:
+
+```sh
+bin/serow query intent "repair low signal property evidence" --json
+bin/serow query symbol "property" --json
+cargo fmt --check
+cargo test sampled_property_without_target_call_warns_as_shallow
+cargo test sampled_property_without_bindings_warns_as_vacuous
 cargo clippy -- -D warnings
 cargo test
 python3 -m unittest discover -s tests

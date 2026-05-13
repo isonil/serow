@@ -301,3 +301,5 @@
 - Added `bin/serow patch set-migration <path> <symbol-or-name> <kind> [index] <note> [--json]`.
 - The migration setter creates a missing acknowledgement for a kind, replaces a single existing record of that kind, or replaces a specific same-kind record by 1-based index while preserving ambiguous-target protection and canonical formatting.
 - Updated agent bootstrap output, repair-action validation, README, `serow.project`, and Progress notes to advertise structured migration acknowledgement replacement.
+- Added structured remove-property repair actions to `VacuousProperty` and `ShallowProperty` diagnostics in the Rust checker.
+- Low-signal sampled-property warnings now point at the exact indexed `bin/serow patch remove-property` command for removing the vacuous or shallow property.

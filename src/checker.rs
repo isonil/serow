@@ -717,7 +717,7 @@ fn report_repeated_lines(
                 .with_data("duplicate", line)
                 .with_command_repair(
                     "Remove the duplicate evidence item",
-                    duplicate_evidence_repair_command(function, kind, duplicate_index),
+                    evidence_removal_repair_command(function, kind, duplicate_index),
                 )
                 .with_repair(
                     "Remove repeated evidence or replace it with a distinct behavioral case.",
@@ -729,11 +729,7 @@ fn report_repeated_lines(
     }
 }
 
-fn duplicate_evidence_repair_command(
-    function: &Function,
-    kind: &str,
-    duplicate_index: usize,
-) -> Vec<String> {
+fn evidence_removal_repair_command(function: &Function, kind: &str, index: usize) -> Vec<String> {
     let mut command = vec![
         "bin/serow".to_string(),
         "patch".to_string(),
@@ -749,7 +745,7 @@ fn duplicate_evidence_repair_command(
     if kind == "requires" || kind == "ensures" {
         command.push(kind.to_string());
     }
-    command.push(duplicate_index.to_string());
+    command.push(index.to_string());
     command
 }
 
@@ -775,6 +771,10 @@ fn check_property_constraints(function: &Function, program: &Program, summary: &
                 .with_data("function", function.symbol())
                 .with_data("property_index", property.index.to_string())
                 .with_data("property", &property.expression)
+                .with_command_repair(
+                    "Remove the low-signal sampled property",
+                    evidence_removal_repair_command(function, "property", property.index),
+                )
                 .with_repair(
                     "Bind at least one variable in the forall header, or move this case to examples.",
                 ),
@@ -813,6 +813,10 @@ fn check_property_constraints(function: &Function, program: &Program, summary: &
             .with_data("property_index", property.index.to_string())
             .with_data("property", property.expression)
             .with_data("resolved_callees", callees.join(", "))
+            .with_command_repair(
+                "Remove the low-signal sampled property",
+                evidence_removal_repair_command(function, "property", property.index),
+            )
             .with_repair(
                 "Add a sampled property that calls the function result, or replace this property with stronger behavioral evidence.",
             ),

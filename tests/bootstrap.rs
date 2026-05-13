@@ -841,6 +841,22 @@ pub fn id(x: Int) -> Int
             .any(|(key, value)| key == "property" && value == "x == x"),
         "{diagnostic:#?}"
     );
+    assert!(
+        diagnostic.repair_actions.iter().any(|action| {
+            action.kind == "command"
+                && action.label == "Remove the low-signal sampled property"
+                && action.command
+                    == vec![
+                        "bin/serow",
+                        "patch",
+                        "remove-property",
+                        source.to_str().unwrap(),
+                        "@test.property.id.v1",
+                        "1",
+                    ]
+        }),
+        "{diagnostic:#?}"
+    );
     let _ = fs::remove_dir_all(dir);
 }
 
@@ -889,6 +905,22 @@ pub fn id(x: Int) -> Int
             .data
             .iter()
             .any(|(key, value)| key == "property" && value == "id(1) == 1"),
+        "{diagnostic:#?}"
+    );
+    assert!(
+        diagnostic.repair_actions.iter().any(|action| {
+            action.kind == "command"
+                && action.label == "Remove the low-signal sampled property"
+                && action.command
+                    == vec![
+                        "bin/serow",
+                        "patch",
+                        "remove-property",
+                        source.to_str().unwrap(),
+                        "@test.property.id.v1",
+                        "1",
+                    ]
+        }),
         "{diagnostic:#?}"
     );
     let _ = fs::remove_dir_all(dir);
