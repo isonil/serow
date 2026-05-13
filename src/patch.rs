@@ -742,6 +742,52 @@ pub fn set_migration(
     })
 }
 
+pub fn remove_migration(path: &str, target: &str, kind: &str, index: usize) -> PatchSummary {
+    let kind = kind.trim();
+    if !MIGRATION_KINDS.iter().any(|allowed| allowed == &kind) {
+        let mut summary = PatchSummary::default();
+        summary.diagnostics.push(
+            Diagnostic::error(
+                "InvalidPatchTarget",
+                format!("Invalid migration kind `{kind}`."),
+                Some(path.to_string()),
+            )
+            .with_data("allowed", MIGRATION_KINDS.join(", "))
+            .with_repair("Use a supported migration kind."),
+        );
+        return summary;
+    }
+
+    patch_function_checked(path, target, |function| {
+        let matching_indexes = function
+            .migrations
+            .iter()
+            .enumerate()
+            .filter_map(|(migration_index, migration)| {
+                (migration.kind == kind).then_some(migration_index)
+            })
+            .collect::<Vec<_>>();
+
+        if index == 0 || index > matching_indexes.len() {
+            return Err(Box::new(
+                Diagnostic::error(
+                    "PatchConflict",
+                    format!(
+                        "Function `{}` has no `{kind}` migration record at index {index}.",
+                        function.name
+                    ),
+                    Some(function.target()),
+                )
+                .with_data("migration_count", matching_indexes.len().to_string())
+                .with_repair("Use a 1-based index for an existing migration record of this kind."),
+            ));
+        }
+
+        function.migrations.remove(matching_indexes[index - 1]);
+        Ok(true)
+    })
+}
+
 fn validate_migration_patch(path: &str, kind: &str, note: &str) -> Option<PatchSummary> {
     if !MIGRATION_KINDS.iter().any(|allowed| allowed == &kind) {
         let mut summary = PatchSummary::default();

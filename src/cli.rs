@@ -9,9 +9,9 @@ use crate::model::Function;
 use crate::parser::parse_paths;
 use crate::patch::{
     PatchSummary, add_contract, add_example, add_function, add_migration, add_property, add_use,
-    fill_hole, remove_contract, remove_example, remove_property, rename_function, set_contract,
-    set_effects, set_example, set_impl, set_intent, set_migration, set_property, set_signature,
-    set_version,
+    fill_hole, remove_contract, remove_example, remove_migration, remove_property, rename_function,
+    set_contract, set_effects, set_example, set_impl, set_intent, set_migration, set_property,
+    set_signature, set_version,
 };
 use crate::plan::{
     CapabilityAnalysis, CapabilityChange, ChangePlan, EvidenceCoverage, EvidenceDelta,
@@ -158,6 +158,7 @@ fn run_patch(args: &[String]) -> i32 {
         "fill-hole" => run_patch_fill_hole(&args[1..]),
         "remove-contract" => run_patch_remove_contract(&args[1..]),
         "remove-example" => run_patch_remove_example(&args[1..]),
+        "remove-migration" => run_patch_remove_migration(&args[1..]),
         "remove-property" => run_patch_remove_property(&args[1..]),
         "rename-function" => run_patch_rename_function(&args[1..]),
         "set-contract" => run_patch_set_contract(&args[1..]),
@@ -311,6 +312,25 @@ fn run_patch_remove_example(args: &[String]) -> i32 {
         return 2;
     };
     let summary = remove_example(path, target, index);
+    if json_output {
+        println!("{}", patch_json(&summary));
+    } else {
+        print_patch_summary(&summary);
+    }
+    i32::from(!summary.ok())
+}
+
+fn run_patch_remove_migration(args: &[String]) -> i32 {
+    let (args, json_output) = split_flag(args, "--json");
+    let [path, target, kind, index] = args.as_slice() else {
+        print_patch_usage();
+        return 2;
+    };
+    let Some(index) = parse_patch_index(index) else {
+        eprintln!("invalid migration index `{index}`; use a 1-based integer");
+        return 2;
+    };
+    let summary = remove_migration(path, target, kind, index);
     if json_output {
         println!("{}", patch_json(&summary));
     } else {
@@ -1784,6 +1804,11 @@ fn agent_json() -> String {
             "Remove one indexed executable example from an existing function.",
         ),
         (
+            "patch remove-migration",
+            "serow patch remove-migration <path> <symbol-or-name> <kind> <index> [--json]",
+            "Remove one indexed migration acknowledgement of a specific kind.",
+        ),
+        (
             "patch remove-property",
             "serow patch remove-property <path> <symbol-or-name> <index> [--json]",
             "Remove one indexed sampled forall property from an existing function.",
@@ -2136,6 +2161,7 @@ fn print_agent_bootstrap() {
         "  serow patch remove-contract <path> <symbol-or-name> <requires|ensures> <index> [--json]"
     );
     println!("  serow patch remove-example <path> <symbol-or-name> <index> [--json]");
+    println!("  serow patch remove-migration <path> <symbol-or-name> <kind> <index> [--json]");
     println!("  serow patch remove-property <path> <symbol-or-name> <index> [--json]");
     println!("  serow patch rename-function <path> <symbol-or-name> <new-name> [--json]");
     println!(
@@ -2250,6 +2276,7 @@ fn print_usage() {
         "  serow patch remove-contract <path> <symbol-or-name> <requires|ensures> <index> [--json]"
     );
     eprintln!("  serow patch remove-example <path> <symbol-or-name> <index> [--json]");
+    eprintln!("  serow patch remove-migration <path> <symbol-or-name> <kind> <index> [--json]");
     eprintln!("  serow patch remove-property <path> <symbol-or-name> <index> [--json]");
     eprintln!("  serow patch rename-function <path> <symbol-or-name> <new-name> [--json]");
     eprintln!(
@@ -2297,6 +2324,7 @@ fn print_patch_usage() {
         "  serow patch remove-contract <path> <symbol-or-name> <requires|ensures> <index> [--json]"
     );
     eprintln!("  serow patch remove-example <path> <symbol-or-name> <index> [--json]");
+    eprintln!("  serow patch remove-migration <path> <symbol-or-name> <kind> <index> [--json]");
     eprintln!("  serow patch remove-property <path> <symbol-or-name> <index> [--json]");
     eprintln!("  serow patch rename-function <path> <symbol-or-name> <new-name> [--json]");
     eprintln!(

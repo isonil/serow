@@ -167,6 +167,8 @@ JSON diagnostics include stable core fields such as `severity`, `code`, `message
 
 `bin/serow patch add-migration <path> <symbol-or-name> <kind> <note> [--json]` appends one migration acknowledgement. It accepts the supported migration kinds described above, rejects empty notes, rejects ambiguous bare targets, and preserves idempotence for an existing identical record.
 
+`bin/serow patch remove-migration <path> <symbol-or-name> <kind> <index> [--json]` removes one indexed migration acknowledgement of the requested kind. Indexes are 1-based within that migration kind, so agents can remove a stale acknowledgement without depending on unrelated migration records in the same function.
+
 `bin/serow patch fill-hole <path> <symbol-or-name> <expression> [--json]` replaces an existing typed implementation hole with the supplied expression. It does not overwrite a non-hole implementation; use normal source editing for intentional rewrites until Serow has dependent-aware implementation migration commands.
 
 `bin/serow patch remove-contract <path> <symbol-or-name> <requires|ensures> <index> [--json]`, `bin/serow patch remove-example <path> <symbol-or-name> <index> [--json]`, and `bin/serow patch remove-property <path> <symbol-or-name> <index> [--json]` remove one indexed evidence item. Duplicate-evidence diagnostics attach these commands for the repeated item. Removing evidence can still create missing evidence or evidence-weakening risk; `serow check`, `serow plan`, and unattended certification remain the policy gates.

@@ -78,6 +78,7 @@ Date: 2026-05-13
   - `bin/serow patch fill-hole <path> <symbol-or-name> <expression> [--json]`
   - `bin/serow patch remove-contract <path> <symbol-or-name> <requires|ensures> <index> [--json]`
   - `bin/serow patch remove-example <path> <symbol-or-name> <index> [--json]`
+  - `bin/serow patch remove-migration <path> <symbol-or-name> <kind> <index> [--json]`
   - `bin/serow patch remove-property <path> <symbol-or-name> <index> [--json]`
   - `bin/serow patch rename-function <path> <symbol-or-name> <new-name> [--json]`
   - `bin/serow patch set-contract <path> <symbol-or-name> <requires|ensures> [index] <expression> [--json]`
@@ -97,6 +98,7 @@ Date: 2026-05-13
 - `patch set-impl` creates a missing implementation section or replaces an existing implementation expression through the structured patch interface; public implementation-change policy remains enforced by `serow plan` and unattended certification.
 - `patch set-intent` sets or replaces a function intent through the structured patch interface while preserving ambiguous-target protection.
 - `patch set-migration` creates a missing migration acknowledgement for a kind, replaces a single existing record of that kind, or replaces a specific record when passed a 1-based index.
+- `patch remove-migration` removes a specific indexed migration acknowledgement for a kind while preserving ambiguous-target protection.
 - `patch set-signature` replaces a function's argument list and return type while preserving the existing function name; use `patch rename-function` for name changes.
 - `patch set-version` now supports dependent-aware public version bumps when parsed call sites do not pin the old canonical symbol, and rejects pinned `module.name.vN(...)` or `@module.name.vN(...)` callers with `VersionPinnedDependent`.
 - `patch rename-function` renames a public function and rewrites resolved call references in the patched source, using exact `@module.name.vN(...)` references when the new bare name would be ambiguous.
@@ -977,6 +979,24 @@ bin/serow plan --json
 bin/serow agent --json
 ```
 
+Additional verification after adding structured migration removal:
+
+```sh
+bin/serow query intent "remove stale migration acknowledgement through structured patch" --json
+bin/serow query symbol migration --json
+cargo fmt --check
+cargo test patch_remove_migration_removes_indexed_same_kind_records -- --nocapture
+cargo clippy -- -D warnings
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+bin/serow agent --json
+```
+
 `cargo test` includes integration coverage for `bin/serow patch add-function`.
 
 `bin/serow check --json` currently reports:
@@ -1002,7 +1022,7 @@ bin/serow agent --json
 - Expression support is intentionally small: literals, variables, direct or qualified calls, arithmetic, comparisons, booleans, and one-line `if ... then ... else ...`.
 - Properties are sampled, not proven; built-in samples are fixed small sets for `Int`, `Bool`, and `Text`. Failing sampled properties report replay data, include simpler shrunk failing bindings when available, and can be rerun one sample at a time with `bin/serow replay property`.
 - Effects checking is intentionally conservative direct-call capability subset validation; it warns on unused declared capabilities only when resolved non-self direct callees establish a required capability set, and it does not yet model effect polymorphism or external effect primitives.
-- Structured patch coverage is intentionally narrow: module `use` insertion, public function skeleton insertion, public function rename with in-file resolved call rewrites, evidence insertion, indexed evidence removal, migration acknowledgement insertion/replacement, indexed contract/example/property replacement, intent replacement, effect declaration replacement, missing or existing implementation expression setting, version declaration and pinned-call-aware version bumps, and typed-hole filling are implemented.
+- Structured patch coverage is intentionally narrow: module `use` insertion, public function skeleton insertion, public function rename with in-file resolved call rewrites, evidence insertion, indexed evidence removal, migration acknowledgement insertion/replacement/removal, indexed contract/example/property replacement, intent replacement, effect declaration replacement, missing or existing implementation expression setting, version declaration and pinned-call-aware version bumps, and typed-hole filling are implemented.
 - Evidence patching can append or replace individual contract/example/property items, but dependent impact and evidence policy are still enforced by `serow plan` and unattended certification rather than by the patch command itself.
 - Formatting parses and re-emits the bootstrap projection; comments are not preserved yet.
 - The hand-written JSON output should eventually be replaced with `serde_json` once external dependencies are allowed/desired.

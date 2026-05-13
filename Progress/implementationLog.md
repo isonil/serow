@@ -303,3 +303,7 @@
 - Updated agent bootstrap output, repair-action validation, README, `serow.project`, and Progress notes to advertise structured migration acknowledgement replacement.
 - Added structured remove-property repair actions to `VacuousProperty` and `ShallowProperty` diagnostics in the Rust checker.
 - Low-signal sampled-property warnings now point at the exact indexed `bin/serow patch remove-property` command for removing the vacuous or shallow property.
+- Added `bin/serow patch remove-migration <path> <symbol-or-name> <kind> <index> [--json]`.
+- The migration remover deletes one same-kind migration acknowledgement by 1-based index, rejects unsupported migration kinds, preserves ambiguous-target protection, and rewrites through canonical formatting.
+- Updated command discovery docs, repair-action validation, README, `serow.project`, and Progress notes to advertise structured migration acknowledgement removal.
+- Verified with `cargo fmt --check`, `cargo test patch_remove_migration_removes_indexed_same_kind_records -- --nocapture`, `cargo clippy -- -D warnings`, `cargo test`, `python3 -m unittest discover -s tests`, `bin/serow fmt --check --json`, `bin/serow check --json`, `bin/serow certify --json`, `bin/serow certify --profile unattended --json`, `bin/serow plan --json`, and `bin/serow agent --json`.

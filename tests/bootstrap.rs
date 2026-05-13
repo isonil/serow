@@ -4184,6 +4184,103 @@ pub fn id(x: Int) -> Int
 }
 
 #[test]
+fn patch_remove_migration_removes_indexed_same_kind_records() {
+    let dir = unique_temp_dir("serow-patch-remove-migration");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("migration.serow");
+    fs::write(
+        &source,
+        r#"module app.main
+
+pub fn id(x: Int) -> Int
+  intent "Return x unchanged."
+  version v1
+  migration
+    implementation-change "First implementation review."
+    public-behavior-change "Public behavior review."
+    implementation-change "Second implementation review."
+  contract
+    ensures result == x
+  examples
+    id(3) == 3
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let removed = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "remove-migration",
+            source.to_str().expect("utf8 path"),
+            "@app.main.id.v1",
+            "implementation-change",
+            "2",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch remove-migration");
+    assert!(removed.status.success(), "{removed:#?}");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    assert!(parse_diagnostics.is_empty(), "{parse_diagnostics:#?}");
+    let migrations = &program.functions[0].migrations;
+    assert_eq!(migrations.len(), 2);
+    assert_eq!(migrations[0].kind, "implementation-change");
+    assert_eq!(migrations[0].note, "First implementation review.");
+    assert_eq!(migrations[1].kind, "public-behavior-change");
+    assert_eq!(migrations[1].note, "Public behavior review.");
+
+    let rejected = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "remove-migration",
+            source.to_str().expect("utf8 path"),
+            "@app.main.id.v1",
+            "implementation-change",
+            "2",
+            "--json",
+        ])
+        .output()
+        .expect("run rejected serow patch remove-migration");
+    assert!(!rejected.status.success(), "{rejected:#?}");
+    let rejected_stdout = String::from_utf8(rejected.stdout).expect("stdout is utf8");
+    assert!(
+        rejected_stdout.contains("\"migration_count\": \"1\""),
+        "{rejected_stdout}"
+    );
+
+    let invalid_kind = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "remove-migration",
+            source.to_str().expect("utf8 path"),
+            "@app.main.id.v1",
+            "unknown-kind",
+            "1",
+            "--json",
+        ])
+        .output()
+        .expect("run invalid serow patch remove-migration");
+    assert!(!invalid_kind.status.success(), "{invalid_kind:#?}");
+    let invalid_kind_stdout = String::from_utf8(invalid_kind.stdout).expect("stdout is utf8");
+    assert!(
+        invalid_kind_stdout.contains("Invalid migration kind `unknown-kind`"),
+        "{invalid_kind_stdout}"
+    );
+
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(summary.ok(), "{:#?}", summary.diagnostics);
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn patch_rename_function_updates_resolved_call_references() {
     let dir = unique_temp_dir("serow-patch-rename-function");
     fs::create_dir_all(&dir).expect("create temp dir");
