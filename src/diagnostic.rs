@@ -187,6 +187,7 @@ fn repair_action_issue(action: &RepairAction) -> Option<String> {
                 "intent",
                 "symbol",
                 "symbols",
+                "type",
             ],
         ),
         "replay" => validate_nested_command(action, &["property"]),

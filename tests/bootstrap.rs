@@ -1552,6 +1552,20 @@ fn repair_action_contract_validation_rejects_malformed_commands() {
                 "examples/math.serow".to_string(),
             ],
         ),
+        Diagnostic::warning(
+            "SyntheticTypeLookupRepair",
+            "Synthetic diagnostic with a type lookup repair action.",
+            Some("test.target".to_string()),
+        )
+        .with_command_repair(
+            "Inspect matching type signatures",
+            vec![
+                "bin/serow".to_string(),
+                "query".to_string(),
+                "type".to_string(),
+                "Int, Int -> Int".to_string(),
+            ],
+        ),
     ];
     assert!(validate_repair_actions(&diagnostics).is_empty());
 

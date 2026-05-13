@@ -67,7 +67,7 @@ Date: 2026-05-13
   - rejects changed tracked public symbols with transitive dependents outside the certified change set
   - rejects impacted dependent call edges that lack executable example or sampled property coverage
   - rejects stale migration acknowledgements on changed tracked public symbols
-  - rejects malformed structured diagnostic repair actions emitted during strict-profile certification
+  - rejects malformed structured diagnostic repair actions emitted during strict-profile certification, while accepting known safe `query`, `patch`, `replay`, and type-shape lookup command actions
   - accepts explicit migration acknowledgements for intentional public behavior, capability expansion, evidence weakening, implementation, and impact-review decisions
 - Structured patch commands:
   - `bin/serow patch add-function <path> <module> <signature> <intent> [--json]`
@@ -237,6 +237,25 @@ bin/serow certify --profile unattended --json
 bin/serow plan --json
 bin/serow agent --json
 git diff --check
+```
+
+Additional verification after accepting type-query repair actions:
+
+```sh
+bin/serow query intent "validate type query repair actions" --json
+bin/serow query symbol "query type" --json
+cargo test repair_action_contract_validation_rejects_malformed_commands -- --nocapture
+cargo fmt --check
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow plan --json
+bin/serow agent --json
+cargo clippy -- -D warnings
+python3 -m unittest discover -s tests
+bin/serow certify --profile unattended --json
+git diff --check
+cargo test
 ```
 
 Additional verification after adding type-shape ledger queries:
