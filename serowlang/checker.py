@@ -112,8 +112,18 @@ def _check_ambiguous_unqualified_calls(program: Program, summary: CheckSummary) 
                             "context": context,
                             "expression": expression,
                         },
-                        repairs=["Use `module.name(...)` or `@module.name.vN(...)` for ambiguous calls."],
                     )
+                    .with_command_repair(
+                        "Inspect candidate symbols",
+                        [
+                            "bin/serow",
+                            "query",
+                            "symbol",
+                            call,
+                            function.source_path,
+                        ],
+                    )
+                    .with_repair("Use `module.name(...)` or `@module.name.vN(...)` for ambiguous calls.")
                 )
 
 

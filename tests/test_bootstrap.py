@@ -273,7 +273,25 @@ pub fn id(x: Int) -> Int
             )
             program, parse_diagnostics = parse_files([str(source)])
             summary = check_program(program, parse_diagnostics)
-            self.assertIn("AmbiguousUnqualifiedCall", [diagnostic.code for diagnostic in summary.diagnostics])
+            diagnostic = next(
+                diagnostic
+                for diagnostic in summary.diagnostics
+                if diagnostic.code == "AmbiguousUnqualifiedCall"
+            )
+            self.assertTrue(
+                any(
+                    action.command
+                    == [
+                        "bin/serow",
+                        "query",
+                        "symbol",
+                        "id",
+                        str(source),
+                    ]
+                    for action in diagnostic.repair_actions
+                ),
+                diagnostic.to_dict(),
+            )
 
     def test_duplicate_public_intent_is_reported(self):
         with tempfile.TemporaryDirectory() as directory:

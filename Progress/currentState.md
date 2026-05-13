@@ -1268,6 +1268,25 @@ bin/serow agent --json
 git diff --check
 ```
 
+Additional verification after mirroring ambiguous-call repair actions in the Python reference checker:
+
+```sh
+bin/serow query intent "mirror ambiguous unqualified call repair actions in the Python reference checker" --json
+bin/serow query symbol "AmbiguousUnqualifiedCall" --json
+python3 -m unittest tests.test_bootstrap.BootstrapTests.test_ambiguous_unqualified_calls_are_reported
+python3 -m unittest discover -s tests
+cargo fmt --check
+cargo clippy -- -D warnings
+cargo test
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+bin/serow agent --json
+git diff --check
+```
+
 `cargo test` includes integration coverage for `bin/serow patch add-function`.
 
 `bin/serow check --json` currently reports:
