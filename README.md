@@ -115,7 +115,7 @@ bin/serow query impact @core.math.add.v1
 
 `query type` accepts exact bootstrap type shapes such as `Int, Int -> Int`, wildcard shapes such as `_ -> Int`, and simple type-token queries such as `Text`.
 
-Replay a failing sampled property from a diagnostic seed. Built-in property samples currently include `Int` values `-2, -1, 0, 1, 2, -10, 10`, both `Bool` values, and representative `Text` values including empty, short, spaced, and numeric-looking strings. Failed replay diagnostics include shrink hint fields when a simpler failing or erroring sampled binding exists.
+Replay a failing sampled property from a diagnostic seed. Built-in property samples currently include `Int` values `-2, -1, 0, 1, 2, -10, 10`, both `Bool` values, and representative `Text` values including empty, short, spaced, and numeric-looking strings. Failed replay diagnostics include shrink hint fields when a simpler failing or erroring sampled binding exists. Non-executable replay diagnostics include indexed `patch remove-property` repair actions.
 
 ```sh
 bin/serow replay property "@core.math.add.v1#property:1#sample:1" examples/math.serow --json

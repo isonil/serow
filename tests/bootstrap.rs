@@ -1206,6 +1206,63 @@ pub fn id(x: Int) -> Int
 }
 
 #[test]
+fn property_replay_unsupported_type_has_indexed_repair_action() {
+    let dir = unique_temp_dir("serow-replay-unsupported-property-type");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("replay_unsupported_property_type.serow");
+    fs::write(
+        &source,
+        r#"module test.property
+
+pub fn id(x: Int) -> Int
+  version v1
+  intent "Return the supplied integer unchanged."
+  contract
+    ensures result == x
+  examples
+    id(1) == 1
+  properties
+    forall x: Blob:
+      id(1) == 1
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let source_arg = source.to_string_lossy().to_string();
+    let replay = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "replay",
+            "property",
+            "@test.property.id.v1#property:1#sample:1",
+            &source_arg,
+            "--json",
+        ])
+        .output()
+        .expect("run property replay");
+    assert!(!replay.status.success(), "{replay:#?}");
+    let stdout = String::from_utf8(replay.stdout).expect("stdout is utf8");
+    assert!(
+        stdout.contains("\"code\": \"PropertyNotExecutable\""),
+        "{stdout}"
+    );
+    assert!(stdout.contains("\"property_index\": \"1\""), "{stdout}");
+    assert!(
+        stdout.contains("\"unsupported_types\": \"Blob\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"label\": \"Remove the non-executable sampled property\""),
+        "{stdout}"
+    );
+    assert!(stdout.contains("\"remove-property\""), "{stdout}");
+    assert!(stdout.contains("\"@test.property.id.v1\""), "{stdout}");
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn sampled_property_failure_reports_replay_data() {
     let dir = unique_temp_dir("serow-property-replay");
     fs::create_dir_all(&dir).expect("create temp dir");

@@ -109,24 +109,48 @@ pub fn replay_property(program: &Program, sample_seed: &str) -> PropertyReplaySu
         .iter()
         .map(|(_, type_name)| samples_for_type(type_name))
         .collect::<Vec<_>>();
-    if let Some((_, unsupported_type)) = property
-        .variables
-        .iter()
-        .zip(sample_sets.iter())
-        .find(|(_, samples)| samples.is_none())
-        .map(|((_, type_name), _)| ((), type_name.clone()))
-    {
+    if sample_sets.iter().any(Option::is_none) {
+        let mut unsupported_types = property
+            .variables
+            .iter()
+            .filter_map(|(_, type_name)| {
+                samples_for_type(type_name)
+                    .is_none()
+                    .then_some(type_name.clone())
+            })
+            .collect::<Vec<_>>();
+        unsupported_types.sort();
+        unsupported_types.dedup();
         return PropertyReplaySummary {
             diagnostics: vec![
                 Diagnostic::error(
                     "PropertyNotExecutable",
                     format!(
-                        "Property index {} contains unsupported sampled type `{unsupported_type}`.",
-                        property.index
+                        "Property index {} contains unsupported sampled type(s): {}.",
+                        property.index,
+                        unsupported_types.join(", ")
                     ),
                     Some(function.target()),
                 )
-                .with_data("property", property.expression),
+                .with_data("function", function.symbol())
+                .with_data("property_index", property.index.to_string())
+                .with_data("property", property.expression)
+                .with_data("unsupported_types", unsupported_types.join(", "))
+                .with_command_repair(
+                    "Remove the non-executable sampled property",
+                    vec![
+                        "bin/serow".to_string(),
+                        "patch".to_string(),
+                        "remove-property".to_string(),
+                        function.source_path.clone(),
+                        function.symbol(),
+                        property.index
+                            .to_string(),
+                    ],
+                )
+                .with_repair(
+                    "Use only sampled bootstrap types in forall bindings, or remove the non-executable property.",
+                ),
             ],
             result: None,
         };

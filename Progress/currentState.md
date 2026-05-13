@@ -117,6 +117,7 @@ Date: 2026-05-13
 - `patch set-version` now supports dependent-aware public version bumps when parsed call sites do not pin the old canonical symbol, and rejects pinned `module.name.vN(...)` or `@module.name.vN(...)` callers with `VersionPinnedDependent`.
 - `patch rename-function` renames a public function and rewrites resolved call references in the patched source, using exact `@module.name.vN(...)` references when the new bare name would be ambiguous.
 - `patch qualify-call` rewrites bare calls inside one caller function to an exact selected callee symbol so ambiguous call sites can be made deliberate through the structured patch interface.
+- `replay property` reports unsupported sampled property generator types with the same indexed `patch remove-property` structured repair action used by checker diagnostics.
 - Structured JSON diagnostic repair actions:
   - command repair actions are emitted as `repair_actions` alongside legacy `repairs`
   - currently used for format drift, missing module dependencies, forbidden declared module dependencies, ambiguous bare-call and unknown-function symbol lookup, duplicate-intent lookup, low-signal evidence removal, duplicate/stale migration removal, implicit-version fixes in unattended certification, and effect capability declaration repairs
@@ -1339,6 +1340,15 @@ Additional verification after mirroring Python effect capability repair actions:
 bin/serow query intent "mirror effect capability repair actions in the Python reference checker" --json
 bin/serow query symbol EffectViolation --json
 python3 -m unittest tests.test_bootstrap.BootstrapTests.test_effectful_function_must_declare_specific_called_capabilities
+```
+
+Additional verification after adding replay repair actions for non-executable properties:
+
+```sh
+bin/serow query intent "remove low signal duplicate evidence through structured patch repairs" --json
+bin/serow query symbol replay --json
+cargo fmt --check
+cargo test property_replay_unsupported_type_has_indexed_repair_action -- --nocapture
 ```
 
 `bin/serow check --json` currently reports:

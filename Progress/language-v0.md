@@ -155,7 +155,7 @@ This is a deliberately weak early version of certification. Later phases should 
 
 ## Property Replay
 
-`bin/serow replay property <sample-seed> [paths...] [--json]` reruns one sampled property binding from a deterministic checker seed such as `@module.name.v1#property:1#sample:1`. The command locates the exact public symbol, property index, and sample index, rebuilds the sampled bindings, evaluates only that property expression, and reports the actual result. It exits successfully only when the replayed property evaluates to `true`. When the replayed property still fails or errors and a simpler sampled binding has the same outcome, the replay diagnostic includes the same `shrunk_sample_index`, `shrunk_sample_seed`, and `shrunk_bindings` fields as the original checker diagnostic.
+`bin/serow replay property <sample-seed> [paths...] [--json]` reruns one sampled property binding from a deterministic checker seed such as `@module.name.v1#property:1#sample:1`. The command locates the exact public symbol, property index, and sample index, rebuilds the sampled bindings, evaluates only that property expression, and reports the actual result. It exits successfully only when the replayed property evaluates to `true`. When the replayed property still fails or errors and a simpler sampled binding has the same outcome, the replay diagnostic includes the same `shrunk_sample_index`, `shrunk_sample_seed`, and `shrunk_bindings` fields as the original checker diagnostic. When the replayed property uses unsupported generator types, replay reports `PropertyNotExecutable` with the property index, unsupported types, and an indexed `patch remove-property` repair action.
 
 ## Diagnostics
 

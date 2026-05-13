@@ -394,3 +394,6 @@
 - Mirrored Rust's effect capability declaration repair actions in the Python reference checker.
 - Python `EffectViolation` diagnostics now include an exact `bin/serow patch set-effects ...` command with the union of already-declared and missing required capabilities, and `UnusedEffectCapability` diagnostics include the exact declaration needed by resolved non-self direct callees.
 - Verified with `bin/serow query intent "mirror effect capability repair actions in the Python reference checker" --json`, `bin/serow query symbol EffectViolation --json`, and `python3 -m unittest tests.test_bootstrap.BootstrapTests.test_effectful_function_must_declare_specific_called_capabilities`.
+- Added indexed `patch remove-property` repair actions to `bin/serow replay property` diagnostics for non-executable sampled properties.
+- Replay-side `PropertyNotExecutable` diagnostics now report `function`, `property_index`, `property`, and `unsupported_types`, matching the checker-side action protocol for unsupported generator types.
+- Verified with `bin/serow query intent "remove low signal duplicate evidence through structured patch repairs" --json`, `bin/serow query symbol replay --json`, `cargo fmt --check`, and `cargo test property_replay_unsupported_type_has_indexed_repair_action -- --nocapture`.
