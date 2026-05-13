@@ -165,6 +165,7 @@ fn repair_action_issue(action: &RepairAction) -> Option<String> {
                 "remove-example",
                 "remove-migration",
                 "remove-property",
+                "remove-use",
                 "rename-function",
                 "set-contract",
                 "set-effects",

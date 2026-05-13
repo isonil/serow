@@ -3445,6 +3445,95 @@ pub fn bump(x: Int) -> Int
 }
 
 #[test]
+fn patch_remove_use_updates_source() {
+    let dir = unique_temp_dir("serow-patch-remove-use");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("stale_use.serow");
+    fs::write(
+        &source,
+        r#"module core.math
+
+pub fn inc(x: Int) -> Int
+  intent "Increment x."
+  contract
+    ensures result == x + 1
+  examples
+    inc(1) == 2
+  properties
+    forall x: Int:
+      inc(x) == x + 1
+  effects pure
+  impl
+    x + 1
+
+module app.main
+
+use core.math
+
+pub fn id(x: Int) -> Int
+  intent "Return x unchanged."
+  contract
+    ensures result == x
+  examples
+    id(1) == 1
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "remove-use",
+            source.to_str().expect("utf8 path"),
+            "app.main",
+            "core.math",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch remove-use");
+
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"changed\": 1"), "{stdout}");
+    let updated = fs::read_to_string(&source).expect("read updated fixture");
+    assert!(
+        updated.contains("module app.main\n\npub fn id"),
+        "{updated}"
+    );
+    assert!(!updated.contains("use core.math"), "{updated}");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(summary.ok(), "{:#?}", summary.diagnostics);
+
+    let missing = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "remove-use",
+            source.to_str().expect("utf8 path"),
+            "app.main",
+            "core.math",
+            "--json",
+        ])
+        .output()
+        .expect("run rejected serow patch remove-use");
+    assert!(!missing.status.success(), "{missing:#?}");
+    let missing_stdout = String::from_utf8(missing.stdout).expect("stdout is utf8");
+    assert!(missing_stdout.contains("PatchConflict"), "{missing_stdout}");
+    assert!(
+        missing_stdout.contains("does not declare `use core.math`"),
+        "{missing_stdout}"
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn patch_add_function_inserts_safe_public_skeleton() {
     let dir = unique_temp_dir("serow-patch-add-function");
     fs::create_dir_all(&dir).expect("create temp dir");

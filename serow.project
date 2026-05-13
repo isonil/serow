@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "0.4.46-rust-bootstrap",
+  "version": "0.4.47-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -20,6 +20,7 @@
     "patch_remove_example": "bin/serow patch remove-example <path> <symbol-or-name> <index>",
     "patch_remove_migration": "bin/serow patch remove-migration <path> <symbol-or-name> <kind> <index>",
     "patch_remove_property": "bin/serow patch remove-property <path> <symbol-or-name> <index>",
+    "patch_remove_use": "bin/serow patch remove-use <path> <module> <dependency>",
     "patch_rename_function": "bin/serow patch rename-function <path> <symbol-or-name> <new-name>",
     "patch_set_contract": "bin/serow patch set-contract <path> <symbol-or-name> <requires|ensures> [index] <expression>",
     "patch_set_effects": "bin/serow patch set-effects <path> <symbol-or-name> <effects>",
@@ -67,6 +68,7 @@
     "structured_intent_rewrites": true,
     "structured_migration_rewrites": true,
     "structured_migration_removal": true,
+    "structured_module_dependency_removal": true,
     "structured_signature_rewrites": true,
     "structured_contract_rewrites": true,
     "structured_example_rewrites": true,

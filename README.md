@@ -55,6 +55,7 @@ bin/serow patch remove-contract examples/math.serow @core.math.add.v1 ensures 2
 bin/serow patch remove-example examples/math.serow @core.math.add.v1 2
 bin/serow patch remove-migration examples/math.serow @core.math.add.v1 implementation-change 1
 bin/serow patch remove-property examples/math.serow @core.math.add.v1 2
+bin/serow patch remove-use examples/math.serow app.main core.math
 bin/serow patch rename-function examples/math.serow @core.math.add.v1 sum
 bin/serow patch set-contract examples/math.serow @core.math.add.v1 ensures "result == x + y"
 bin/serow patch set-effects examples/math.serow @core.math.add.v1 pure
@@ -82,6 +83,8 @@ bin/serow patch set-version examples/math.serow @core.math.add.v1 v1
 `patch remove-contract`, `patch remove-example`, and `patch remove-property` remove one indexed evidence item. Duplicate-evidence diagnostics point at these commands for the repeated item.
 
 `patch remove-migration` removes one indexed migration acknowledgement of a specific kind. This is useful for clearing stale acknowledgements after a change is reworked.
+
+`patch remove-use` removes an existing module dependency declaration through the structured patch interface and rewrites the file canonically.
 
 `patch set-intent` sets or replaces a function intent through the structured patch interface. It rejects empty intents and ambiguous bare targets.
 

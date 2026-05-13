@@ -80,6 +80,7 @@ Date: 2026-05-13
   - `bin/serow patch remove-example <path> <symbol-or-name> <index> [--json]`
   - `bin/serow patch remove-migration <path> <symbol-or-name> <kind> <index> [--json]`
   - `bin/serow patch remove-property <path> <symbol-or-name> <index> [--json]`
+  - `bin/serow patch remove-use <path> <module> <dependency> [--json]`
   - `bin/serow patch rename-function <path> <symbol-or-name> <new-name> [--json]`
   - `bin/serow patch set-contract <path> <symbol-or-name> <requires|ensures> [index] <expression> [--json]`
   - `bin/serow patch set-effects <path> <symbol-or-name> <effects> [--json]`
@@ -99,6 +100,7 @@ Date: 2026-05-13
 - `patch set-intent` sets or replaces a function intent through the structured patch interface while preserving ambiguous-target protection.
 - `patch set-migration` creates a missing migration acknowledgement for a kind, replaces a single existing record of that kind, or replaces a specific record when passed a 1-based index.
 - `patch remove-migration` removes a specific indexed migration acknowledgement for a kind while preserving ambiguous-target protection.
+- `patch remove-use` removes an existing module dependency declaration from a module through the structured patch interface and preserves canonical formatting.
 - `patch set-signature` replaces a function's argument list and return type while preserving the existing function name; use `patch rename-function` for name changes.
 - `patch set-version` now supports dependent-aware public version bumps when parsed call sites do not pin the old canonical symbol, and rejects pinned `module.name.vN(...)` or `@module.name.vN(...)` callers with `VersionPinnedDependent`.
 - `patch rename-function` renames a public function and rewrites resolved call references in the patched source, using exact `@module.name.vN(...)` references when the new bare name would be ambiguous.
@@ -226,6 +228,23 @@ bin/serow certify --json
 bin/serow certify --profile unattended --json
 bin/serow plan examples/math.serow --json
 bin/serow agent --json
+```
+
+Additional verification after adding structured module dependency removal:
+
+```sh
+cargo fmt --check
+cargo test patch_remove_use_updates_source -- --nocapture
+cargo clippy -- -D warnings
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+bin/serow agent --json
+git diff --check
 ```
 
 Additional verification after adding impact-edge evidence coverage to change plans:
