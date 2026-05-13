@@ -702,6 +702,47 @@ pub fn id(x: Int) -> Int
             )
             self.assertEqual(diagnostic.data.get("shrunk_bindings"), "x=0")
 
+    def test_sampled_property_evaluation_error_reports_shrunk_data(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "property_error_shrink.serow"
+            source.write_text(
+                """module test.property
+
+pub fn id(x: Int) -> Int
+  intent "Return the supplied integer unchanged."
+  contract
+    ensures result == x
+  examples
+    id(1) == 1
+  properties
+    forall x: Int, y: Int:
+      x + y != 0 or id(10) // (x + y) == 1
+  effects pure
+  impl
+    x
+""",
+                encoding="utf-8",
+            )
+            program, parse_diagnostics = parse_files([str(source)])
+            summary = check_program(program, parse_diagnostics)
+            diagnostic = next(
+                diagnostic
+                for diagnostic in summary.diagnostics
+                if diagnostic.code == "PropertyEvaluationError"
+            )
+            self.assertEqual(diagnostic.data.get("sample_index"), "5")
+            self.assertEqual(
+                diagnostic.data.get("sample_seed"),
+                "@test.property.id.v1#property:1#sample:5",
+            )
+            self.assertEqual(diagnostic.data.get("bindings"), "x=-2, y=2")
+            self.assertEqual(diagnostic.data.get("shrunk_sample_index"), "17")
+            self.assertEqual(
+                diagnostic.data.get("shrunk_sample_seed"),
+                "@test.property.id.v1#property:1#sample:17",
+            )
+            self.assertEqual(diagnostic.data.get("shrunk_bindings"), "x=0, y=0")
+
     def test_expanded_int_property_samples_find_larger_counterexample(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "expanded_samples.serow"

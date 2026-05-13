@@ -143,6 +143,59 @@ pub(crate) fn find_shrunk_property_failure(
     })
 }
 
+pub(crate) fn find_shrunk_property_evaluation_error(
+    variables: &[(String, String)],
+    expression: &str,
+    functions: &[Function],
+    sample_sets: &[Vec<Value>],
+    original_values: &[Value],
+    original_sample_index: usize,
+) -> Option<ShrunkPropertyFailure> {
+    let original_complexity = sample_complexity(original_values);
+    let mut best: Option<(usize, usize, String)> = None;
+    for (sample_offset, values) in cartesian_product(sample_sets).into_iter().enumerate() {
+        let sample_index = sample_offset + 1;
+        if sample_index == original_sample_index {
+            continue;
+        }
+        let complexity = sample_complexity(&values);
+        if complexity > original_complexity {
+            continue;
+        }
+        let bindings = variables
+            .iter()
+            .zip(values.iter().cloned())
+            .map(|((name, _), value)| (name.clone(), value))
+            .collect::<HashMap<_, _>>();
+        let mut evaluator = Evaluator::new(functions);
+        if evaluator.eval(expression, &bindings).is_ok() {
+            continue;
+        }
+        let is_better = match best.as_ref() {
+            Some((best_complexity, best_index, _)) => {
+                complexity < *best_complexity
+                    || (complexity == *best_complexity && sample_index < *best_index)
+            }
+            None => true,
+        };
+        if is_better {
+            best = Some((
+                complexity,
+                sample_index,
+                format_sample_bindings(variables, &bindings),
+            ));
+        }
+    }
+    best.and_then(|(complexity, sample_index, bindings)| {
+        (complexity < original_complexity
+            || (complexity == original_complexity && sample_index < original_sample_index))
+            .then_some(ShrunkPropertyFailure {
+                sample_index,
+                bindings,
+            })
+    })
+}
+
 fn value_complexity(value: &Value) -> usize {
     match value {
         Value::Int(value) => value.unsigned_abs() as usize,

@@ -6,7 +6,8 @@ use crate::ledger::{exact_intent_key, intent_terms, query_intent};
 use crate::model::{Function, Program};
 use crate::project::load_architecture;
 use crate::sampling::{
-    cartesian_product, find_shrunk_property_failure, format_sample_bindings, samples_for_type,
+    cartesian_product, find_shrunk_property_evaluation_error, find_shrunk_property_failure,
+    format_sample_bindings, samples_for_type,
 };
 use crate::typecheck::infer_expression_type;
 
@@ -1573,14 +1574,31 @@ fn check_property(
                     sample_seed.clone(),
                     function.source_path.clone(),
                 ];
-                summary.diagnostics.push(
+                let mut diagnostic =
                     Diagnostic::error("PropertyEvaluationError", error, Some(function.target()))
-                        .with_data("property", property.expression)
+                        .with_data("property", property.expression.clone())
                         .with_data("property_index", property.index.to_string())
                         .with_data("sample_index", sample_index.to_string())
                         .with_data("sample_seed", sample_seed)
-                        .with_data("bindings", bindings_text)
-                        .with_command_repair("Replay this property sample", replay_command),
+                        .with_data("bindings", bindings_text);
+                if let Some(shrunk) = find_shrunk_property_evaluation_error(
+                    &property.variables,
+                    &property.expression,
+                    &program.functions,
+                    &sample_sets,
+                    &sample_values,
+                    sample_index,
+                ) {
+                    diagnostic = diagnostic
+                        .with_data("shrunk_sample_index", shrunk.sample_index.to_string())
+                        .with_data(
+                            "shrunk_sample_seed",
+                            property_sample_seed(function, &property, shrunk.sample_index),
+                        )
+                        .with_data("shrunk_bindings", shrunk.bindings);
+                }
+                summary.diagnostics.push(
+                    diagnostic.with_command_repair("Replay this property sample", replay_command),
                 );
                 return;
             }

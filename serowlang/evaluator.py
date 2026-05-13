@@ -100,6 +100,8 @@ class SafeExpressionEvaluator(pyast.NodeVisitor):
         if isinstance(node.op, pyast.FloorDiv):
             return _trunc_div(left, right)
         if isinstance(node.op, pyast.Mod):
+            if right == 0:
+                raise EvaluationError("Modulo by zero.")
             return left - _trunc_div(left, right) * right
         raise EvaluationError("Unsupported binary operator.")
 
@@ -213,6 +215,8 @@ def _is_valid_version(version: str) -> bool:
 
 
 def _trunc_div(left: int, right: int) -> int:
+    if right == 0:
+        raise EvaluationError("Integer division by zero.")
     quotient = abs(left) // abs(right)
     return -quotient if (left < 0) != (right < 0) else quotient
 

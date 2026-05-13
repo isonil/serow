@@ -27,9 +27,9 @@ Date: 2026-05-13
   - ambiguous bare-call diagnostics with qualified-reference repair guidance and structured symbol lookup repair actions
   - unknown function static type errors with structured symbol lookup repair actions
   - sampled `forall` properties over deterministic `Int`, `Bool`, and `Text` sample sets
-  - deterministic sampled-property failure replay data with property indexes, sample indexes, seed strings, sampled bindings, and single-sample replay repair actions
-  - deterministic sampled-property shrink data for failing properties when a simpler failing binding exists in the built-in samples
-  - single-sample property replay via `bin/serow replay property <sample-seed> [paths...] [--json]`, including the same deterministic shrink hint fields as checker failures when a simpler failing binding exists
+  - deterministic sampled-property failure and evaluation-error replay data with property indexes, sample indexes, seed strings, sampled bindings, and single-sample replay repair actions
+  - deterministic sampled-property shrink data for failing or erroring properties when a simpler same-outcome binding exists in the built-in samples
+  - single-sample property replay via `bin/serow replay property <sample-seed> [paths...] [--json]`, including the same deterministic shrink hint fields as checker failures and evaluation errors when a simpler same-outcome binding exists
   - inferred cross-module dependencies from function calls in implementations, contracts, examples, and properties
   - conservative structured effect capability validation: direct callers must declare every concrete non-`pure` capability required by resolved callees, and resolved direct-call wrappers warn on concrete capabilities not required by non-self callees
 - Source-level public symbol versions with `version vN`; omitted versions default to `v1` for compatibility.
@@ -1248,6 +1248,26 @@ bin/serow agent --json
 git diff --check
 ```
 
+Additional verification after adding shrink hints for property evaluation errors:
+
+```sh
+bin/serow query intent "shrink property evaluation error samples" --json
+bin/serow query symbol PropertyEvaluationError --json
+cargo test sampled_property_evaluation_error_reports_shrunk_replay_data -- --nocapture
+python3 -m unittest tests.test_bootstrap.BootstrapTests.test_sampled_property_evaluation_error_reports_shrunk_data
+cargo fmt --check
+cargo clippy -- -D warnings
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+bin/serow agent --json
+git diff --check
+```
+
 `cargo test` includes integration coverage for `bin/serow patch add-function`.
 
 `bin/serow check --json` currently reports:
@@ -1271,7 +1291,7 @@ git diff --check
 - Intent duplicate errors are exact after simple normalization; near-duplicate warnings and intent search use deterministic token ranking with stopwords and light token normalization. Duplicate and near-duplicate diagnostics expose token overlap/differences, but they are not semantic similarity yet.
 - Type checking covers the current expression subset but does not yet model user-defined data types, generics, or effect polymorphism.
 - Expression support is intentionally small: literals, variables, direct or qualified calls, arithmetic, comparisons, booleans, and one-line `if ... then ... else ...`.
-- Properties are sampled, not proven; built-in samples are fixed small sets for `Int`, `Bool`, and `Text`. Failing sampled properties report replay data, include simpler shrunk failing bindings when available, and can be rerun one sample at a time with `bin/serow replay property`.
+- Properties are sampled, not proven; built-in samples are fixed small sets for `Int`, `Bool`, and `Text`. Failed or erroring sampled properties report replay data, include simpler shrunk same-outcome bindings when available, and can be rerun one sample at a time with `bin/serow replay property`.
 - Effects checking is intentionally conservative direct-call capability subset validation; it warns on unused declared capabilities only when resolved non-self direct callees establish a required capability set, and it does not yet model effect polymorphism or external effect primitives.
 - Structured patch coverage is intentionally narrow: module `use` insertion, public function skeleton insertion, public function rename with in-file resolved call rewrites, evidence insertion, indexed evidence removal, migration acknowledgement insertion/replacement/removal, indexed contract/example/property replacement, intent replacement, effect declaration replacement, missing or existing implementation expression setting, version declaration and pinned-call-aware version bumps, and typed-hole filling are implemented.
 - Evidence patching can append or replace individual contract/example/property items, but dependent impact and evidence policy are still enforced by `serow plan` and unattended certification rather than by the patch command itself.

@@ -1333,6 +1333,111 @@ pub fn id(x: Int) -> Int
 }
 
 #[test]
+fn sampled_property_evaluation_error_reports_shrunk_replay_data() {
+    let dir = unique_temp_dir("serow-property-error-shrink");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("property_error_shrink.serow");
+    fs::write(
+        &source,
+        r#"module test.property
+
+pub fn id(x: Int) -> Int
+  intent "Return the supplied integer unchanged."
+  contract
+    ensures result == x
+  examples
+    id(1) == 1
+  properties
+    forall x: Int, y: Int:
+      x + y != 0 or id(10) // (x + y) == 1
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    let diagnostic = summary
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "PropertyEvaluationError")
+        .expect("property evaluation error diagnostic");
+    assert!(
+        diagnostic
+            .data
+            .iter()
+            .any(|(key, value)| key == "sample_index" && value == "5"),
+        "{diagnostic:#?}"
+    );
+    assert!(
+        diagnostic.data.iter().any(|(key, value)| {
+            key == "sample_seed" && value == "@test.property.id.v1#property:1#sample:5"
+        }),
+        "{diagnostic:#?}"
+    );
+    assert!(
+        diagnostic
+            .data
+            .iter()
+            .any(|(key, value)| key == "bindings" && value == "x=-2, y=2"),
+        "{diagnostic:#?}"
+    );
+    assert!(
+        diagnostic
+            .data
+            .iter()
+            .any(|(key, value)| key == "shrunk_sample_index" && value == "17"),
+        "{diagnostic:#?}"
+    );
+    assert!(
+        diagnostic.data.iter().any(|(key, value)| {
+            key == "shrunk_sample_seed" && value == "@test.property.id.v1#property:1#sample:17"
+        }),
+        "{diagnostic:#?}"
+    );
+    assert!(
+        diagnostic
+            .data
+            .iter()
+            .any(|(key, value)| key == "shrunk_bindings" && value == "x=0, y=0"),
+        "{diagnostic:#?}"
+    );
+
+    let source_arg = source.to_string_lossy().to_string();
+    let replay = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "replay",
+            "property",
+            "@test.property.id.v1#property:1#sample:5",
+            &source_arg,
+            "--json",
+        ])
+        .output()
+        .expect("run property replay");
+    assert!(!replay.status.success(), "{replay:#?}");
+    let stdout = String::from_utf8(replay.stdout).expect("stdout is utf8");
+    assert!(
+        stdout.contains("\"code\": \"PropertyEvaluationError\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"shrunk_sample_index\": \"17\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"shrunk_sample_seed\": \"@test.property.id.v1#property:1#sample:17\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"shrunk_bindings\": \"x=0, y=0\""),
+        "{stdout}"
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn expanded_int_property_samples_find_larger_counterexample() {
     let dir = unique_temp_dir("serow-expanded-int-samples");
     fs::create_dir_all(&dir).expect("create temp dir");
