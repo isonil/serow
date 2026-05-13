@@ -1,6 +1,7 @@
 use crate::checker::{CheckSummary, check_program, enforce_unattended_profile};
 use crate::diagnostic::{Diagnostic, has_errors, validate_repair_actions};
 use crate::formatter::{FormatSummary, format_paths};
+use crate::ir::{IrExpr, IrFunction, IrProgram, IrSummary, lower_checked_program};
 use crate::ledger::{
     Callee, Dependent, ImpactDependent, query_callees, query_dependents, query_impact,
     query_intent, query_symbol, query_type, symbols,
@@ -37,6 +38,7 @@ pub fn main(args: impl Iterator<Item = String>) -> i32 {
         "agent" => run_agent(&args[1..]),
         "check" => run_check(&args[1..], false),
         "certify" => run_check(&args[1..], true),
+        "compile" => run_compile(&args[1..]),
         "fmt" => run_fmt(&args[1..]),
         "patch" => run_patch(&args[1..]),
         "plan" => run_plan(&args[1..]),
@@ -129,6 +131,32 @@ fn run_fmt(args: &[String]) -> i32 {
         println!("{}", format_json(&summary));
     } else {
         print_format_summary(&summary, check);
+    }
+    i32::from(!summary.ok())
+}
+
+fn run_compile(args: &[String]) -> i32 {
+    let Some(compile_command) = args.first().map(String::as_str) else {
+        print_compile_usage();
+        return 2;
+    };
+    match compile_command {
+        "ir" => run_compile_ir(&args[1..]),
+        _ => {
+            print_compile_usage();
+            2
+        }
+    }
+}
+
+fn run_compile_ir(args: &[String]) -> i32 {
+    let (paths, json_output) = split_paths_and_json(args);
+    let (program, parse_diagnostics) = parse_paths(&paths);
+    let summary = lower_checked_program(&program, parse_diagnostics);
+    if json_output {
+        println!("{}", ir_summary_json(&summary));
+    } else {
+        print_ir_summary(&summary);
     }
     i32::from(!summary.ok())
 }
@@ -883,6 +911,46 @@ fn print_check_summary(summary: &CheckSummary, certify: bool, profile: CertifyPr
     }
 }
 
+fn print_ir_summary(summary: &IrSummary) {
+    let status = if summary.ok() { "ok" } else { "failed" };
+    let functions = summary
+        .ir
+        .as_ref()
+        .map(|ir| ir.functions.len())
+        .unwrap_or_default();
+    println!("serow compile ir: {status}");
+    println!(
+        "summary: {} functions checked, {} functions lowered",
+        summary.check_summary.functions, functions
+    );
+    if let Some(ir) = &summary.ir {
+        println!("ir: {}", ir.version);
+        for function in &ir.functions {
+            println!("  {}", function.symbol);
+        }
+    }
+    for diagnostic in &summary.diagnostics {
+        let target = diagnostic
+            .target
+            .as_ref()
+            .map(|target| format!(" {target}"))
+            .unwrap_or_default();
+        println!(
+            "{}: {}:{} {}",
+            diagnostic.severity.as_str(),
+            diagnostic.code,
+            target,
+            diagnostic.message
+        );
+        if !diagnostic.data.is_empty() {
+            println!("  data: {}", data_json(&diagnostic.data));
+        }
+        if !diagnostic.repairs.is_empty() {
+            println!("  repairs: {}", diagnostic.repairs.join(", "));
+        }
+    }
+}
+
 fn print_format_summary(summary: &FormatSummary, check: bool) {
     let mode = if check { "fmt --check" } else { "fmt" };
     let status = if summary.ok() { "ok" } else { "failed" };
@@ -1247,6 +1315,149 @@ fn check_json(summary: &CheckSummary, profile: Option<CertifyProfile>) -> String
         summary.holes,
         summary.properties
     )
+}
+
+fn ir_summary_json(summary: &IrSummary) -> String {
+    format!(
+        concat!(
+            "{{\n",
+            "  \"diagnostics\": {},\n",
+            "  \"ir\": {},\n",
+            "  \"ok\": {},\n",
+            "  \"summary\": {{\n",
+            "    \"contracts\": {},\n",
+            "    \"examples\": {},\n",
+            "    \"functions\": {},\n",
+            "    \"holes\": {},\n",
+            "    \"lowered_functions\": {},\n",
+            "    \"properties\": {}\n",
+            "  }}\n",
+            "}}"
+        ),
+        diagnostics_array_json(&summary.diagnostics),
+        summary
+            .ir
+            .as_ref()
+            .map(ir_program_json)
+            .unwrap_or_else(|| "null".to_string()),
+        summary.ok(),
+        summary.check_summary.contracts,
+        summary.check_summary.examples,
+        summary.check_summary.functions,
+        summary.check_summary.holes,
+        summary
+            .ir
+            .as_ref()
+            .map(|ir| ir.functions.len())
+            .unwrap_or_default(),
+        summary.check_summary.properties
+    )
+}
+
+fn ir_program_json(ir: &IrProgram) -> String {
+    let functions = ir
+        .functions
+        .iter()
+        .map(ir_function_json)
+        .collect::<Vec<_>>()
+        .join(",\n    ");
+    format!(
+        "{{\"functions\": [\n    {}\n  ], \"version\": {}}}",
+        functions,
+        json_string(&ir.version)
+    )
+}
+
+fn ir_function_json(function: &IrFunction) -> String {
+    format!(
+        concat!(
+            "{{",
+            "\"body\": {}, ",
+            "\"effects\": {}, ",
+            "\"module\": {}, ",
+            "\"name\": {}, ",
+            "\"params\": {}, ",
+            "\"return_type\": {}, ",
+            "\"symbol\": {}, ",
+            "\"version\": {}",
+            "}}"
+        ),
+        ir_expr_json(&function.body),
+        string_array_json(&function.effects),
+        json_string(&function.module),
+        json_string(&function.name),
+        params_json(&function.params),
+        json_string(&function.return_type),
+        json_string(&function.symbol),
+        json_string(&function.version)
+    )
+}
+
+fn params_json(params: &[crate::model::Param]) -> String {
+    let rows = params
+        .iter()
+        .map(|param| {
+            format!(
+                "{{\"name\": {}, \"type\": {}}}",
+                json_string(&param.name),
+                json_string(&param.type_name)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("[{rows}]")
+}
+
+fn ir_expr_json(expr: &IrExpr) -> String {
+    match expr {
+        IrExpr::Int(value) => format!("{{\"kind\": \"int\", \"value\": {value}}}"),
+        IrExpr::Bool(value) => format!("{{\"kind\": \"bool\", \"value\": {value}}}"),
+        IrExpr::Text(value) => format!("{{\"kind\": \"text\", \"value\": {}}}", json_string(value)),
+        IrExpr::Var(name) => format!("{{\"kind\": \"var\", \"name\": {}}}", json_string(name)),
+        IrExpr::Call {
+            reference,
+            target,
+            args,
+        } => format!(
+            "{{\"args\": {}, \"kind\": \"call\", \"reference\": {}, \"target\": {}}}",
+            ir_exprs_json(args),
+            json_string(reference),
+            json_string(target)
+        ),
+        IrExpr::Unary { op, expr } => format!(
+            "{{\"expr\": {}, \"kind\": \"unary\", \"op\": {}}}",
+            ir_expr_json(expr),
+            json_string(op.as_str())
+        ),
+        IrExpr::Binary { op, left, right } => format!(
+            "{{\"kind\": \"binary\", \"left\": {}, \"op\": {}, \"right\": {}}}",
+            ir_expr_json(left),
+            json_string(op.as_str()),
+            ir_expr_json(right)
+        ),
+        IrExpr::If {
+            condition,
+            then_expr,
+            else_expr,
+        } => format!(
+            concat!(
+                "{{",
+                "\"condition\": {}, ",
+                "\"else\": {}, ",
+                "\"kind\": \"if\", ",
+                "\"then\": {}",
+                "}}"
+            ),
+            ir_expr_json(condition),
+            ir_expr_json(else_expr),
+            ir_expr_json(then_expr)
+        ),
+    }
+}
+
+fn ir_exprs_json(exprs: &[IrExpr]) -> String {
+    let rows = exprs.iter().map(ir_expr_json).collect::<Vec<_>>();
+    format!("[{}]", rows.join(", "))
 }
 
 fn plan_json(plan: &ChangePlan) -> String {
@@ -1873,6 +2084,11 @@ fn agent_json() -> String {
             "Require a warning-free and error-free checker result, with an optional stricter unattended profile.",
         ),
         (
+            "compile ir",
+            "serow compile ir [paths...] [--json]",
+            "Lower checked public implementations to the portable bootstrap IR.",
+        ),
+        (
             "fmt",
             "serow fmt [paths...] [--check] [--json]",
             "Rewrite or verify canonical Serow source formatting.",
@@ -2056,7 +2272,7 @@ fn agent_json() -> String {
             "  \"ok\": true,\n",
             "  \"language\": \"Serow\",\n",
             "  \"implementation\": \"dependency-free Rust bootstrap\",\n",
-            "  \"phase\": \"Phase 2.6: Unattended Agent Safety\",\n",
+            "  \"phase\": \"Phase 3: Backends\",\n",
             "  \"source_default\": \"examples/\",\n",
             "  \"workflow\": {},\n",
             "  \"commands\": [{}],\n",
@@ -2097,7 +2313,7 @@ fn agent_json() -> String {
             "bin/serow certify --profile unattended"
         ]),
         str_array_json(&[
-            "No full compiler or generated backend exists yet.",
+            "`serow compile ir` emits the first portable backend IR, but no generated Rust/backend artifacts exist yet.",
             "Properties are sampled, not proven; built-in samples cover boundary and representative Int, Bool, and Text values, and failed or erroring sampled properties report deterministic replay data that can be replayed with `serow replay property`; PropertyFailed and PropertyEvaluationError diagnostics also include a simpler shrunk sampled binding when one is found, while replayed PropertyNotExecutable diagnostics point at indexed property removal.",
             "Migration acknowledgements are source-level notes; they do not prove behavioral compatibility.",
             "`serow plan` reports stale migration acknowledgements when a changed symbol keeps a migration record that no current unattended gate requires.",
@@ -2275,7 +2491,7 @@ fn print_agent_bootstrap() {
     println!("serow agent: ok");
     println!("language: Serow");
     println!("implementation: dependency-free Rust bootstrap");
-    println!("phase: Phase 2.6: Unattended Agent Safety");
+    println!("phase: Phase 3: Backends");
     println!("workflow:");
     println!("  1. bin/serow query intent \"<description>\"");
     println!("  2. bin/serow query symbol \"<name>\" when a symbol might exist");
@@ -2286,6 +2502,7 @@ fn print_agent_bootstrap() {
     println!("  serow agent [--json]");
     println!("  serow check [paths...] [--json]");
     println!("  serow certify [paths...] [--profile unattended] [--json]");
+    println!("  serow compile ir [paths...] [--json]");
     println!("  serow fmt [paths...] [--check] [--json]");
     println!(
         "  serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]"
@@ -2412,6 +2629,9 @@ fn print_agent_bootstrap() {
     println!(
         "  unattended certification rejects impacted dependent call edges without executable evidence coverage"
     );
+    println!("backend:");
+    println!("  compile ir lowers checked public implementations to serow.ir.v0 JSON");
+    println!("  generated Rust/backend artifacts do not exist yet");
 }
 
 fn print_usage() {
@@ -2419,6 +2639,7 @@ fn print_usage() {
     eprintln!("  serow agent [--json]");
     eprintln!("  serow check [paths...] [--json]");
     eprintln!("  serow certify [paths...] [--profile unattended] [--json]");
+    eprintln!("  serow compile ir [paths...] [--json]");
     eprintln!("  serow fmt [paths...] [--check] [--json]");
     eprintln!(
         "  serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]"
@@ -2464,6 +2685,11 @@ fn print_usage() {
     eprintln!("  serow query type <type-or-shape> [paths...] [--json]");
     eprintln!("  serow query symbols [paths...] [--json]");
     eprintln!("  serow replay property <sample-seed> [paths...] [--json]");
+}
+
+fn print_compile_usage() {
+    eprintln!("usage:");
+    eprintln!("  serow compile ir [paths...] [--json]");
 }
 
 fn print_agent_usage() {

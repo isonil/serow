@@ -401,3 +401,13 @@
 - Python `ExampleError`, `ContractEvaluationError`, and `PropertyEvaluationError` diagnostics caused by `Unknown function` failures now include `unknown_function` data and an exact `bin/serow query symbol <name> <path>` command action.
 - Updated `serow.project` and Progress notes to record the Python reference diagnostic behavior.
 - Verified with `bin/serow query intent "repair unknown function references with symbol lookup" --json`, `bin/serow query symbol TypeError --json`, `bin/serow query symbol UnknownFunction --json`, `python3 -m unittest tests.test_bootstrap.BootstrapTests.test_unknown_function_evaluation_errors_include_symbol_lookup_repair`, `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`, `python3 -m unittest discover -s tests`, `bin/serow fmt --check --json`, `bin/serow check --json`, `bin/serow certify --json`, `bin/serow certify --profile unattended --json`, `bin/serow plan --json`, `bin/serow agent --json`, and `git diff --check`.
+
+## 2026-05-13
+
+- Started Phase 3 backend work with a portable IR foundation.
+- Added `src/ir.rs` with a `serow.ir.v0` lowering model for the checked bootstrap expression subset.
+- Added `bin/serow compile ir [paths...] [--json]`.
+- The command parses source paths, runs the normal checker, refuses to emit IR when checker errors are present, and emits public function rows with canonical symbol identity, signature, declared effects, lowered implementation expression trees, and resolved canonical call targets.
+- Updated `bin/serow agent`, README, `serow.project`, and Progress docs to advertise the Phase 3 IR command while keeping generated Rust/backend artifacts explicitly out of scope for this slice.
+- Added Rust CLI regression coverage for successful IR JSON output and checker-error refusal.
+- Verified with `bin/serow query intent "emit portable intermediate representation for Serow functions" --json`, `bin/serow query symbol "ir" --json`, `bin/serow query symbol "backend" --json`, `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test compile_ir -- --nocapture`, `cargo test`, `python3 -m unittest discover -s tests`, `bin/serow fmt --check --json`, `bin/serow check --json`, `bin/serow certify --json`, `bin/serow certify --profile unattended --json`, `bin/serow plan --json`, `bin/serow agent --json`, `bin/serow compile ir examples/math.serow --json`, `bin/serow compile ir examples/math.serow`, and `git diff --check`.

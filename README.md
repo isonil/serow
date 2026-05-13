@@ -25,6 +25,7 @@ The current implementation is a bootstrap toolchain written in dependency-free R
 - a first machine-readable change plan for changed symbols, removed public symbols, semantic change labels, inferred direct-call capability requirements, sampled-property coverage hints, advisory intent/implementation mismatch risks, public contract-surface changes, capability changes, public implementation changes, implementation evidence coverage and HEAD-sensitivity, implementation/evidence drift, migration acknowledgements, stale migration acknowledgements, impact, impact-edge evidence coverage, HEAD evidence deltas, and residual risk
 - unattended certification gates for explicit versions, same-version public contract-surface changes, public symbol removal without a same-name replacement version, capability expansion, implementation changes without added executable evidence, added implementation evidence that does not call the function under test or would still pass against the HEAD implementation, implementation/evidence drift, evidence weakening against Git `HEAD`, unchecked dependent impact, uncovered impacted call edges, and stale migration acknowledgements, with explicit migration records for intentional decisions
 - strict-profile validation for structured diagnostic repair actions
+- a first portable backend IR emitted by `bin/serow compile ir`
 
 Print the current agent bootstrap contract:
 
@@ -38,6 +39,15 @@ Run the current checker:
 ```sh
 bin/serow check
 ```
+
+Lower checked public implementations to the portable bootstrap IR:
+
+```sh
+bin/serow compile ir --json
+bin/serow compile ir examples/math.serow --json
+```
+
+`compile ir` runs the checker first and only emits `serow.ir.v0` when there are no checker errors. The IR currently covers the bootstrap expression subset and resolves function calls to canonical public symbols; generated Rust and other production backends do not exist yet.
 
 Format Serow source into the canonical textual projection:
 

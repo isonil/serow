@@ -112,7 +112,7 @@ This phase exists because the original Serow premise is not only "AI-first synta
 
 ## Phase 3: Backends
 
-- Emit a small portable IR after Phase 2.5 identity and evidence semantics are stable.
+- Emit a small portable IR after Phase 2.5 identity and evidence semantics are stable. _(Started: `bin/serow compile ir [paths...] [--json]` lowers checked public implementations to `serow.ir.v0` JSON with canonical resolved call targets.)_
 - Keep the Serow checker/interpreter responsible for compile-time evidence: examples, contracts, and sampled properties.
 - Add a Rust transpilation backend as the first production backend.
 - Lower ownership-friendly state transforms, such as `World -> World`, to efficient Rust patterns where aliases permit in-place updates.

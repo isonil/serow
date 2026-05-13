@@ -71,6 +71,12 @@ Date: 2026-05-13
   - rejects removed public symbols that do not have a same-name replacement version
   - rejects malformed structured diagnostic repair actions emitted during strict-profile certification, while accepting known safe `query`, `patch`, `replay`, and type-shape lookup command actions
   - accepts explicit migration acknowledgements for intentional public behavior, capability expansion, evidence weakening, implementation, and impact-review decisions
+- Phase 3 backend foundation:
+  - `bin/serow compile ir [paths...] [--json]`
+  - runs the normal checker first and refuses to emit IR when checker errors are present
+  - emits `serow.ir.v0` JSON for checked public implementations in the bootstrap expression subset
+  - includes public symbol identity, signature, effects, parameters, return type, expression tree, and canonical resolved call targets
+  - does not yet generate Rust or any other backend artifact
 - Structured patch commands:
   - `bin/serow patch add-function <path> <module> <signature> <intent> [--json]`
   - `bin/serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]`
@@ -303,6 +309,28 @@ bin/serow check --json
 bin/serow certify --json
 bin/serow certify --profile unattended --json
 bin/serow plan --json
+```
+
+Additional verification after adding the first portable IR command:
+
+```sh
+bin/serow query intent "emit portable intermediate representation for Serow functions" --json
+bin/serow query symbol "ir" --json
+bin/serow query symbol "backend" --json
+cargo fmt --check
+cargo clippy -- -D warnings
+cargo test compile_ir -- --nocapture
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+bin/serow agent --json
+bin/serow compile ir examples/math.serow --json
+bin/serow compile ir examples/math.serow
+git diff --check
 ```
 
 Additional verification after adding duplicate migration diagnostics:
@@ -1389,7 +1417,7 @@ git diff --check
 
 ## Known Limits
 
-- This is not yet a full compiler; it is a parser/checker/ledger bootstrap.
+- This is not yet a full compiler; it is a parser/checker/ledger bootstrap with a first portable IR emitter.
 - Intent duplicate errors are exact after simple normalization; near-duplicate warnings and intent search use deterministic token ranking with stopwords and light token normalization. Duplicate and near-duplicate diagnostics expose token overlap/differences, but they are not semantic similarity yet.
 - Type checking covers the current expression subset but does not yet model user-defined data types, generics, or effect polymorphism.
 - Expression support is intentionally small: literals, variables, direct or qualified calls, arithmetic, comparisons, booleans, and one-line `if ... then ... else ...`.
@@ -1399,6 +1427,7 @@ git diff --check
 - Evidence patching can append or replace individual contract/example/property items, but dependent impact and evidence policy are still enforced by `serow plan` and unattended certification rather than by the patch command itself.
 - Formatting parses and re-emits the bootstrap projection; comments are not preserved yet.
 - The hand-written JSON output should eventually be replaced with `serde_json` once external dependencies are allowed/desired.
+- `serow compile ir` emits `serow.ir.v0` JSON for checked public implementations, but it does not yet generate Rust, WASM, TypeScript, Python, or any other backend artifact.
 - Structured repair actions currently cover only command-style fixes already exposed by the bootstrap CLI.
 - `query callees` and `query dependents` report direct resolved call edges; use `query impact` for direct and transitive dependent paths. Ambiguous bare calls are intentionally skipped by ledger queries because they are checker errors.
 - `serow plan` is an early reporting primitive; it treats explicit path arguments as the selected change set, reports semantic change labels plus inferred direct-call capability requirements, suggested effect declarations, sampled-property coverage hints, and advisory lexical arithmetic intent/implementation mismatch risks for changed symbols, and compares public contract-surface, removed public symbols, declared capabilities, normalized implementation text, and evidence sections against `HEAD` when a tracked baseline is available. It reports whether added examples/properties directly call changed implementations, whether that added evidence would fail against the `HEAD` implementation, and whether impacted dependent call edges are covered by executable examples or sampled properties, but it does not yet compare full implementation AST behavior.
@@ -1406,14 +1435,10 @@ git diff --check
 
 ## Current Strategic Direction
 
-The roadmap now prioritizes Phase 2.6 unattended-agent safety before production backend work. The intended next work is to make Serow more useful as an AI implementation protocol:
+The roadmap is now in Phase 3 backend work. The immediate direction is to grow the portable IR carefully before production code generation:
 
-- explicit symbol versions and qualified references
-- stronger intent search and change-impact ledger queries
-- more diagnostics expressed as machine-readable repair actions
-- a stable AST/IR boundary shared by checker, formatter, ledger, and patch commands
-- more AST-aware structured patches
-- tighter certification around identity, dependency, effects, intent, and repair consistency
-- unattended-agent safety as a first-class goal, including evidence-weakening detection, strict certification profiles, change-impact gates, semantic reuse checks, and stronger machine-readable change plans
-
-Backends remain important, but Rust transpilation should wait until these identity and evidence semantics are stable enough that generated code has a reliable source of truth.
+- keep the checker/interpreter responsible for compile-time evidence
+- make `serow.ir.v0` stable enough for backend consumers
+- lower all supported bootstrap expressions with explicit resolved call targets
+- add Rust transpilation only after the IR boundary is explicit enough to preserve source identity, effects, and evidence semantics
+- keep generated backend artifacts separate from `.serow` source of truth

@@ -1955,7 +1955,11 @@ fn agent_json_includes_machine_readable_workflow() {
     let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
     assert!(stdout.contains("\"ok\": true"), "{stdout}");
     assert!(
-        stdout.contains("\"phase\": \"Phase 2.6: Unattended Agent Safety\""),
+        stdout.contains("\"phase\": \"Phase 3: Backends\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("serow compile ir [paths...] [--json]"),
         "{stdout}"
     );
     assert!(
@@ -6326,6 +6330,65 @@ pub fn id(x: Int) -> Int
   impl
     x
 "#
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn compile_ir_json_reports_portable_ir() {
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["compile", "ir", "examples/math.serow", "--json"])
+        .output()
+        .expect("run compile ir");
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("\"version\": \"serow.ir.v0\""), "{stdout}");
+    assert!(
+        stdout.contains("\"symbol\": \"@core.math.add.v1\""),
+        "{stdout}"
+    );
+    assert!(stdout.contains("\"op\": \"add\""), "{stdout}");
+    assert!(stdout.contains("\"kind\": \"if\""), "{stdout}");
+    assert!(stdout.contains("\"op\": \"div_trunc\""), "{stdout}");
+    assert!(stdout.contains("\"lowered_functions\": 3"), "{stdout}");
+}
+
+#[test]
+fn compile_ir_refuses_checker_errors() {
+    let dir = unique_temp_dir("serow-compile-ir-errors");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("bad.serow");
+    fs::write(
+        &source,
+        r#"module test.ir
+
+pub fn wrong(x: Int) -> Bool
+  intent "Return a deliberately wrong type for IR lowering."
+  version v1
+  contract
+    ensures result == true
+  examples
+    wrong(1) == true
+  properties
+    forall x: Int:
+      wrong(x) == true
+  effects pure
+  impl
+    x + 1
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["compile", "ir", &source.to_string_lossy(), "--json"])
+        .output()
+        .expect("run compile ir");
+    assert!(!output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("\"ir\": null"), "{stdout}");
+    assert!(
+        stdout.contains("\"code\": \"ReturnTypeMismatch\""),
+        "{stdout}"
     );
     let _ = fs::remove_dir_all(dir);
 }
