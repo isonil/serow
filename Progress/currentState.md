@@ -25,6 +25,7 @@ Date: 2026-05-13
   - near-duplicate public intent warnings using deterministic token-ranked intent overlap with shared/new-only/candidate-only term difference data
   - duplicate examples, executable examples that do not directly call the public function under test, duplicate contract clauses, duplicate sampled property blocks, duplicate migration acknowledgements, sampled properties with no bound variables, sampled properties that do not directly call the public function under test, and sampled properties with unsupported generator types as low-signal evidence warnings
   - ambiguous bare-call diagnostics with qualified-reference repair guidance and structured symbol lookup repair actions
+  - unknown function static type errors with structured symbol lookup repair actions
   - sampled `forall` properties over deterministic `Int`, `Bool`, and `Text` sample sets
   - deterministic sampled-property failure replay data with property indexes, sample indexes, seed strings, sampled bindings, and single-sample replay repair actions
   - deterministic sampled-property shrink data for failing properties when a simpler failing binding exists in the built-in samples
@@ -113,7 +114,7 @@ Date: 2026-05-13
 - `patch rename-function` renames a public function and rewrites resolved call references in the patched source, using exact `@module.name.vN(...)` references when the new bare name would be ambiguous.
 - Structured JSON diagnostic repair actions:
   - command repair actions are emitted as `repair_actions` alongside legacy `repairs`
-  - currently used for format drift, missing module dependencies, forbidden declared module dependencies, ambiguous bare-call symbol lookup, duplicate-intent lookup, low-signal evidence removal, duplicate/stale migration removal, implicit-version fixes in unattended certification, and effect capability declaration repairs
+  - currently used for format drift, missing module dependencies, forbidden declared module dependencies, ambiguous bare-call and unknown-function symbol lookup, duplicate-intent lookup, low-signal evidence removal, duplicate/stale migration removal, implicit-version fixes in unattended certification, and effect capability declaration repairs
 - Deterministic source formatting:
   - `bin/serow fmt [paths...]`
   - `bin/serow fmt [paths...] --check`
@@ -1215,6 +1216,16 @@ bin/serow certify --profile unattended --json
 bin/serow plan --json
 bin/serow agent --json
 git diff --check
+```
+
+Additional verification after adding unknown-function symbol lookup repair actions:
+
+```sh
+bin/serow query intent "repair unknown function references with symbol lookup" --json
+bin/serow query symbol TypeError --json
+bin/serow query symbol UnknownFunction --json
+cargo fmt --check
+cargo test unknown_function_type_errors_include_symbol_lookup_repair -- --nocapture
 ```
 
 `cargo test` includes integration coverage for `bin/serow patch add-function`.

@@ -1003,12 +1003,13 @@ fn check_static_types(function: &Function, program: &Program, summary: &mut Chec
                 .with_data("implementation", implementation)
                 .with_repair("Change the implementation or update the declared return type."),
             ),
-            Err(error) => summary.diagnostics.push(
-                Diagnostic::error("TypeError", error, Some(function.target()))
-                    .with_data("context", "impl")
-                    .with_data("expression", implementation)
-                    .with_repair("Make the implementation expression agree with its signature."),
-            ),
+            Err(error) => summary.diagnostics.push(type_error_diagnostic(
+                function,
+                "impl",
+                implementation,
+                error,
+                "Make the implementation expression agree with its signature.",
+            )),
         }
     }
 
@@ -1238,13 +1239,49 @@ fn check_bool_expression(
             .with_data("expression", expression)
             .with_repair("Make executable evidence and contracts boolean expressions."),
         ),
-        Err(error) => summary.diagnostics.push(
-            Diagnostic::error("TypeError", error, Some(function.target()))
-                .with_data("context", context)
-                .with_data("expression", expression)
-                .with_repair("Make the expression well-typed in the bootstrap expression subset."),
-        ),
+        Err(error) => summary.diagnostics.push(type_error_diagnostic(
+            function,
+            context,
+            expression,
+            error,
+            "Make the expression well-typed in the bootstrap expression subset.",
+        )),
     }
+}
+
+fn type_error_diagnostic(
+    function: &Function,
+    context: &str,
+    expression: &str,
+    error: String,
+    repair: &str,
+) -> Diagnostic {
+    let lookup = unknown_function_lookup(&error).map(str::to_string);
+    let mut diagnostic = Diagnostic::error("TypeError", error, Some(function.target()))
+        .with_data("context", context)
+        .with_data("expression", expression)
+        .with_repair(repair);
+    if let Some(name) = lookup {
+        diagnostic = diagnostic
+            .with_data("unknown_function", &name)
+            .with_command_repair(
+                "Look up public symbols with this name",
+                vec![
+                    "bin/serow".to_string(),
+                    "query".to_string(),
+                    "symbol".to_string(),
+                    name,
+                    function.source_path.clone(),
+                ],
+            );
+    }
+    diagnostic
+}
+
+fn unknown_function_lookup(error: &str) -> Option<&str> {
+    let rest = error.strip_prefix("Unknown function `")?;
+    let (name, suffix) = rest.split_once('`')?;
+    (suffix == ".").then_some(name)
 }
 
 fn check_executable_evidence(function: &Function, program: &Program, summary: &mut CheckSummary) {

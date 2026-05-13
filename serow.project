@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "0.4.53-rust-bootstrap",
+  "version": "0.4.54-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -69,6 +69,7 @@
     "expanded_property_sample_values": true,
     "qualified_function_references": true,
     "ambiguous_call_diagnostics_have_symbol_lookup_repair_actions": true,
+    "unknown_function_type_errors_have_symbol_lookup_repair_actions": true,
     "structured_version_bumps_reject_version_pinned_call_sites": true,
     "structured_impl_rewrites": true,
     "structured_impl_section_setting": true,

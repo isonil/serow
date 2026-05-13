@@ -289,6 +289,61 @@ pub fn bad() -> Bool
 }
 
 #[test]
+fn unknown_function_type_errors_include_symbol_lookup_repair() {
+    let dir = unique_temp_dir("serow-unknown-function-repair");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("unknown.serow");
+    fs::write(
+        &source,
+        r#"module test.unknown
+
+pub fn bad(x: Int) -> Int
+  intent "Call a function that does not exist."
+  contract
+    ensures result == x
+  examples
+    bad(1) == 1
+  properties
+    forall x: Int:
+      bad(x) == x
+  effects pure
+  impl
+    missing_helper(x)
+"#,
+    )
+    .expect("write fixture");
+
+    let source_path = source.to_string_lossy().to_string();
+    let (program, parse_diagnostics) = parse_paths(&[source_path.clone()]);
+    let summary = check_program(&program, parse_diagnostics);
+    let diagnostic = summary
+        .diagnostics
+        .iter()
+        .find(|diagnostic| {
+            diagnostic.code == "TypeError"
+                && diagnostic
+                    .data
+                    .iter()
+                    .any(|(key, value)| key == "unknown_function" && value == "missing_helper")
+        })
+        .expect("unknown function type diagnostic");
+    assert!(
+        diagnostic.repair_actions.iter().any(|action| {
+            action.command
+                == vec![
+                    "bin/serow".to_string(),
+                    "query".to_string(),
+                    "symbol".to_string(),
+                    "missing_helper".to_string(),
+                    source_path.clone(),
+                ]
+        }),
+        "{diagnostic:#?}"
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn pure_function_cannot_call_effectful_function() {
     let dir = unique_temp_dir("serow-effects");
     fs::create_dir_all(&dir).expect("create temp dir");
