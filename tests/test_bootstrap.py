@@ -293,6 +293,50 @@ pub fn id(x: Int) -> Int
                 diagnostic.to_dict(),
             )
 
+    def test_unknown_function_evaluation_errors_include_symbol_lookup_repair(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "unknown_function.serow"
+            source.write_text(
+                """module test.unknown
+
+pub fn bad(x: Int) -> Int
+  intent "Call a helper that does not exist."
+  version v1
+  contract
+    ensures result == x
+  examples
+    bad(1) == 1
+  properties
+    forall x: Int:
+      bad(x) == x
+  effects pure
+  impl
+    missing_helper(x)
+""",
+                encoding="utf-8",
+            )
+            program, parse_diagnostics = parse_files([str(source)])
+            summary = check_program(program, parse_diagnostics)
+            diagnostic = next(
+                diagnostic
+                for diagnostic in summary.diagnostics
+                if diagnostic.data.get("unknown_function") == "missing_helper"
+            )
+            self.assertTrue(
+                any(
+                    action.command
+                    == [
+                        "bin/serow",
+                        "query",
+                        "symbol",
+                        "missing_helper",
+                        str(source),
+                    ]
+                    for action in diagnostic.repair_actions
+                ),
+                diagnostic.to_dict(),
+            )
+
     def test_duplicate_public_intent_is_reported(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "duplicate_intent.serow"

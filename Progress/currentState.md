@@ -107,6 +107,7 @@ Date: 2026-05-13
 - The Python reference bootstrap also mirrors Rust's indexed evidence-removal repair actions for duplicate examples/contracts/properties, duplicate migrations, shallow executable examples, and low-signal vacuous, shallow, or non-executable sampled properties.
 - The Python reference bootstrap mirrors Rust's replay repair actions for sampled property failures and evaluation errors.
 - The Python reference bootstrap mirrors Rust's `patch set-effects` repair actions for effect capability under-declaration and unused wrapper capability diagnostics.
+- The Python reference bootstrap attaches structured `query symbol` repair actions to runtime evaluation diagnostics caused by unknown function calls.
 - `patch set-impl` creates a missing implementation section or replaces an existing implementation expression through the structured patch interface; public implementation-change policy remains enforced by `serow plan` and unattended certification.
 - `patch set-intent` sets or replaces a function intent through the structured patch interface while preserving ambiguous-target protection and rejecting exact normalized duplicate public intents before writing.
 - `patch set-migration` creates a missing migration acknowledgement for a kind, replaces a single existing record of that kind, or replaces a specific record when passed a 1-based index.
@@ -1349,6 +1350,26 @@ bin/serow query intent "remove low signal duplicate evidence through structured 
 bin/serow query symbol replay --json
 cargo fmt --check
 cargo test property_replay_unsupported_type_has_indexed_repair_action -- --nocapture
+```
+
+Additional verification after mirroring unknown-function lookup repair actions in Python evaluation diagnostics:
+
+```sh
+bin/serow query intent "repair unknown function references with symbol lookup" --json
+bin/serow query symbol TypeError --json
+bin/serow query symbol UnknownFunction --json
+python3 -m unittest tests.test_bootstrap.BootstrapTests.test_unknown_function_evaluation_errors_include_symbol_lookup_repair
+cargo fmt --check
+cargo clippy -- -D warnings
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+bin/serow agent --json
+git diff --check
 ```
 
 `bin/serow check --json` currently reports:

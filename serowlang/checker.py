@@ -13,6 +13,7 @@ from .model import Function, Program
 REQUIRED_PUBLIC_SECTIONS = ["intent", "contract", "examples", "properties", "effects", "impl"]
 SUPPORTED_TYPES = {"Int", "Bool", "Text"}
 HOLE_RE = re.compile(r"\bHOLE\s*\(")
+UNKNOWN_FUNCTION_RE = re.compile(r"^Unknown function `([^`]+)`\.$")
 NEAR_DUPLICATE_INTENT_SCORE = 0.75
 NEAR_DUPLICATE_INTENT_MIN_REASONS = 2
 
@@ -700,6 +701,37 @@ def _called_functions(expression: str) -> List[str]:
     return calls
 
 
+def _evaluation_error_diagnostic(
+    code: str,
+    exc: EvaluationError,
+    function: Function,
+    data: Dict[str, Any],
+) -> Diagnostic:
+    message = str(exc)
+    diagnostic = Diagnostic(
+        severity="error",
+        code=code,
+        message=message,
+        target=function.target,
+        data=dict(data),
+    )
+    match = UNKNOWN_FUNCTION_RE.match(message)
+    if match:
+        name = match.group(1)
+        diagnostic.data["unknown_function"] = name
+        diagnostic.with_command_repair(
+            "Look up public symbols with this name",
+            [
+                "bin/serow",
+                "query",
+                "symbol",
+                name,
+                function.source_path,
+            ],
+        )
+    return diagnostic
+
+
 def _is_qualified_call(call: str) -> bool:
     return call.startswith("@") or "." in call
 
@@ -736,12 +768,11 @@ def _check_example(function: Function, example: str, evaluator: Evaluator, summa
             direct_args = _eval_args(call.group("args"), evaluator)
         except EvaluationError as exc:
             summary.diagnostics.append(
-                Diagnostic(
-                    severity="error",
-                    code="ContractEvaluationError",
-                    message=str(exc),
-                    target=function.target,
-                    data={"example": example},
+                _evaluation_error_diagnostic(
+                    "ContractEvaluationError",
+                    exc,
+                    function,
+                    {"example": example},
                 )
             )
             return
@@ -753,12 +784,11 @@ def _check_example(function: Function, example: str, evaluator: Evaluator, summa
         result = evaluator.eval(example, {})
     except EvaluationError as exc:
         summary.diagnostics.append(
-            Diagnostic(
-                severity="error",
-                code="ExampleError",
-                message=str(exc),
-                target=function.target,
-                data={"example": example},
+            _evaluation_error_diagnostic(
+                "ExampleError",
+                exc,
+                function,
+                {"example": example},
             )
         )
         return
@@ -782,12 +812,11 @@ def _check_example(function: Function, example: str, evaluator: Evaluator, summa
             _check_contracts(function, call_result.args, call_result.value, evaluator, summary, "example", example)
         except EvaluationError as exc:
             summary.diagnostics.append(
-                Diagnostic(
-                    severity="error",
-                    code="ContractEvaluationError",
-                    message=str(exc),
-                    target=function.target,
-                    data={"example": example},
+                _evaluation_error_diagnostic(
+                    "ContractEvaluationError",
+                    exc,
+                    function,
+                    {"example": example},
                 )
             )
 
@@ -807,12 +836,11 @@ def _check_requires(
             ok = evaluator.eval(requirement, bindings)
         except EvaluationError as exc:
             summary.diagnostics.append(
-                Diagnostic(
-                    severity="error",
-                    code="ContractEvaluationError",
-                    message=str(exc),
-                    target=function.target,
-                    data={"requires": requirement, "evidence": evidence},
+                _evaluation_error_diagnostic(
+                    "ContractEvaluationError",
+                    exc,
+                    function,
+                    {"requires": requirement, "evidence": evidence},
                 )
             )
             passed = False
@@ -849,12 +877,11 @@ def _check_contracts(
             ok = evaluator.eval(contract, variables)
         except EvaluationError as exc:
             summary.diagnostics.append(
-                Diagnostic(
-                    severity="error",
-                    code="ContractEvaluationError",
-                    message=str(exc),
-                    target=function.target,
-                    data={"contract": contract, "evidence": evidence},
+                _evaluation_error_diagnostic(
+                    "ContractEvaluationError",
+                    exc,
+                    function,
+                    {"contract": contract, "evidence": evidence},
                 )
             )
             continue
@@ -926,12 +953,11 @@ def _check_property(function: Function, block: Tuple[int, List[Tuple[str, str]],
             if shrunk:
                 sample_data.update(shrunk)
             summary.diagnostics.append(
-                Diagnostic(
-                    severity="error",
-                    code="PropertyEvaluationError",
-                    message=str(exc),
-                    target=function.target,
-                    data=sample_data,
+                _evaluation_error_diagnostic(
+                    "PropertyEvaluationError",
+                    exc,
+                    function,
+                    sample_data,
                 ).with_command_repair(
                     "Replay this property sample",
                     [
