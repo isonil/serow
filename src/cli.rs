@@ -16,12 +16,13 @@ use crate::patch::{
 use crate::plan::{
     CapabilityAnalysis, CapabilityChange, ChangePlan, EvidenceCoverage, EvidenceDelta,
     EvidenceDrift, EvidenceWeakening, ImpactEvidenceCoverage, ImplementationChange,
-    ImplementationEvidenceCoverage, PropertyCoverageHint, PublicBehaviorChange, SemanticChange,
-    plan_paths, unattended_capability_expansion_diagnostics,
+    ImplementationEvidenceCoverage, PropertyCoverageHint, PublicBehaviorChange,
+    RemovedPublicSymbol, SemanticChange, plan_paths, unattended_capability_expansion_diagnostics,
     unattended_evidence_weakening_diagnostics, unattended_implementation_change_diagnostics,
     unattended_implementation_evidence_drift_diagnostics,
-    unattended_public_behavior_change_diagnostics, unattended_stale_migration_diagnostics,
-    unattended_unchecked_impact_diagnostics, unattended_uncovered_impact_evidence_diagnostics,
+    unattended_public_behavior_change_diagnostics, unattended_removed_public_symbol_diagnostics,
+    unattended_stale_migration_diagnostics, unattended_unchecked_impact_diagnostics,
+    unattended_uncovered_impact_evidence_diagnostics,
 };
 use crate::replay::{PropertyReplaySummary, replay_property};
 
@@ -608,6 +609,9 @@ fn run_check(args: &[String], certify: bool) -> i32 {
         summary
             .diagnostics
             .extend(unattended_stale_migration_diagnostics(&paths));
+        summary
+            .diagnostics
+            .extend(unattended_removed_public_symbol_diagnostics(&paths));
         let repair_action_contract_diagnostics = validate_repair_actions(&summary.diagnostics);
         summary
             .diagnostics
@@ -1058,11 +1062,22 @@ fn print_plan(plan: &ChangePlan) {
     println!("mode: {}", plan.mode);
     println!("changed files: {}", plan.changed_paths.len());
     println!("changed symbols: {}", plan.changed_symbols.len());
+    println!("removed public symbols: {}", plan.removed_symbols.len());
     if !plan.residual_risks.is_empty() {
         println!("residual risks:");
         for risk in &plan.residual_risks {
             println!("  {risk}");
         }
+    }
+    for symbol in &plan.removed_symbols {
+        let replacements = symbol
+            .replacement_candidates
+            .iter()
+            .map(Function::symbol)
+            .collect::<Vec<_>>();
+        println!("removed {}", symbol.function.symbol());
+        println!("  {}", symbol.function.signature());
+        println!("  same-name replacements: {}", human_list(&replacements));
     }
     for symbol in &plan.changed_symbols {
         println!("{}", symbol.function.symbol());
@@ -1228,6 +1243,7 @@ fn plan_json(plan: &ChangePlan) -> String {
             "  \"diagnostics\": {},\n",
             "  \"mode\": {},\n",
             "  \"ok\": {},\n",
+            "  \"removed_symbols\": {},\n",
             "  \"residual_risks\": {},\n",
             "  \"source_paths\": {},\n",
             "  \"summary\": {{\"contracts\": {}, \"examples\": {}, \"functions\": {}, \"holes\": {}, \"properties\": {}}}\n",
@@ -1238,6 +1254,7 @@ fn plan_json(plan: &ChangePlan) -> String {
         diagnostics_array_json(&plan.diagnostics),
         json_string(&plan.mode),
         plan.ok,
+        removed_symbols_json(&plan.removed_symbols),
         string_array_json(&plan.residual_risks),
         string_array_json(&plan.source_paths),
         plan.summary.contracts,
@@ -1304,6 +1321,30 @@ fn changed_symbols_json(plan: &ChangePlan) -> String {
                 semantic_changes_json(&symbol.semantic_changes),
                 stale_migrations_json(&symbol.stale_migrations),
                 symbol.version_explicit
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",\n    ");
+    format!("[\n    {rows}\n  ]")
+}
+
+fn removed_symbols_json(symbols: &[RemovedPublicSymbol]) -> String {
+    if symbols.is_empty() {
+        return "[]".to_string();
+    }
+    let rows = symbols
+        .iter()
+        .map(|symbol| {
+            let replacements = symbol
+                .replacement_candidates
+                .iter()
+                .map(function_ref_json)
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!(
+                "{{\"function\": {}, \"replacement_candidates\": [{}]}}",
+                function_ref_json(&symbol.function),
+                replacements
             )
         })
         .collect::<Vec<_>>()
@@ -1933,7 +1974,7 @@ fn agent_json() -> String {
         (
             "plan",
             "serow plan [paths...] [--json]",
-            "Summarize changed public symbols, semantic change labels, direct-call capability analysis, sampled-property coverage hints, advisory intent/implementation risks, migration acknowledgements, stale migration acknowledgements, capability changes, implementation changes, implementation evidence coverage and HEAD-sensitivity, implementation/evidence drift, evidence coverage, HEAD evidence deltas, impact-edge coverage, and residual risk.",
+            "Summarize changed public symbols, removed public symbols, semantic change labels, direct-call capability analysis, sampled-property coverage hints, advisory intent/implementation risks, migration acknowledgements, stale migration acknowledgements, capability changes, implementation changes, implementation evidence coverage and HEAD-sensitivity, implementation/evidence drift, evidence coverage, HEAD evidence deltas, impact-edge coverage, and residual risk.",
         ),
         (
             "query callees",
@@ -2002,7 +2043,7 @@ fn agent_json() -> String {
             "  \"supported_bootstrap_types\": {},\n",
             "  \"verification_gates\": {},\n",
             "  \"diagnostic_json\": {{\"repairs\": \"legacy human-readable repair strings\", \"repair_actions\": \"machine-readable command actions when available\", \"missing_sections\": \"MissingRequiredSection diagnostics include safe set-effects/set-impl patch command actions when those non-evidence sections are absent\", \"typed_holes\": \"TypedHole diagnostics include symbol, signature, hole_type, expected_type, obligations data, and a query type command action for the declared signature shape\", \"unknown_function_type_errors\": \"TypeError diagnostics for unknown function calls include the missing function name and a query symbol command action\", \"architecture\": \"MissingModuleDependency and declared ArchitectureViolation diagnostics include add-use or remove-use patch command actions when the repair is exact\", \"ambiguous_calls\": \"AmbiguousUnqualifiedCall diagnostics include candidate symbols and a query symbol command action\", \"intent_reuse\": \"PossibleDuplicate and NearDuplicateIntent include shared_terms, new_only_terms, and candidate_only_terms data\", \"duplicate_evidence\": \"Duplicate evidence diagnostics include indexed remove-evidence patch command actions\", \"duplicate_migrations\": \"DuplicateMigration includes indexed remove-migration patch command actions\", \"low_signal_examples\": \"ShallowExample includes indexed remove-example patch command actions\", \"low_signal_properties\": \"VacuousProperty, ShallowProperty, and PropertyNotExecutable include indexed remove-property patch command actions\", \"property_replay\": \"PropertyFailed and PropertyEvaluationError include property_index, sample_index, sample_seed, bindings, and a replay command action\", \"property_shrinking\": \"PropertyFailed includes shrunk_sample_index, shrunk_sample_seed, and shrunk_bindings when a simpler failing sampled binding is found\"}},\n",
-            "  \"plan_json\": {{\"semantic_changes\": \"changed symbols include deterministic labels with acknowledgement state and details for public deltas\", \"property_coverage\": \"changed symbols include sampled-property sample counts, direct-call flags, vacuous flags, and unsupported generator types\", \"intent_implementation_risks\": \"changed symbols include advisory lexical arithmetic intent/implementation mismatch risks\", \"stale_migrations\": \"changed symbols include indexed migration acknowledgements that no current unattended gate requires\"}},\n",
+            "  \"plan_json\": {{\"semantic_changes\": \"changed symbols include deterministic labels with acknowledgement state and details for public deltas\", \"removed_symbols\": \"changed tracked files include removed public canonical symbols and same-name replacement candidates\", \"property_coverage\": \"changed symbols include sampled-property sample counts, direct-call flags, vacuous flags, and unsupported generator types\", \"intent_implementation_risks\": \"changed symbols include advisory lexical arithmetic intent/implementation mismatch risks\", \"stale_migrations\": \"changed symbols include indexed migration acknowledgements that no current unattended gate requires\"}},\n",
             "  \"known_limits\": {}\n",
             "}}"
         ),
@@ -2061,6 +2102,7 @@ fn agent_json() -> String {
             "`serow certify --profile unattended` fails when added executable evidence for an implementation change also passes against the HEAD implementation unless acknowledged by implementation migration.",
             "`serow certify --profile unattended` fails when implementation and executable evidence change together unless acknowledged by implementation migration.",
             "`serow certify --profile unattended` fails when changed symbols keep stale migration acknowledgements.",
+            "`serow certify --profile unattended` fails when changed files remove public symbols without a same-name replacement version.",
             "`serow certify --profile unattended` validates structured repair actions before accepting diagnostics.",
             "`serow plan` reports declared capability changes against HEAD for changed tracked public symbols.",
             "`serow plan` reports semantic change labels for changed symbols so agents can consume public deltas directly.",
@@ -2072,6 +2114,7 @@ fn agent_json() -> String {
             "`serow plan` reports whether added implementation evidence would fail against the HEAD implementation.",
             "`serow plan` reports implementation/evidence drift against HEAD for changed tracked public symbols.",
             "`serow plan` reports whether impacted dependent call edges are covered by executable examples or sampled properties.",
+            "`serow plan` reports removed public symbols against HEAD for changed tracked files.",
             "Ambiguous bare calls are rejected; use a qualified reference when names or versions overlap.",
             "Expression support is intentionally small.",
             "Formatting does not preserve comments.",
@@ -2265,6 +2308,7 @@ fn print_agent_bootstrap() {
     println!("    reports implementation/evidence drift against HEAD");
     println!("    reports impact-edge coverage by executable examples/properties");
     println!("    reports stale migration acknowledgements");
+    println!("    reports removed public symbols against HEAD");
     println!("  serow query callees <symbol-or-name> [paths...] [--json]");
     println!("  serow query dependents <symbol-or-name> [paths...] [--json]");
     println!("  serow query impact <symbol-or-name> [paths...] [--json]");
@@ -2326,6 +2370,9 @@ fn print_agent_bootstrap() {
         "  unattended certification rejects tracked implementation/evidence drift without explicit migration acknowledgement"
     );
     println!("  unattended certification rejects stale migration acknowledgements");
+    println!(
+        "  unattended certification rejects removed public symbols without same-name replacement versions"
+    );
     println!(
         "  unattended certification rejects capability expansion without explicit migration acknowledgement"
     );

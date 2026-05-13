@@ -3699,6 +3699,99 @@ pub fn inc(x: Int) -> Int
 }
 
 #[test]
+fn plan_and_unattended_certification_report_removed_public_symbols() {
+    let dir = unique_temp_dir("serow-removed-public-symbol");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("checked.serow");
+    fs::write(
+        &source,
+        r#"module core.math
+
+pub fn inc(x: Int) -> Int
+  intent "Increment x."
+  version v1
+  contract
+    ensures result == x + 1
+  examples
+    inc(1) == 2
+  properties
+    forall x: Int:
+      inc(x) == x + 1
+  effects pure
+  impl
+    x + 1
+"#,
+    )
+    .expect("write fixture");
+
+    git(&dir, &["init"]);
+    git(&dir, &["add", "checked.serow"]);
+    git(&dir, &["commit", "-m", "baseline"]);
+
+    fs::write(&source, "module core.math\n").expect("remove public symbol fixture");
+
+    let plan = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args(["plan", "--json"])
+        .output()
+        .expect("run serow plan");
+    assert!(!plan.status.success(), "{plan:#?}");
+    let plan_stdout = String::from_utf8(plan.stdout).expect("stdout is utf8");
+    assert!(plan_stdout.contains("\"removed_symbols\""), "{plan_stdout}");
+    assert!(plan_stdout.contains("@core.math.inc.v1"), "{plan_stdout}");
+    assert!(
+        plan_stdout.contains(
+            "Changed files remove public symbols without a same-name replacement version"
+        ),
+        "{plan_stdout}"
+    );
+
+    let unattended = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args(["certify", "--profile", "unattended", "--json"])
+        .output()
+        .expect("run unattended certify");
+    assert!(!unattended.status.success(), "{unattended:#?}");
+    let stdout = String::from_utf8(unattended.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("PublicSymbolRemoved"), "{stdout}");
+    assert!(stdout.contains("\"repair_actions\""), "{stdout}");
+    assert!(
+        stdout.contains("\"command\": [\"bin/serow\", \"plan\", \"--json\"]"),
+        "{stdout}"
+    );
+
+    fs::write(
+        &source,
+        r#"module core.math
+
+pub fn inc(x: Int) -> Int
+  intent "Increment x."
+  version v2
+  contract
+    ensures result == x + 1
+  examples
+    inc(1) == 2
+  properties
+    forall x: Int:
+      inc(x) == x + 1
+  effects pure
+  impl
+    x + 1
+"#,
+    )
+    .expect("replace public symbol with new version fixture");
+
+    let versioned = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args(["certify", "--profile", "unattended", "--json"])
+        .output()
+        .expect("run versioned unattended certify");
+    assert!(versioned.status.success(), "{versioned:#?}");
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn unattended_certification_rejects_unchecked_transitive_impact() {
     let dir = unique_temp_dir("serow-unattended-unchecked-impact");
     fs::create_dir_all(&dir).expect("create temp dir");

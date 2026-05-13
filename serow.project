@@ -92,6 +92,7 @@
     "plan_reports_intent_implementation_risks": true,
     "plan_reports_semantic_change_labels": true,
     "plan_reports_stale_migration_acknowledgements": true,
+    "plan_reports_removed_public_symbols": true,
     "typed_holes_allowed": true,
     "typed_hole_type_lookup_repair_actions": true,
     "typed_hole_diagnostics_report_obligations": true,
@@ -104,6 +105,7 @@
     "unattended_rejects_implementation_evidence_drift_without_migration": true,
     "unattended_rejects_unchecked_impact": true,
     "unattended_rejects_stale_migration_acknowledgements": true,
+    "unattended_rejects_public_symbol_removal": true,
     "migration_records_acknowledge_unattended_gate_decisions": true,
     "plan_reports_impact_evidence_coverage": true
   },

@@ -16,6 +16,7 @@ pub struct ChangePlan {
     pub mode: String,
     pub source_paths: Vec<String>,
     pub changed_paths: Vec<String>,
+    pub removed_symbols: Vec<RemovedPublicSymbol>,
     pub changed_symbols: Vec<ChangedSymbol>,
     pub diagnostics: Vec<Diagnostic>,
     pub summary: CheckSummary,
@@ -51,6 +52,12 @@ pub struct SemanticChange {
     pub label: String,
     pub acknowledged: bool,
     pub details: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RemovedPublicSymbol {
+    pub function: Function,
+    pub replacement_candidates: Vec<Function>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -197,6 +204,8 @@ pub fn plan_paths(paths: &[String]) -> ChangePlan {
         .collect::<Vec<_>>();
     changed_symbols.sort_by_key(|symbol| symbol.function.symbol());
 
+    let removed_symbols = removed_public_symbols(&program, &baseline);
+
     let mut residual_risks = Vec::new();
     if summary
         .diagnostics
@@ -306,6 +315,15 @@ pub fn plan_paths(paths: &[String]) -> ChangePlan {
         residual_risks
             .push("Changed public symbols have stale migration acknowledgements.".to_string());
     }
+    if removed_symbols
+        .iter()
+        .any(|symbol| symbol.replacement_candidates.is_empty())
+    {
+        residual_risks.push(
+            "Changed files remove public symbols without a same-name replacement version."
+                .to_string(),
+        );
+    }
 
     let ok = summary.ok() && residual_risks.is_empty();
     ChangePlan {
@@ -323,11 +341,40 @@ pub fn plan_paths(paths: &[String]) -> ChangePlan {
             .iter()
             .map(|path| path.to_string_lossy().to_string())
             .collect(),
+        removed_symbols,
         changed_symbols,
         diagnostics: summary.diagnostics.clone(),
         summary,
         residual_risks,
     }
+}
+
+pub fn unattended_removed_public_symbol_diagnostics(paths: &[String]) -> Vec<Diagnostic> {
+    let mut plan_command = vec!["bin/serow".to_string(), "plan".to_string()];
+    plan_command.extend(paths.iter().cloned());
+    plan_command.push("--json".to_string());
+
+    plan_paths(paths)
+        .removed_symbols
+        .into_iter()
+        .filter(|symbol| symbol.replacement_candidates.is_empty())
+        .map(|symbol| {
+            Diagnostic::error(
+                "PublicSymbolRemoved",
+                format!(
+                    "Public symbol `{}` was removed without a same-name replacement version.",
+                    symbol.function.symbol()
+                ),
+                Some(symbol.function.target()),
+            )
+            .with_data("symbol", symbol.function.symbol())
+            .with_data("signature", symbol.function.signature())
+            .with_command_repair("Review removed public symbols", plan_command.clone())
+            .with_repair(
+                "Restore the public symbol, keep a compatibility wrapper, or introduce a same-name replacement version before unattended certification.",
+            )
+        })
+        .collect()
 }
 
 pub fn unattended_evidence_weakening_diagnostics(paths: &[String]) -> Vec<Diagnostic> {
@@ -1012,6 +1059,40 @@ fn changed_symbol(
         semantic_changes,
         residual_risks,
     }
+}
+
+fn removed_public_symbols(
+    program: &crate::model::Program,
+    baseline: &HashMap<String, Function>,
+) -> Vec<RemovedPublicSymbol> {
+    let current_symbols = program
+        .functions
+        .iter()
+        .map(Function::symbol)
+        .collect::<HashSet<_>>();
+    let mut removed = baseline
+        .values()
+        .filter(|function| function.public)
+        .filter(|function| !current_symbols.contains(&function.symbol()))
+        .map(|function| {
+            let mut replacement_candidates = program
+                .functions
+                .iter()
+                .filter(|candidate| candidate.public)
+                .filter(|candidate| {
+                    candidate.module == function.module && candidate.name == function.name
+                })
+                .cloned()
+                .collect::<Vec<_>>();
+            replacement_candidates.sort_by_key(Function::symbol);
+            RemovedPublicSymbol {
+                function: function.clone(),
+                replacement_candidates,
+            }
+        })
+        .collect::<Vec<_>>();
+    removed.sort_by_key(|symbol| symbol.function.symbol());
+    removed
 }
 
 struct SemanticChangeInput<'a> {
