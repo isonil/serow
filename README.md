@@ -172,7 +172,7 @@ The unattended certification profile is stricter than normal local certification
 
 The unattended profile also validates machine-readable diagnostic `repair_actions`, rejecting malformed command actions so agents can trust repair commands as a narrow protocol rather than prose.
 
-The language and compiler are intentionally incomplete. Active state and next steps are tracked under `Progress/`.
+The language and compiler are intentionally incomplete. Active state and next steps are tracked under `Progress/`. The current implementation mode is cross-phase: future work should choose the highest-leverage next step across all phases, while treating Phase 3 backends as the current advanced track.
 
 ## License
 

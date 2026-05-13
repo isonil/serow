@@ -1,9 +1,14 @@
 {
   "language": "Serow",
-  "version": "0.4.61-rust-bootstrap",
+  "version": "0.4.62-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
+  },
+  "active_mode": {
+    "name": "Cross-phase implementation",
+    "current_advanced_track": "Phase 3: Backends",
+    "selection_policy": "Choose the highest-leverage next step across all phases; resume earlier-phase gaps when they are higher leverage, block later work, or are required before Serow can be considered complete."
   },
   "agent_interface": {
     "agent": "bin/serow agent [--json]",

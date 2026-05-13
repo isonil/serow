@@ -1957,7 +1957,15 @@ fn agent_json_includes_compact_machine_readable_workflow() {
     let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
     assert!(stdout.contains("\"ok\": true"), "{stdout}");
     assert!(
-        stdout.contains("\"phase\": \"Phase 3: Backends\""),
+        stdout.contains("\"phase\": \"Cross-phase implementation\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"current_advanced_track\": \"Phase 3: Backends\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("Choose the highest-leverage next step across all phases"),
         "{stdout}"
     );
     assert!(

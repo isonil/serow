@@ -2,6 +2,19 @@
 
 Date: 2026-05-13
 
+## Active Mode
+
+Cross-phase implementation.
+
+Future invocations should choose the highest-leverage next step across all phases, not only the most recent phase. Phase 3 backend work is currently the most advanced active track, but earlier-phase gaps should be resumed whenever they are higher leverage, block later work, or are required before Serow can be considered complete.
+
+Selection policy for generic implementation prompts:
+
+1. Read `Progress/roadmap.md`, this file, and any cross-phase backlog notes before choosing work.
+2. Inspect unfinished, deferred, and known-limit items across every phase.
+3. Pick the next task that most improves Serow toward completion, even when that task belongs to an earlier phase.
+4. Record the chosen focus and outcome in `Progress/implementationLog.md` or this file.
+
 ## Implemented
 
 - Dependency-free Rust bootstrap CLI at `bin/serow`.
@@ -1463,7 +1476,7 @@ bin/serow compile rust examples/math.serow --json
 
 ## Current Strategic Direction
 
-The roadmap is now in Phase 3 backend work. The immediate direction is to grow the portable IR and the first Rust backend carefully:
+The roadmap is now in cross-phase implementation mode. Phase 3 backend work is the most advanced active track, but future invocations should choose across all phases using the Active Mode policy above. The immediate backend direction remains:
 
 - keep the checker/interpreter responsible for compile-time evidence
 - make `serow.ir.v0` stable enough for backend consumers

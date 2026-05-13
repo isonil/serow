@@ -1,5 +1,16 @@
 # Serow Roadmap
 
+## Active Mode: Cross-Phase Implementation
+
+Future generic implementation prompts should choose the highest-leverage next step across all phases. Phase 3 backend work is currently the most advanced active track, but earlier-phase gaps are not closed or forgotten merely because the project advanced. Work on earlier phases when they are higher leverage, block later work, or are required before Serow can be considered complete.
+
+Selection policy:
+
+1. Inspect unfinished, deferred, and known-limit items across every phase.
+2. Prefer the task that most improves Serow toward completion, not simply the newest phase.
+3. If the selected task belongs to an inactive earlier phase, record why it outranks the current advanced track.
+4. Keep `Progress/currentState.md` and `Progress/implementationLog.md` updated with the chosen focus and outcome.
+
 ## Phase 0: Bootstrap Tooling
 
 - Create repository instructions and machine-readable project manifest.

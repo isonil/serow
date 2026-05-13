@@ -2455,7 +2455,9 @@ fn agent_json() -> String {
             "  \"ok\": true,\n",
             "  \"language\": \"Serow\",\n",
             "  \"implementation\": \"dependency-free Rust bootstrap\",\n",
-            "  \"phase\": \"Phase 3: Backends\",\n",
+            "  \"phase\": \"Cross-phase implementation\",\n",
+            "  \"current_advanced_track\": \"Phase 3: Backends\",\n",
+            "  \"selection_policy\": {},\n",
             "  \"source_default\": \"examples/\",\n",
             "  \"workflow\": {},\n",
             "  \"commands\": [{}],\n",
@@ -2465,6 +2467,12 @@ fn agent_json() -> String {
             "  \"known_limits\": {}\n",
             "}}"
         ),
+        str_array_json(&[
+            "Choose the highest-leverage next step across all phases.",
+            "Phase 3 backend work is currently the most advanced active track.",
+            "Resume earlier-phase gaps when they are higher leverage, block later work, or are required before Serow can be considered complete.",
+            "Record the chosen focus and outcome in Progress/."
+        ]),
         str_array_json(&[
             "Run `bin/serow query intent \"<description>\"` before adding public behavior.",
             "Run `bin/serow query symbol \"<name>\"` when a symbol might already exist.",
@@ -2668,7 +2676,12 @@ fn print_agent_bootstrap() {
     println!("serow agent: ok");
     println!("language: Serow");
     println!("implementation: dependency-free Rust bootstrap");
-    println!("phase: Phase 3: Backends");
+    println!("phase: Cross-phase implementation");
+    println!("current advanced track: Phase 3: Backends");
+    println!("selection policy:");
+    println!("  choose the highest-leverage next step across all phases");
+    println!("  resume earlier-phase gaps when they outrank the current advanced track");
+    println!("  record the chosen focus and outcome in Progress/");
     println!("source default: examples/");
     println!("workflow:");
     println!("  1. bin/serow query intent \"<description>\"");
