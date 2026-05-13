@@ -1942,10 +1942,12 @@ fn agent_command_prints_bootstrap_contract() {
     assert!(stdout.contains("serow agent: ok"), "{stdout}");
     assert!(stdout.contains("bin/serow check after edits"), "{stdout}");
     assert!(stdout.contains("bin/serow certify"), "{stdout}");
+    assert!(stdout.contains("serow agent commands [--json]"), "{stdout}");
+    assert!(!stdout.contains("serow patch qualify-call"), "{stdout}");
 }
 
 #[test]
-fn agent_json_includes_machine_readable_workflow() {
+fn agent_json_includes_compact_machine_readable_workflow() {
     let output = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args(["agent", "--json"])
         .output()
@@ -1971,8 +1973,61 @@ fn agent_json_includes_machine_readable_workflow() {
         stdout.contains("serow query type <type-or-shape>"),
         "{stdout}"
     );
+    assert!(stdout.contains("bin/serow certify --json"), "{stdout}");
+    assert!(stdout.contains("bin/serow plan --json"), "{stdout}");
+    assert!(!stdout.contains("serow compile rust"), "{stdout}");
+    assert!(!stdout.contains("serow patch qualify-call"), "{stdout}");
+    assert!(!stdout.contains("\"diagnostic_json\""), "{stdout}");
+    assert!(!stdout.contains("\"plan_json\""), "{stdout}");
+}
+
+#[test]
+fn agent_commands_json_includes_full_command_catalog() {
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["agent", "commands", "--json"])
+        .output()
+        .expect("run serow agent commands --json");
+
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"ok\": true"), "{stdout}");
+    assert!(
+        stdout.contains("serow compile rust [paths...] [--json]"),
+        "{stdout}"
+    );
     assert!(stdout.contains("serow patch qualify-call"), "{stdout}");
-    assert!(stdout.contains("bin/serow certify"), "{stdout}");
+    assert!(stdout.contains("serow query callees"), "{stdout}");
+    assert!(stdout.contains("serow query symbols"), "{stdout}");
+    assert!(stdout.contains("serow replay property"), "{stdout}");
+}
+
+#[test]
+fn agent_diagnostics_subcommand_prints_protocol_reference() {
+    let json_output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["agent", "diagnostics", "--json"])
+        .output()
+        .expect("run serow agent diagnostics --json");
+
+    assert!(json_output.status.success(), "{json_output:#?}");
+    let json_stdout = String::from_utf8(json_output.stdout).expect("stdout is utf8");
+    assert!(json_stdout.contains("\"diagnostic_json\""), "{json_stdout}");
+    assert!(json_stdout.contains("\"plan_json\""), "{json_stdout}");
+    assert!(json_stdout.contains("repair_actions"), "{json_stdout}");
+    assert!(json_stdout.contains("semantic_changes"), "{json_stdout}");
+
+    let text_output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["agent", "diagnostics"])
+        .output()
+        .expect("run serow agent diagnostics");
+
+    assert!(text_output.status.success(), "{text_output:#?}");
+    let text_stdout = String::from_utf8(text_output.stdout).expect("stdout is utf8");
+    assert!(
+        text_stdout.contains("serow agent diagnostics: ok"),
+        "{text_stdout}"
+    );
+    assert!(text_stdout.contains("diagnostic json:"), "{text_stdout}");
+    assert!(text_stdout.contains("plan json:"), "{text_stdout}");
 }
 
 #[test]

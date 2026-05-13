@@ -1,11 +1,14 @@
 {
   "language": "Serow",
-  "version": "0.4.60-rust-bootstrap",
+  "version": "0.4.61-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
   },
   "agent_interface": {
+    "agent": "bin/serow agent [--json]",
+    "agent_commands": "bin/serow agent commands [--json]",
+    "agent_diagnostics": "bin/serow agent diagnostics [--json]",
     "check": "bin/serow check",
     "certify": "bin/serow certify",
     "certify_unattended": "bin/serow certify --profile unattended",
@@ -45,6 +48,9 @@
     "json_diagnostics": "diagnostics may include repair_actions with argv-style command arrays"
   },
   "rules": {
+    "agent_json_is_compact": true,
+    "agent_commands_subcommand_has_full_catalog": true,
+    "agent_diagnostics_subcommand_has_verbose_protocols": true,
     "public_required_sections": [
       "intent",
       "contract",

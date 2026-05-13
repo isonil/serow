@@ -151,7 +151,7 @@ This is a deliberately weak early version of certification. Later phases should 
 
 ## Agent Bootstrap
 
-`bin/serow agent [--json]` prints the current bootstrap contract for AI implementers. The JSON form is the stable entry point for discovering workflow requirements, supported commands, public function requirements, verification gates, and known limits without reading repository notes first.
+`bin/serow agent [--json]` prints the current compact bootstrap contract for AI implementers. The JSON form is the stable entry point for discovering workflow requirements, core commands, public function requirements, verification gates, and known limits without reading repository notes first. Verbose reference material is split into `bin/serow agent commands [--json]` for the full CLI catalog and `bin/serow agent diagnostics [--json]` for detailed diagnostic and plan JSON protocol notes.
 
 ## Property Replay
 

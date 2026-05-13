@@ -51,6 +51,9 @@ Date: 2026-05-13
 - Agent bootstrap command:
   - `bin/serow agent`
   - `bin/serow agent --json`
+  - compact default output with core commands, workflow, requirements, gates, and known limits
+  - `bin/serow agent commands [--json]` for the full command catalog
+  - `bin/serow agent diagnostics [--json]` for detailed diagnostic and plan JSON protocol notes
 - Machine-readable change planning:
   - `bin/serow plan [paths...] [--json]`
   - explicit paths are treated as the change set

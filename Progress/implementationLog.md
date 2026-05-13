@@ -404,6 +404,10 @@
 
 ## 2026-05-13
 
+- Refactored `bin/serow agent --json` into a compact bootstrap contract for AI bootstrap consumption.
+- Added `bin/serow agent commands [--json]` for the full command catalog and `bin/serow agent diagnostics [--json]` for detailed diagnostic and plan JSON protocol notes.
+- Updated usage text, README, `serow.project`, and Progress docs to describe the split between compact bootstrap data and explicit reference material.
+- Verified with `bin/serow query intent "agent json compact default commands diagnostics subcommands"`, `bin/serow query symbol "agent"`, `cargo test agent_ -- --nocapture`, `bin/serow agent --json`, `bin/serow agent commands --json`, `bin/serow agent diagnostics --json`, `bin/serow agent commands`, `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`, `python3 -m unittest discover -s tests`, `bin/serow fmt --check --json`, `bin/serow check --json`, `bin/serow certify --json`, `bin/serow certify --profile unattended --json`, and `bin/serow plan --json`.
 - Started Phase 3 backend work with a portable IR foundation.
 - Added `src/ir.rs` with a `serow.ir.v0` lowering model for the checked bootstrap expression subset.
 - Added `bin/serow compile ir [paths...] [--json]`.

@@ -28,12 +28,23 @@ The current implementation is a bootstrap toolchain written in dependency-free R
 - a first portable backend IR emitted by `bin/serow compile ir`
 - a first Rust backend source emitter for pure `Int`/`Bool` functions through `bin/serow compile rust`
 
-Print the current agent bootstrap contract:
+Print the current compact agent bootstrap contract:
 
 ```sh
 bin/serow agent
 bin/serow agent --json
 ```
+
+Print explicit reference material that is omitted from the compact bootstrap:
+
+```sh
+bin/serow agent commands
+bin/serow agent commands --json
+bin/serow agent diagnostics
+bin/serow agent diagnostics --json
+```
+
+`agent commands` is the full CLI catalog, including structured patch commands, extended ledger queries, replay, and backend commands. `agent diagnostics` describes the detailed JSON diagnostic and plan protocols.
 
 Run the current checker:
 

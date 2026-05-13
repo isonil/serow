@@ -112,16 +112,36 @@ impl CertifyProfile {
 
 fn run_agent(args: &[String]) -> i32 {
     let (rest, json_output) = split_flag(args, "--json");
-    if !rest.is_empty() {
-        print_agent_usage();
-        return 2;
+    match rest.as_slice() {
+        [] => {
+            if json_output {
+                println!("{}", agent_json());
+            } else {
+                print_agent_bootstrap();
+            }
+            0
+        }
+        [command] if command == "commands" => {
+            if json_output {
+                println!("{}", agent_commands_json());
+            } else {
+                print_agent_commands();
+            }
+            0
+        }
+        [command] if command == "diagnostics" => {
+            if json_output {
+                println!("{}", agent_diagnostics_json());
+            } else {
+                print_agent_diagnostics();
+            }
+            0
+        }
+        _ => {
+            print_agent_usage();
+            2
+        }
     }
-    if json_output {
-        println!("{}", agent_json());
-    } else {
-        print_agent_bootstrap();
-    }
-    0
 }
 
 fn run_fmt(args: &[String]) -> i32 {
@@ -2184,211 +2204,251 @@ fn symbol_path(functions: &[Function]) -> String {
         .join(" -> ")
 }
 
+type AgentCommand = (&'static str, &'static str, &'static str);
+
+const CORE_AGENT_COMMANDS: &[AgentCommand] = &[
+    (
+        "agent",
+        "serow agent [commands|diagnostics] [--json]",
+        "Print compact bootstrap data or explicit reference material.",
+    ),
+    (
+        "check",
+        "serow check [paths...] [--json]",
+        "Parse and check Serow source, defaulting to examples/.",
+    ),
+    (
+        "certify",
+        "serow certify [paths...] [--profile unattended] [--json]",
+        "Require a warning-free and error-free checker result, with an optional stricter unattended profile.",
+    ),
+    (
+        "compile ir",
+        "serow compile ir [paths...] [--json]",
+        "Lower checked public implementations to the portable bootstrap IR.",
+    ),
+    (
+        "fmt",
+        "serow fmt [paths...] [--check] [--json]",
+        "Rewrite or verify canonical Serow source formatting.",
+    ),
+    (
+        "plan",
+        "serow plan [paths...] [--json]",
+        "Summarize changed public symbols, semantic change labels, evidence coverage, impact, and residual risk.",
+    ),
+    (
+        "query intent",
+        "serow query intent <text> [paths...] [--json]",
+        "Find public functions with deterministic token-ranked intent search.",
+    ),
+    (
+        "query symbol",
+        "serow query symbol <text> [paths...] [--json]",
+        "Find public functions by symbol or signature text.",
+    ),
+    (
+        "query type",
+        "serow query type <type-or-shape> [paths...] [--json]",
+        "Find public functions by parameter and return type shape.",
+    ),
+];
+
+const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
+    (
+        "agent",
+        "serow agent [commands|diagnostics] [--json]",
+        "Print compact bootstrap data or explicit reference material.",
+    ),
+    (
+        "check",
+        "serow check [paths...] [--json]",
+        "Parse and check Serow source, defaulting to examples/.",
+    ),
+    (
+        "certify",
+        "serow certify [paths...] [--profile unattended] [--json]",
+        "Require a warning-free and error-free checker result, with an optional stricter unattended profile.",
+    ),
+    (
+        "compile ir",
+        "serow compile ir [paths...] [--json]",
+        "Lower checked public implementations to the portable bootstrap IR.",
+    ),
+    (
+        "compile rust",
+        "serow compile rust [paths...] [--json]",
+        "Emit deterministic Rust source for the supported checked IR subset.",
+    ),
+    (
+        "fmt",
+        "serow fmt [paths...] [--check] [--json]",
+        "Rewrite or verify canonical Serow source formatting.",
+    ),
+    (
+        "patch add-contract",
+        "serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]",
+        "Add one contract clause to an existing function through the structured patch interface.",
+    ),
+    (
+        "patch add-example",
+        "serow patch add-example <path> <symbol-or-name> <expression> [--json]",
+        "Add one executable example expression to an existing function.",
+    ),
+    (
+        "patch add-function",
+        "serow patch add-function <path> <module> <signature> <intent> [--json]",
+        "Insert a public function skeleton after rejecting exact duplicate public intents.",
+    ),
+    (
+        "patch add-migration",
+        "serow patch add-migration <path> <symbol-or-name> <kind> <note> [--json]",
+        "Add one explicit migration acknowledgement to an existing function.",
+    ),
+    (
+        "patch add-property",
+        "serow patch add-property <path> <symbol-or-name> <forall-header> <expression> [--json]",
+        "Add one sampled forall property to an existing function.",
+    ),
+    (
+        "patch add-use",
+        "serow patch add-use <path> <module> <dependency> [--json]",
+        "Add a module use declaration through the structured patch interface.",
+    ),
+    (
+        "patch fill-hole",
+        "serow patch fill-hole <path> <symbol-or-name> <expression> [--json]",
+        "Replace an existing typed implementation hole with an expression.",
+    ),
+    (
+        "patch qualify-call",
+        "serow patch qualify-call <path> <caller-symbol-or-name> <bare-call-name> <callee-symbol-or-name> [--json]",
+        "Rewrite bare calls in one caller function to an exact callee symbol.",
+    ),
+    (
+        "patch remove-contract",
+        "serow patch remove-contract <path> <symbol-or-name> <requires|ensures> <index> [--json]",
+        "Remove one indexed contract clause from an existing function.",
+    ),
+    (
+        "patch remove-example",
+        "serow patch remove-example <path> <symbol-or-name> <index> [--json]",
+        "Remove one indexed executable example from an existing function.",
+    ),
+    (
+        "patch remove-migration",
+        "serow patch remove-migration <path> <symbol-or-name> <kind> <index> [--json]",
+        "Remove one indexed migration acknowledgement of a specific kind.",
+    ),
+    (
+        "patch remove-property",
+        "serow patch remove-property <path> <symbol-or-name> <index> [--json]",
+        "Remove one indexed sampled forall property from an existing function.",
+    ),
+    (
+        "patch remove-use",
+        "serow patch remove-use <path> <module> <dependency> [--json]",
+        "Remove an existing module use declaration through the structured patch interface.",
+    ),
+    (
+        "patch rename-function",
+        "serow patch rename-function <path> <symbol-or-name> <new-name> [--json]",
+        "Rename a public function and rewrite resolved call references in the patched source.",
+    ),
+    (
+        "patch set-contract",
+        "serow patch set-contract <path> <symbol-or-name> <requires|ensures> [index] <expression> [--json]",
+        "Set or replace a missing, single, or indexed contract clause through the structured patch interface.",
+    ),
+    (
+        "patch set-effects",
+        "serow patch set-effects <path> <symbol-or-name> <effects> [--json]",
+        "Replace a function's explicit effect capability declaration.",
+    ),
+    (
+        "patch set-example",
+        "serow patch set-example <path> <symbol-or-name> [index] <expression> [--json]",
+        "Set or replace a missing, single, or indexed executable example.",
+    ),
+    (
+        "patch set-impl",
+        "serow patch set-impl <path> <symbol-or-name> <expression> [--json]",
+        "Set or replace an implementation expression through the structured patch interface.",
+    ),
+    (
+        "patch set-intent",
+        "serow patch set-intent <path> <symbol-or-name> <intent> [--json]",
+        "Set or replace a function's intent after rejecting exact duplicate public intents.",
+    ),
+    (
+        "patch set-migration",
+        "serow patch set-migration <path> <symbol-or-name> <kind> [index] <note> [--json]",
+        "Set or replace a missing, single, or indexed migration acknowledgement.",
+    ),
+    (
+        "patch set-property",
+        "serow patch set-property <path> <symbol-or-name> [index] <forall-header> <expression> [--json]",
+        "Set or replace a missing, single, or indexed sampled forall property.",
+    ),
+    (
+        "patch set-signature",
+        "serow patch set-signature <path> <symbol-or-name> <signature> [--json]",
+        "Replace a function's argument list and return type without renaming it.",
+    ),
+    (
+        "patch set-version",
+        "serow patch set-version <path> <symbol-or-name> <version> [--json]",
+        "Declare or bump an explicit source-level version, rejecting call sites pinned to the old version.",
+    ),
+    (
+        "plan",
+        "serow plan [paths...] [--json]",
+        "Summarize changed public symbols, removed public symbols, semantic change labels, direct-call capability analysis, sampled-property coverage hints, advisory intent/implementation risks, migration acknowledgements, stale migration acknowledgements, capability changes, implementation changes, implementation evidence coverage and HEAD-sensitivity, implementation/evidence drift, evidence coverage, HEAD evidence deltas, impact-edge coverage, and residual risk.",
+    ),
+    (
+        "query callees",
+        "serow query callees <symbol-or-name> [paths...] [--json]",
+        "List direct callees discovered from resolved function calls.",
+    ),
+    (
+        "query dependents",
+        "serow query dependents <symbol-or-name> [paths...] [--json]",
+        "List direct dependents discovered from resolved function calls.",
+    ),
+    (
+        "query impact",
+        "serow query impact <symbol-or-name> [paths...] [--json]",
+        "List direct and transitive dependents with resolved call paths.",
+    ),
+    (
+        "query intent",
+        "serow query intent <text> [paths...] [--json]",
+        "Find public functions with deterministic token-ranked intent search.",
+    ),
+    (
+        "query symbol",
+        "serow query symbol <text> [paths...] [--json]",
+        "Find public functions by symbol or signature text.",
+    ),
+    (
+        "query type",
+        "serow query type <type-or-shape> [paths...] [--json]",
+        "Find public functions by parameter and return type shape.",
+    ),
+    (
+        "query symbols",
+        "serow query symbols [paths...] [--json]",
+        "List all public symbols in the parsed source set.",
+    ),
+    (
+        "replay property",
+        "serow replay property <sample-seed> [paths...] [--json]",
+        "Replay one deterministic sampled property binding from a checker diagnostic seed.",
+    ),
+];
+
 fn agent_json() -> String {
-    let commands = [
-        (
-            "agent",
-            "serow agent [--json]",
-            "Print the agent bootstrap contract for the current toolchain.",
-        ),
-        (
-            "check",
-            "serow check [paths...] [--json]",
-            "Parse and check Serow source, defaulting to examples/.",
-        ),
-        (
-            "certify",
-            "serow certify [paths...] [--profile unattended] [--json]",
-            "Require a warning-free and error-free checker result, with an optional stricter unattended profile.",
-        ),
-        (
-            "compile ir",
-            "serow compile ir [paths...] [--json]",
-            "Lower checked public implementations to the portable bootstrap IR.",
-        ),
-        (
-            "compile rust",
-            "serow compile rust [paths...] [--json]",
-            "Emit deterministic Rust source for the supported checked IR subset.",
-        ),
-        (
-            "fmt",
-            "serow fmt [paths...] [--check] [--json]",
-            "Rewrite or verify canonical Serow source formatting.",
-        ),
-        (
-            "patch add-contract",
-            "serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]",
-            "Add one contract clause to an existing function through the structured patch interface.",
-        ),
-        (
-            "patch add-example",
-            "serow patch add-example <path> <symbol-or-name> <expression> [--json]",
-            "Add one executable example expression to an existing function.",
-        ),
-        (
-            "patch add-function",
-            "serow patch add-function <path> <module> <signature> <intent> [--json]",
-            "Insert a public function skeleton after rejecting exact duplicate public intents.",
-        ),
-        (
-            "patch add-migration",
-            "serow patch add-migration <path> <symbol-or-name> <kind> <note> [--json]",
-            "Add one explicit migration acknowledgement to an existing function.",
-        ),
-        (
-            "patch add-property",
-            "serow patch add-property <path> <symbol-or-name> <forall-header> <expression> [--json]",
-            "Add one sampled forall property to an existing function.",
-        ),
-        (
-            "patch add-use",
-            "serow patch add-use <path> <module> <dependency> [--json]",
-            "Add a module use declaration through the structured patch interface.",
-        ),
-        (
-            "patch fill-hole",
-            "serow patch fill-hole <path> <symbol-or-name> <expression> [--json]",
-            "Replace an existing typed implementation hole with an expression.",
-        ),
-        (
-            "patch qualify-call",
-            "serow patch qualify-call <path> <caller-symbol-or-name> <bare-call-name> <callee-symbol-or-name> [--json]",
-            "Rewrite bare calls in one caller function to an exact callee symbol.",
-        ),
-        (
-            "patch remove-contract",
-            "serow patch remove-contract <path> <symbol-or-name> <requires|ensures> <index> [--json]",
-            "Remove one indexed contract clause from an existing function.",
-        ),
-        (
-            "patch remove-example",
-            "serow patch remove-example <path> <symbol-or-name> <index> [--json]",
-            "Remove one indexed executable example from an existing function.",
-        ),
-        (
-            "patch remove-migration",
-            "serow patch remove-migration <path> <symbol-or-name> <kind> <index> [--json]",
-            "Remove one indexed migration acknowledgement of a specific kind.",
-        ),
-        (
-            "patch remove-property",
-            "serow patch remove-property <path> <symbol-or-name> <index> [--json]",
-            "Remove one indexed sampled forall property from an existing function.",
-        ),
-        (
-            "patch remove-use",
-            "serow patch remove-use <path> <module> <dependency> [--json]",
-            "Remove an existing module use declaration through the structured patch interface.",
-        ),
-        (
-            "patch rename-function",
-            "serow patch rename-function <path> <symbol-or-name> <new-name> [--json]",
-            "Rename a public function and rewrite resolved call references in the patched source.",
-        ),
-        (
-            "patch set-contract",
-            "serow patch set-contract <path> <symbol-or-name> <requires|ensures> [index] <expression> [--json]",
-            "Set or replace a missing, single, or indexed contract clause through the structured patch interface.",
-        ),
-        (
-            "patch set-effects",
-            "serow patch set-effects <path> <symbol-or-name> <effects> [--json]",
-            "Replace a function's explicit effect capability declaration.",
-        ),
-        (
-            "patch set-example",
-            "serow patch set-example <path> <symbol-or-name> [index] <expression> [--json]",
-            "Set or replace a missing, single, or indexed executable example.",
-        ),
-        (
-            "patch set-impl",
-            "serow patch set-impl <path> <symbol-or-name> <expression> [--json]",
-            "Set or replace an implementation expression through the structured patch interface.",
-        ),
-        (
-            "patch set-intent",
-            "serow patch set-intent <path> <symbol-or-name> <intent> [--json]",
-            "Set or replace a function's intent after rejecting exact duplicate public intents.",
-        ),
-        (
-            "patch set-migration",
-            "serow patch set-migration <path> <symbol-or-name> <kind> [index] <note> [--json]",
-            "Set or replace a missing, single, or indexed migration acknowledgement.",
-        ),
-        (
-            "patch set-property",
-            "serow patch set-property <path> <symbol-or-name> [index] <forall-header> <expression> [--json]",
-            "Set or replace a missing, single, or indexed sampled forall property.",
-        ),
-        (
-            "patch set-signature",
-            "serow patch set-signature <path> <symbol-or-name> <signature> [--json]",
-            "Replace a function's argument list and return type without renaming it.",
-        ),
-        (
-            "patch set-version",
-            "serow patch set-version <path> <symbol-or-name> <version> [--json]",
-            "Declare or bump an explicit source-level version, rejecting call sites pinned to the old version.",
-        ),
-        (
-            "plan",
-            "serow plan [paths...] [--json]",
-            "Summarize changed public symbols, removed public symbols, semantic change labels, direct-call capability analysis, sampled-property coverage hints, advisory intent/implementation risks, migration acknowledgements, stale migration acknowledgements, capability changes, implementation changes, implementation evidence coverage and HEAD-sensitivity, implementation/evidence drift, evidence coverage, HEAD evidence deltas, impact-edge coverage, and residual risk.",
-        ),
-        (
-            "query callees",
-            "serow query callees <symbol-or-name> [paths...] [--json]",
-            "List direct callees discovered from resolved function calls.",
-        ),
-        (
-            "query dependents",
-            "serow query dependents <symbol-or-name> [paths...] [--json]",
-            "List direct dependents discovered from resolved function calls.",
-        ),
-        (
-            "query impact",
-            "serow query impact <symbol-or-name> [paths...] [--json]",
-            "List direct and transitive dependents with resolved call paths.",
-        ),
-        (
-            "query intent",
-            "serow query intent <text> [paths...] [--json]",
-            "Find public functions with deterministic token-ranked intent search.",
-        ),
-        (
-            "query symbol",
-            "serow query symbol <text> [paths...] [--json]",
-            "Find public functions by symbol or signature text.",
-        ),
-        (
-            "query type",
-            "serow query type <type-or-shape> [paths...] [--json]",
-            "Find public functions by parameter and return type shape.",
-        ),
-        (
-            "query symbols",
-            "serow query symbols [paths...] [--json]",
-            "List all public symbols in the parsed source set.",
-        ),
-        (
-            "replay property",
-            "serow replay property <sample-seed> [paths...] [--json]",
-            "Replay one deterministic sampled property binding from a checker diagnostic seed.",
-        ),
-    ];
-    let command_rows = commands
-        .iter()
-        .map(|(name, usage, purpose)| {
-            format!(
-                "{{\"name\": {}, \"usage\": {}, \"purpose\": {}}}",
-                json_string(name),
-                json_string(usage),
-                json_string(purpose)
-            )
-        })
-        .collect::<Vec<_>>()
-        .join(", ");
+    let command_rows = agent_command_rows_json(CORE_AGENT_COMMANDS);
     format!(
         concat!(
             "{{\n",
@@ -2402,8 +2462,6 @@ fn agent_json() -> String {
             "  \"public_function_requirements\": {},\n",
             "  \"supported_bootstrap_types\": {},\n",
             "  \"verification_gates\": {},\n",
-            "  \"diagnostic_json\": {{\"repairs\": \"legacy human-readable repair strings\", \"repair_actions\": \"machine-readable command actions when available\", \"missing_sections\": \"MissingRequiredSection diagnostics include safe set-effects/set-impl patch command actions when those non-evidence sections are absent\", \"typed_holes\": \"TypedHole diagnostics include symbol, signature, hole_type, expected_type, obligations data, and a query type command action for the declared signature shape\", \"unknown_function_type_errors\": \"TypeError diagnostics for unknown function calls include the missing function name and a query symbol command action\", \"architecture\": \"MissingModuleDependency and declared ArchitectureViolation diagnostics include add-use or remove-use patch command actions when the repair is exact\", \"ambiguous_calls\": \"AmbiguousUnqualifiedCall diagnostics include candidate symbols and a query symbol command action\", \"intent_reuse\": \"PossibleDuplicate and NearDuplicateIntent include shared_terms, new_only_terms, and candidate_only_terms data\", \"duplicate_evidence\": \"Duplicate evidence diagnostics include indexed remove-evidence patch command actions\", \"duplicate_migrations\": \"DuplicateMigration includes indexed remove-migration patch command actions\", \"low_signal_examples\": \"ShallowExample includes indexed remove-example patch command actions\", \"low_signal_properties\": \"VacuousProperty, ShallowProperty, and PropertyNotExecutable include indexed remove-property patch command actions\", \"property_replay\": \"PropertyFailed and PropertyEvaluationError include property_index, sample_index, sample_seed, bindings, and a replay command action; replayed PropertyNotExecutable diagnostics include indexed remove-property repair actions\", \"property_shrinking\": \"PropertyFailed and PropertyEvaluationError include shrunk_sample_index, shrunk_sample_seed, and shrunk_bindings when a simpler failing or erroring sampled binding is found\"}},\n",
-            "  \"plan_json\": {{\"semantic_changes\": \"changed symbols include deterministic labels with acknowledgement state and details for public deltas\", \"removed_symbols\": \"changed tracked files include removed public canonical symbols and same-name replacement candidates\", \"property_coverage\": \"changed symbols include sampled-property sample counts, direct-call flags, vacuous flags, and unsupported generator types\", \"intent_implementation_risks\": \"changed symbols include advisory lexical arithmetic intent/implementation mismatch risks\", \"stale_migrations\": \"changed symbols include indexed migration acknowledgements that no current unattended gate requires\"}},\n",
             "  \"known_limits\": {}\n",
             "}}"
         ),
@@ -2412,11 +2470,12 @@ fn agent_json() -> String {
             "Run `bin/serow query symbol \"<name>\"` when a symbol might already exist.",
             "Run `bin/serow check` after edits.",
             "Run `bin/serow certify` before considering changed Serow code complete.",
-            "Use `bin/serow certify --profile unattended` for stricter low-attention agent gates."
+            "Use `bin/serow certify --profile unattended` for stricter low-attention agent gates.",
+            "Use `bin/serow agent commands --json` and `bin/serow agent diagnostics --json` for verbose reference material."
         ]),
         command_rows,
         str_array_json(&[
-            "version (optional; defaults to v1)",
+            "version (optional; unattended requires explicit vN)",
             "intent",
             "contract",
             "examples",
@@ -2432,56 +2491,51 @@ fn agent_json() -> String {
             "python3 -m unittest discover -s tests",
             "bin/serow fmt --check --json",
             "bin/serow check --json",
-            "bin/serow certify",
-            "bin/serow certify --profile unattended"
+            "bin/serow certify --json",
+            "bin/serow certify --profile unattended --json",
+            "bin/serow plan --json"
         ]),
         str_array_json(&[
-            "`serow compile ir` emits the portable backend IR; `serow compile rust` emits deterministic Rust source for pure Int/Bool functions from checked IR; Text and effectful functions are not emitted yet.",
-            "Properties are sampled, not proven; built-in samples cover boundary and representative Int, Bool, and Text values, and failed or erroring sampled properties report deterministic replay data that can be replayed with `serow replay property`; PropertyFailed and PropertyEvaluationError diagnostics also include a simpler shrunk sampled binding when one is found, while replayed PropertyNotExecutable diagnostics point at indexed property removal.",
-            "Migration acknowledgements are source-level notes; they do not prove behavioral compatibility.",
-            "`serow plan` reports stale migration acknowledgements when a changed symbol keeps a migration record that no current unattended gate requires.",
-            "Exact duplicate public intents are errors; high-overlap token-ranked intent matches are warnings.",
-            "`serow patch add-function` and `serow patch set-intent` reject exact duplicate public intents before writing.",
-            "`bin/serow check` warns on duplicate examples, executable examples that do not call the function under test, contract clauses, sampled property blocks, sampled properties with no bound variables, sampled properties that do not call the function under test, and sampled properties with unsupported generator types.",
-            "`bin/serow check` warns on duplicate migration acknowledgements and points at indexed `patch remove-migration` repairs.",
-            "Duplicate and near-duplicate intent diagnostics include shared and differing intent terms.",
-            "Intent search is deterministic token ranking with stopwords and light normalization, not semantic embeddings.",
-            "Qualified calls support `module.name(...)`, `module.name.vN(...)`, and exact `@module.name.vN(...)` references.",
-            "`serow patch set-version` can bump a symbol version when parsed call sites do not pin the old canonical version.",
-            "`serow patch rename-function` rewrites resolved call references in the patched source and uses exact calls when a new bare name would be ambiguous.",
-            "`serow patch qualify-call` rewrites bare calls inside one caller function to an exact selected callee symbol.",
-            "`serow patch set-impl` creates missing implementation sections or rewrites existing implementation expressions but does not bypass plan or certification gates.",
-            "`bin/serow check` requires callers to declare every concrete capability required by direct callees.",
-            "`bin/serow check` warns when a function declares concrete capabilities not required by resolved non-self direct callees.",
-            "`serow certify --profile unattended` fails when changed public symbols weaken executable evidence compared with HEAD unless acknowledged by migration.",
-            "`serow certify --profile unattended` fails when a tracked public symbol changes its public contract surface without a new symbol version unless acknowledged by migration.",
-            "`serow certify --profile unattended` fails when changed public symbols expand declared capabilities unless acknowledged by capability migration.",
-            "`serow certify --profile unattended` fails when changed tracked public symbols have transitive dependents outside the certified change set unless acknowledged by impact migration.",
-            "`serow certify --profile unattended` fails when impacted dependent call edges lack executable example or sampled property coverage unless acknowledged by impact migration.",
-            "`serow certify --profile unattended` fails when changed tracked public symbols modify implementations without adding executable evidence unless acknowledged by migration.",
-            "`serow certify --profile unattended` fails when added executable evidence for an implementation change does not call the changed function unless acknowledged by implementation migration.",
-            "`serow certify --profile unattended` fails when added executable evidence for an implementation change also passes against the HEAD implementation unless acknowledged by implementation migration.",
-            "`serow certify --profile unattended` fails when implementation and executable evidence change together unless acknowledged by implementation migration.",
-            "`serow certify --profile unattended` fails when changed symbols keep stale migration acknowledgements.",
-            "`serow certify --profile unattended` fails when changed files remove public symbols without a same-name replacement version.",
-            "`serow certify --profile unattended` validates structured repair actions before accepting diagnostics.",
-            "`serow plan` reports declared capability changes against HEAD for changed tracked public symbols.",
-            "`serow plan` reports semantic change labels for changed symbols so agents can consume public deltas directly.",
-            "`serow plan` reports sampled-property coverage hints for changed symbols.",
-            "`serow plan` reports advisory intent/implementation mismatch risks for obvious arithmetic operation conflicts.",
-            "`serow plan` reports inferred direct-call capability requirements and suggested effect declarations for changed symbols.",
-            "`serow plan` reports implementation changes against HEAD for changed tracked public symbols.",
-            "`serow plan` reports whether added examples/properties directly call changed implementations.",
-            "`serow plan` reports whether added implementation evidence would fail against the HEAD implementation.",
-            "`serow plan` reports implementation/evidence drift against HEAD for changed tracked public symbols.",
-            "`serow plan` reports whether impacted dependent call edges are covered by executable examples or sampled properties.",
-            "`serow plan` reports removed public symbols against HEAD for changed tracked files.",
-            "Ambiguous bare calls are rejected; use a qualified reference when names or versions overlap.",
-            "Expression support is intentionally small.",
-            "Formatting does not preserve comments.",
+            "Properties are sampled, not proven; replay uses deterministic seeds.",
+            "Intent search is deterministic token ranking, not semantic embeddings.",
+            "Rust backend emission is limited to pure Int/Bool functions.",
+            "Expression support is intentionally small and formatting does not preserve comments.",
             "JSON output is hand-written until external dependencies are accepted."
         ])
     )
+}
+
+fn agent_commands_json() -> String {
+    format!(
+        concat!("{{\n", "  \"ok\": true,\n", "  \"commands\": [{}]\n", "}}"),
+        agent_command_rows_json(FULL_AGENT_COMMANDS)
+    )
+}
+
+fn agent_command_rows_json(commands: &[AgentCommand]) -> String {
+    commands
+        .iter()
+        .map(|(name, usage, purpose)| {
+            format!(
+                "{{\"name\": {}, \"usage\": {}, \"purpose\": {}}}",
+                json_string(name),
+                json_string(usage),
+                json_string(purpose)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn agent_diagnostics_json() -> String {
+    concat!(
+        "{\n",
+        "  \"ok\": true,\n",
+        "  \"diagnostic_json\": {\"repairs\": \"legacy human-readable repair strings\", \"repair_actions\": \"machine-readable command actions when available\", \"missing_sections\": \"MissingRequiredSection diagnostics include safe set-effects/set-impl patch command actions when those non-evidence sections are absent\", \"typed_holes\": \"TypedHole diagnostics include symbol, signature, hole_type, expected_type, obligations data, and a query type command action for the declared signature shape\", \"unknown_function_type_errors\": \"TypeError diagnostics for unknown function calls include the missing function name and a query symbol command action\", \"architecture\": \"MissingModuleDependency and declared ArchitectureViolation diagnostics include add-use or remove-use patch command actions when the repair is exact\", \"ambiguous_calls\": \"AmbiguousUnqualifiedCall diagnostics include candidate symbols and a query symbol command action\", \"intent_reuse\": \"PossibleDuplicate and NearDuplicateIntent include shared_terms, new_only_terms, and candidate_only_terms data\", \"duplicate_evidence\": \"Duplicate evidence diagnostics include indexed remove-evidence patch command actions\", \"duplicate_migrations\": \"DuplicateMigration includes indexed remove-migration patch command actions\", \"low_signal_examples\": \"ShallowExample includes indexed remove-example patch command actions\", \"low_signal_properties\": \"VacuousProperty, ShallowProperty, and PropertyNotExecutable include indexed remove-property patch command actions\", \"property_replay\": \"PropertyFailed and PropertyEvaluationError include property_index, sample_index, sample_seed, bindings, and a replay command action; replayed PropertyNotExecutable diagnostics include indexed remove-property repair actions\", \"property_shrinking\": \"PropertyFailed and PropertyEvaluationError include shrunk_sample_index, shrunk_sample_seed, and shrunk_bindings when a simpler failing or erroring sampled binding is found\"},\n",
+        "  \"plan_json\": {\"semantic_changes\": \"changed symbols include deterministic labels with acknowledgement state and details for public deltas\", \"removed_symbols\": \"changed tracked files include removed public canonical symbols and same-name replacement candidates\", \"property_coverage\": \"changed symbols include sampled-property sample counts, direct-call flags, vacuous flags, and unsupported generator types\", \"intent_implementation_risks\": \"changed symbols include advisory lexical arithmetic intent/implementation mismatch risks\", \"stale_migrations\": \"changed symbols include indexed migration acknowledgements that no current unattended gate requires\"}\n",
+        "}"
+    )
+    .to_string()
 }
 
 fn diagnostics_json(ok: bool, diagnostics: &[Diagnostic]) -> String {
@@ -2615,6 +2669,7 @@ fn print_agent_bootstrap() {
     println!("language: Serow");
     println!("implementation: dependency-free Rust bootstrap");
     println!("phase: Phase 3: Backends");
+    println!("source default: examples/");
     println!("workflow:");
     println!("  1. bin/serow query intent \"<description>\"");
     println!("  2. bin/serow query symbol \"<name>\" when a symbol might exist");
@@ -2622,67 +2677,16 @@ fn print_agent_bootstrap() {
     println!("  4. bin/serow certify before changed Serow code is complete");
     println!("  5. bin/serow certify --profile unattended for stricter agent gates");
     println!("commands:");
-    println!("  serow agent [--json]");
-    println!("  serow check [paths...] [--json]");
-    println!("  serow certify [paths...] [--profile unattended] [--json]");
-    println!("  serow compile ir [paths...] [--json]");
-    println!("  serow compile rust [paths...] [--json]");
-    println!("  serow fmt [paths...] [--check] [--json]");
-    println!(
-        "  serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]"
-    );
-    println!("  serow patch add-example <path> <symbol-or-name> <expression> [--json]");
-    println!("  serow patch add-function <path> <module> <signature> <intent> [--json]");
-    println!("  serow patch add-migration <path> <symbol-or-name> <kind> <note> [--json]");
-    println!(
-        "  serow patch add-property <path> <symbol-or-name> <forall-header> <expression> [--json]"
-    );
-    println!("  serow patch add-use <path> <module> <dependency> [--json]");
-    println!("  serow patch fill-hole <path> <symbol-or-name> <expression> [--json]");
-    println!(
-        "  serow patch qualify-call <path> <caller-symbol-or-name> <bare-call-name> <callee-symbol-or-name> [--json]"
-    );
-    println!(
-        "  serow patch remove-contract <path> <symbol-or-name> <requires|ensures> <index> [--json]"
-    );
-    println!("  serow patch remove-example <path> <symbol-or-name> <index> [--json]");
-    println!("  serow patch remove-migration <path> <symbol-or-name> <kind> <index> [--json]");
-    println!("  serow patch remove-property <path> <symbol-or-name> <index> [--json]");
-    println!("  serow patch remove-use <path> <module> <dependency> [--json]");
-    println!("  serow patch rename-function <path> <symbol-or-name> <new-name> [--json]");
-    println!(
-        "  serow patch set-contract <path> <symbol-or-name> <requires|ensures> [index] <expression> [--json]"
-    );
-    println!("  serow patch set-effects <path> <symbol-or-name> <effects> [--json]");
-    println!("  serow patch set-example <path> <symbol-or-name> [index] <expression> [--json]");
-    println!("  serow patch set-impl <path> <symbol-or-name> <expression> [--json]");
-    println!("  serow patch set-intent <path> <symbol-or-name> <intent> [--json]");
-    println!("  serow patch set-migration <path> <symbol-or-name> <kind> [index] <note> [--json]");
-    println!(
-        "  serow patch set-property <path> <symbol-or-name> [index] <forall-header> <expression> [--json]"
-    );
-    println!("  serow patch set-signature <path> <symbol-or-name> <signature> [--json]");
-    println!("  serow patch set-version <path> <symbol-or-name> <version> [--json]");
-    println!("  serow plan [paths...] [--json]");
-    println!("    reports inferred direct-call capability requirements");
-    println!("    reports sampled-property coverage hints");
-    println!("    reports advisory intent/implementation mismatch risks");
-    println!("    reports declared capability changes against HEAD");
-    println!("    reports same-symbol implementation changes against HEAD");
-    println!("    reports whether added evidence directly calls changed implementations");
-    println!("    reports whether added implementation evidence fails against HEAD");
-    println!("    reports implementation/evidence drift against HEAD");
-    println!("    reports impact-edge coverage by executable examples/properties");
-    println!("    reports stale migration acknowledgements");
-    println!("    reports removed public symbols against HEAD");
-    println!("  serow query callees <symbol-or-name> [paths...] [--json]");
-    println!("  serow query dependents <symbol-or-name> [paths...] [--json]");
-    println!("  serow query impact <symbol-or-name> [paths...] [--json]");
-    println!("  serow query intent <text> [paths...] [--json]  # token-ranked");
-    println!("  serow query symbol <text> [paths...] [--json]");
-    println!("  serow query type <type-or-shape> [paths...] [--json]");
-    println!("  serow query symbols [paths...] [--json]");
-    println!("  serow replay property <sample-seed> [paths...] [--json]");
+    for (_, usage, _) in CORE_AGENT_COMMANDS {
+        println!("  {usage}");
+    }
+    println!("  serow agent commands [--json]      # full command catalog");
+    println!("  serow agent diagnostics [--json]  # diagnostic and plan protocols");
+    println!("public function requirements:");
+    println!("  version (optional; unattended requires explicit vN)");
+    println!("  intent, contract, examples, properties, effects, impl");
+    println!("supported bootstrap types:");
+    println!("  Int, Bool, Text");
     println!("verification gates:");
     println!("  cargo fmt --check");
     println!("  cargo clippy -- -D warnings");
@@ -2690,8 +2694,27 @@ fn print_agent_bootstrap() {
     println!("  python3 -m unittest discover -s tests");
     println!("  bin/serow fmt --check --json");
     println!("  bin/serow check --json");
-    println!("  bin/serow certify");
-    println!("  bin/serow certify --profile unattended");
+    println!("  bin/serow certify --json");
+    println!("  bin/serow certify --profile unattended --json");
+    println!("  bin/serow plan --json");
+    println!("known limits:");
+    println!("  properties are sampled, not proven");
+    println!("  intent search is token-ranked, not semantic embeddings");
+    println!("  Rust backend emission is limited to pure Int/Bool functions");
+    println!("  expression support is small and formatting does not preserve comments");
+}
+
+fn print_agent_commands() {
+    println!("serow agent commands: ok");
+    for (name, usage, purpose) in FULL_AGENT_COMMANDS {
+        println!("{name}:");
+        println!("  usage: {usage}");
+        println!("  purpose: {purpose}");
+    }
+}
+
+fn print_agent_diagnostics() {
+    println!("serow agent diagnostics: ok");
     println!("diagnostic json:");
     println!("  repairs: human-readable compatibility strings");
     println!("  repair_actions: machine-readable command actions when available");
@@ -2714,54 +2737,23 @@ fn print_agent_bootstrap() {
         "  built-in property samples cover boundary and representative Int, Bool, and Text values"
     );
     println!("  unattended certification validates structured repair action commands");
-    println!("identity:");
-    println!("  source may declare `version vN`; omitted versions default to v1");
-    println!("  unattended certification requires explicit public versions");
+    println!("plan json:");
+    println!("  semantic_changes include deterministic labels with acknowledgement state");
     println!(
-        "  patch set-version can bump versions unless parsed call sites pin the old canonical symbol"
+        "  removed_symbols report removed public canonical symbols and replacement candidates"
     );
     println!(
-        "  patch rename-function rewrites resolved call references and exact-qualifies ambiguous new bare names"
+        "  property_coverage reports sample counts, direct-call flags, vacuous flags, and unsupported generator types"
     );
+    println!("  intent_implementation_risks report advisory arithmetic mismatch risks");
     println!(
-        "  unattended certification rejects tracked public contract-surface changes that keep the same symbol version"
+        "  stale_migrations report indexed acknowledgements no current unattended gate requires"
     );
-    println!(
-        "  unattended certification rejects tracked implementation changes without added executable evidence"
-    );
-    println!(
-        "  unattended certification rejects added implementation evidence that does not call the changed function"
-    );
-    println!(
-        "  unattended certification rejects added implementation evidence that also passes against HEAD"
-    );
-    println!(
-        "  unattended certification rejects tracked implementation/evidence drift without explicit migration acknowledgement"
-    );
-    println!("  unattended certification rejects stale migration acknowledgements");
-    println!(
-        "  unattended certification rejects removed public symbols without same-name replacement versions"
-    );
-    println!(
-        "  unattended certification rejects capability expansion without explicit migration acknowledgement"
-    );
-    println!("  direct function calls require the caller to declare each callee capability");
-    println!("  direct-call capability checks warn on unused declared callee capabilities");
-    println!(
-        "  migration records can explicitly acknowledge intentional unattended gate decisions"
-    );
-    println!(
-        "  unattended certification rejects impacted dependent call edges without executable evidence coverage"
-    );
-    println!("backend:");
-    println!("  compile ir lowers checked public implementations to serow.ir.v0 JSON");
-    println!("  compile rust emits deterministic Rust source for pure Int/Bool functions");
-    println!("  Text and effectful functions are not emitted by the Rust backend yet");
 }
 
 fn print_usage() {
     eprintln!("usage:");
-    eprintln!("  serow agent [--json]");
+    eprintln!("  serow agent [commands|diagnostics] [--json]");
     eprintln!("  serow check [paths...] [--json]");
     eprintln!("  serow certify [paths...] [--profile unattended] [--json]");
     eprintln!("  serow compile ir [paths...] [--json]");
@@ -2822,6 +2814,8 @@ fn print_compile_usage() {
 fn print_agent_usage() {
     eprintln!("usage:");
     eprintln!("  serow agent [--json]");
+    eprintln!("  serow agent commands [--json]");
+    eprintln!("  serow agent diagnostics [--json]");
 }
 
 fn print_patch_usage() {
