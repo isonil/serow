@@ -216,6 +216,7 @@ def _check_function_shape(function: Function, summary: CheckSummary) -> None:
     if function.impl and HOLE_RE.search(function.impl):
         summary.holes += 1
         obligations = _typed_hole_obligations(function)
+        params = ", ".join(param.type_name for param in function.params)
         summary.diagnostics.append(
             Diagnostic(
                 severity="error" if function.public else "warning",
@@ -231,6 +232,15 @@ def _check_function_shape(function: Function, summary: CheckSummary) -> None:
                     "obligations": "; ".join(obligations),
                 },
                 repairs=["Fill the hole or keep the function out of certification."],
+            ).with_command_repair(
+                "Find functions with a compatible declared type shape",
+                [
+                    "bin/serow",
+                    "query",
+                    "type",
+                    f"{params} -> {function.return_type}",
+                    function.source_path,
+                ],
             )
         )
 

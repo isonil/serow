@@ -132,6 +132,19 @@ pub fn bump(x: Int) -> Int
         obligations.contains("property 1: forall x: Int: bump(x) == x + 1"),
         "{obligations}"
     );
+    assert!(
+        diagnostic.repair_actions.iter().any(|action| {
+            action.command
+                == vec![
+                    "bin/serow".to_string(),
+                    "query".to_string(),
+                    "type".to_string(),
+                    "Int -> Int".to_string(),
+                    source.to_string_lossy().to_string(),
+                ]
+        }),
+        "{diagnostic:#?}"
+    );
     let _ = fs::remove_dir_all(dir);
 }
 

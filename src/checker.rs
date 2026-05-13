@@ -571,6 +571,16 @@ fn check_function_shape(function: &Function, summary: &mut CheckSummary) {
             .with_data("expected_type", function.return_type.clone())
             .with_data("obligation_count", obligations.len().to_string())
             .with_data("obligations", obligations.join("; "))
+            .with_command_repair(
+                "Find functions with a compatible declared type shape",
+                vec![
+                    "bin/serow".to_string(),
+                    "query".to_string(),
+                    "type".to_string(),
+                    type_query_shape(function),
+                    function.source_path.clone(),
+                ],
+            )
             .with_repair("Fill the hole or keep the function out of certification.");
         summary.diagnostics.push(diagnostic);
     }
@@ -666,6 +676,16 @@ fn typed_hole_type(implementation: &str) -> Option<String> {
     let end = implementation[start..].find(')')? + start;
     let type_name = implementation[start..end].trim();
     (!type_name.is_empty()).then(|| type_name.to_string())
+}
+
+fn type_query_shape(function: &Function) -> String {
+    let params = function
+        .params
+        .iter()
+        .map(|param| param.type_name.as_str())
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("{} -> {}", params, function.return_type)
 }
 
 fn typed_hole_obligations(function: &Function) -> Vec<String> {

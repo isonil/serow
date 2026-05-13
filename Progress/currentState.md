@@ -15,7 +15,7 @@ Date: 2026-05-13
   - module dependency declarations against `serow.project` architecture policy
   - missing public sections
   - duplicate symbols
-  - typed holes in implementations with structured obligations derived from signatures, contracts, examples, and sampled properties
+  - typed holes in implementations with structured obligations derived from signatures, contracts, examples, and sampled properties, plus type-shape lookup repair actions
   - static expression type checking for implementations, contracts, examples, and properties
   - function call arity and argument-type validation in the bootstrap expression subset
   - executable examples
@@ -1187,6 +1187,27 @@ python3 -m unittest tests.test_bootstrap.BootstrapTests.test_executable_example_
 cargo clippy -- -D warnings
 cargo test
 python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+bin/serow agent --json
+git diff --check
+```
+
+Additional verification after adding typed-hole type lookup repair actions:
+
+```sh
+bin/serow query intent "suggest reusable functions for typed implementation holes by type" --json
+bin/serow query symbol TypedHole --json
+cargo fmt --check
+cargo test typed_hole_reports_structured_obligations -- --nocapture
+python3 -m unittest tests.test_bootstrap.BootstrapTests.test_typed_hole_reports_structured_obligations
+cargo test repair_action_contract_validation_rejects_malformed_commands -- --nocapture
+cargo clippy -- -D warnings
+python3 -m unittest discover -s tests
+cargo test
 bin/serow fmt --check --json
 bin/serow check --json
 bin/serow certify --json

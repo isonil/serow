@@ -92,6 +92,7 @@
     "plan_reports_semantic_change_labels": true,
     "plan_reports_stale_migration_acknowledgements": true,
     "typed_holes_allowed": true,
+    "typed_hole_type_lookup_repair_actions": true,
     "typed_hole_diagnostics_report_obligations": true,
     "unattended_rejects_same_version_public_contract_surface_change": true,
     "unattended_rejects_capability_expansion_without_migration": true,

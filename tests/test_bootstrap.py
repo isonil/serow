@@ -79,6 +79,20 @@ pub fn bump(x: Int) -> Int
             self.assertIn("ensures 1: result == x + 1", obligations)
             self.assertIn("example 1: bump(1) == 2", obligations)
             self.assertIn("property 1: forall x: Int: bump(x) == x + 1", obligations)
+            self.assertTrue(
+                any(
+                    action.command
+                    == [
+                        "bin/serow",
+                        "query",
+                        "type",
+                        "Int -> Int",
+                        str(source),
+                    ]
+                    for action in diagnostic.repair_actions
+                ),
+                diagnostic.to_dict(),
+            )
 
     def test_missing_required_sections_include_structured_repair_actions(self):
         with tempfile.TemporaryDirectory() as directory:
