@@ -605,6 +605,8 @@ def _check_effects(program: Program, summary: CheckSummary) -> None:
                 if key in reported:
                     continue
                 reported.add(key)
+                suggested_capabilities = sorted(function_capabilities | set(missing_capabilities))
+                suggested_effects = _effect_declaration_from_capabilities(suggested_capabilities)
                 missing = ", ".join(missing_capabilities)
                 summary.diagnostics.append(
                     Diagnostic(
@@ -628,12 +630,24 @@ def _check_effects(program: Program, summary: CheckSummary) -> None:
                             "Remove the call, call a function with declared capabilities already available to the caller, or declare the caller's required effects."
                         ],
                     )
+                    .with_command_repair(
+                        "Declare the required effect capabilities",
+                        [
+                            "bin/serow",
+                            "patch",
+                            "set-effects",
+                            function.source_path,
+                            function.symbol,
+                            suggested_effects,
+                        ],
+                    )
                 )
         if not required_by_resolved_callees:
             continue
         unused_capabilities = sorted(function_capabilities - required_by_resolved_callees)
         if not unused_capabilities:
             continue
+        suggested_effects = _effect_declaration_from_capabilities(required_by_resolved_callees)
         summary.diagnostics.append(
             Diagnostic(
                 severity="warning",
@@ -651,6 +665,17 @@ def _check_effects(program: Program, summary: CheckSummary) -> None:
                 },
                 repairs=[
                     "Remove unused declared capabilities or add executable calls/evidence that require them before certification."
+                ],
+            )
+            .with_command_repair(
+                "Remove unused effect capabilities",
+                [
+                    "bin/serow",
+                    "patch",
+                    "set-effects",
+                    function.source_path,
+                    function.symbol,
+                    suggested_effects,
                 ],
             )
         )
@@ -685,6 +710,13 @@ def _effect_capabilities(function: Function) -> set:
 
 def _effect_label(function: Function) -> str:
     return ", ".join(function.effects) if function.effects else "none"
+
+
+def _effect_declaration_from_capabilities(capabilities) -> str:
+    normalized = sorted(set(capabilities))
+    if not normalized:
+        return "pure"
+    return "[" + ", ".join(normalized) + "]"
 
 
 def _check_executable_evidence(function: Function, evaluator: Evaluator, summary: CheckSummary) -> None:

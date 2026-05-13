@@ -942,6 +942,18 @@ pub fn declared_extra(x: Int) -> Int
                     diagnostic.code == "EffectViolation"
                     and diagnostic.data.get("function") == "@test.effects.declared_io_only.v1"
                     and diagnostic.data.get("missing_effects") == "network"
+                    and any(
+                        action.command
+                        == [
+                            "bin/serow",
+                            "patch",
+                            "set-effects",
+                            str(source),
+                            "@test.effects.declared_io_only.v1",
+                            "[io, network]",
+                        ]
+                        for action in diagnostic.repair_actions
+                    )
                     for diagnostic in summary.diagnostics
                 ),
                 summary.diagnostics,
@@ -959,6 +971,18 @@ pub fn declared_extra(x: Int) -> Int
                     and diagnostic.severity == "warning"
                     and diagnostic.data.get("function") == "@test.effects.declared_extra.v1"
                     and diagnostic.data.get("unused_effects") == "disk"
+                    and any(
+                        action.command
+                        == [
+                            "bin/serow",
+                            "patch",
+                            "set-effects",
+                            str(source),
+                            "@test.effects.declared_extra.v1",
+                            "[io, network]",
+                        ]
+                        for action in diagnostic.repair_actions
+                    )
                     for diagnostic in summary.diagnostics
                 ),
                 summary.diagnostics,

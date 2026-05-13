@@ -106,6 +106,7 @@ Date: 2026-05-13
 - The Python reference bootstrap diagnostic model can serialize `repair_actions`, and mirrors the safe `MissingRequiredSection` `set-effects`/`set-impl` actions.
 - The Python reference bootstrap also mirrors Rust's indexed evidence-removal repair actions for duplicate examples/contracts/properties, duplicate migrations, shallow executable examples, and low-signal vacuous, shallow, or non-executable sampled properties.
 - The Python reference bootstrap mirrors Rust's replay repair actions for sampled property failures and evaluation errors.
+- The Python reference bootstrap mirrors Rust's `patch set-effects` repair actions for effect capability under-declaration and unused wrapper capability diagnostics.
 - `patch set-impl` creates a missing implementation section or replaces an existing implementation expression through the structured patch interface; public implementation-change policy remains enforced by `serow plan` and unattended certification.
 - `patch set-intent` sets or replaces a function intent through the structured patch interface while preserving ambiguous-target protection and rejecting exact normalized duplicate public intents before writing.
 - `patch set-migration` creates a missing migration acknowledgement for a kind, replaces a single existing record of that kind, or replaces a specific record when passed a 1-based index.
@@ -1330,6 +1331,14 @@ bin/serow certify --profile unattended --json
 bin/serow plan --json
 bin/serow agent --json
 git diff --check
+```
+
+Additional verification after mirroring Python effect capability repair actions:
+
+```sh
+bin/serow query intent "mirror effect capability repair actions in the Python reference checker" --json
+bin/serow query symbol EffectViolation --json
+python3 -m unittest tests.test_bootstrap.BootstrapTests.test_effectful_function_must_declare_specific_called_capabilities
 ```
 
 `bin/serow check --json` currently reports:

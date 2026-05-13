@@ -391,3 +391,6 @@
 - Mirrored Rust's sampled-property replay repair actions in the Python reference checker.
 - Python `PropertyFailed` and `PropertyEvaluationError` diagnostics now include an exact `bin/serow replay property <sample-seed> <path>` command action alongside deterministic sample and shrink data.
 - Verified with `bin/serow query intent "mirror property replay repair actions in the Python reference checker" --json`, `bin/serow query symbol PropertyFailed --json`, and `python3 -m unittest tests.test_bootstrap.BootstrapTests.test_sampled_property_failure_reports_replay_data tests.test_bootstrap.BootstrapTests.test_sampled_property_evaluation_error_reports_shrunk_data`.
+- Mirrored Rust's effect capability declaration repair actions in the Python reference checker.
+- Python `EffectViolation` diagnostics now include an exact `bin/serow patch set-effects ...` command with the union of already-declared and missing required capabilities, and `UnusedEffectCapability` diagnostics include the exact declaration needed by resolved non-self direct callees.
+- Verified with `bin/serow query intent "mirror effect capability repair actions in the Python reference checker" --json`, `bin/serow query symbol EffectViolation --json`, and `python3 -m unittest tests.test_bootstrap.BootstrapTests.test_effectful_function_must_declare_specific_called_capabilities`.
