@@ -900,6 +900,15 @@ def _check_property(function: Function, block: Tuple[int, List[Tuple[str, str]],
                     message=str(exc),
                     target=function.target,
                     data=sample_data,
+                ).with_command_repair(
+                    "Replay this property sample",
+                    [
+                        "bin/serow",
+                        "replay",
+                        "property",
+                        sample_data["sample_seed"],
+                        function.source_path,
+                    ],
                 )
             )
             return
@@ -923,8 +932,18 @@ def _check_property(function: Function, block: Tuple[int, List[Tuple[str, str]],
                     message="Sampled property evaluated to false.",
                     target=function.target,
                     data=sample_data,
-                    repairs=["Fix implementation or narrow the property."],
                 )
+                .with_command_repair(
+                    "Replay this property sample",
+                    [
+                        "bin/serow",
+                        "replay",
+                        "property",
+                        sample_data["sample_seed"],
+                        function.source_path,
+                    ],
+                )
+                .with_repair("Fix implementation or narrow the property.")
             )
             return
 

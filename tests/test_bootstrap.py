@@ -719,6 +719,20 @@ pub fn id(x: Int) -> Int
                 "@test.property.id.v1#property:1#sample:3",
             )
             self.assertEqual(diagnostic.data.get("shrunk_bindings"), "x=0")
+            self.assertTrue(
+                any(
+                    action.command
+                    == [
+                        "bin/serow",
+                        "replay",
+                        "property",
+                        "@test.property.id.v1#property:1#sample:1",
+                        str(source),
+                    ]
+                    for action in diagnostic.repair_actions
+                ),
+                diagnostic.to_dict(),
+            )
 
     def test_sampled_property_evaluation_error_reports_shrunk_data(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -760,6 +774,20 @@ pub fn id(x: Int) -> Int
                 "@test.property.id.v1#property:1#sample:17",
             )
             self.assertEqual(diagnostic.data.get("shrunk_bindings"), "x=0, y=0")
+            self.assertTrue(
+                any(
+                    action.command
+                    == [
+                        "bin/serow",
+                        "replay",
+                        "property",
+                        "@test.property.id.v1#property:1#sample:5",
+                        str(source),
+                    ]
+                    for action in diagnostic.repair_actions
+                ),
+                diagnostic.to_dict(),
+            )
 
     def test_expanded_int_property_samples_find_larger_counterexample(self):
         with tempfile.TemporaryDirectory() as directory:
