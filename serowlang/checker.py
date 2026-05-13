@@ -770,13 +770,28 @@ def _check_property(function: Function, block: Tuple[int, List[Tuple[str, str]],
     property_index, variables, expression = block
     samples = [_samples_for_type(type_name) for _, type_name in variables]
     if any(sample is None for sample in samples):
+        unsupported_types = sorted(
+            {type_name for _, type_name in variables if _samples_for_type(type_name) is None}
+        )
         summary.diagnostics.append(
             Diagnostic(
                 severity="warning",
                 code="PropertyNotExecutable",
                 message="Property contains a type without bootstrap samples.",
                 target=function.target,
-                data={"property": expression},
+                data={
+                    "function": function.symbol,
+                    "property_index": str(property_index),
+                    "property": expression,
+                    "unsupported_types": ", ".join(unsupported_types),
+                },
+            )
+            .with_command_repair(
+                "Remove the non-executable sampled property",
+                _evidence_removal_repair_command(function, "property", property_index),
+            )
+            .with_repair(
+                "Use only sampled bootstrap types in forall bindings, or remove the non-executable property."
             )
         )
         return

@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "0.4.50-rust-bootstrap",
+  "version": "0.4.51-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -57,6 +57,7 @@
     "duplicate_evidence_warned": true,
     "shallow_examples_warned": true,
     "low_signal_property_repair_actions": true,
+    "non_executable_property_repair_actions": true,
     "shallow_properties_warned": true,
     "vacuous_properties_warned": true,
     "property_failure_replay_data": true,

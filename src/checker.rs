@@ -1365,13 +1365,34 @@ fn check_property(
         .map(|(_, type_name)| samples_for_type(type_name))
         .collect::<Vec<_>>();
     if samples.iter().any(Option::is_none) {
+        let mut unsupported_types = property
+            .variables
+            .iter()
+            .filter_map(|(_, type_name)| {
+                samples_for_type(type_name)
+                    .is_none()
+                    .then_some(type_name.clone())
+            })
+            .collect::<Vec<_>>();
+        unsupported_types.sort();
+        unsupported_types.dedup();
         summary.diagnostics.push(
             Diagnostic::warning(
                 "PropertyNotExecutable",
                 "Property contains a type without bootstrap samples.",
                 Some(function.target()),
             )
-            .with_data("property", property.expression),
+            .with_data("function", function.symbol())
+            .with_data("property_index", property.index.to_string())
+            .with_data("property", &property.expression)
+            .with_data("unsupported_types", unsupported_types.join(", "))
+            .with_command_repair(
+                "Remove the non-executable sampled property",
+                evidence_removal_repair_command(function, "property", property.index),
+            )
+            .with_repair(
+                "Use only sampled bootstrap types in forall bindings, or remove the non-executable property.",
+            ),
         );
         return;
     }

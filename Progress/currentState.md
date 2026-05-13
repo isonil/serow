@@ -23,8 +23,7 @@ Date: 2026-05-13
   - executable `ensures` contracts against example calls
   - exact normalized duplicate public intent detection with shared/new-only/candidate-only term difference data
   - near-duplicate public intent warnings using deterministic token-ranked intent overlap with shared/new-only/candidate-only term difference data
-  - duplicate examples, executable examples that do not directly call the public function under test, duplicate contract clauses, duplicate sampled property blocks, and sampled properties with no bound variables as low-signal evidence warnings
-  - sampled properties that do not directly call the public function under test as low-signal evidence warnings
+  - duplicate examples, executable examples that do not directly call the public function under test, duplicate contract clauses, duplicate sampled property blocks, sampled properties with no bound variables, sampled properties that do not directly call the public function under test, and sampled properties with unsupported generator types as low-signal evidence warnings
   - ambiguous bare-call diagnostics with qualified-reference repair guidance and structured symbol lookup repair actions
   - sampled `forall` properties over deterministic `Int`, `Bool`, and `Text` sample sets
   - deterministic sampled-property failure replay data with property indexes, sample indexes, seed strings, sampled bindings, and single-sample replay repair actions
@@ -97,10 +96,10 @@ Date: 2026-05-13
 - `patch set-example` and `patch set-property` create missing executable evidence, replace a single existing item, or replace a specific item when passed a 1-based index.
 - Duplicate public evidence diagnostics include structured repair actions pointing at indexed `patch remove-contract`, `patch remove-example`, and `patch remove-property` commands for the repeated item.
 - Shallow executable-example diagnostics include structured repair actions pointing at indexed `patch remove-example` commands for the low-signal item.
-- Vacuous and shallow sampled-property diagnostics include structured repair actions pointing at indexed `patch remove-property` commands for the low-signal item.
+- Vacuous, shallow, and non-executable sampled-property diagnostics include structured repair actions pointing at indexed `patch remove-property` commands for the low-signal item.
 - `MissingRequiredSection` diagnostics include conservative structured repair actions for absent non-evidence sections: `patch set-effects ... pure` and `patch set-impl ... HOLE(Type)`.
 - The Python reference bootstrap diagnostic model can serialize `repair_actions`, and mirrors the safe `MissingRequiredSection` `set-effects`/`set-impl` actions.
-- The Python reference bootstrap also mirrors Rust's indexed evidence-removal repair actions for duplicate examples/contracts/properties, shallow executable examples, and low-signal vacuous or shallow sampled properties.
+- The Python reference bootstrap also mirrors Rust's indexed evidence-removal repair actions for duplicate examples/contracts/properties, shallow executable examples, and low-signal vacuous, shallow, or non-executable sampled properties.
 - `patch set-impl` creates a missing implementation section or replaces an existing implementation expression through the structured patch interface; public implementation-change policy remains enforced by `serow plan` and unattended certification.
 - `patch set-intent` sets or replaces a function intent through the structured patch interface while preserving ambiguous-target protection.
 - `patch set-migration` creates a missing migration acknowledgement for a kind, replaces a single existing record of that kind, or replaces a specific record when passed a 1-based index.
@@ -112,7 +111,7 @@ Date: 2026-05-13
 - `patch rename-function` renames a public function and rewrites resolved call references in the patched source, using exact `@module.name.vN(...)` references when the new bare name would be ambiguous.
 - Structured JSON diagnostic repair actions:
   - command repair actions are emitted as `repair_actions` alongside legacy `repairs`
-  - currently used for format drift, missing module dependencies, forbidden declared module dependencies, ambiguous bare-call symbol lookup, duplicate-intent lookup, implicit-version fixes in unattended certification, and effect capability declaration repairs
+  - currently used for format drift, missing module dependencies, forbidden declared module dependencies, ambiguous bare-call symbol lookup, duplicate-intent lookup, low-signal evidence removal, implicit-version fixes in unattended certification, and effect capability declaration repairs
 - Deterministic source formatting:
   - `bin/serow fmt [paths...]`
   - `bin/serow fmt [paths...] --check`
@@ -236,6 +235,24 @@ bin/serow certify --profile unattended --json
 bin/serow plan --json
 bin/serow agent --json
 git diff --check
+```
+
+Additional verification after adding non-executable sampled-property repair actions:
+
+```sh
+bin/serow query intent "repair unsupported sampled property diagnostics" --json
+bin/serow query symbol PropertyNotExecutable --json
+cargo test sampled_property_with_unsupported_type_has_indexed_repair_action -- --nocapture
+python3 -m unittest tests.test_bootstrap.BootstrapTests.test_sampled_property_with_unsupported_type_has_indexed_repair_action
+cargo fmt --check
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+cargo clippy -- -D warnings
+cargo test
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
 ```
 
 Additional verification after making unchecked transitive impact an unattended certification gate:
