@@ -47,6 +47,10 @@ class Diagnostic:
         self.repair_actions.append(RepairAction(kind="command", label=label, command=command))
         return self
 
+    def with_repair(self, repair: str) -> "Diagnostic":
+        self.repairs.append(repair)
+        return self
+
 
 def _shell_command_text(command: List[str]) -> str:
     return " ".join(_shell_quote(part) for part in command)

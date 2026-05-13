@@ -358,6 +358,7 @@ def _report_repeated_lines(
                 "example": "DuplicateExample",
                 "property": "DuplicateProperty",
             }.get(kind, "DuplicateContractClause")
+            duplicate_index = index + 1
             summary.diagnostics.append(
                 Diagnostic(
                     severity="warning",
@@ -368,15 +369,36 @@ def _report_repeated_lines(
                         "function": function.symbol,
                         "kind": kind,
                         "first_index": str(first_index + 1),
-                        "duplicate_index": str(index + 1),
+                        "duplicate_index": str(duplicate_index),
                         "first": first_line,
                         "duplicate": line,
                     },
-                    repairs=["Remove repeated evidence or replace it with a distinct behavioral case."],
                 )
+                .with_command_repair(
+                    "Remove the duplicate evidence item",
+                    _evidence_removal_repair_command(function, kind, duplicate_index),
+                )
+                .with_repair("Remove repeated evidence or replace it with a distinct behavioral case.")
             )
         else:
             seen[normalized] = (index, line)
+
+
+def _evidence_removal_repair_command(function: Function, kind: str, index: int) -> List[str]:
+    command = [
+        "bin/serow",
+        "patch",
+        {
+            "example": "remove-example",
+            "property": "remove-property",
+        }.get(kind, "remove-contract"),
+        function.source_path,
+        function.symbol,
+    ]
+    if kind in {"requires", "ensures"}:
+        command.append(kind)
+    command.append(str(index))
+    return command
 
 
 def _normalize_evidence(evidence: str) -> str:
@@ -399,9 +421,13 @@ def _check_property_constraints(function: Function, program: Program, summary: C
                         "property_index": str(property_index),
                         "property": expression,
                     },
-                    repairs=[
-                        "Bind at least one variable in the forall header, or move this case to examples."
-                    ],
+                )
+                .with_command_repair(
+                    "Remove the low-signal sampled property",
+                    _evidence_removal_repair_command(function, "property", property_index),
+                )
+                .with_repair(
+                    "Bind at least one variable in the forall header, or move this case to examples."
                 )
             )
         calls = _called_functions(expression)
@@ -431,9 +457,13 @@ def _check_property_constraints(function: Function, program: Program, summary: C
                     "property": expression,
                     "resolved_callees": ", ".join(callees),
                 },
-                repairs=[
-                    "Add a sampled property that calls the function result, or replace this property with stronger behavioral evidence."
-                ],
+            )
+            .with_command_repair(
+                "Remove the low-signal sampled property",
+                _evidence_removal_repair_command(function, "property", property_index),
+            )
+            .with_repair(
+                "Add a sampled property that calls the function result, or replace this property with stronger behavioral evidence."
             )
         )
 

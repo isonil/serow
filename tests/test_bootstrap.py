@@ -393,6 +393,11 @@ pub fn id(x: Int) -> Int
                 any(
                     diagnostic.code == "DuplicateExample"
                     and diagnostic.data.get("duplicate_index") == "2"
+                    and any(
+                        action.command[-2:] == ["@test.evidence.id.v1", "2"]
+                        and action.command[2] == "remove-example"
+                        for action in diagnostic.repair_actions
+                    )
                     for diagnostic in summary.diagnostics
                 ),
                 summary.diagnostics,
@@ -401,6 +406,11 @@ pub fn id(x: Int) -> Int
                 any(
                     diagnostic.code == "DuplicateContractClause"
                     and diagnostic.data.get("kind") == "requires"
+                    and any(
+                        action.command[-3:] == ["@test.evidence.id.v1", "requires", "2"]
+                        and action.command[2] == "remove-contract"
+                        for action in diagnostic.repair_actions
+                    )
                     for diagnostic in summary.diagnostics
                 ),
                 summary.diagnostics,
@@ -417,6 +427,11 @@ pub fn id(x: Int) -> Int
                 any(
                     diagnostic.code == "DuplicateProperty"
                     and diagnostic.data.get("kind") == "property"
+                    and any(
+                        action.command[-2:] == ["@test.evidence.id.v1", "2"]
+                        and action.command[2] == "remove-property"
+                        for action in diagnostic.repair_actions
+                    )
                     for diagnostic in summary.diagnostics
                 ),
                 summary.diagnostics,
@@ -453,6 +468,14 @@ pub fn id(x: Int) -> Int
             )
             self.assertEqual(diagnostic.data.get("property_index"), "1")
             self.assertEqual(diagnostic.data.get("property"), "x == x")
+            self.assertTrue(
+                any(
+                    action.command[-2:] == ["@test.property.id.v1", "1"]
+                    and action.command[2] == "remove-property"
+                    for action in diagnostic.repair_actions
+                ),
+                diagnostic.to_dict(),
+            )
 
     def test_sampled_property_without_bindings_warns_as_vacuous(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -485,6 +508,14 @@ pub fn id(x: Int) -> Int
             )
             self.assertEqual(diagnostic.data.get("property_index"), "1")
             self.assertEqual(diagnostic.data.get("property"), "id(1) == 1")
+            self.assertTrue(
+                any(
+                    action.command[-2:] == ["@test.property.id.v1", "1"]
+                    and action.command[2] == "remove-property"
+                    for action in diagnostic.repair_actions
+                ),
+                diagnostic.to_dict(),
+            )
 
     def test_sampled_property_failure_reports_replay_data(self):
         with tempfile.TemporaryDirectory() as directory:

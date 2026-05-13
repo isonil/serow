@@ -98,6 +98,7 @@ Date: 2026-05-13
 - Vacuous and shallow sampled-property diagnostics include structured repair actions pointing at indexed `patch remove-property` commands for the low-signal item.
 - `MissingRequiredSection` diagnostics include conservative structured repair actions for absent non-evidence sections: `patch set-effects ... pure` and `patch set-impl ... HOLE(Type)`.
 - The Python reference bootstrap diagnostic model can serialize `repair_actions`, and mirrors the safe `MissingRequiredSection` `set-effects`/`set-impl` actions.
+- The Python reference bootstrap also mirrors Rust's indexed evidence-removal repair actions for duplicate examples/contracts/properties and low-signal vacuous or shallow sampled properties.
 - `patch set-impl` creates a missing implementation section or replaces an existing implementation expression through the structured patch interface; public implementation-change policy remains enforced by `serow plan` and unattended certification.
 - `patch set-intent` sets or replaces a function intent through the structured patch interface while preserving ambiguous-target protection.
 - `patch set-migration` creates a missing migration acknowledgement for a kind, replaces a single existing record of that kind, or replaces a specific record when passed a 1-based index.
@@ -216,6 +217,22 @@ bin/serow certify --json
 bin/serow certify --profile unattended --json
 bin/serow plan examples/math.serow --json
 bin/serow agent --json
+```
+
+Additional verification after mirroring Python evidence-removal repair actions:
+
+```sh
+cargo fmt --check
+cargo clippy -- -D warnings
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+bin/serow agent --json
+git diff --check
 ```
 
 Additional verification after making unchecked transitive impact an unattended certification gate:
