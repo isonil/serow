@@ -1949,7 +1949,7 @@ fn agent_json() -> String {
         (
             "patch set-intent",
             "serow patch set-intent <path> <symbol-or-name> <intent> [--json]",
-            "Set or replace a function's intent through the structured patch interface.",
+            "Set or replace a function's intent after rejecting exact duplicate public intents.",
         ),
         (
             "patch set-migration",
@@ -2081,7 +2081,7 @@ fn agent_json() -> String {
             "Migration acknowledgements are source-level notes; they do not prove behavioral compatibility.",
             "`serow plan` reports stale migration acknowledgements when a changed symbol keeps a migration record that no current unattended gate requires.",
             "Exact duplicate public intents are errors; high-overlap token-ranked intent matches are warnings.",
-            "`serow patch add-function` rejects exact duplicate public intents before writing.",
+            "`serow patch add-function` and `serow patch set-intent` reject exact duplicate public intents before writing.",
             "`bin/serow check` warns on duplicate examples, executable examples that do not call the function under test, contract clauses, sampled property blocks, sampled properties with no bound variables, sampled properties that do not call the function under test, and sampled properties with unsupported generator types.",
             "`bin/serow check` warns on duplicate migration acknowledgements and points at indexed `patch remove-migration` repairs.",
             "Duplicate and near-duplicate intent diagnostics include shared and differing intent terms.",

@@ -191,7 +191,7 @@ JSON diagnostics include stable core fields such as `severity`, `code`, `message
 
 `bin/serow patch set-property <path> <symbol-or-name> [index] <forall-header> <expression> [--json]` creates a missing sampled forall property, replaces a single existing property, or replaces a specific existing property when passed a 1-based index before the property header. It rejects invalid forall headers, empty expressions, ambiguous bare targets, invalid indexes, and out-of-range indexes.
 
-`bin/serow patch set-intent <path> <symbol-or-name> <intent> [--json]` sets or replaces a function's intent. It rejects empty intents, rejects ambiguous bare targets, and rewrites through the canonical formatter. Changing a public intent can still trigger duplicate or near-duplicate intent diagnostics during checking.
+`bin/serow patch set-intent <path> <symbol-or-name> <intent> [--json]` sets or replaces a function's intent. It rejects empty intents, ambiguous bare targets, and exact normalized duplicate public intents before writing, returning the same `PossibleDuplicate` diagnostic and `query intent` repair action as `patch add-function`. Near-duplicate intent warnings are still reported by normal checking.
 
 `bin/serow patch set-signature <path> <symbol-or-name> <signature> [--json]` replaces a function's argument list and return type while keeping the existing function name. It rejects invalid signatures, rejects signatures whose name does not match the target function, and rewrites through the canonical formatter. Use `patch rename-function` for name changes. Public signature changes remain public contract-surface changes that `serow plan` and unattended certification gate.
 

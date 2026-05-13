@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "0.4.54-rust-bootstrap",
+  "version": "0.4.55-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -75,6 +75,7 @@
     "structured_impl_section_setting": true,
     "missing_section_diagnostics_have_safe_patch_repair_actions": true,
     "structured_intent_rewrites": true,
+    "structured_intent_rewrites_reject_duplicate_intents": true,
     "structured_migration_rewrites": true,
     "structured_migration_removal": true,
     "structured_module_dependency_removal": true,

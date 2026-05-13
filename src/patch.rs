@@ -247,41 +247,14 @@ pub fn add_function(path: &str, module: &str, signature: &str, intent: &str) -> 
         return summary;
     }
 
-    let normalized_intent = exact_intent_key(intent);
-    if !normalized_intent.is_empty()
-        && let Some(existing) = program.functions.iter().find(|candidate| {
-            candidate.public
-                && candidate.intent.as_deref().is_some_and(|candidate_intent| {
-                    exact_intent_key(candidate_intent) == normalized_intent
-                })
-        })
-    {
-        summary.diagnostics.push(
-            Diagnostic::error(
-                "PossibleDuplicate",
-                format!(
-                    "New public function `{name}` has the same intent as `{}`.",
-                    existing.symbol()
-                ),
-                Some(existing.target()),
-            )
-            .with_data("candidate", existing.symbol())
-            .with_data(
-                "candidate_intent",
-                existing.intent.clone().unwrap_or_default(),
-            )
-            .with_data("intent", intent)
-            .with_command_repair(
-                "Find existing functions with the same intent",
-                vec![
-                    "bin/serow".to_string(),
-                    "query".to_string(),
-                    "intent".to_string(),
-                    intent.to_string(),
-                ],
-            )
-            .with_repair("Reuse the existing symbol or make the new intent more specific."),
-        );
+    if let Some(diagnostic) = duplicate_public_intent_diagnostic(
+        &program,
+        None,
+        &name,
+        intent,
+        DuplicateIntentOperation::AddFunction,
+    ) {
+        summary.diagnostics.push(diagnostic);
         return summary;
     }
 
@@ -326,6 +299,61 @@ pub fn add_function(path: &str, module: &str, signature: &str, intent: &str) -> 
         )),
     }
     summary
+}
+
+#[derive(Clone, Copy, Debug)]
+enum DuplicateIntentOperation {
+    AddFunction,
+    SetIntent,
+}
+
+fn duplicate_public_intent_diagnostic(
+    program: &Program,
+    target_symbol: Option<&str>,
+    target_name: &str,
+    intent: &str,
+    operation: DuplicateIntentOperation,
+) -> Option<Diagnostic> {
+    let normalized_intent = exact_intent_key(intent);
+    if normalized_intent.is_empty() {
+        return None;
+    }
+    let existing = program.functions.iter().find(|candidate| {
+        candidate.public
+            && target_symbol.is_none_or(|symbol| candidate.symbol() != symbol)
+            && candidate.intent.as_deref().is_some_and(|candidate_intent| {
+                exact_intent_key(candidate_intent) == normalized_intent
+            })
+    })?;
+    let message = match operation {
+        DuplicateIntentOperation::AddFunction => format!(
+            "New public function `{target_name}` has the same intent as `{}`.",
+            existing.symbol()
+        ),
+        DuplicateIntentOperation::SetIntent => format!(
+            "Public function `{target_name}` would have the same intent as `{}`.",
+            existing.symbol()
+        ),
+    };
+    Some(
+        Diagnostic::error("PossibleDuplicate", message, Some(existing.target()))
+            .with_data("candidate", existing.symbol())
+            .with_data(
+                "candidate_intent",
+                existing.intent.clone().unwrap_or_default(),
+            )
+            .with_data("intent", intent)
+            .with_command_repair(
+                "Find existing functions with the same intent",
+                vec![
+                    "bin/serow".to_string(),
+                    "query".to_string(),
+                    "intent".to_string(),
+                    intent.to_string(),
+                ],
+            )
+            .with_repair("Reuse the existing symbol or make the new intent more specific."),
+    )
 }
 
 pub fn add_contract(path: &str, target: &str, clause: &str, expression: &str) -> PatchSummary {
@@ -1010,16 +1038,25 @@ pub fn set_intent(path: &str, target: &str, intent: &str) -> PatchSummary {
         ));
         return summary;
     }
-    patch_function(path, target, |function| {
+    patch_function_checked_with_program(path, target, |program, function| {
+        if let Some(diagnostic) = duplicate_public_intent_diagnostic(
+            program,
+            Some(&function.symbol()),
+            &function.name,
+            intent,
+            DuplicateIntentOperation::SetIntent,
+        ) {
+            return Err(Box::new(diagnostic));
+        }
         if function
             .intent
             .as_deref()
             .is_some_and(|existing| existing == intent)
         {
-            false
+            Ok(false)
         } else {
             function.intent = Some(intent.to_string());
-            true
+            Ok(true)
         }
     })
 }

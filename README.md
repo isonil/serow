@@ -75,7 +75,7 @@ bin/serow patch set-version examples/math.serow @core.math.add.v1 v1
 
 `patch set-version` can also bump an existing public symbol to a new `vN` when the parsed patch input has no call sites pinned to the old canonical version. If a caller uses `module.name.v1(...)` or `@module.name.v1(...)`, the patch fails with a `VersionPinnedDependent` diagnostic so the caller is handled deliberately.
 
-`patch add-function` rejects exact normalized duplicate public intents before writing a new skeleton, returning a `PossibleDuplicate` diagnostic with a `query intent` repair action.
+`patch add-function` and `patch set-intent` reject exact normalized duplicate public intents before writing, returning a `PossibleDuplicate` diagnostic with a `query intent` repair action.
 
 `patch rename-function` changes a public function name and rewrites resolved call references in the patched source. When the new bare name would be ambiguous, rewritten call sites use the exact `@module.name.vN(...)` form.
 
@@ -95,7 +95,7 @@ bin/serow patch set-version examples/math.serow @core.math.add.v1 v1
 
 `patch remove-use` removes an existing module dependency declaration through the structured patch interface and rewrites the file canonically.
 
-`patch set-intent` sets or replaces a function intent through the structured patch interface. It rejects empty intents and ambiguous bare targets.
+`patch set-intent` sets or replaces a function intent through the structured patch interface. It rejects empty intents, ambiguous bare targets, and exact normalized duplicate public intents.
 
 `patch set-migration` creates a missing migration acknowledgement for a kind, replaces a single existing record of that kind, or replaces a specific record when passed a 1-based index before the note.
 

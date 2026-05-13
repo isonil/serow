@@ -4915,6 +4915,72 @@ pub fn id(x: Int) -> Int
 }
 
 #[test]
+fn patch_set_intent_rejects_duplicate_public_intent() {
+    let dir = unique_temp_dir("serow-patch-set-intent-duplicate");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("duplicate_intent.serow");
+    fs::write(
+        &source,
+        r#"module app.main
+
+pub fn id(x: Int) -> Int
+  intent "Return x unchanged."
+  version v1
+  contract
+    ensures result == x
+  examples
+    id(3) == 3
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+
+pub fn negate(x: Int) -> Int
+  intent "Return the negated x value."
+  version v1
+  contract
+    ensures result == 0 - x
+  examples
+    negate(3) == -3
+  properties
+    forall x: Int:
+      negate(x) == 0 - x
+  effects pure
+  impl
+    0 - x
+"#,
+    )
+    .expect("write fixture");
+
+    let before = fs::read_to_string(&source).expect("read fixture before patch");
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-intent",
+            source.to_str().expect("utf8 path"),
+            "@app.main.negate.v1",
+            "Return x unchanged!",
+            "--json",
+        ])
+        .output()
+        .expect("run rejected serow patch set-intent");
+
+    assert!(!output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("PossibleDuplicate"), "{stdout}");
+    assert!(stdout.contains("@app.main.id.v1"), "{stdout}");
+    assert!(stdout.contains("\"repair_actions\""), "{stdout}");
+    assert!(stdout.contains("\"query\""), "{stdout}");
+    assert!(stdout.contains("\"intent\""), "{stdout}");
+
+    let after = fs::read_to_string(&source).expect("read fixture after patch");
+    assert_eq!(before, after);
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn patch_set_migration_replaces_missing_single_or_indexed_records() {
     let dir = unique_temp_dir("serow-patch-set-migration");
     fs::create_dir_all(&dir).expect("create temp dir");

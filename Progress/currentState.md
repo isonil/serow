@@ -105,7 +105,7 @@ Date: 2026-05-13
 - The Python reference bootstrap diagnostic model can serialize `repair_actions`, and mirrors the safe `MissingRequiredSection` `set-effects`/`set-impl` actions.
 - The Python reference bootstrap also mirrors Rust's indexed evidence-removal repair actions for duplicate examples/contracts/properties, duplicate migrations, shallow executable examples, and low-signal vacuous, shallow, or non-executable sampled properties.
 - `patch set-impl` creates a missing implementation section or replaces an existing implementation expression through the structured patch interface; public implementation-change policy remains enforced by `serow plan` and unattended certification.
-- `patch set-intent` sets or replaces a function intent through the structured patch interface while preserving ambiguous-target protection.
+- `patch set-intent` sets or replaces a function intent through the structured patch interface while preserving ambiguous-target protection and rejecting exact normalized duplicate public intents before writing.
 - `patch set-migration` creates a missing migration acknowledgement for a kind, replaces a single existing record of that kind, or replaces a specific record when passed a 1-based index.
 - `patch remove-migration` removes a specific indexed migration acknowledgement for a kind while preserving ambiguous-target protection.
 - `patch remove-use` removes an existing module dependency declaration from a module through the structured patch interface and preserves canonical formatting.
@@ -121,7 +121,7 @@ Date: 2026-05-13
   - `bin/serow fmt [paths...] --check`
   - canonical `use <module>` ordering as parsed in each module
 - Empty module declarations are preserved in the parsed program so structured patches can target modules before functions exist.
-- `patch add-function` now rejects exact normalized duplicate public intents before writing, returning a `PossibleDuplicate` diagnostic with a `query intent` repair action.
+- `patch add-function` and `patch set-intent` reject exact normalized duplicate public intents before writing, returning a `PossibleDuplicate` diagnostic with a `query intent` repair action.
 - Sample program in `examples/math.serow`.
 - Rust unit/integration tests in `tests/bootstrap.rs`.
 - Earlier Python bootstrap remains in `serowlang/` as reference code.
@@ -1289,6 +1289,26 @@ git diff --check
 
 `cargo test` includes integration coverage for `bin/serow patch add-function`.
 
+Additional verification after making `patch set-intent` reject exact duplicate public intents:
+
+```sh
+bin/serow query intent "prevent structured intent replacement from creating duplicate public intents" --json
+bin/serow query symbol set-intent --json
+cargo fmt --check
+cargo test patch_set_intent_rejects_duplicate_public_intent -- --nocapture
+cargo test agent_json_includes_machine_readable_workflow -- --nocapture
+cargo clippy -- -D warnings
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+bin/serow agent --json
+git diff --check
+```
+
 `bin/serow check --json` currently reports:
 
 ```json
@@ -1312,7 +1332,7 @@ git diff --check
 - Expression support is intentionally small: literals, variables, direct or qualified calls, arithmetic, comparisons, booleans, and one-line `if ... then ... else ...`.
 - Properties are sampled, not proven; built-in samples are fixed small sets for `Int`, `Bool`, and `Text`. Failed or erroring sampled properties report replay data, include simpler shrunk same-outcome bindings when available, and can be rerun one sample at a time with `bin/serow replay property`.
 - Effects checking is intentionally conservative direct-call capability subset validation; it warns on unused declared capabilities only when resolved non-self direct callees establish a required capability set, and it does not yet model effect polymorphism or external effect primitives.
-- Structured patch coverage is intentionally narrow: module `use` insertion, public function skeleton insertion, public function rename with in-file resolved call rewrites, evidence insertion, indexed evidence removal, migration acknowledgement insertion/replacement/removal, indexed contract/example/property replacement, intent replacement, effect declaration replacement, missing or existing implementation expression setting, version declaration and pinned-call-aware version bumps, and typed-hole filling are implemented.
+- Structured patch coverage is intentionally narrow: module `use` insertion, public function skeleton insertion, public function rename with in-file resolved call rewrites, evidence insertion, indexed evidence removal, migration acknowledgement insertion/replacement/removal, indexed contract/example/property replacement, duplicate-intent-guarded intent replacement, effect declaration replacement, missing or existing implementation expression setting, version declaration and pinned-call-aware version bumps, and typed-hole filling are implemented.
 - Evidence patching can append or replace individual contract/example/property items, but dependent impact and evidence policy are still enforced by `serow plan` and unattended certification rather than by the patch command itself.
 - Formatting parses and re-emits the bootstrap projection; comments are not preserved yet.
 - The hand-written JSON output should eventually be replaced with `serde_json` once external dependencies are allowed/desired.
