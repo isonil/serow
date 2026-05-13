@@ -86,6 +86,7 @@
     "plan_reports_sampled_property_coverage_hints": true,
     "plan_reports_intent_implementation_risks": true,
     "plan_reports_semantic_change_labels": true,
+    "plan_reports_stale_migration_acknowledgements": true,
     "typed_holes_allowed": true,
     "typed_hole_diagnostics_report_obligations": true,
     "unattended_rejects_same_version_public_contract_surface_change": true,
@@ -96,6 +97,7 @@
     "unattended_rejects_implementation_change_with_head_insensitive_evidence": true,
     "unattended_rejects_implementation_evidence_drift_without_migration": true,
     "unattended_rejects_unchecked_impact": true,
+    "unattended_rejects_stale_migration_acknowledgements": true,
     "migration_records_acknowledge_unattended_gate_decisions": true,
     "plan_reports_impact_evidence_coverage": true
   },

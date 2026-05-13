@@ -54,7 +54,7 @@ Date: 2026-05-13
   - `bin/serow plan [paths...] [--json]`
   - explicit paths are treated as the change set
   - without paths, Git status is used to discover changed `.serow` files
-  - reports changed public symbols, semantic change labels with acknowledgement state and details, inferred direct-call capability requirements and suggested effect declarations, sampled-property coverage hints, advisory intent/implementation mismatch risks, public contract-surface changes against HEAD, declared capability changes against HEAD, normalized public implementation changes against HEAD, implementation evidence coverage for added examples/properties, whether added implementation evidence fails against the HEAD implementation, implementation/evidence drift rows, migration acknowledgements, evidence counts, HEAD evidence deltas when a tracked baseline is available, evidence-weakening rows, explicit-version state, transitive impact rows, impacted dependent call-edge coverage, checker diagnostics, and residual risks
+  - reports changed public symbols, semantic change labels with acknowledgement state and details, inferred direct-call capability requirements and suggested effect declarations, sampled-property coverage hints, advisory intent/implementation mismatch risks, public contract-surface changes against HEAD, declared capability changes against HEAD, normalized public implementation changes against HEAD, implementation evidence coverage for added examples/properties, whether added implementation evidence fails against the HEAD implementation, implementation/evidence drift rows, migration acknowledgements, stale migration acknowledgements, evidence counts, HEAD evidence deltas when a tracked baseline is available, evidence-weakening rows, explicit-version state, transitive impact rows, impacted dependent call-edge coverage, checker diagnostics, and residual risks
 - Strict certification profile:
   - `bin/serow certify --profile unattended`
   - currently requires public functions to declare explicit source-level versions instead of relying on the bootstrap `v1` default
@@ -66,6 +66,7 @@ Date: 2026-05-13
   - rejects changed tracked public symbols that remove or narrow executable evidence compared with Git `HEAD`
   - rejects changed tracked public symbols with transitive dependents outside the certified change set
   - rejects impacted dependent call edges that lack executable example or sampled property coverage
+  - rejects stale migration acknowledgements on changed tracked public symbols
   - rejects malformed structured diagnostic repair actions emitted during strict-profile certification
   - accepts explicit migration acknowledgements for intentional public behavior, capability expansion, evidence weakening, implementation, and impact-review decisions
 - Structured patch commands:

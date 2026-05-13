@@ -20,8 +20,8 @@ use crate::plan::{
     plan_paths, unattended_capability_expansion_diagnostics,
     unattended_evidence_weakening_diagnostics, unattended_implementation_change_diagnostics,
     unattended_implementation_evidence_drift_diagnostics,
-    unattended_public_behavior_change_diagnostics, unattended_unchecked_impact_diagnostics,
-    unattended_uncovered_impact_evidence_diagnostics,
+    unattended_public_behavior_change_diagnostics, unattended_stale_migration_diagnostics,
+    unattended_unchecked_impact_diagnostics, unattended_uncovered_impact_evidence_diagnostics,
 };
 use crate::replay::{PropertyReplaySummary, replay_property};
 
@@ -605,6 +605,9 @@ fn run_check(args: &[String], certify: bool) -> i32 {
         summary
             .diagnostics
             .extend(unattended_uncovered_impact_evidence_diagnostics(&paths));
+        summary
+            .diagnostics
+            .extend(unattended_stale_migration_diagnostics(&paths));
         let repair_action_contract_diagnostics = validate_repair_actions(&summary.diagnostics);
         summary
             .diagnostics
@@ -1149,6 +1152,12 @@ fn print_plan(plan: &ChangePlan) {
         for migration in &symbol.migrations {
             println!("  migration: {} - {}", migration.kind, migration.note);
         }
+        for migration in &symbol.stale_migrations {
+            println!(
+                "  stale migration: {} #{} - {}",
+                migration.kind, migration.index, migration.reason
+            );
+        }
         println!("  explicit version: {}", symbol.version_explicit);
         println!("  impacted dependents: {}", symbol.impact.len());
         let covered_edges = symbol
@@ -1253,6 +1262,7 @@ fn changed_symbols_json(plan: &ChangePlan) -> String {
                     "      \"migrations\": {},\n",
                     "      \"residual_risks\": {},\n",
                     "      \"semantic_changes\": {},\n",
+                    "      \"stale_migrations\": {},\n",
                     "      \"version_explicit\": {}\n",
                     "    }}"
                 ),
@@ -1277,6 +1287,7 @@ fn changed_symbols_json(plan: &ChangePlan) -> String {
                 migrations_json(&symbol.migrations),
                 string_array_json(&symbol.residual_risks),
                 semantic_changes_json(&symbol.semantic_changes),
+                stale_migrations_json(&symbol.stale_migrations),
                 symbol.version_explicit
             )
         })
@@ -1315,6 +1326,26 @@ fn migrations_json(migrations: &[crate::model::MigrationRecord]) -> String {
                 "{{\"kind\": {}, \"note\": {}}}",
                 json_string(&migration.kind),
                 json_string(&migration.note)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("[{rows}]")
+}
+
+fn stale_migrations_json(migrations: &[crate::plan::StaleMigration]) -> String {
+    if migrations.is_empty() {
+        return "[]".to_string();
+    }
+    let rows = migrations
+        .iter()
+        .map(|migration| {
+            format!(
+                "{{\"index\": {}, \"kind\": {}, \"note\": {}, \"reason\": {}}}",
+                migration.index,
+                json_string(&migration.kind),
+                json_string(&migration.note),
+                json_string(&migration.reason)
             )
         })
         .collect::<Vec<_>>()
@@ -1887,7 +1918,7 @@ fn agent_json() -> String {
         (
             "plan",
             "serow plan [paths...] [--json]",
-            "Summarize changed public symbols, semantic change labels, direct-call capability analysis, sampled-property coverage hints, advisory intent/implementation risks, migration acknowledgements, capability changes, implementation changes, implementation evidence coverage and HEAD-sensitivity, implementation/evidence drift, evidence coverage, HEAD evidence deltas, impact-edge coverage, and residual risk.",
+            "Summarize changed public symbols, semantic change labels, direct-call capability analysis, sampled-property coverage hints, advisory intent/implementation risks, migration acknowledgements, stale migration acknowledgements, capability changes, implementation changes, implementation evidence coverage and HEAD-sensitivity, implementation/evidence drift, evidence coverage, HEAD evidence deltas, impact-edge coverage, and residual risk.",
         ),
         (
             "query callees",
@@ -1951,7 +1982,7 @@ fn agent_json() -> String {
             "  \"supported_bootstrap_types\": {},\n",
             "  \"verification_gates\": {},\n",
             "  \"diagnostic_json\": {{\"repairs\": \"legacy human-readable repair strings\", \"repair_actions\": \"machine-readable command actions when available\", \"missing_sections\": \"MissingRequiredSection diagnostics include safe set-effects/set-impl patch command actions when those non-evidence sections are absent\", \"typed_holes\": \"TypedHole diagnostics include symbol, signature, hole_type, expected_type, and obligations data\", \"architecture\": \"MissingModuleDependency and declared ArchitectureViolation diagnostics include add-use or remove-use patch command actions when the repair is exact\", \"ambiguous_calls\": \"AmbiguousUnqualifiedCall diagnostics include candidate symbols and a query symbol command action\", \"intent_reuse\": \"PossibleDuplicate and NearDuplicateIntent include shared_terms, new_only_terms, and candidate_only_terms data\", \"duplicate_evidence\": \"Duplicate evidence diagnostics include indexed remove-evidence patch command actions\", \"low_signal_examples\": \"ShallowExample includes indexed remove-example patch command actions\", \"low_signal_properties\": \"VacuousProperty and ShallowProperty include indexed remove-property patch command actions\", \"property_replay\": \"PropertyFailed and PropertyEvaluationError include property_index, sample_index, sample_seed, bindings, and a replay command action\", \"property_shrinking\": \"PropertyFailed includes shrunk_sample_index, shrunk_sample_seed, and shrunk_bindings when a simpler failing sampled binding is found\"}},\n",
-            "  \"plan_json\": {{\"semantic_changes\": \"changed symbols include deterministic labels with acknowledgement state and details for public deltas\", \"property_coverage\": \"changed symbols include sampled-property sample counts, direct-call flags, vacuous flags, and unsupported generator types\", \"intent_implementation_risks\": \"changed symbols include advisory lexical arithmetic intent/implementation mismatch risks\"}},\n",
+            "  \"plan_json\": {{\"semantic_changes\": \"changed symbols include deterministic labels with acknowledgement state and details for public deltas\", \"property_coverage\": \"changed symbols include sampled-property sample counts, direct-call flags, vacuous flags, and unsupported generator types\", \"intent_implementation_risks\": \"changed symbols include advisory lexical arithmetic intent/implementation mismatch risks\", \"stale_migrations\": \"changed symbols include indexed migration acknowledgements that no current unattended gate requires\"}},\n",
             "  \"known_limits\": {}\n",
             "}}"
         ),
@@ -1987,6 +2018,7 @@ fn agent_json() -> String {
             "No full compiler or generated backend exists yet.",
             "Properties are sampled, not proven; built-in samples cover boundary and representative Int, Bool, and Text values, and failing sampled properties report deterministic replay data that can be replayed with `serow replay property`; PropertyFailed diagnostics also include a simpler shrunk sampled binding when one is found.",
             "Migration acknowledgements are source-level notes; they do not prove behavioral compatibility.",
+            "`serow plan` reports stale migration acknowledgements when a changed symbol keeps a migration record that no current unattended gate requires.",
             "Exact duplicate public intents are errors; high-overlap token-ranked intent matches are warnings.",
             "`serow patch add-function` rejects exact duplicate public intents before writing.",
             "`bin/serow check` warns on duplicate examples, executable examples that do not call the function under test, contract clauses, sampled property blocks, sampled properties with no bound variables, and sampled properties that do not call the function under test.",
@@ -2007,6 +2039,7 @@ fn agent_json() -> String {
             "`serow certify --profile unattended` fails when added executable evidence for an implementation change does not call the changed function unless acknowledged by implementation migration.",
             "`serow certify --profile unattended` fails when added executable evidence for an implementation change also passes against the HEAD implementation unless acknowledged by implementation migration.",
             "`serow certify --profile unattended` fails when implementation and executable evidence change together unless acknowledged by implementation migration.",
+            "`serow certify --profile unattended` fails when changed symbols keep stale migration acknowledgements.",
             "`serow certify --profile unattended` validates structured repair actions before accepting diagnostics.",
             "`serow plan` reports declared capability changes against HEAD for changed tracked public symbols.",
             "`serow plan` reports semantic change labels for changed symbols so agents can consume public deltas directly.",
@@ -2210,6 +2243,7 @@ fn print_agent_bootstrap() {
     println!("    reports whether added implementation evidence fails against HEAD");
     println!("    reports implementation/evidence drift against HEAD");
     println!("    reports impact-edge coverage by executable examples/properties");
+    println!("    reports stale migration acknowledgements");
     println!("  serow query callees <symbol-or-name> [paths...] [--json]");
     println!("  serow query dependents <symbol-or-name> [paths...] [--json]");
     println!("  serow query impact <symbol-or-name> [paths...] [--json]");
@@ -2267,6 +2301,7 @@ fn print_agent_bootstrap() {
     println!(
         "  unattended certification rejects tracked implementation/evidence drift without explicit migration acknowledgement"
     );
+    println!("  unattended certification rejects stale migration acknowledgements");
     println!(
         "  unattended certification rejects capability expansion without explicit migration acknowledgement"
     );

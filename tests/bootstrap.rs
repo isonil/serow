@@ -2818,6 +2818,98 @@ pub fn inc(x: Int) -> Int
 }
 
 #[test]
+fn stale_migration_acknowledgement_is_reported_and_rejected() {
+    let dir = unique_temp_dir("serow-stale-migration");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("checked.serow");
+    fs::write(
+        &source,
+        r#"module core.math
+
+pub fn inc(x: Int) -> Int
+  intent "Increment x."
+  version v1
+  contract
+    ensures result == x + 1
+  examples
+    inc(1) == 2
+  properties
+    forall x: Int:
+      inc(x) == x + 1
+  effects pure
+  impl
+    x + 1
+"#,
+    )
+    .expect("write fixture");
+
+    git(&dir, &["init"]);
+    git(&dir, &["add", "checked.serow"]);
+    git(&dir, &["commit", "-m", "baseline"]);
+
+    fs::write(
+        &source,
+        r#"module core.math
+
+pub fn inc(x: Int) -> Int
+  intent "Increment x."
+  version v1
+  migration
+    implementation-change "Left over from an earlier implementation edit."
+  contract
+    ensures result == x + 1
+  examples
+    inc(1) == 2
+  properties
+    forall x: Int:
+      inc(x) == x + 1
+  effects pure
+  impl
+    x + 1
+"#,
+    )
+    .expect("add stale migration fixture");
+
+    let plan = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args(["plan", "--json"])
+        .output()
+        .expect("run serow plan");
+    assert!(!plan.status.success(), "{plan:#?}");
+    let plan_stdout = String::from_utf8(plan.stdout).expect("stdout is utf8");
+    assert!(
+        plan_stdout.contains("\"stale_migrations\""),
+        "{plan_stdout}"
+    );
+    assert!(
+        plan_stdout.contains("\"label\": \"stale_migration_acknowledgement\""),
+        "{plan_stdout}"
+    );
+    assert!(
+        plan_stdout.contains(
+            "No current unattended gate requires a `implementation-change` acknowledgement"
+        ),
+        "{plan_stdout}"
+    );
+
+    let unattended = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args(["certify", "--profile", "unattended", "--json"])
+        .output()
+        .expect("run unattended certify");
+    assert!(!unattended.status.success(), "{unattended:#?}");
+    let stdout = String::from_utf8(unattended.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("StaleMigrationAcknowledgement"), "{stdout}");
+    assert!(
+        stdout.contains(
+            "\"command\": [\"bin/serow\", \"patch\", \"remove-migration\", \"checked.serow\", \"@core.math.inc.v1\", \"implementation-change\", \"1\"]"
+        ),
+        "{stdout}"
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn implementation_evidence_drift_requires_migration_acknowledgement() {
     let dir = unique_temp_dir("serow-implementation-evidence-drift");
     fs::create_dir_all(&dir).expect("create temp dir");

@@ -39,6 +39,7 @@ pub struct ChangedSymbol {
     pub intent_implementation_risks: Vec<String>,
     pub version_explicit: bool,
     pub migrations: Vec<MigrationRecord>,
+    pub stale_migrations: Vec<StaleMigration>,
     pub impact: Vec<ImpactDependent>,
     pub impact_coverage: Vec<ImpactEvidenceCoverage>,
     pub semantic_changes: Vec<SemanticChange>,
@@ -50,6 +51,14 @@ pub struct SemanticChange {
     pub label: String,
     pub acknowledged: bool,
     pub details: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct StaleMigration {
+    pub kind: String,
+    pub index: usize,
+    pub note: String,
+    pub reason: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -289,6 +298,13 @@ pub fn plan_paths(paths: &[String]) -> ChangePlan {
             "Changed public symbols have advisory intent/implementation mismatch risks."
                 .to_string(),
         );
+    }
+    if changed_symbols
+        .iter()
+        .any(|symbol| !symbol.stale_migrations.is_empty())
+    {
+        residual_risks
+            .push("Changed public symbols have stale migration acknowledgements.".to_string());
     }
 
     let ok = summary.ok() && residual_risks.is_empty();
@@ -771,6 +787,51 @@ pub fn unattended_uncovered_impact_evidence_diagnostics(paths: &[String]) -> Vec
         .collect()
 }
 
+pub fn unattended_stale_migration_diagnostics(paths: &[String]) -> Vec<Diagnostic> {
+    plan_paths(paths)
+        .changed_symbols
+        .into_iter()
+        .flat_map(|symbol| {
+            let target = symbol.function.target();
+            let canonical_symbol = symbol.function.symbol();
+            symbol
+                .stale_migrations
+                .into_iter()
+                .map(move |migration| {
+                    Diagnostic::error(
+                        "StaleMigrationAcknowledgement",
+                        format!(
+                            "Public function `{}` has a stale `{}` migration acknowledgement.",
+                            symbol.function.name, migration.kind
+                        ),
+                        Some(target.clone()),
+                    )
+                    .with_data("symbol", canonical_symbol.clone())
+                    .with_data("kind", migration.kind.clone())
+                    .with_data("index", migration.index.to_string())
+                    .with_data("note", migration.note.clone())
+                    .with_data("reason", migration.reason.clone())
+                    .with_command_repair(
+                        "Remove stale migration acknowledgement",
+                        vec![
+                            "bin/serow".to_string(),
+                            "patch".to_string(),
+                            "remove-migration".to_string(),
+                            symbol.function.source_path.clone(),
+                            canonical_symbol.clone(),
+                            migration.kind,
+                            migration.index.to_string(),
+                        ],
+                    )
+                    .with_repair(
+                        "Remove stale migration acknowledgements so future unattended gates cannot be bypassed by leftover notes.",
+                    )
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
 fn changed_symbol(
     function: &Function,
     program: &crate::model::Program,
@@ -806,6 +867,21 @@ fn changed_symbol(
         .and(behavior_change.as_ref())
         .and_then(evidence_drift);
     let intent_implementation_risks = intent_implementation_risks(function, program);
+    let impact = query_impact(program, &function.symbol());
+    let impact_coverage = impact
+        .iter()
+        .map(|row| impact_evidence_coverage(row, program))
+        .collect::<Vec<_>>();
+    let stale_migrations = stale_migrations(StaleMigrationInput {
+        function,
+        behavior_change: behavior_change.as_ref(),
+        capability_change: capability_change.as_ref(),
+        evidence_drift: evidence_drift.as_ref(),
+        evidence_weakening: &evidence_weakening,
+        implementation_change: implementation_change.as_ref(),
+        impact: &impact,
+        impact_coverage: &impact_coverage,
+    });
     let mut residual_risks = Vec::new();
     if !function.version_explicit {
         residual_risks.push(
@@ -822,11 +898,6 @@ fn changed_symbol(
     if evidence.requires + evidence.ensures == 0 {
         residual_risks.push("No executable contract clauses cover this symbol.".to_string());
     }
-    let impact = query_impact(program, &function.symbol());
-    let impact_coverage = impact
-        .iter()
-        .map(|row| impact_evidence_coverage(row, program))
-        .collect::<Vec<_>>();
     if !impact.is_empty() && !has_migration(function, "impact-review") {
         residual_risks
             .push("Transitive dependents must be reviewed before changing behavior.".to_string());
@@ -898,6 +969,12 @@ fn changed_symbol(
         );
     }
     residual_risks.extend(intent_implementation_risks.iter().cloned());
+    for migration in &stale_migrations {
+        residual_risks.push(format!(
+            "Stale {} migration acknowledgement at same-kind index {}.",
+            migration.kind, migration.index
+        ));
+    }
     let semantic_changes = semantic_changes(SemanticChangeInput {
         function,
         behavior_change: behavior_change.as_ref(),
@@ -908,6 +985,7 @@ fn changed_symbol(
         implementation_change: implementation_change.as_ref(),
         implementation_evidence: implementation_evidence.as_ref(),
         intent_implementation_risks: &intent_implementation_risks,
+        stale_migrations: &stale_migrations,
         impact: &impact,
         impact_coverage: &impact_coverage,
     });
@@ -928,6 +1006,7 @@ fn changed_symbol(
         intent_implementation_risks,
         version_explicit: function.version_explicit,
         migrations: function.migrations.clone(),
+        stale_migrations,
         impact,
         impact_coverage,
         semantic_changes,
@@ -945,6 +1024,7 @@ struct SemanticChangeInput<'a> {
     implementation_change: Option<&'a ImplementationChange>,
     implementation_evidence: Option<&'a ImplementationEvidenceCoverage>,
     intent_implementation_risks: &'a [String],
+    stale_migrations: &'a [StaleMigration],
     impact: &'a [ImpactDependent],
     impact_coverage: &'a [ImpactEvidenceCoverage],
 }
@@ -1034,6 +1114,17 @@ fn semantic_changes(input: SemanticChangeInput<'_>) -> Vec<SemanticChange> {
             input.intent_implementation_risks.to_vec(),
         ));
     }
+    if !input.stale_migrations.is_empty() {
+        changes.push(semantic_change(
+            "stale_migration_acknowledgement",
+            false,
+            input
+                .stale_migrations
+                .iter()
+                .map(|migration| format!("{}#{}", migration.kind, migration.index))
+                .collect(),
+        ));
+    }
     if !input.impact.is_empty() {
         changes.push(semantic_change(
             "impacted_dependents",
@@ -1081,6 +1172,62 @@ fn semantic_changes(input: SemanticChangeInput<'_>) -> Vec<SemanticChange> {
         ));
     }
     changes
+}
+
+struct StaleMigrationInput<'a> {
+    function: &'a Function,
+    behavior_change: Option<&'a PublicBehaviorChange>,
+    capability_change: Option<&'a CapabilityChange>,
+    evidence_drift: Option<&'a EvidenceDrift>,
+    evidence_weakening: &'a [EvidenceWeakening],
+    implementation_change: Option<&'a ImplementationChange>,
+    impact: &'a [ImpactDependent],
+    impact_coverage: &'a [ImpactEvidenceCoverage],
+}
+
+fn stale_migrations(input: StaleMigrationInput<'_>) -> Vec<StaleMigration> {
+    let mut active_kinds = HashSet::<&str>::new();
+    if input.behavior_change.is_some() {
+        active_kinds.insert("public-behavior-change");
+    }
+    if input
+        .capability_change
+        .is_some_and(|change| !change.added.is_empty())
+    {
+        active_kinds.insert("capability-expansion");
+    }
+    if !input.evidence_weakening.is_empty() {
+        active_kinds.insert("evidence-weakening");
+    }
+    if input.implementation_change.is_some() || input.evidence_drift.is_some() {
+        active_kinds.insert("implementation-change");
+    }
+    if !input.impact.is_empty() || input.impact_coverage.iter().any(|row| !row.covered) {
+        active_kinds.insert("impact-review");
+    }
+
+    let mut kind_counts = HashMap::<String, usize>::new();
+    input
+        .function
+        .migrations
+        .iter()
+        .filter_map(|migration| {
+            let index = kind_counts.entry(migration.kind.clone()).or_insert(0);
+            *index += 1;
+            if active_kinds.contains(migration.kind.as_str()) {
+                return None;
+            }
+            Some(StaleMigration {
+                kind: migration.kind.clone(),
+                index: *index,
+                note: migration.note.clone(),
+                reason: format!(
+                    "No current unattended gate requires a `{}` acknowledgement for this changed symbol.",
+                    migration.kind
+                ),
+            })
+        })
+        .collect()
 }
 
 fn semantic_change(label: &str, acknowledged: bool, details: Vec<String>) -> SemanticChange {
