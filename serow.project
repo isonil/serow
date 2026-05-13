@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "0.4.55-rust-bootstrap",
+  "version": "0.4.56-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -16,6 +16,7 @@
     "patch_add_property": "bin/serow patch add-property <path> <symbol-or-name> <forall-header> <expression>",
     "patch_add_use": "bin/serow patch add-use <path> <module> <dependency>",
     "patch_fill_hole": "bin/serow patch fill-hole <path> <symbol-or-name> <expression>",
+    "patch_qualify_call": "bin/serow patch qualify-call <path> <caller-symbol-or-name> <bare-call-name> <callee-symbol-or-name>",
     "patch_remove_contract": "bin/serow patch remove-contract <path> <symbol-or-name> <requires|ensures> <index>",
     "patch_remove_example": "bin/serow patch remove-example <path> <symbol-or-name> <index>",
     "patch_remove_migration": "bin/serow patch remove-migration <path> <symbol-or-name> <kind> <index>",
@@ -85,6 +86,7 @@
     "structured_evidence_removal": true,
     "structured_property_rewrites": true,
     "structured_function_renames": true,
+    "structured_call_qualification": true,
     "effects_are_explicit": true,
     "direct_calls_require_declared_callee_capabilities": true,
     "direct_call_unused_declared_capabilities_warned": true,

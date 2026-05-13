@@ -9,9 +9,9 @@ use crate::model::Function;
 use crate::parser::parse_paths;
 use crate::patch::{
     PatchSummary, add_contract, add_example, add_function, add_migration, add_property, add_use,
-    fill_hole, remove_contract, remove_example, remove_migration, remove_property, remove_use,
-    rename_function, set_contract, set_effects, set_example, set_impl, set_intent, set_migration,
-    set_property, set_signature, set_version,
+    fill_hole, qualify_call, remove_contract, remove_example, remove_migration, remove_property,
+    remove_use, rename_function, set_contract, set_effects, set_example, set_impl, set_intent,
+    set_migration, set_property, set_signature, set_version,
 };
 use crate::plan::{
     CapabilityAnalysis, CapabilityChange, ChangePlan, EvidenceCoverage, EvidenceDelta,
@@ -157,6 +157,7 @@ fn run_patch(args: &[String]) -> i32 {
         "add-property" => run_patch_add_property(&args[1..]),
         "add-use" => run_patch_add_use(&args[1..]),
         "fill-hole" => run_patch_fill_hole(&args[1..]),
+        "qualify-call" => run_patch_qualify_call(&args[1..]),
         "remove-contract" => run_patch_remove_contract(&args[1..]),
         "remove-example" => run_patch_remove_example(&args[1..]),
         "remove-migration" => run_patch_remove_migration(&args[1..]),
@@ -291,6 +292,21 @@ fn run_patch_fill_hole(args: &[String]) -> i32 {
         return 2;
     };
     let summary = fill_hole(path, target, expression);
+    if json_output {
+        println!("{}", patch_json(&summary));
+    } else {
+        print_patch_summary(&summary);
+    }
+    i32::from(!summary.ok())
+}
+
+fn run_patch_qualify_call(args: &[String]) -> i32 {
+    let (args, json_output) = split_flag(args, "--json");
+    let [path, caller_target, call_name, callee_target] = args.as_slice() else {
+        print_patch_usage();
+        return 2;
+    };
+    let summary = qualify_call(path, caller_target, call_name, callee_target);
     if json_output {
         println!("{}", patch_json(&summary));
     } else {
@@ -1897,6 +1913,11 @@ fn agent_json() -> String {
             "Replace an existing typed implementation hole with an expression.",
         ),
         (
+            "patch qualify-call",
+            "serow patch qualify-call <path> <caller-symbol-or-name> <bare-call-name> <callee-symbol-or-name> [--json]",
+            "Rewrite bare calls in one caller function to an exact callee symbol.",
+        ),
+        (
             "patch remove-contract",
             "serow patch remove-contract <path> <symbol-or-name> <requires|ensures> <index> [--json]",
             "Remove one indexed contract clause from an existing function.",
@@ -2089,6 +2110,7 @@ fn agent_json() -> String {
             "Qualified calls support `module.name(...)`, `module.name.vN(...)`, and exact `@module.name.vN(...)` references.",
             "`serow patch set-version` can bump a symbol version when parsed call sites do not pin the old canonical version.",
             "`serow patch rename-function` rewrites resolved call references in the patched source and uses exact calls when a new bare name would be ambiguous.",
+            "`serow patch qualify-call` rewrites bare calls inside one caller function to an exact selected callee symbol.",
             "`serow patch set-impl` creates missing implementation sections or rewrites existing implementation expressions but does not bypass plan or certification gates.",
             "`bin/serow check` requires callers to declare every concrete capability required by direct callees.",
             "`bin/serow check` warns when a function declares concrete capabilities not required by resolved non-self direct callees.",
@@ -2277,6 +2299,9 @@ fn print_agent_bootstrap() {
     println!("  serow patch add-use <path> <module> <dependency> [--json]");
     println!("  serow patch fill-hole <path> <symbol-or-name> <expression> [--json]");
     println!(
+        "  serow patch qualify-call <path> <caller-symbol-or-name> <bare-call-name> <callee-symbol-or-name> [--json]"
+    );
+    println!(
         "  serow patch remove-contract <path> <symbol-or-name> <requires|ensures> <index> [--json]"
     );
     println!("  serow patch remove-example <path> <symbol-or-name> <index> [--json]");
@@ -2404,6 +2429,9 @@ fn print_usage() {
     eprintln!("  serow patch add-use <path> <module> <dependency> [--json]");
     eprintln!("  serow patch fill-hole <path> <symbol-or-name> <expression> [--json]");
     eprintln!(
+        "  serow patch qualify-call <path> <caller-symbol-or-name> <bare-call-name> <callee-symbol-or-name> [--json]"
+    );
+    eprintln!(
         "  serow patch remove-contract <path> <symbol-or-name> <requires|ensures> <index> [--json]"
     );
     eprintln!("  serow patch remove-example <path> <symbol-or-name> <index> [--json]");
@@ -2453,6 +2481,9 @@ fn print_patch_usage() {
     );
     eprintln!("  serow patch add-use <path> <module> <dependency> [--json]");
     eprintln!("  serow patch fill-hole <path> <symbol-or-name> <expression> [--json]");
+    eprintln!(
+        "  serow patch qualify-call <path> <caller-symbol-or-name> <bare-call-name> <callee-symbol-or-name> [--json]"
+    );
     eprintln!(
         "  serow patch remove-contract <path> <symbol-or-name> <requires|ensures> <index> [--json]"
     );

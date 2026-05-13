@@ -1910,6 +1910,7 @@ fn agent_json_includes_machine_readable_workflow() {
         stdout.contains("serow query type <type-or-shape>"),
         "{stdout}"
     );
+    assert!(stdout.contains("serow patch qualify-call"), "{stdout}");
     assert!(stdout.contains("bin/serow certify"), "{stdout}");
 }
 
@@ -5358,6 +5359,103 @@ pub fn sum(x: Int) -> Int
         updated.contains("      @app.main.sum.v1(x, y) == @app.main.sum.v1(y, x)"),
         "{updated}"
     );
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(summary.ok(), "{:#?}", summary.diagnostics);
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn patch_qualify_call_rewrites_bare_calls_to_exact_symbol() {
+    let dir = unique_temp_dir("serow-patch-qualify-call");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("qualify_call.serow");
+    fs::write(
+        &source,
+        r#"module core.a
+
+pub fn inc(x: Int) -> Int
+  intent "Return x plus one."
+  version v1
+  contract
+    ensures result == x + 1
+  examples
+    @core.a.inc.v1(1) == 2
+  properties
+    forall x: Int:
+      @core.a.inc.v1(x) == x + 1
+  effects pure
+  impl
+    x + 1
+
+module core.b
+
+pub fn inc(x: Int) -> Int
+  intent "Return x plus two."
+  version v1
+  contract
+    ensures result == x + 2
+  examples
+    @core.b.inc.v1(1) == 3
+  properties
+    forall x: Int:
+      @core.b.inc.v1(x) == x + 2
+  effects pure
+  impl
+    x + 2
+
+module app.main
+
+use core.a
+
+pub fn use_a(x: Int) -> Int
+  intent "Return x incremented by the core a helper."
+  version v1
+  contract
+    ensures result == x + 1
+  examples
+    use_a(1) == 2
+  properties
+    forall x: Int:
+      use_a(x) == @core.a.inc.v1(x)
+  effects pure
+  impl
+    inc(x)
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "AmbiguousUnqualifiedCall"),
+        "{:#?}",
+        summary.diagnostics
+    );
+
+    let patch = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "qualify-call",
+            source.to_str().expect("utf8 path"),
+            "@app.main.use_a.v1",
+            "inc",
+            "@core.a.inc.v1",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch qualify-call");
+    assert!(patch.status.success(), "{patch:#?}");
+    let stdout = String::from_utf8(patch.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"changed\": 1"), "{stdout}");
+
+    let updated = fs::read_to_string(&source).expect("read updated fixture");
+    assert!(updated.contains("    @core.a.inc.v1(x)"), "{updated}");
+    assert!(!updated.contains("    inc(x)"), "{updated}");
 
     let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
     let summary = check_program(&program, parse_diagnostics);

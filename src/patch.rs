@@ -1197,6 +1197,75 @@ pub fn rename_function(path: &str, target: &str, new_name: &str) -> PatchSummary
     summary
 }
 
+pub fn qualify_call(
+    path: &str,
+    caller_target: &str,
+    call_name: &str,
+    callee_target: &str,
+) -> PatchSummary {
+    let call_name = call_name.trim();
+    if !is_valid_ident(call_name) {
+        let mut summary = PatchSummary::default();
+        summary.diagnostics.push(
+            Diagnostic::error(
+                "InvalidPatchTarget",
+                format!("Invalid bare call name `{call_name}`."),
+                Some(path.to_string()),
+            )
+            .with_repair("Use the unqualified function name from the call site."),
+        );
+        return summary;
+    }
+
+    patch_function_checked_with_program(path, caller_target, |program, function| {
+        let callee_symbol = resolve_patch_target(program, callee_target, path)?;
+        let Some(callee) = program
+            .functions
+            .iter()
+            .find(|candidate| candidate.symbol() == callee_symbol)
+        else {
+            return Err(Box::new(Diagnostic::error(
+                "PatchTargetNotFound",
+                format!("Function `{callee_target}` was not found."),
+                Some(path.to_string()),
+            )));
+        };
+        if callee.name != call_name {
+            return Err(Box::new(
+                Diagnostic::error(
+                    "PatchConflict",
+                    format!(
+                        "Callee `{}` does not match bare call name `{call_name}`.",
+                        callee.symbol()
+                    ),
+                    Some(function.target()),
+                )
+                .with_data("callee_name", &callee.name)
+                .with_repair("Choose a callee whose public name matches the bare call site."),
+            ));
+        }
+
+        let replacement = callee.symbol();
+        let mut changed = false;
+        qualify_function_call_name(function, call_name, &replacement, &mut changed);
+        if changed {
+            Ok(true)
+        } else {
+            Err(Box::new(
+                Diagnostic::error(
+                    "PatchConflict",
+                    format!(
+                        "Function `{}` has no bare `{call_name}(...)` calls to qualify.",
+                        function.name
+                    ),
+                    Some(function.target()),
+                )
+                .with_repair("Run `bin/serow check --json` to inspect current call diagnostics."),
+            ))
+        }
+    })
+}
+
 pub fn set_version(path: &str, target: &str, version: &str) -> PatchSummary {
     let version = version.trim();
     if !is_valid_version(version) {
@@ -1272,6 +1341,74 @@ pub fn set_version(path: &str, target: &str, version: &str) -> PatchSummary {
         function.version_explicit = true;
         Ok(true)
     })
+}
+
+fn qualify_function_call_name(
+    function: &mut Function,
+    call_name: &str,
+    replacement: &str,
+    changed: &mut bool,
+) {
+    if let Some(implementation) = &mut function.implementation {
+        *implementation =
+            qualify_expression_call_name(implementation, call_name, replacement, changed);
+    }
+    for requirement in &mut function.requires {
+        *requirement = qualify_expression_call_name(requirement, call_name, replacement, changed);
+    }
+    for contract in &mut function.contracts {
+        *contract = qualify_expression_call_name(contract, call_name, replacement, changed);
+    }
+    for example in &mut function.examples {
+        *example = qualify_expression_call_name(example, call_name, replacement, changed);
+    }
+    for property in &mut function.properties {
+        if property.trim().starts_with("forall ") && property.trim().ends_with(':') {
+            continue;
+        }
+        *property = qualify_expression_call_name(property, call_name, replacement, changed);
+    }
+}
+
+fn qualify_expression_call_name(
+    expression: &str,
+    call_name: &str,
+    replacement: &str,
+    changed: &mut bool,
+) -> String {
+    let mut rewritten = String::new();
+    let mut index = 0;
+    while index < expression.len() {
+        let rest = &expression[index..];
+        if rest.starts_with('"') {
+            let end = string_literal_end(expression, index);
+            rewritten.push_str(&expression[index..end]);
+            index = end;
+            continue;
+        }
+        let Some(end) = identifier_end(expression, index) else {
+            let char = rest
+                .chars()
+                .next()
+                .expect("index is inside expression bounds");
+            rewritten.push(char);
+            index += char.len_utf8();
+            continue;
+        };
+        let reference_text = &expression[index..end];
+        let next_non_space = expression[end..]
+            .char_indices()
+            .find(|(_, char)| !char.is_whitespace())
+            .map(|(offset, char)| (end + offset, char));
+        if reference_text == call_name && next_non_space.is_some_and(|(_, char)| char == '(') {
+            rewritten.push_str(replacement);
+            *changed = true;
+        } else {
+            rewritten.push_str(reference_text);
+        }
+        index = end;
+    }
+    rewritten
 }
 
 fn rebuild_function_index(program: &mut Program) {
