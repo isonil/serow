@@ -80,6 +80,58 @@ pub fn bump(x: Int) -> Int
             self.assertIn("example 1: bump(1) == 2", obligations)
             self.assertIn("property 1: forall x: Int: bump(x) == x + 1", obligations)
 
+    def test_missing_required_sections_include_structured_repair_actions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "missing_sections.serow"
+            source.write_text(
+                """module test.missing
+
+pub fn id(x: Int) -> Int
+  intent "Return the input unchanged."
+  version v1
+  contract
+    ensures result == x
+  examples
+    id(3) == 3
+  properties
+    forall x: Int:
+      id(x) == x
+""",
+                encoding="utf-8",
+            )
+            program, parse_diagnostics = parse_files([str(source)])
+            summary = check_program(program, parse_diagnostics)
+            diagnostic = next(
+                diagnostic
+                for diagnostic in summary.diagnostics
+                if diagnostic.code == "MissingRequiredSection"
+            )
+            payload = diagnostic.to_dict()
+            self.assertIn("repair_actions", payload)
+            commands = [action["command"] for action in payload["repair_actions"]]
+            self.assertIn(
+                [
+                    "bin/serow",
+                    "patch",
+                    "set-effects",
+                    str(source),
+                    "@test.missing.id.v1",
+                    "pure",
+                ],
+                commands,
+            )
+            self.assertIn(
+                [
+                    "bin/serow",
+                    "patch",
+                    "set-impl",
+                    str(source),
+                    "@test.missing.id.v1",
+                    "HOLE(Int)",
+                ],
+                commands,
+            )
+
     def test_intent_query_finds_add(self):
         program, parse_diagnostics = parse_files(["examples"])
         self.assertFalse(parse_diagnostics)

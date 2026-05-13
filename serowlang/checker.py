@@ -247,16 +247,39 @@ def _check_function_shape(function: Function, summary: CheckSummary) -> None:
         if not function.impl:
             missing.append("impl")
         if missing:
-            summary.diagnostics.append(
-                Diagnostic(
-                    severity="error",
-                    code="MissingRequiredSection",
-                    message=f"Public function `{function.name}` is missing required sections.",
-                    target=function.target,
-                    data={"missing": missing, "required": REQUIRED_PUBLIC_SECTIONS},
-                    repairs=["Add all required sections before certification."],
-                )
+            diagnostic = Diagnostic(
+                severity="error",
+                code="MissingRequiredSection",
+                message=f"Public function `{function.name}` is missing required sections.",
+                target=function.target,
+                data={"missing": missing, "required": REQUIRED_PUBLIC_SECTIONS},
+                repairs=["Add all required sections before certification."],
             )
+            if not function.effects:
+                diagnostic.with_command_repair(
+                    "Declare a pure effect baseline",
+                    [
+                        "bin/serow",
+                        "patch",
+                        "set-effects",
+                        function.source_path,
+                        function.symbol,
+                        "pure",
+                    ],
+                )
+            if not function.impl:
+                diagnostic.with_command_repair(
+                    "Create a typed implementation hole",
+                    [
+                        "bin/serow",
+                        "patch",
+                        "set-impl",
+                        function.source_path,
+                        function.symbol,
+                        f"HOLE({function.return_type})",
+                    ],
+                )
+            summary.diagnostics.append(diagnostic)
 
     for param in function.params:
         if param.type_name not in SUPPORTED_TYPES:
