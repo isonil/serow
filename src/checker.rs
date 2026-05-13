@@ -141,6 +141,17 @@ fn check_module_dependencies(program: &Program, summary: &mut CheckSummary) {
                 .with_data("module", &module.name)
                 .with_data("dependency", &dependency.module)
                 .with_data("allowed", policy.may_depend_on.join(", "))
+                .with_command_repair(
+                    "Remove the forbidden module dependency declaration",
+                    vec![
+                        "bin/serow".to_string(),
+                        "patch".to_string(),
+                        "remove-use".to_string(),
+                        dependency.source_path.clone(),
+                        module.name.clone(),
+                        dependency.module.clone(),
+                    ],
+                )
                 .with_repair("Update `serow.project` or remove the `use` declaration."),
             );
         }

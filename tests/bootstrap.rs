@@ -1498,6 +1498,56 @@ pub fn id(x: Int) -> Int
         summary
             .diagnostics
             .iter()
+            .any(|diagnostic| diagnostic.code == "ArchitectureViolation"
+                && diagnostic.repair_actions.iter().any(|action| action.command
+                    == vec![
+                        "bin/serow".to_string(),
+                        "patch".to_string(),
+                        "remove-use".to_string(),
+                        source.to_string_lossy().to_string(),
+                        "core.math".to_string(),
+                        "core.text".to_string()
+                    ])),
+        "{:#?}",
+        summary.diagnostics
+    );
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["check", source.to_str().expect("utf8 path"), "--json"])
+        .output()
+        .expect("run serow check --json");
+    assert!(!output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(
+        stdout.contains("\"label\": \"Remove the forbidden module dependency declaration\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"command\": [\"bin/serow\", \"patch\", \"remove-use\""),
+        "{stdout}"
+    );
+
+    let patch = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "remove-use",
+            source.to_str().expect("utf8 path"),
+            "core.math",
+            "core.text",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch remove-use");
+    assert!(patch.status.success(), "{patch:#?}");
+    let patch_stdout = String::from_utf8(patch.stdout).expect("stdout is utf8");
+    assert!(patch_stdout.contains("\"changed\": 1"), "{patch_stdout}");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(
+        !summary
+            .diagnostics
+            .iter()
             .any(|diagnostic| diagnostic.code == "ArchitectureViolation"),
         "{:#?}",
         summary.diagnostics

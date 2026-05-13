@@ -101,12 +101,13 @@ Date: 2026-05-13
 - `patch set-migration` creates a missing migration acknowledgement for a kind, replaces a single existing record of that kind, or replaces a specific record when passed a 1-based index.
 - `patch remove-migration` removes a specific indexed migration acknowledgement for a kind while preserving ambiguous-target protection.
 - `patch remove-use` removes an existing module dependency declaration from a module through the structured patch interface and preserves canonical formatting.
+- Declared `ArchitectureViolation` diagnostics for forbidden `use` dependencies include structured `patch remove-use` repair actions.
 - `patch set-signature` replaces a function's argument list and return type while preserving the existing function name; use `patch rename-function` for name changes.
 - `patch set-version` now supports dependent-aware public version bumps when parsed call sites do not pin the old canonical symbol, and rejects pinned `module.name.vN(...)` or `@module.name.vN(...)` callers with `VersionPinnedDependent`.
 - `patch rename-function` renames a public function and rewrites resolved call references in the patched source, using exact `@module.name.vN(...)` references when the new bare name would be ambiguous.
 - Structured JSON diagnostic repair actions:
   - command repair actions are emitted as `repair_actions` alongside legacy `repairs`
-  - currently used for format drift, missing module dependencies, duplicate-intent lookup, implicit-version fixes in unattended certification, and effect capability declaration repairs
+  - currently used for format drift, missing module dependencies, forbidden declared module dependencies, duplicate-intent lookup, implicit-version fixes in unattended certification, and effect capability declaration repairs
 - Deterministic source formatting:
   - `bin/serow fmt [paths...]`
   - `bin/serow fmt [paths...] --check`
@@ -235,6 +236,26 @@ Additional verification after adding structured module dependency removal:
 ```sh
 cargo fmt --check
 cargo test patch_remove_use_updates_source -- --nocapture
+cargo clippy -- -D warnings
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+bin/serow agent --json
+git diff --check
+```
+
+Additional verification after adding declared architecture-violation repair actions:
+
+```sh
+bin/serow query intent "remove forbidden module dependency declaration" --json
+bin/serow query symbol remove-use --json
+cargo test architecture_policy_rejects_disallowed_use -- --nocapture
+cargo test agent_json_includes_machine_readable_workflow -- --nocapture
+cargo fmt --check
 cargo clippy -- -D warnings
 cargo test
 python3 -m unittest discover -s tests
