@@ -6478,7 +6478,7 @@ fn compile_rust_json_emits_supported_backend_source() {
 }
 
 #[test]
-fn compile_rust_refuses_unsupported_text_types() {
+fn compile_rust_emits_text_functions() {
     let dir = unique_temp_dir("serow-compile-rust-text");
     fs::create_dir_all(&dir).expect("create temp dir");
     let source = dir.join("text.serow");
@@ -6499,6 +6499,20 @@ pub fn same_text(x: Text) -> Bool
   effects pure
   impl
     x == x
+
+pub fn greet(name: Text) -> Text
+  intent "Return a greeting for a text name."
+  version v1
+  contract
+    ensures result == "hi, " + name
+  examples
+    greet("Ada") == "hi, Ada"
+  properties
+    forall name: Text:
+      greet(name) == "hi, " + name
+  effects pure
+  impl
+    "hi, " + name
 "#,
     )
     .expect("write fixture");
@@ -6507,12 +6521,44 @@ pub fn same_text(x: Text) -> Bool
         .args(["compile", "rust", &source.to_string_lossy(), "--json"])
         .output()
         .expect("run compile rust");
-    assert!(!output.status.success(), "{output:#?}");
+    assert!(output.status.success(), "{output:#?}");
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("\"rust\": null"), "{stdout}");
     assert!(
-        stdout.contains("\"code\": \"RustBackendUnsupportedType\""),
+        stdout.contains("pub fn serow_test_rust_same_text_v1(serow_x: String) -> bool"),
         "{stdout}"
+    );
+    assert!(
+        stdout.contains("serow_x.clone() == serow_x.clone()"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("pub fn serow_test_rust_greet_v1(serow_name: String) -> String"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("format!(\\\"{}{}\\\", String::from(\\\"hi, \\\"), serow_name.clone())"),
+        "{stdout}"
+    );
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["compile", "rust", &source.to_string_lossy()])
+        .output()
+        .expect("run compile rust text mode");
+    assert!(output.status.success(), "{output:#?}");
+    let generated = dir.join("generated.rs");
+    fs::write(&generated, &output.stdout).expect("write generated rust");
+    let rustc_output = Command::new("rustc")
+        .args(["--crate-type", "lib"])
+        .arg(&generated)
+        .arg("-o")
+        .arg(dir.join("libgenerated.rlib"))
+        .output()
+        .expect("run rustc");
+    assert!(
+        rustc_output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&rustc_output.stdout),
+        String::from_utf8_lossy(&rustc_output.stderr)
     );
     let _ = fs::remove_dir_all(dir);
 }

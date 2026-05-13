@@ -96,8 +96,9 @@ Selection policy for generic implementation prompts:
   - `bin/serow compile rust [paths...] [--json]`
   - runs the checked IR lowering path first and refuses to emit Rust when checker or IR lowering errors are present
   - emits deterministic Rust source on stdout in text mode and includes the generated source plus symbol-to-Rust-name rows in JSON mode
-  - supports pure public functions over `Int` and `Bool` in the current expression subset, including arithmetic, comparisons, boolean operators, `if`, unary operators, and resolved function calls
-  - rejects unsupported `Text` lowering and non-`pure` functions with explicit backend diagnostics instead of generating partial code
+  - supports pure public functions over `Int`, `Bool`, and `Text` in the current expression subset, including arithmetic, text concatenation, comparisons, boolean operators, `if`, unary operators, and resolved function calls
+  - maps Serow `Text` to owned Rust `String` values in generated source
+  - rejects non-`pure` functions with explicit backend diagnostics instead of generating partial code
 - Structured patch commands:
   - `bin/serow patch add-function <path> <module> <signature> <intent> [--json]`
   - `bin/serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]`
@@ -1441,6 +1442,28 @@ bin/serow certify --profile unattended --json
 bin/serow compile rust examples/math.serow --json
 ```
 
+Additional verification after adding Rust backend `Text` lowering:
+
+```sh
+bin/serow query intent "generate Rust backend artifact for Text functions" --json
+bin/serow query symbol "Text" --json
+bin/serow query symbol "compile rust" --json
+bin/serow query type "Text -> Text" --json
+cargo fmt --check
+cargo test compile_rust -- --nocapture
+cargo clippy -- -D warnings
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+bin/serow agent --json
+bin/serow compile rust examples/math.serow --json
+git diff --check
+```
+
 `bin/serow check --json` currently reports:
 
 ```json
@@ -1468,7 +1491,7 @@ bin/serow compile rust examples/math.serow --json
 - Evidence patching can append or replace individual contract/example/property items, but dependent impact and evidence policy are still enforced by `serow plan` and unattended certification rather than by the patch command itself.
 - Formatting parses and re-emits the bootstrap projection; comments are not preserved yet.
 - The hand-written JSON output should eventually be replaced with `serde_json` once external dependencies are allowed/desired.
-- `serow compile rust` emits deterministic Rust source for pure checked `Int`/`Bool` functions, but `Text`, effectful functions, ownership-friendly state transforms, WASM, TypeScript, Python, and backend file/package generation do not exist yet.
+- `serow compile rust` emits deterministic Rust source for pure checked `Int`/`Bool`/`Text` functions, but effectful functions, ownership-friendly state transforms, WASM, TypeScript, Python, and backend file/package generation do not exist yet.
 - Structured repair actions currently cover only command-style fixes already exposed by the bootstrap CLI.
 - `query callees` and `query dependents` report direct resolved call edges; use `query impact` for direct and transitive dependent paths. Ambiguous bare calls are intentionally skipped by ledger queries because they are checker errors.
 - `serow plan` is an early reporting primitive; it treats explicit path arguments as the selected change set, reports semantic change labels plus inferred direct-call capability requirements, suggested effect declarations, sampled-property coverage hints, and advisory lexical arithmetic intent/implementation mismatch risks for changed symbols, and compares public contract-surface, removed public symbols, declared capabilities, normalized implementation text, and evidence sections against `HEAD` when a tracked baseline is available. It reports whether added examples/properties directly call changed implementations, whether that added evidence would fail against the `HEAD` implementation, and whether impacted dependent call edges are covered by executable examples or sampled properties, but it does not yet compare full implementation AST behavior.
@@ -1481,5 +1504,5 @@ The roadmap is now in cross-phase implementation mode. Phase 3 backend work is t
 - keep the checker/interpreter responsible for compile-time evidence
 - make `serow.ir.v0` stable enough for backend consumers
 - lower all supported bootstrap expressions with explicit resolved call targets
-- expand Rust transpilation from the current pure `Int`/`Bool` subset toward `Text`, effectful boundaries, and backend artifact layout without weakening source identity, effects, or evidence semantics
+- expand Rust transpilation from the current pure expression subset toward effectful boundaries and backend artifact layout without weakening source identity, effects, or evidence semantics
 - keep generated backend artifacts separate from `.serow` source of truth

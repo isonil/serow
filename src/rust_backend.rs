@@ -67,6 +67,7 @@ pub fn generate_checked_rust(
 fn generate_rust_program(ir: &IrProgram) -> Result<GeneratedRustProgram, Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let rust_names = rust_function_names(&ir.functions);
+    let signatures = rust_function_signatures(&ir.functions);
     let mut rendered_functions = Vec::new();
     let mut generated_functions = Vec::new();
 
@@ -100,7 +101,7 @@ fn generate_rust_program(ir: &IrProgram) -> Result<GeneratedRustProgram, Vec<Dia
             continue;
         };
 
-        match render_function(function, &rust_name, &rust_names) {
+        match render_function(function, &rust_name, &rust_names, &signatures) {
             Ok(source) => {
                 rendered_functions.push(source);
                 generated_functions.push(GeneratedRustFunction {
@@ -134,9 +135,11 @@ fn render_function(
     function: &IrFunction,
     rust_name: &str,
     rust_names: &HashMap<String, String>,
+    signatures: &HashMap<String, RustFunctionSignature>,
 ) -> Result<String, Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let mut variables = HashMap::new();
+    let mut variable_types = HashMap::new();
     let mut allocated_params = HashMap::<String, usize>::new();
     let mut params = Vec::new();
     for param in &function.params {
@@ -153,6 +156,7 @@ fn render_function(
         };
         let rust_param_name = allocate_rust_identifier(&param.name, &mut allocated_params);
         variables.insert(param.name.clone(), rust_param_name.clone());
+        variable_types.insert(param.name.clone(), param.type_name.clone());
         params.push(format!("{rust_param_name}: {rust_type}"));
     }
     let return_type = match rust_type(&function.return_type) {
@@ -170,51 +174,118 @@ fn render_function(
         return Err(diagnostics);
     }
 
-    let body = render_expr(&function.body, &variables, rust_names)
-        .map(|body| strip_outer_parens(&body).to_string())
-        .map_err(|message| vec![backend_error(function, message)])?;
+    let body = render_expr(
+        &function.body,
+        &variables,
+        &variable_types,
+        rust_names,
+        signatures,
+    )
+    .map(|body| strip_outer_parens(&body.code).to_string())
+    .map_err(|message| vec![backend_error(function, message)])?;
     Ok(format!(
         "pub fn {rust_name}({}) -> {return_type} {{\n    {body}\n}}",
         params.join(", ")
     ))
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct RustFunctionSignature {
+    params: Vec<String>,
+    return_type: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct RenderedExpr {
+    code: String,
+    type_name: String,
+}
+
 fn render_expr(
     expr: &IrExpr,
     variables: &HashMap<String, String>,
+    variable_types: &HashMap<String, String>,
     rust_names: &HashMap<String, String>,
-) -> Result<String, String> {
+    signatures: &HashMap<String, RustFunctionSignature>,
+) -> Result<RenderedExpr, String> {
     match expr {
-        IrExpr::Int(value) => Ok(value.to_string()),
-        IrExpr::Bool(value) => Ok(value.to_string()),
-        IrExpr::Text(_) => {
-            Err("Text expressions are not supported by the Rust backend yet.".to_string())
+        IrExpr::Int(value) => Ok(rendered(value.to_string(), "Int")),
+        IrExpr::Bool(value) => Ok(rendered(value.to_string(), "Bool")),
+        IrExpr::Text(value) => Ok(rendered(
+            format!("String::from({})", rust_string_literal(value)),
+            "Text",
+        )),
+        IrExpr::Var(name) => {
+            let variable = variables
+                .get(name)
+                .ok_or_else(|| format!("Unknown lowered variable `{name}`."))?;
+            let type_name = variable_types
+                .get(name)
+                .ok_or_else(|| format!("Unknown lowered variable type for `{name}`."))?;
+            let code = if type_name == "Text" {
+                format!("{variable}.clone()")
+            } else {
+                variable.clone()
+            };
+            Ok(RenderedExpr {
+                code,
+                type_name: type_name.clone(),
+            })
         }
-        IrExpr::Var(name) => variables
-            .get(name)
-            .cloned()
-            .ok_or_else(|| format!("Unknown lowered variable `{name}`.")),
         IrExpr::Call { target, args, .. } => {
             let rust_name = rust_names
                 .get(target)
                 .ok_or_else(|| format!("No Rust target was generated for call to `{target}`."))?;
+            let signature = signatures
+                .get(target)
+                .ok_or_else(|| format!("No Rust signature was recorded for call to `{target}`."))?;
             let args = args
                 .iter()
-                .map(|arg| render_expr(arg, variables, rust_names))
+                .map(|arg| render_expr(arg, variables, variable_types, rust_names, signatures))
                 .collect::<Result<Vec<_>, _>>()?;
-            Ok(format!("{rust_name}({})", args.join(", ")))
+            if args.len() != signature.params.len() {
+                return Err(format!(
+                    "Call to `{target}` has {} lowered arguments, expected {}.",
+                    args.len(),
+                    signature.params.len()
+                ));
+            }
+            for (index, (arg, expected)) in args.iter().zip(&signature.params).enumerate() {
+                if &arg.type_name != expected {
+                    return Err(format!(
+                        "Call to `{target}` argument {} lowered as {}, expected {}.",
+                        index + 1,
+                        arg.type_name,
+                        expected
+                    ));
+                }
+            }
+            Ok(RenderedExpr {
+                code: format!(
+                    "{rust_name}({})",
+                    args.iter()
+                        .map(|arg| arg.code.clone())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+                type_name: signature.return_type.clone(),
+            })
         }
         IrExpr::Unary { op, expr } => {
-            let expr = render_expr(expr, variables, rust_names)?;
+            let expr = render_expr(expr, variables, variable_types, rust_names, signatures)?;
             let operator = match op {
                 IrUnaryOp::Neg => "-",
                 IrUnaryOp::Not => "!",
             };
-            Ok(format!("({operator}{expr})"))
+            let type_name = match op {
+                IrUnaryOp::Neg => "Int",
+                IrUnaryOp::Not => "Bool",
+            };
+            Ok(rendered(format!("({operator}{})", expr.code), type_name))
         }
         IrExpr::Binary { op, left, right } => {
-            let left = render_expr(left, variables, rust_names)?;
-            let right = render_expr(right, variables, rust_names)?;
+            let left = render_expr(left, variables, variable_types, rust_names, signatures)?;
+            let right = render_expr(right, variables, variable_types, rust_names, signatures)?;
             let operator = match op {
                 IrBinaryOp::Add => "+",
                 IrBinaryOp::Sub => "-",
@@ -230,23 +301,63 @@ fn render_expr(
                 IrBinaryOp::And => "&&",
                 IrBinaryOp::Or => "||",
             };
-            Ok(format!("({left} {operator} {right})"))
+            let type_name = match op {
+                IrBinaryOp::Add if left.type_name == "Text" && right.type_name == "Text" => {
+                    return Ok(rendered(
+                        format!("format!(\"{{}}{{}}\", {}, {})", left.code, right.code),
+                        "Text",
+                    ));
+                }
+                IrBinaryOp::Add => "Int",
+                IrBinaryOp::Sub | IrBinaryOp::Mul | IrBinaryOp::DivTrunc | IrBinaryOp::Rem => "Int",
+                IrBinaryOp::Eq
+                | IrBinaryOp::NotEq
+                | IrBinaryOp::Lt
+                | IrBinaryOp::LtEq
+                | IrBinaryOp::Gt
+                | IrBinaryOp::GtEq
+                | IrBinaryOp::And
+                | IrBinaryOp::Or => "Bool",
+            };
+            Ok(rendered(
+                format!("({} {operator} {})", left.code, right.code),
+                type_name,
+            ))
         }
         IrExpr::If {
             condition,
             then_expr,
             else_expr,
         } => {
-            let condition = render_expr(condition, variables, rust_names)?;
-            let then_expr = render_expr(then_expr, variables, rust_names)?;
-            let else_expr = render_expr(else_expr, variables, rust_names)?;
-            Ok(format!(
-                "if {} {{ {} }} else {{ {} }}",
-                strip_outer_parens(&condition),
-                strip_outer_parens(&then_expr),
-                strip_outer_parens(&else_expr)
-            ))
+            let condition =
+                render_expr(condition, variables, variable_types, rust_names, signatures)?;
+            let then_expr =
+                render_expr(then_expr, variables, variable_types, rust_names, signatures)?;
+            let else_expr =
+                render_expr(else_expr, variables, variable_types, rust_names, signatures)?;
+            if then_expr.type_name != else_expr.type_name {
+                return Err(format!(
+                    "Lowered if branches have mismatched types {} and {}.",
+                    then_expr.type_name, else_expr.type_name
+                ));
+            }
+            Ok(RenderedExpr {
+                code: format!(
+                    "if {} {{ {} }} else {{ {} }}",
+                    strip_outer_parens(&condition.code),
+                    strip_outer_parens(&then_expr.code),
+                    strip_outer_parens(&else_expr.code)
+                ),
+                type_name: then_expr.type_name,
+            })
         }
+    }
+}
+
+fn rendered(code: String, type_name: &str) -> RenderedExpr {
+    RenderedExpr {
+        code,
+        type_name: type_name.to_string(),
     }
 }
 
@@ -270,15 +381,49 @@ fn rust_function_names(functions: &[IrFunction]) -> HashMap<String, String> {
     names
 }
 
+fn rust_function_signatures(functions: &[IrFunction]) -> HashMap<String, RustFunctionSignature> {
+    functions
+        .iter()
+        .map(|function| {
+            (
+                function.symbol.clone(),
+                RustFunctionSignature {
+                    params: function
+                        .params
+                        .iter()
+                        .map(|param| param.type_name.clone())
+                        .collect(),
+                    return_type: function.return_type.clone(),
+                },
+            )
+        })
+        .collect()
+}
+
 fn rust_type(type_name: &str) -> Result<&'static str, String> {
     match type_name {
         "Int" => Ok("i64"),
         "Bool" => Ok("bool"),
-        "Text" => {
-            Err("Text lowering needs an ownership policy and is not emitted yet.".to_string())
-        }
+        "Text" => Ok("String"),
         other => Err(format!("Unknown backend type `{other}`.")),
     }
+}
+
+fn rust_string_literal(value: &str) -> String {
+    let mut escaped = String::from("\"");
+    for char in value.chars() {
+        match char {
+            '"' => escaped.push_str("\\\""),
+            '\\' => escaped.push_str("\\\\"),
+            '\n' => escaped.push_str("\\n"),
+            '\r' => escaped.push_str("\\r"),
+            '\t' => escaped.push_str("\\t"),
+            char if char.is_control() => escaped.push_str(&format!("\\u{{{:x}}}", char as u32)),
+            char => escaped.push(char),
+        }
+    }
+    escaped.push('"');
+    escaped
 }
 
 fn rust_identifier(name: &str) -> String {

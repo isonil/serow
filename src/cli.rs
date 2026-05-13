@@ -2506,7 +2506,7 @@ fn agent_json() -> String {
         str_array_json(&[
             "Properties are sampled, not proven; replay uses deterministic seeds.",
             "Intent search is deterministic token ranking, not semantic embeddings.",
-            "Rust backend emission is limited to pure Int/Bool functions.",
+            "Rust backend emission is limited to pure Int/Bool/Text functions.",
             "Expression support is intentionally small and formatting does not preserve comments.",
             "JSON output is hand-written until external dependencies are accepted."
         ])
@@ -2713,7 +2713,7 @@ fn print_agent_bootstrap() {
     println!("known limits:");
     println!("  properties are sampled, not proven");
     println!("  intent search is token-ranked, not semantic embeddings");
-    println!("  Rust backend emission is limited to pure Int/Bool functions");
+    println!("  Rust backend emission is limited to pure Int/Bool/Text functions");
     println!("  expression support is small and formatting does not preserve comments");
 }
 

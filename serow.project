@@ -127,7 +127,8 @@
     "migration_records_acknowledge_unattended_gate_decisions": true,
     "plan_reports_impact_evidence_coverage": true,
     "portable_ir_backend": true,
-    "rust_backend_codegen": true
+    "rust_backend_codegen": true,
+    "rust_backend_text_codegen": true
   },
   "source_roots": [
     "examples"

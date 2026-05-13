@@ -26,7 +26,7 @@ The current implementation is a bootstrap toolchain written in dependency-free R
 - unattended certification gates for explicit versions, same-version public contract-surface changes, public symbol removal without a same-name replacement version, capability expansion, implementation changes without added executable evidence, added implementation evidence that does not call the function under test or would still pass against the HEAD implementation, implementation/evidence drift, evidence weakening against Git `HEAD`, unchecked dependent impact, uncovered impacted call edges, and stale migration acknowledgements, with explicit migration records for intentional decisions
 - strict-profile validation for structured diagnostic repair actions
 - a first portable backend IR emitted by `bin/serow compile ir`
-- a first Rust backend source emitter for pure `Int`/`Bool` functions through `bin/serow compile rust`
+- a first Rust backend source emitter for pure `Int`/`Bool`/`Text` functions through `bin/serow compile rust`
 
 Print the current compact agent bootstrap contract:
 
@@ -68,7 +68,7 @@ bin/serow compile rust examples/math.serow
 bin/serow compile rust examples/math.serow --json
 ```
 
-`compile rust` runs the same checked IR path first, then emits deterministic Rust source on stdout. The first backend slice supports pure functions over `Int` and `Bool`; `Text` and effectful functions produce backend diagnostics instead of generated code.
+`compile rust` runs the same checked IR path first, then emits deterministic Rust source on stdout. The first backend slice supports pure functions over `Int`, `Bool`, and `Text`; effectful functions produce backend diagnostics instead of generated code.
 
 Format Serow source into the canonical textual projection:
 
