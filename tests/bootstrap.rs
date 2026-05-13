@@ -1418,13 +1418,23 @@ pub fn id(x: Int) -> Int
 
     let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
     let summary = check_program(&program, parse_diagnostics);
+    let diagnostic = summary
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "AmbiguousUnqualifiedCall")
+        .expect("ambiguous unqualified call diagnostic");
     assert!(
-        summary
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == "AmbiguousUnqualifiedCall"),
-        "{:#?}",
-        summary.diagnostics
+        diagnostic.repair_actions.iter().any(|action| {
+            action.command
+                == vec![
+                    "bin/serow".to_string(),
+                    "query".to_string(),
+                    "symbol".to_string(),
+                    "id".to_string(),
+                    source.to_string_lossy().to_string(),
+                ]
+        }),
+        "{diagnostic:#?}"
     );
     let _ = fs::remove_dir_all(dir);
 }

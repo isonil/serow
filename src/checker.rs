@@ -362,6 +362,16 @@ fn check_ambiguous_unqualified_calls(program: &Program, summary: &mut CheckSumma
                     )
                     .with_data("context", context)
                     .with_data("expression", &expression)
+                    .with_command_repair(
+                        "Inspect candidate symbols",
+                        vec![
+                            "bin/serow".to_string(),
+                            "query".to_string(),
+                            "symbol".to_string(),
+                            call_reference.name,
+                            function.source_path.clone(),
+                        ],
+                    )
                     .with_repair(
                         "Use `module.name(...)` or `@module.name.vN(...)` for ambiguous calls.",
                     ),

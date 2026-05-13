@@ -25,7 +25,7 @@ Date: 2026-05-13
   - near-duplicate public intent warnings using deterministic token-ranked intent overlap with shared/new-only/candidate-only term difference data
   - duplicate examples, duplicate contract clauses, duplicate sampled property blocks, and sampled properties with no bound variables as low-signal evidence warnings
   - sampled properties that do not directly call the public function under test as low-signal evidence warnings
-  - ambiguous bare-call diagnostics with qualified-reference repair guidance
+  - ambiguous bare-call diagnostics with qualified-reference repair guidance and structured symbol lookup repair actions
   - sampled `forall` properties over deterministic `Int`, `Bool`, and `Text` sample sets
   - deterministic sampled-property failure replay data with property indexes, sample indexes, seed strings, sampled bindings, and single-sample replay repair actions
   - deterministic sampled-property shrink data for failing properties when a simpler failing binding exists in the built-in samples
@@ -107,7 +107,7 @@ Date: 2026-05-13
 - `patch rename-function` renames a public function and rewrites resolved call references in the patched source, using exact `@module.name.vN(...)` references when the new bare name would be ambiguous.
 - Structured JSON diagnostic repair actions:
   - command repair actions are emitted as `repair_actions` alongside legacy `repairs`
-  - currently used for format drift, missing module dependencies, forbidden declared module dependencies, duplicate-intent lookup, implicit-version fixes in unattended certification, and effect capability declaration repairs
+  - currently used for format drift, missing module dependencies, forbidden declared module dependencies, ambiguous bare-call symbol lookup, duplicate-intent lookup, implicit-version fixes in unattended certification, and effect capability declaration repairs
 - Deterministic source formatting:
   - `bin/serow fmt [paths...]`
   - `bin/serow fmt [paths...] --check`
@@ -1035,6 +1035,25 @@ bin/serow certify --json
 bin/serow certify --profile unattended --json
 bin/serow plan --json
 bin/serow agent --json
+```
+
+Additional verification after adding ambiguous-call symbol lookup repair actions:
+
+```sh
+bin/serow query intent "repair ambiguous unqualified call diagnostics" --json
+bin/serow query symbol "AmbiguousUnqualifiedCall" --json
+cargo fmt --check
+cargo test ambiguous_unqualified_calls_are_reported -- --nocapture
+cargo clippy -- -D warnings
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+bin/serow agent --json
+git diff --check
 ```
 
 `cargo test` includes integration coverage for `bin/serow patch add-function`.

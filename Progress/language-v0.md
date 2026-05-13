@@ -93,7 +93,7 @@ Public symbols carry a source-level version in their canonical symbol identity, 
 
 `bin/serow query impact <symbol-or-name> [paths...] [--json]` reports direct and transitive dependents through resolved call paths. Each row includes the dependent, target, path depth, a symbol path from dependent to target, and the immediate call sites connecting the dependent to the next function on that path. Ambiguous bare calls are skipped in ledger output because the checker already rejects them.
 
-Duplicate unqualified function names are allowed when call sites are disambiguated with qualified references. Ambiguous bare calls produce `AmbiguousUnqualifiedCall` diagnostics instead of silently choosing a candidate.
+Duplicate unqualified function names are allowed when call sites are disambiguated with qualified references. Ambiguous bare calls produce `AmbiguousUnqualifiedCall` diagnostics instead of silently choosing a candidate. The diagnostics include candidate canonical symbols plus a structured `query symbol` repair action so agents can inspect the overload set before rewriting the call with `module.name(...)`, `module.name.vN(...)`, or `@module.name.vN(...)`.
 
 ## Change Plans
 
@@ -153,7 +153,7 @@ This is a deliberately weak early version of certification. Later phases should 
 
 ## Diagnostics
 
-JSON diagnostics include stable core fields such as `severity`, `code`, `message`, optional `target`, and optional `data`. Diagnostics can also include legacy human-readable `repairs` strings and machine-readable `repair_actions`. The first repair action kind is `command`, encoded with a human label and an argv-style `command` array so agents can run known CLI repairs without parsing prose. Current command actions cover canonical formatting, missing `use` declarations, forbidden declared `use` removals, duplicate-intent ledger lookup, duplicate evidence and low-signal property removal, explicit-version fixes for unattended certification, effect capability declaration repairs, and sampled-property replay.
+JSON diagnostics include stable core fields such as `severity`, `code`, `message`, optional `target`, and optional `data`. Diagnostics can also include legacy human-readable `repairs` strings and machine-readable `repair_actions`. The first repair action kind is `command`, encoded with a human label and an argv-style `command` array so agents can run known CLI repairs without parsing prose. Current command actions cover canonical formatting, missing `use` declarations, forbidden declared `use` removals, ambiguous-call symbol lookup, duplicate-intent ledger lookup, duplicate evidence and low-signal property removal, explicit-version fixes for unattended certification, effect capability declaration repairs, and sampled-property replay.
 
 `TypedHole` diagnostics include structured `data` for the target symbol, signature, hole type, expected return type, and implementation obligations derived from the function's return type, `requires`, `ensures`, examples, and sampled `forall` properties. These obligations are hints for filling the hole; the checker still validates the resulting implementation through the normal static and executable evidence gates.
 

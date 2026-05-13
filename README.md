@@ -12,6 +12,7 @@ The current implementation is a bootstrap toolchain written in dependency-free R
 - explicit effects with direct-call capability subset checks and conservative unused declared-capability warnings
 - explicit and inferred module dependencies checked against `serow.project`
 - exact duplicate public intent errors and near-duplicate intent warnings with structured overlap/difference data
+- ambiguous bare-call diagnostics with candidate symbols and a structured symbol lookup repair action
 - typed-hole diagnostics with structured implementation obligations derived from signatures, contracts, examples, and sampled properties
 - duplicate public examples, contract clauses, sampled property blocks, sampled properties with no bound variables, and sampled properties that do not call the function under test reported as low-signal evidence warnings, with indexed removal repair actions where available
 - sampled properties over built-in `Int`, `Bool`, and `Text` sample sets, with deterministic sample indexes, seed strings, bindings, simpler shrunk failing bindings when available, and a single-sample replay command for failures
