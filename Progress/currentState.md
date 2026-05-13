@@ -41,11 +41,12 @@ Date: 2026-05-13
 - Semantic ledger queries:
   - `bin/serow query intent "<description>"` with deterministic token-ranked matching
   - `bin/serow query symbol "<name>"`
+  - `bin/serow query type "<type-or-shape>"`
   - `bin/serow query symbols`
   - `bin/serow query callees "<symbol-or-name>"`
   - `bin/serow query dependents "<symbol-or-name>"`
   - `bin/serow query impact "<symbol-or-name>"` with direct and transitive dependent paths
-- Symbol query JSON exposes source-level version metadata separately from the canonical symbol string.
+- Symbol, intent, and type query JSON expose source-level version metadata separately from the canonical symbol string.
 - Agent bootstrap command:
   - `bin/serow agent`
   - `bin/serow agent --json`
@@ -226,6 +227,27 @@ Additional verification after mirroring Python evidence-removal repair actions:
 
 ```sh
 cargo fmt --check
+cargo clippy -- -D warnings
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+bin/serow agent --json
+git diff --check
+```
+
+Additional verification after adding type-shape ledger queries:
+
+```sh
+bin/serow query intent "find public functions by type signature" --json
+bin/serow query symbol "query type" --json
+cargo fmt --check
+cargo test type_query_finds_functions_by_signature_shape -- --nocapture
+cargo test agent_json_includes_machine_readable_workflow -- --nocapture
+bin/serow query type "Int, Int -> Int" --json
 cargo clippy -- -D warnings
 cargo test
 python3 -m unittest discover -s tests

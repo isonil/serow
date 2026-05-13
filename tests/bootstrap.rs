@@ -6,7 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serow::checker::check_program;
 use serow::diagnostic::{Diagnostic, RepairAction, validate_repair_actions};
 use serow::formatter::format_paths;
-use serow::ledger::query_intent;
+use serow::ledger::{query_intent, query_type};
 use serow::parser::parse_paths;
 use serow::project::parse_architecture;
 
@@ -1363,6 +1363,42 @@ fn intent_query_uses_ranked_content_tokens() {
 }
 
 #[test]
+fn type_query_finds_functions_by_signature_shape() {
+    let (program, parse_diagnostics) = parse_paths(&["examples".to_string()]);
+    assert!(parse_diagnostics.is_empty());
+
+    let exact_matches = query_type(&program, "Int, Int -> Int", 10);
+    assert!(!exact_matches.is_empty(), "{exact_matches:#?}");
+    assert_eq!(exact_matches[0].function.name, "add");
+    assert!(
+        exact_matches[0]
+            .reasons
+            .iter()
+            .any(|reason| reason == "return:Int"),
+        "{exact_matches:#?}"
+    );
+
+    let wildcard_matches = query_type(&program, "_ -> Int", 10);
+    let wildcard_names = wildcard_matches
+        .iter()
+        .map(|query_match| query_match.function.name.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(wildcard_names, ["abs"], "{wildcard_matches:#?}");
+
+    let cli = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["query", "type", "Int, Int -> Int", "examples", "--json"])
+        .output()
+        .expect("run serow query type");
+    assert!(cli.status.success(), "{cli:#?}");
+    let stdout = String::from_utf8(cli.stdout).expect("stdout is utf8");
+    assert!(
+        stdout.contains("\"symbol\": \"@core.math.add.v1\""),
+        "{stdout}"
+    );
+    assert!(stdout.contains("\"reasons\""), "{stdout}");
+}
+
+#[test]
 fn source_declared_symbol_version_is_part_of_identity() {
     let dir = unique_temp_dir("serow-source-version");
     fs::create_dir_all(&dir).expect("create temp dir");
@@ -1683,6 +1719,10 @@ fn agent_json_includes_machine_readable_workflow() {
         "{stdout}"
     );
     assert!(stdout.contains("serow query intent <text>"), "{stdout}");
+    assert!(
+        stdout.contains("serow query type <type-or-shape>"),
+        "{stdout}"
+    );
     assert!(stdout.contains("bin/serow certify"), "{stdout}");
 }
 

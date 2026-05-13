@@ -3,7 +3,7 @@ use crate::diagnostic::{Diagnostic, has_errors, validate_repair_actions};
 use crate::formatter::{FormatSummary, format_paths};
 use crate::ledger::{
     Callee, Dependent, ImpactDependent, query_callees, query_dependents, query_impact,
-    query_intent, query_symbol, symbols,
+    query_intent, query_symbol, query_type, symbols,
 };
 use crate::model::Function;
 use crate::parser::parse_paths;
@@ -707,6 +707,21 @@ fn run_query(args: &[String]) -> i32 {
                 return 1;
             }
             let matches = query_symbol(&program, text_or_flag, 20);
+            if json_output {
+                println!("{}", query_matches_json(&matches));
+            } else {
+                print_query_matches(&matches);
+            }
+            0
+        }
+        "type" => {
+            let (paths, json_output) = split_paths_and_json(&args[2..]);
+            let (program, parse_diagnostics) = parse_paths(&paths);
+            if has_errors(&parse_diagnostics) {
+                println!("{}", diagnostics_json(false, &parse_diagnostics));
+                return 1;
+            }
+            let matches = query_type(&program, text_or_flag, 20);
             if json_output {
                 println!("{}", query_matches_json(&matches));
             } else {
@@ -1946,6 +1961,11 @@ fn agent_json() -> String {
             "Find public functions by symbol or signature text.",
         ),
         (
+            "query type",
+            "serow query type <type-or-shape> [paths...] [--json]",
+            "Find public functions by parameter and return type shape.",
+        ),
+        (
             "query symbols",
             "serow query symbols [paths...] [--json]",
             "List all public symbols in the parsed source set.",
@@ -2250,6 +2270,7 @@ fn print_agent_bootstrap() {
     println!("  serow query impact <symbol-or-name> [paths...] [--json]");
     println!("  serow query intent <text> [paths...] [--json]  # token-ranked");
     println!("  serow query symbol <text> [paths...] [--json]");
+    println!("  serow query type <type-or-shape> [paths...] [--json]");
     println!("  serow query symbols [paths...] [--json]");
     println!("  serow replay property <sample-seed> [paths...] [--json]");
     println!("verification gates:");
@@ -2360,6 +2381,7 @@ fn print_usage() {
     eprintln!("  serow query impact <symbol-or-name> [paths...] [--json]");
     eprintln!("  serow query intent <text> [paths...] [--json]");
     eprintln!("  serow query symbol <text> [paths...] [--json]");
+    eprintln!("  serow query type <type-or-shape> [paths...] [--json]");
     eprintln!("  serow query symbols [paths...] [--json]");
     eprintln!("  serow replay property <sample-seed> [paths...] [--json]");
 }
@@ -2412,6 +2434,7 @@ fn print_query_usage() {
     eprintln!("  serow query impact <symbol-or-name> [paths...] [--json]");
     eprintln!("  serow query intent <text> [paths...] [--json]");
     eprintln!("  serow query symbol <text> [paths...] [--json]");
+    eprintln!("  serow query type <type-or-shape> [paths...] [--json]");
     eprintln!("  serow query symbols [paths...] [--json]");
 }
 

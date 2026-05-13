@@ -87,6 +87,8 @@ Intent queries use deterministic token ranking. The query path filters common st
 
 Public symbols carry a source-level version in their canonical symbol identity, for example `@core.math.add.v1`. The textual projection accepts a function-level `version vN` section after `intent`; omitted versions default to `v1` for compatibility with older bootstrap sources. Ledger JSON exposes the version as a separate `version` field so agents can depend on it without parsing the symbol string.
 
+`bin/serow query type <type-or-shape> [paths...] [--json]` finds public functions by parameter and return type shape. The bootstrap accepts exact shapes such as `Int, Int -> Int`, wildcard shapes such as `_ -> Int`, and simple type-token queries such as `Text`. This is a deterministic ledger lookup over declared signatures, not type inference.
+
 `bin/serow query dependents <symbol-or-name> [paths...] [--json]` reports direct dependents discovered from implementation, contract, example, and property expressions. The bootstrap resolves call edges with the same rule as the checker: bare calls must resolve unambiguously, while qualified calls can target `module.name(...)`, `module.name.vN(...)`, or exact `@module.name.vN(...)` references.
 
 `bin/serow query callees <symbol-or-name> [paths...] [--json]` reports direct outgoing callees discovered from implementation, contract, example, and property expressions. It is the forward-call companion to `query dependents`, intended for auditing a symbol's immediate dependencies, required capabilities, and call contexts before edits.

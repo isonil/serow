@@ -20,6 +20,7 @@ The current implementation is a bootstrap toolchain written in dependency-free R
 - sampled properties over built-in `Int`, `Bool`, and `Text` sample sets, with deterministic sample indexes, seed strings, bindings, simpler shrunk failing bindings when available, and a single-sample replay command for failures
 - structured JSON diagnostics with machine-readable repair actions where available
 - a semantic ledger for agent queries, including token-ranked intent search, direct callees, direct dependents, and transitive impact paths
+- type-shape ledger lookup for finding public functions by parameter and return types
 - a first machine-readable change plan for changed symbols, semantic change labels, inferred direct-call capability requirements, sampled-property coverage hints, advisory intent/implementation mismatch risks, public contract-surface changes, capability changes, public implementation changes, implementation evidence coverage and HEAD-sensitivity, implementation/evidence drift, migration acknowledgements, stale migration acknowledgements, impact, impact-edge evidence coverage, HEAD evidence deltas, and residual risk
 - unattended certification gates for explicit versions, same-version public contract-surface changes, capability expansion, implementation changes without added executable evidence, added implementation evidence that does not call the function under test or would still pass against the HEAD implementation, implementation/evidence drift, evidence weakening against Git `HEAD`, unchecked dependent impact, uncovered impacted call edges, and stale migration acknowledgements, with explicit migration records for intentional decisions
 - strict-profile validation for structured diagnostic repair actions
@@ -102,10 +103,13 @@ Query the project ledger:
 ```sh
 bin/serow query intent "add two integers"
 bin/serow query symbol add
+bin/serow query type "Int, Int -> Int"
 bin/serow query callees @core.math.add.v1
 bin/serow query dependents @core.math.add.v1
 bin/serow query impact @core.math.add.v1
 ```
+
+`query type` accepts exact bootstrap type shapes such as `Int, Int -> Int`, wildcard shapes such as `_ -> Int`, and simple type-token queries such as `Text`.
 
 Replay a failing sampled property from a diagnostic seed. Built-in property samples currently include `Int` values `-2, -1, 0, 1, 2, -10, 10`, both `Bool` values, and representative `Text` values including empty, short, spaced, and numeric-looking strings. Failed replay diagnostics include shrink hint fields when a simpler failing sampled binding exists.
 

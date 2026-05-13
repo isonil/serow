@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "0.4.52-rust-bootstrap",
+  "version": "0.4.53-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -37,6 +37,7 @@
     "query_impact": "bin/serow query impact \"<symbol-or-name>\"",
     "query_intent": "bin/serow query intent \"<description>\"",
     "query_symbol": "bin/serow query symbol \"<name>\"",
+    "query_type": "bin/serow query type \"<type-or-shape>\"",
     "replay_property": "bin/serow replay property \"<sample-seed>\" [paths...]",
     "json_diagnostics": "diagnostics may include repair_actions with argv-style command arrays"
   },
@@ -54,6 +55,7 @@
     "structured_function_insertion_rejects_duplicate_intents": true,
     "duplicate_intent_diagnostics_report_term_differences": true,
     "near_duplicate_public_intents_warned": true,
+    "type_shape_ledger_queries": true,
     "duplicate_evidence_warned": true,
     "duplicate_migrations_warned": true,
     "shallow_examples_warned": true,

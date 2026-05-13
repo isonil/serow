@@ -150,6 +150,31 @@ pub fn query_symbol(program: &Program, text: &str, limit: usize) -> Vec<QueryMat
     matches
 }
 
+pub fn query_type(program: &Program, text: &str, limit: usize) -> Vec<QueryMatch> {
+    let Some(query) = TypeQuery::parse(text) else {
+        return Vec::new();
+    };
+    let mut matches = Vec::new();
+    for function in &program.functions {
+        if let Some((score, reasons)) = query.score(function) {
+            matches.push(QueryMatch {
+                score,
+                function: function.clone(),
+                reasons,
+            });
+        }
+    }
+    matches.sort_by(|left, right| {
+        right
+            .score
+            .partial_cmp(&left.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| left.function.symbol().cmp(&right.function.symbol()))
+    });
+    matches.truncate(limit);
+    matches
+}
+
 pub fn symbols(program: &Program) -> Vec<Function> {
     let mut functions = program.functions.clone();
     functions.sort_by_key(Function::symbol);
@@ -488,6 +513,148 @@ fn is_intent_stopword(token: &str) -> bool {
             | "while"
             | "with"
     )
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct TypeQuery {
+    params: Option<Vec<Option<String>>>,
+    return_type: Option<Option<String>>,
+    tokens: Vec<String>,
+}
+
+impl TypeQuery {
+    fn parse(text: &str) -> Option<Self> {
+        let trimmed = text.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+        if let Some((params, return_type)) = trimmed.split_once("->") {
+            let params = parse_type_list(params);
+            let return_type = parse_type_pattern(return_type.trim())?;
+            return Some(Self {
+                params: Some(params),
+                return_type: Some(return_type),
+                tokens: Vec::new(),
+            });
+        }
+
+        let mut tokens = type_tokens(trimmed);
+        tokens.sort();
+        tokens.dedup();
+        (!tokens.is_empty()).then_some(Self {
+            params: None,
+            return_type: None,
+            tokens,
+        })
+    }
+
+    fn score(&self, function: &Function) -> Option<(f64, Vec<String>)> {
+        if let Some(params) = &self.params
+            && params.len() != function.params.len()
+        {
+            return None;
+        }
+        let mut score = 0.0;
+        let mut reasons = Vec::new();
+
+        if let Some(params) = &self.params {
+            score += 0.2;
+            reasons.push(format!("param-count:{}", params.len()));
+            for (pattern, param) in params.iter().zip(&function.params) {
+                match pattern {
+                    Some(expected) if !type_name_matches(expected, &param.type_name) => {
+                        return None;
+                    }
+                    Some(expected) => {
+                        score += 0.7;
+                        reasons.push(format!("param:{}:{}", param.name, expected));
+                    }
+                    None => {
+                        score += 0.1;
+                        reasons.push(format!("param:{}:_", param.name));
+                    }
+                }
+            }
+        }
+
+        if let Some(return_type) = &self.return_type {
+            match return_type {
+                Some(expected) if !type_name_matches(expected, &function.return_type) => {
+                    return None;
+                }
+                Some(expected) => {
+                    score += 1.0;
+                    reasons.push(format!("return:{expected}"));
+                }
+                None => {
+                    score += 0.1;
+                    reasons.push("return:_".to_string());
+                }
+            }
+        }
+
+        if !self.tokens.is_empty() {
+            for token in &self.tokens {
+                let mut matched = false;
+                if type_name_matches(token, &function.return_type) {
+                    score += 1.0;
+                    reasons.push(format!("return:{token}"));
+                    matched = true;
+                }
+                for param in &function.params {
+                    if type_name_matches(token, &param.type_name) {
+                        score += 0.7;
+                        reasons.push(format!("param:{}:{token}", param.name));
+                        matched = true;
+                    }
+                }
+                if !matched {
+                    return None;
+                }
+            }
+        }
+
+        (score > 0.0).then_some((score, reasons))
+    }
+}
+
+fn parse_type_list(text: &str) -> Vec<Option<String>> {
+    let trimmed = text
+        .trim()
+        .strip_prefix('(')
+        .and_then(|value| value.strip_suffix(')'))
+        .unwrap_or_else(|| text.trim())
+        .trim();
+    if trimmed.is_empty() {
+        return Vec::new();
+    }
+    trimmed
+        .split(',')
+        .filter_map(parse_type_pattern)
+        .collect::<Vec<_>>()
+}
+
+fn parse_type_pattern(text: &str) -> Option<Option<String>> {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    if trimmed == "_" {
+        return Some(None);
+    }
+    Some(Some(trimmed.to_string()))
+}
+
+fn type_tokens(text: &str) -> Vec<String> {
+    text.split(|char: char| char.is_ascii_whitespace() || ",()".contains(char))
+        .map(str::trim)
+        .filter(|token| !token.is_empty() && *token != "_")
+        .map(str::to_string)
+        .collect()
+}
+
+fn type_name_matches(expected: &str, actual: &str) -> bool {
+    expected.eq_ignore_ascii_case(actual)
 }
 
 fn function_expressions(function: &Function) -> Vec<(&'static str, String)> {
