@@ -795,6 +795,85 @@ pub fn id(x: Int) -> Int
 }
 
 #[test]
+fn repeated_public_migrations_are_warned() {
+    let dir = unique_temp_dir("serow-repeated-migrations");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("repeated_migrations.serow");
+    fs::write(
+        &source,
+        r#"module test.migration
+
+pub fn id(x: Int) -> Int
+  intent "Return x with repeated migration notes."
+  version v1
+  migration
+    implementation-change "Documented implementation rewrite."
+    impact-review "Reviewed dependent coverage."
+    implementation-change "Documented implementation rewrite."
+  contract
+    ensures result == x
+  examples
+    id(1) == 1
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(summary.ok(), "{:#?}", summary.diagnostics);
+    let diagnostic = summary
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "DuplicateMigration")
+        .expect("duplicate migration diagnostic");
+    assert_eq!(diagnostic.severity, serow::diagnostic::Severity::Warning);
+    assert!(
+        diagnostic
+            .data
+            .iter()
+            .any(|(key, value)| key == "kind" && value == "implementation-change"),
+        "{diagnostic:#?}"
+    );
+    assert!(
+        diagnostic
+            .data
+            .iter()
+            .any(|(key, value)| key == "first_index" && value == "1"),
+        "{diagnostic:#?}"
+    );
+    assert!(
+        diagnostic
+            .data
+            .iter()
+            .any(|(key, value)| key == "duplicate_index" && value == "2"),
+        "{diagnostic:#?}"
+    );
+    assert!(
+        diagnostic.repair_actions.iter().any(|action| {
+            action.command
+                == vec![
+                    "bin/serow".to_string(),
+                    "patch".to_string(),
+                    "remove-migration".to_string(),
+                    source.to_string_lossy().to_string(),
+                    "@test.migration.id.v1".to_string(),
+                    "implementation-change".to_string(),
+                    "2".to_string(),
+                ]
+        }),
+        "{diagnostic:#?}"
+    );
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn executable_example_without_target_call_warns_as_shallow() {
     let dir = unique_temp_dir("serow-shallow-example");
     fs::create_dir_all(&dir).expect("create temp dir");

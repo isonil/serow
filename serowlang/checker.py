@@ -53,6 +53,7 @@ def check_program(program: Program, parse_diagnostics: List[Diagnostic]) -> Chec
     for function in program.functions:
         _check_function_shape(function, summary)
         _check_repeated_evidence(function, summary)
+        _check_repeated_migrations(function, summary)
     for function in program.functions:
         _check_example_constraints(function, program, summary)
         _check_property_constraints(function, program, summary)
@@ -404,6 +405,58 @@ def _evidence_removal_repair_command(function: Function, kind: str, index: int) 
 
 def _normalize_evidence(evidence: str) -> str:
     return " ".join(evidence.split())
+
+
+def _check_repeated_migrations(function: Function, summary: CheckSummary) -> None:
+    if not function.public:
+        return
+    kind_counts: Dict[str, int] = {}
+    seen: Dict[Tuple[str, str], Tuple[int, str]] = {}
+    for migration in function.migrations:
+        kind_counts[migration.kind] = kind_counts.get(migration.kind, 0) + 1
+        same_kind_index = kind_counts[migration.kind]
+        normalized_note = _normalize_evidence(migration.note)
+        if not normalized_note:
+            continue
+        key = (migration.kind, normalized_note)
+        if key in seen:
+            first_index, first_note = seen[key]
+            summary.diagnostics.append(
+                Diagnostic(
+                    severity="warning",
+                    code="DuplicateMigration",
+                    message=(
+                        f"Public function `{function.name}` repeats the same "
+                        f"{migration.kind} migration acknowledgement."
+                    ),
+                    target=function.target,
+                    data={
+                        "function": function.symbol,
+                        "kind": migration.kind,
+                        "first_index": str(first_index),
+                        "duplicate_index": str(same_kind_index),
+                        "first": first_note,
+                        "duplicate": migration.note,
+                    },
+                )
+                .with_command_repair(
+                    "Remove the duplicate migration acknowledgement",
+                    [
+                        "bin/serow",
+                        "patch",
+                        "remove-migration",
+                        function.source_path,
+                        function.symbol,
+                        migration.kind,
+                        str(same_kind_index),
+                    ],
+                )
+                .with_repair(
+                    "Remove repeated migration acknowledgements or replace the note with a distinct decision."
+                )
+            )
+        else:
+            seen[key] = (same_kind_index, migration.note)
 
 
 def _check_property_constraints(function: Function, program: Program, summary: CheckSummary) -> None:

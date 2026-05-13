@@ -54,6 +54,7 @@ pub fn check_program(program: &Program, parse_diagnostics: Vec<Diagnostic>) -> C
     for function in &program.functions {
         check_function_shape(function, &mut summary);
         check_repeated_evidence(function, &mut summary);
+        check_repeated_migrations(function, &mut summary);
     }
     for function in &program.functions {
         check_static_types(function, program, &mut summary);
@@ -787,6 +788,59 @@ fn evidence_removal_repair_command(function: &Function, kind: &str, index: usize
 
 fn normalize_evidence(evidence: &str) -> String {
     evidence.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn check_repeated_migrations(function: &Function, summary: &mut CheckSummary) {
+    if !function.public {
+        return;
+    }
+    let mut kind_counts = HashMap::<String, usize>::new();
+    let mut seen = HashMap::<(String, String), (usize, String)>::new();
+    for migration in &function.migrations {
+        let next_index = kind_counts.entry(migration.kind.clone()).or_insert(0);
+        *next_index += 1;
+        let same_kind_index = *next_index;
+        let normalized_note = normalize_evidence(&migration.note);
+        if normalized_note.is_empty() {
+            continue;
+        }
+        let key = (migration.kind.clone(), normalized_note);
+        if let Some((first_index, first_note)) = seen.get(&key) {
+            summary.diagnostics.push(
+                Diagnostic::warning(
+                    "DuplicateMigration",
+                    format!(
+                        "Public function `{}` repeats the same {} migration acknowledgement.",
+                        function.name, migration.kind
+                    ),
+                    Some(function.target()),
+                )
+                .with_data("function", function.symbol())
+                .with_data("kind", &migration.kind)
+                .with_data("first_index", first_index.to_string())
+                .with_data("duplicate_index", same_kind_index.to_string())
+                .with_data("first", first_note)
+                .with_data("duplicate", &migration.note)
+                .with_command_repair(
+                    "Remove the duplicate migration acknowledgement",
+                    vec![
+                        "bin/serow".to_string(),
+                        "patch".to_string(),
+                        "remove-migration".to_string(),
+                        function.source_path.clone(),
+                        function.symbol(),
+                        migration.kind.clone(),
+                        same_kind_index.to_string(),
+                    ],
+                )
+                .with_repair(
+                    "Remove repeated migration acknowledgements or replace the note with a distinct decision.",
+                ),
+            );
+        } else {
+            seen.insert(key, (same_kind_index, migration.note.clone()));
+        }
+    }
 }
 
 fn check_property_constraints(function: &Function, program: &Program, summary: &mut CheckSummary) {

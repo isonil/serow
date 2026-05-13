@@ -437,6 +437,54 @@ pub fn id(x: Int) -> Int
                 summary.diagnostics,
             )
 
+    def test_repeated_public_migrations_are_warned(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "repeated_migrations.serow"
+            source.write_text(
+                """module test.migration
+
+pub fn id(x: Int) -> Int
+  intent "Return x with repeated migration notes."
+  version v1
+  migration
+    implementation-change "Documented implementation rewrite."
+    impact-review "Reviewed dependent coverage."
+    implementation-change "Documented implementation rewrite."
+  contract
+    ensures result == x
+  examples
+    id(1) == 1
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+""",
+                encoding="utf-8",
+            )
+            program, parse_diagnostics = parse_files([str(source)])
+            summary = check_program(program, parse_diagnostics)
+            self.assertTrue(summary.ok, [diagnostic.to_dict() for diagnostic in summary.diagnostics])
+            diagnostic = next(
+                diagnostic
+                for diagnostic in summary.diagnostics
+                if diagnostic.code == "DuplicateMigration"
+            )
+            self.assertEqual(diagnostic.severity, "warning")
+            self.assertEqual(diagnostic.data.get("kind"), "implementation-change")
+            self.assertEqual(diagnostic.data.get("first_index"), "1")
+            self.assertEqual(diagnostic.data.get("duplicate_index"), "2")
+            self.assertTrue(
+                any(
+                    action.command[-3:]
+                    == ["@test.migration.id.v1", "implementation-change", "2"]
+                    and action.command[2] == "remove-migration"
+                    for action in diagnostic.repair_actions
+                ),
+                diagnostic.to_dict(),
+            )
+
     def test_executable_example_without_target_call_warns_as_shallow(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "shallow_example.serow"
