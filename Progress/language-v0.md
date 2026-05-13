@@ -163,7 +163,15 @@ This is a deliberately weak early version of certification. Later phases should 
 
 The emitted IR currently uses `version` value `serow.ir.v0`. It contains one row per checked public function, with canonical public symbol identity, module, name, source version, parameters, return type, declared effects, and a lowered expression tree for the implementation. Calls in the IR keep the source reference text and include the resolved canonical target symbol so later backends do not need to repeat ambiguous-call resolution.
 
-The bootstrap IR covers the current expression subset only: literals, variables, function calls, unary operators, binary operators, and `if then else`. It does not yet generate Rust, WASM, TypeScript, Python, or any other backend artifact.
+The bootstrap IR covers the current expression subset only: literals, variables, function calls, unary operators, binary operators, and `if then else`.
+
+## Rust Backend
+
+`bin/serow compile rust [paths...] [--json]` is the first production-backend slice. It runs the same checked IR lowering path first, then emits deterministic Rust source for supported functions. In text mode, stdout is the generated Rust source so it can be redirected to a backend artifact. In JSON mode, the output includes backend id `serow.rust.v0`, the input IR version, generated source text, and symbol-to-Rust-name rows.
+
+The current Rust backend supports pure public functions over `Int` and `Bool`. It maps `Int` to `i64`, `Bool` to `bool`, and emits Rust for arithmetic, integer division and remainder, comparisons, boolean operators, unary operators, `if`, and resolved calls to other generated functions. Canonical Serow symbols are lowered to deterministic Rust identifiers such as `@core.math.add.v1` -> `serow_core_math_add_v1`.
+
+The backend rejects unsupported code instead of emitting partial artifacts. `Text` lowering currently returns `RustBackendUnsupportedType`, and non-`pure` functions return `RustBackendUnsupportedEffect`. WASM, TypeScript, Python, external effect boundaries, ownership-friendly state transforms, and backend package/file layout are still future Phase 3 work.
 
 ## Diagnostics
 

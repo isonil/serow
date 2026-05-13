@@ -76,7 +76,12 @@ Date: 2026-05-13
   - runs the normal checker first and refuses to emit IR when checker errors are present
   - emits `serow.ir.v0` JSON for checked public implementations in the bootstrap expression subset
   - includes public symbol identity, signature, effects, parameters, return type, expression tree, and canonical resolved call targets
-  - does not yet generate Rust or any other backend artifact
+- Phase 3 Rust backend:
+  - `bin/serow compile rust [paths...] [--json]`
+  - runs the checked IR lowering path first and refuses to emit Rust when checker or IR lowering errors are present
+  - emits deterministic Rust source on stdout in text mode and includes the generated source plus symbol-to-Rust-name rows in JSON mode
+  - supports pure public functions over `Int` and `Bool` in the current expression subset, including arithmetic, comparisons, boolean operators, `if`, unary operators, and resolved function calls
+  - rejects unsupported `Text` lowering and non-`pure` functions with explicit backend diagnostics instead of generating partial code
 - Structured patch commands:
   - `bin/serow patch add-function <path> <module> <signature> <intent> [--json]`
   - `bin/serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]`
@@ -1400,6 +1405,26 @@ bin/serow agent --json
 git diff --check
 ```
 
+Additional verification after adding the first Rust backend emitter:
+
+```sh
+bin/serow query intent "generate Rust backend artifact from checked Serow IR" --json
+bin/serow query symbol "compile rust" --json
+bin/serow query symbol "Rust backend" --json
+cargo fmt --check
+cargo test compile_rust -- --nocapture
+bin/serow compile rust examples/math.serow > /private/tmp/serow_math_generated.rs
+rustc --crate-type lib /private/tmp/serow_math_generated.rs -o /private/tmp/libserow_math_generated.rlib
+cargo clippy -- -D warnings
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow compile rust examples/math.serow --json
+```
+
 `bin/serow check --json` currently reports:
 
 ```json
@@ -1417,7 +1442,7 @@ git diff --check
 
 ## Known Limits
 
-- This is not yet a full compiler; it is a parser/checker/ledger bootstrap with a first portable IR emitter.
+- This is not yet a full compiler; it is a parser/checker/ledger bootstrap with a first portable IR emitter and a narrow Rust source emitter.
 - Intent duplicate errors are exact after simple normalization; near-duplicate warnings and intent search use deterministic token ranking with stopwords and light token normalization. Duplicate and near-duplicate diagnostics expose token overlap/differences, but they are not semantic similarity yet.
 - Type checking covers the current expression subset but does not yet model user-defined data types, generics, or effect polymorphism.
 - Expression support is intentionally small: literals, variables, direct or qualified calls, arithmetic, comparisons, booleans, and one-line `if ... then ... else ...`.
@@ -1427,7 +1452,7 @@ git diff --check
 - Evidence patching can append or replace individual contract/example/property items, but dependent impact and evidence policy are still enforced by `serow plan` and unattended certification rather than by the patch command itself.
 - Formatting parses and re-emits the bootstrap projection; comments are not preserved yet.
 - The hand-written JSON output should eventually be replaced with `serde_json` once external dependencies are allowed/desired.
-- `serow compile ir` emits `serow.ir.v0` JSON for checked public implementations, but it does not yet generate Rust, WASM, TypeScript, Python, or any other backend artifact.
+- `serow compile rust` emits deterministic Rust source for pure checked `Int`/`Bool` functions, but `Text`, effectful functions, ownership-friendly state transforms, WASM, TypeScript, Python, and backend file/package generation do not exist yet.
 - Structured repair actions currently cover only command-style fixes already exposed by the bootstrap CLI.
 - `query callees` and `query dependents` report direct resolved call edges; use `query impact` for direct and transitive dependent paths. Ambiguous bare calls are intentionally skipped by ledger queries because they are checker errors.
 - `serow plan` is an early reporting primitive; it treats explicit path arguments as the selected change set, reports semantic change labels plus inferred direct-call capability requirements, suggested effect declarations, sampled-property coverage hints, and advisory lexical arithmetic intent/implementation mismatch risks for changed symbols, and compares public contract-surface, removed public symbols, declared capabilities, normalized implementation text, and evidence sections against `HEAD` when a tracked baseline is available. It reports whether added examples/properties directly call changed implementations, whether that added evidence would fail against the `HEAD` implementation, and whether impacted dependent call edges are covered by executable examples or sampled properties, but it does not yet compare full implementation AST behavior.
@@ -1435,10 +1460,10 @@ git diff --check
 
 ## Current Strategic Direction
 
-The roadmap is now in Phase 3 backend work. The immediate direction is to grow the portable IR carefully before production code generation:
+The roadmap is now in Phase 3 backend work. The immediate direction is to grow the portable IR and the first Rust backend carefully:
 
 - keep the checker/interpreter responsible for compile-time evidence
 - make `serow.ir.v0` stable enough for backend consumers
 - lower all supported bootstrap expressions with explicit resolved call targets
-- add Rust transpilation only after the IR boundary is explicit enough to preserve source identity, effects, and evidence semantics
+- expand Rust transpilation from the current pure `Int`/`Bool` subset toward `Text`, effectful boundaries, and backend artifact layout without weakening source identity, effects, or evidence semantics
 - keep generated backend artifacts separate from `.serow` source of truth

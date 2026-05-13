@@ -6393,6 +6393,67 @@ pub fn wrong(x: Int) -> Bool
     let _ = fs::remove_dir_all(dir);
 }
 
+#[test]
+fn compile_rust_json_emits_supported_backend_source() {
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["compile", "rust", "examples/math.serow", "--json"])
+        .output()
+        .expect("run compile rust");
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("\"backend\": \"serow.rust.v0\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("pub fn serow_core_math_add_v1(serow_x: i64, serow_y: i64) -> i64"),
+        "{stdout}"
+    );
+    assert!(stdout.contains("if serow_x < 0"), "{stdout}");
+    assert!(stdout.contains("serow_x / serow_y"), "{stdout}");
+    assert!(stdout.contains("\"generated_functions\": 3"), "{stdout}");
+}
+
+#[test]
+fn compile_rust_refuses_unsupported_text_types() {
+    let dir = unique_temp_dir("serow-compile-rust-text");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("text.serow");
+    fs::write(
+        &source,
+        r#"module test.rust
+
+pub fn same_text(x: Text) -> Bool
+  intent "Return whether a text value equals itself."
+  version v1
+  contract
+    ensures result == true
+  examples
+    same_text("a") == true
+  properties
+    forall x: Text:
+      same_text(x) == true
+  effects pure
+  impl
+    x == x
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["compile", "rust", &source.to_string_lossy(), "--json"])
+        .output()
+        .expect("run compile rust");
+    assert!(!output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("\"rust\": null"), "{stdout}");
+    assert!(
+        stdout.contains("\"code\": \"RustBackendUnsupportedType\""),
+        "{stdout}"
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
 fn unique_temp_dir(prefix: &str) -> PathBuf {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)

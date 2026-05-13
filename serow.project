@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "0.4.59-rust-bootstrap",
+  "version": "0.4.60-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -10,6 +10,7 @@
     "certify": "bin/serow certify",
     "certify_unattended": "bin/serow certify --profile unattended",
     "compile_ir": "bin/serow compile ir [paths...]",
+    "compile_rust": "bin/serow compile rust [paths...]",
     "patch_add_contract": "bin/serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression>",
     "patch_add_example": "bin/serow patch add-example <path> <symbol-or-name> <expression>",
     "patch_add_function": "bin/serow patch add-function <path> <module> <signature> <intent>",
@@ -114,7 +115,8 @@
     "unattended_rejects_public_symbol_removal": true,
     "migration_records_acknowledge_unattended_gate_decisions": true,
     "plan_reports_impact_evidence_coverage": true,
-    "portable_ir_backend": true
+    "portable_ir_backend": true,
+    "rust_backend_codegen": true
   },
   "source_roots": [
     "examples"

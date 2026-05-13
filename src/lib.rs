@@ -11,5 +11,6 @@ pub mod patch;
 pub mod plan;
 pub mod project;
 pub mod replay;
+pub mod rust_backend;
 mod sampling;
 mod typecheck;

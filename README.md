@@ -26,6 +26,7 @@ The current implementation is a bootstrap toolchain written in dependency-free R
 - unattended certification gates for explicit versions, same-version public contract-surface changes, public symbol removal without a same-name replacement version, capability expansion, implementation changes without added executable evidence, added implementation evidence that does not call the function under test or would still pass against the HEAD implementation, implementation/evidence drift, evidence weakening against Git `HEAD`, unchecked dependent impact, uncovered impacted call edges, and stale migration acknowledgements, with explicit migration records for intentional decisions
 - strict-profile validation for structured diagnostic repair actions
 - a first portable backend IR emitted by `bin/serow compile ir`
+- a first Rust backend source emitter for pure `Int`/`Bool` functions through `bin/serow compile rust`
 
 Print the current agent bootstrap contract:
 
@@ -47,7 +48,16 @@ bin/serow compile ir --json
 bin/serow compile ir examples/math.serow --json
 ```
 
-`compile ir` runs the checker first and only emits `serow.ir.v0` when there are no checker errors. The IR currently covers the bootstrap expression subset and resolves function calls to canonical public symbols; generated Rust and other production backends do not exist yet.
+`compile ir` runs the checker first and only emits `serow.ir.v0` when there are no checker errors. The IR currently covers the bootstrap expression subset and resolves function calls to canonical public symbols; it is the input boundary used by the first Rust backend emitter.
+
+Emit Rust source for the supported checked IR subset:
+
+```sh
+bin/serow compile rust examples/math.serow
+bin/serow compile rust examples/math.serow --json
+```
+
+`compile rust` runs the same checked IR path first, then emits deterministic Rust source on stdout. The first backend slice supports pure functions over `Int` and `Bool`; `Text` and effectful functions produce backend diagnostics instead of generated code.
 
 Format Serow source into the canonical textual projection:
 

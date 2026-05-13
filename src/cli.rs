@@ -26,6 +26,7 @@ use crate::plan::{
     unattended_uncovered_impact_evidence_diagnostics,
 };
 use crate::replay::{PropertyReplaySummary, replay_property};
+use crate::rust_backend::{GeneratedRustProgram, RustBackendSummary, generate_checked_rust};
 
 pub fn main(args: impl Iterator<Item = String>) -> i32 {
     let args = args.collect::<Vec<_>>();
@@ -142,6 +143,7 @@ fn run_compile(args: &[String]) -> i32 {
     };
     match compile_command {
         "ir" => run_compile_ir(&args[1..]),
+        "rust" => run_compile_rust(&args[1..]),
         _ => {
             print_compile_usage();
             2
@@ -157,6 +159,18 @@ fn run_compile_ir(args: &[String]) -> i32 {
         println!("{}", ir_summary_json(&summary));
     } else {
         print_ir_summary(&summary);
+    }
+    i32::from(!summary.ok())
+}
+
+fn run_compile_rust(args: &[String]) -> i32 {
+    let (paths, json_output) = split_paths_and_json(args);
+    let (program, parse_diagnostics) = parse_paths(&paths);
+    let summary = generate_checked_rust(&program, parse_diagnostics);
+    if json_output {
+        println!("{}", rust_summary_json(&summary));
+    } else {
+        print_rust_summary(&summary);
     }
     i32::from(!summary.ok())
 }
@@ -951,6 +965,45 @@ fn print_ir_summary(summary: &IrSummary) {
     }
 }
 
+fn print_rust_summary(summary: &RustBackendSummary) {
+    if let Some(rust) = &summary.rust {
+        print!("{}", rust.source);
+        return;
+    }
+    let status = if summary.ok() { "ok" } else { "failed" };
+    println!("serow compile rust: {status}");
+    println!(
+        "summary: {} functions checked, {} functions lowered, 0 functions generated",
+        summary.ir_summary.check_summary.functions,
+        summary
+            .ir_summary
+            .ir
+            .as_ref()
+            .map(|ir| ir.functions.len())
+            .unwrap_or_default()
+    );
+    for diagnostic in &summary.diagnostics {
+        let target = diagnostic
+            .target
+            .as_ref()
+            .map(|target| format!(" {target}"))
+            .unwrap_or_default();
+        println!(
+            "{}: {}:{} {}",
+            diagnostic.severity.as_str(),
+            diagnostic.code,
+            target,
+            diagnostic.message
+        );
+        if !diagnostic.data.is_empty() {
+            println!("  data: {}", data_json(&diagnostic.data));
+        }
+        if !diagnostic.repairs.is_empty() {
+            println!("  repairs: {}", diagnostic.repairs.join(", "));
+        }
+    }
+}
+
 fn print_format_summary(summary: &FormatSummary, check: bool) {
     let mode = if check { "fmt --check" } else { "fmt" };
     let status = if summary.ok() { "ok" } else { "failed" };
@@ -1458,6 +1511,71 @@ fn ir_expr_json(expr: &IrExpr) -> String {
 fn ir_exprs_json(exprs: &[IrExpr]) -> String {
     let rows = exprs.iter().map(ir_expr_json).collect::<Vec<_>>();
     format!("[{}]", rows.join(", "))
+}
+
+fn rust_summary_json(summary: &RustBackendSummary) -> String {
+    format!(
+        concat!(
+            "{{\n",
+            "  \"diagnostics\": {},\n",
+            "  \"ok\": {},\n",
+            "  \"rust\": {},\n",
+            "  \"summary\": {{\n",
+            "    \"checked_functions\": {},\n",
+            "    \"generated_functions\": {},\n",
+            "    \"lowered_functions\": {}\n",
+            "  }}\n",
+            "}}"
+        ),
+        diagnostics_array_json(&summary.diagnostics),
+        summary.ok(),
+        summary
+            .rust
+            .as_ref()
+            .map(rust_program_json)
+            .unwrap_or_else(|| "null".to_string()),
+        summary.ir_summary.check_summary.functions,
+        summary
+            .rust
+            .as_ref()
+            .map(|rust| rust.functions.len())
+            .unwrap_or_default(),
+        summary
+            .ir_summary
+            .ir
+            .as_ref()
+            .map(|ir| ir.functions.len())
+            .unwrap_or_default()
+    )
+}
+
+fn rust_program_json(rust: &GeneratedRustProgram) -> String {
+    let functions = rust
+        .functions
+        .iter()
+        .map(|function| {
+            format!(
+                "{{\"rust_name\": {}, \"symbol\": {}}}",
+                json_string(&function.rust_name),
+                json_string(&function.symbol)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!(
+        concat!(
+            "{{",
+            "\"backend\": {}, ",
+            "\"functions\": [{}], ",
+            "\"ir_version\": {}, ",
+            "\"source\": {}",
+            "}}"
+        ),
+        json_string(&rust.backend),
+        functions,
+        json_string(&rust.ir_version),
+        json_string(&rust.source)
+    )
 }
 
 fn plan_json(plan: &ChangePlan) -> String {
@@ -2089,6 +2207,11 @@ fn agent_json() -> String {
             "Lower checked public implementations to the portable bootstrap IR.",
         ),
         (
+            "compile rust",
+            "serow compile rust [paths...] [--json]",
+            "Emit deterministic Rust source for the supported checked IR subset.",
+        ),
+        (
             "fmt",
             "serow fmt [paths...] [--check] [--json]",
             "Rewrite or verify canonical Serow source formatting.",
@@ -2313,7 +2436,7 @@ fn agent_json() -> String {
             "bin/serow certify --profile unattended"
         ]),
         str_array_json(&[
-            "`serow compile ir` emits the first portable backend IR, but no generated Rust/backend artifacts exist yet.",
+            "`serow compile ir` emits the portable backend IR; `serow compile rust` emits deterministic Rust source for pure Int/Bool functions from checked IR; Text and effectful functions are not emitted yet.",
             "Properties are sampled, not proven; built-in samples cover boundary and representative Int, Bool, and Text values, and failed or erroring sampled properties report deterministic replay data that can be replayed with `serow replay property`; PropertyFailed and PropertyEvaluationError diagnostics also include a simpler shrunk sampled binding when one is found, while replayed PropertyNotExecutable diagnostics point at indexed property removal.",
             "Migration acknowledgements are source-level notes; they do not prove behavioral compatibility.",
             "`serow plan` reports stale migration acknowledgements when a changed symbol keeps a migration record that no current unattended gate requires.",
@@ -2503,6 +2626,7 @@ fn print_agent_bootstrap() {
     println!("  serow check [paths...] [--json]");
     println!("  serow certify [paths...] [--profile unattended] [--json]");
     println!("  serow compile ir [paths...] [--json]");
+    println!("  serow compile rust [paths...] [--json]");
     println!("  serow fmt [paths...] [--check] [--json]");
     println!(
         "  serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]"
@@ -2631,7 +2755,8 @@ fn print_agent_bootstrap() {
     );
     println!("backend:");
     println!("  compile ir lowers checked public implementations to serow.ir.v0 JSON");
-    println!("  generated Rust/backend artifacts do not exist yet");
+    println!("  compile rust emits deterministic Rust source for pure Int/Bool functions");
+    println!("  Text and effectful functions are not emitted by the Rust backend yet");
 }
 
 fn print_usage() {
@@ -2640,6 +2765,7 @@ fn print_usage() {
     eprintln!("  serow check [paths...] [--json]");
     eprintln!("  serow certify [paths...] [--profile unattended] [--json]");
     eprintln!("  serow compile ir [paths...] [--json]");
+    eprintln!("  serow compile rust [paths...] [--json]");
     eprintln!("  serow fmt [paths...] [--check] [--json]");
     eprintln!(
         "  serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]"
@@ -2690,6 +2816,7 @@ fn print_usage() {
 fn print_compile_usage() {
     eprintln!("usage:");
     eprintln!("  serow compile ir [paths...] [--json]");
+    eprintln!("  serow compile rust [paths...] [--json]");
 }
 
 fn print_agent_usage() {
