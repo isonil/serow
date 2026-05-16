@@ -1,5 +1,15 @@
 # Implementation Log
 
+## 2026-05-17
+
+- Added the first checked terminal I/O intrinsics: `print(text: Text) -> Unit` and `read_line() -> Text`.
+- Added minimal `Unit` support across expression tokens, type checking, evaluator values, deterministic sampling, IR JSON, and Rust backend lowering.
+- Intrinsics are compiler-owned ledger-queryable symbols and do not require `use serow.intrinsic`; direct callers must still declare `effects [io]`.
+- The checker uses a non-interactive intrinsic model (`print` returns `unit`, `read_line` returns empty `Text`) so examples and sampled properties do not block or write terminal output during verification.
+- The Rust backend now permits the narrow terminal `io` slice, lowers `print` to `println!`, lowers `read_line` to stdin reading with newline trimming, and skips generated Rust evidence tests for `io` functions.
+- Binary Rust emission now accepts `pub fn main() -> Unit`, calling the generated entrypoint without adding a second result print.
+- Added `examples/terminal_io.serow` plus Rust integration tests for intrinsic effect under-declaration, intrinsic ledger queries, Rust codegen for `print`/`read_line`, and runnable `Unit` terminal entrypoints.
+
 ## 2026-05-03
 
 - Started from an empty repository containing only `Progress/originalConversation.txt`.

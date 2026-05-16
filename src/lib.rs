@@ -3,6 +3,7 @@ pub mod cli;
 pub mod diagnostic;
 pub mod eval;
 pub mod formatter;
+pub mod intrinsics;
 pub mod ir;
 pub mod ledger;
 pub mod model;

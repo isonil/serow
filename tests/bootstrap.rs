@@ -6,7 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serow::checker::check_program;
 use serow::diagnostic::{Diagnostic, RepairAction, validate_repair_actions};
 use serow::formatter::format_paths;
-use serow::ledger::{query_intent, query_type};
+use serow::ledger::{query_intent, query_symbol, query_type};
 use serow::parser::parse_paths;
 use serow::project::parse_architecture;
 
@@ -23,10 +23,10 @@ fn sample_program_checks() {
             .map(|diagnostic| &diagnostic.code)
             .collect::<Vec<_>>()
     );
-    assert_eq!(summary.functions, 3);
-    assert_eq!(summary.examples, 7);
-    assert_eq!(summary.properties, 3);
-    assert_eq!(summary.contracts, 12);
+    assert_eq!(summary.functions, 4);
+    assert_eq!(summary.examples, 8);
+    assert_eq!(summary.properties, 4);
+    assert_eq!(summary.contracts, 13);
 }
 
 #[test]
@@ -396,6 +396,70 @@ pub fn bad(x: Int) -> Int
         summary.diagnostics
     );
     let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn pure_function_cannot_call_terminal_io_intrinsic() {
+    let dir = unique_temp_dir("serow-terminal-io-effect");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("terminal.serow");
+    fs::write(
+        &source,
+        r#"module test.terminal
+
+fn bad(message: Text) -> Unit
+  effects pure
+  impl
+    print(message)
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "EffectViolation"
+                && diagnostic
+                    .data
+                    .iter()
+                    .any(|(key, value)| key == "callee" && value == "@serow.intrinsic.print.v1")
+                && diagnostic
+                    .data
+                    .iter()
+                    .any(|(key, value)| key == "missing_effects" && value == "io")),
+        "{:#?}",
+        summary.diagnostics
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn terminal_io_intrinsics_are_queryable() {
+    let (program, _) = parse_paths(&["examples".to_string()]);
+    let print_matches = query_symbol(&program, "print", 10);
+    assert!(
+        print_matches
+            .iter()
+            .any(|query_match| query_match.function.symbol() == "@serow.intrinsic.print.v1"),
+        "{print_matches:#?}"
+    );
+    let read_line_matches = query_symbol(&program, "read_line", 10);
+    assert!(
+        read_line_matches
+            .iter()
+            .any(|query_match| query_match.function.symbol() == "@serow.intrinsic.read_line.v1"),
+        "{read_line_matches:#?}"
+    );
+    let intent_matches = query_intent(&program, "print text to terminal", 10);
+    assert!(
+        intent_matches
+            .iter()
+            .any(|query_match| query_match.function.symbol() == "@serow.intrinsic.print.v1"),
+        "{intent_matches:#?}"
+    );
 }
 
 #[test]
@@ -6655,6 +6719,73 @@ pub fn greet(name: Text) -> Text
 }
 
 #[test]
+fn compile_rust_lowers_terminal_io_intrinsics() {
+    let dir = unique_temp_dir("serow-compile-rust-terminal-io");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("terminal.serow");
+    fs::write(
+        &source,
+        r#"module test.terminal
+
+pub fn say(message: Text) -> Unit
+  intent "Print a message to the terminal."
+  version v1
+  contract
+    ensures result == unit
+  examples
+    say("hi") == unit
+  properties
+    forall message: Text:
+      say(message) == unit
+  effects [io]
+  impl
+    print(message)
+
+pub fn input_once() -> Text
+  intent "Read one line from the terminal."
+  version v1
+  contract
+    ensures result == result
+  examples
+    input_once() == ""
+  properties
+    forall flag: Bool:
+      input_once() == "" or flag == flag
+  effects [io]
+  impl
+    read_line()
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["compile", "rust", &source.to_string_lossy(), "--json"])
+        .output()
+        .expect("run compile rust terminal io");
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("pub fn serow_test_terminal_say_v1(serow_message: String) -> ()"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("println!(\\\"{}\\\", serow_message.clone())"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("pub fn serow_test_terminal_input_once_v1() -> String"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("std::io::stdin().read_line(&mut serow_line)"),
+        "{stdout}"
+    );
+    assert!(stdout.contains("\"generated_functions\": 2"), "{stdout}");
+    assert!(stdout.contains("\"generated_tests\": 0"), "{stdout}");
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn compile_rust_out_dir_writes_crate_layout() {
     let dir = unique_temp_dir("serow-compile-rust-out-dir");
     fs::create_dir_all(&dir).expect("create temp dir");
@@ -6883,6 +7014,79 @@ pub fn main() -> Text
 }
 
 #[test]
+fn compile_rust_emit_bin_runs_unit_terminal_io_entrypoint() {
+    let dir = unique_temp_dir("serow-compile-rust-emit-bin-unit-io");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("app.serow");
+    fs::write(
+        &source,
+        r#"module app.entry
+
+pub fn main() -> Unit
+  intent "Print the application message."
+  version v1
+  contract
+    ensures result == unit
+  examples
+    main() == unit
+  properties
+    forall flag: Bool:
+      main() == unit or flag == flag
+  effects [io]
+  impl
+    print("hello from Serow")
+"#,
+    )
+    .expect("write fixture");
+    let out_dir = dir.join("generated_app");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "compile",
+            "rust",
+            &source.to_string_lossy(),
+            "--out-dir",
+            &out_dir.to_string_lossy(),
+            "--emit-bin",
+            "--crate-name",
+            "serow_generated_unit_app",
+            "--json",
+        ])
+        .output()
+        .expect("run compile rust --emit-bin unit io");
+    assert!(output.status.success(), "{output:#?}");
+
+    let cargo_toml = out_dir.join("Cargo.toml");
+    let main_rs = out_dir.join("src").join("main.rs");
+    let main_source = fs::read_to_string(&main_rs).expect("read generated main");
+    assert!(
+        main_source.contains("serow_generated::serow_app_entry_main_v1();"),
+        "{main_source}"
+    );
+    assert!(
+        !main_source.contains("println!(\"{}\", result);"),
+        "{main_source}"
+    );
+
+    let run_output = Command::new("cargo")
+        .args(["run", "--quiet", "--manifest-path"])
+        .arg(&cargo_toml)
+        .output()
+        .expect("cargo run generated unit io crate");
+    assert!(
+        run_output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&run_output.stdout),
+        String::from_utf8_lossy(&run_output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&run_output.stdout),
+        "hello from Serow\n"
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn compile_rust_emit_bin_reports_missing_entrypoint() {
     let dir = unique_temp_dir("serow-compile-rust-missing-entrypoint");
     fs::create_dir_all(&dir).expect("create temp dir");
@@ -6968,7 +7172,7 @@ fn compile_rust_emit_bin_reports_unsupported_entrypoint_return_type() {
         &source,
         r#"module app.entry
 
-pub fn main() -> Unit
+pub fn main() -> Handle
   intent "Return an unsupported application value."
   version v1
   contract
@@ -7005,7 +7209,8 @@ pub fn main() -> Unit
         "{stdout}"
     );
     assert!(
-        stdout.contains("\"return_type\": \"Unit\"") || stdout.contains("\"key\": \"return_type\""),
+        stdout.contains("\"return_type\": \"Handle\"")
+            || stdout.contains("\"key\": \"return_type\""),
         "{stdout}"
     );
     assert!(!out_dir.join("src").join("main.rs").exists());

@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::diagnostic::{Diagnostic, has_errors};
 use crate::eval::Value;
+use crate::intrinsics::{PRINT_SYMBOL, READ_LINE_SYMBOL, is_intrinsic_symbol};
 use crate::ir::{
     IrBinaryOp, IrExpr, IrFunction, IrProgram, IrSummary, IrUnaryOp, lower_checked_program,
 };
@@ -93,19 +94,19 @@ fn generate_rust_program(ir: &IrProgram) -> Result<GeneratedRustProgram, Vec<Dia
     let mut allocated_test_names = HashMap::<String, usize>::new();
 
     for function in &ir.functions {
-        if function.effects != ["pure"] {
+        if let Some(unsupported_effects) = unsupported_backend_effects(function) {
             diagnostics.push(
                 Diagnostic::error(
                     "RustBackendUnsupportedEffect",
                     format!(
-                        "Rust backend currently only emits pure functions; `{}` declares effects {}.",
+                        "Rust backend currently only emits pure functions and terminal io intrinsics; `{}` declares effects {}.",
                         function.symbol,
-                        function.effects.join(", ")
+                        unsupported_effects.join(", ")
                     ),
                     Some(function.symbol.clone()),
                 )
                 .with_data("symbol", function.symbol.clone())
-                .with_data("effects", function.effects.join(", ")),
+                .with_data("effects", unsupported_effects.join(", ")),
             );
             continue;
         }
@@ -131,17 +132,21 @@ fn generate_rust_program(ir: &IrProgram) -> Result<GeneratedRustProgram, Vec<Dia
                     source_path: function.source_path.clone(),
                     line: function.line,
                 });
-                match render_function_tests(
-                    function,
-                    &rust_names,
-                    &signatures,
-                    &mut allocated_test_names,
-                ) {
-                    Ok((test_sources, test_rows)) => {
-                        rendered_tests.extend(test_sources);
-                        generated_tests.extend(test_rows);
+                if function.effects == ["pure"] {
+                    match render_function_tests(
+                        function,
+                        &rust_names,
+                        &signatures,
+                        &mut allocated_test_names,
+                    ) {
+                        Ok((test_sources, test_rows)) => {
+                            rendered_tests.extend(test_sources);
+                            generated_tests.extend(test_rows);
+                        }
+                        Err(mut function_diagnostics) => {
+                            diagnostics.append(&mut function_diagnostics)
+                        }
                     }
-                    Err(mut function_diagnostics) => diagnostics.append(&mut function_diagnostics),
                 }
             }
             Err(mut function_diagnostics) => diagnostics.append(&mut function_diagnostics),
@@ -483,6 +488,7 @@ fn render_expr(
             format!("String::from({})", rust_string_literal(value)),
             "Text",
         )),
+        IrExpr::Unit => Ok(rendered("()".to_string(), "Unit")),
         IrExpr::Var(name) => {
             let variable = variables
                 .get(name)
@@ -501,6 +507,16 @@ fn render_expr(
             })
         }
         IrExpr::Call { target, args, .. } => {
+            if is_intrinsic_symbol(target) {
+                return render_intrinsic_call(
+                    target,
+                    args,
+                    variables,
+                    variable_types,
+                    rust_names,
+                    signatures,
+                );
+            }
             let rust_name = rust_names
                 .get(target)
                 .ok_or_else(|| format!("No Rust target was generated for call to `{target}`."))?;
@@ -673,6 +689,7 @@ fn rust_type(type_name: &str) -> Result<&'static str, String> {
         "Int" => Ok("i64"),
         "Bool" => Ok("bool"),
         "Text" => Ok("String"),
+        "Unit" => Ok("()"),
         other => Err(format!("Unknown backend type `{other}`.")),
     }
 }
@@ -699,6 +716,7 @@ fn render_sample_value(value: &Value) -> String {
         Value::Int(value) => value.to_string(),
         Value::Bool(value) => value.to_string(),
         Value::Text(value) => format!("String::from({})", rust_string_literal(value)),
+        Value::Unit => "()".to_string(),
     }
 }
 
@@ -758,4 +776,69 @@ fn backend_error(function: &IrFunction, message: String) -> Diagnostic {
         Some(function.symbol.clone()),
     )
     .with_data("symbol", function.symbol.clone())
+}
+
+fn unsupported_backend_effects(function: &IrFunction) -> Option<Vec<String>> {
+    let mut unsupported = function
+        .effects
+        .iter()
+        .filter(|effect| effect.as_str() != "pure" && effect.as_str() != "io")
+        .cloned()
+        .collect::<Vec<_>>();
+    unsupported.sort();
+    unsupported.dedup();
+    (!unsupported.is_empty()).then_some(unsupported)
+}
+
+fn render_intrinsic_call(
+    target: &str,
+    args: &[IrExpr],
+    variables: &HashMap<String, String>,
+    variable_types: &HashMap<String, String>,
+    rust_names: &HashMap<String, String>,
+    signatures: &HashMap<String, RustFunctionSignature>,
+) -> Result<RenderedExpr, String> {
+    let args = args
+        .iter()
+        .map(|arg| render_expr(arg, variables, variable_types, rust_names, signatures))
+        .collect::<Result<Vec<_>, _>>()?;
+    match target {
+        PRINT_SYMBOL => {
+            if args.len() != 1 {
+                return Err(format!(
+                    "Intrinsic `{PRINT_SYMBOL}` has {} lowered arguments, expected 1.",
+                    args.len()
+                ));
+            }
+            if args[0].type_name != "Text" {
+                return Err(format!(
+                    "Intrinsic `{PRINT_SYMBOL}` argument 1 lowered as {}, expected Text.",
+                    args[0].type_name
+                ));
+            }
+            Ok(rendered(
+                format!("println!(\"{{}}\", {})", strip_outer_parens(&args[0].code)),
+                "Unit",
+            ))
+        }
+        READ_LINE_SYMBOL => {
+            if !args.is_empty() {
+                return Err(format!(
+                    "Intrinsic `{READ_LINE_SYMBOL}` has {} lowered arguments, expected 0.",
+                    args.len()
+                ));
+            }
+            Ok(rendered(
+                concat!(
+                    "{ let mut serow_line = String::new(); ",
+                    "std::io::stdin().read_line(&mut serow_line).expect(\"Serow read_line failed\"); ",
+                    "while serow_line.ends_with('\\n') || serow_line.ends_with('\\r') { serow_line.pop(); } ",
+                    "serow_line }"
+                )
+                .to_string(),
+                "Text",
+            ))
+        }
+        _ => Err(format!("Unsupported intrinsic `{target}`.")),
+    }
 }

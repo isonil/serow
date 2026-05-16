@@ -1,0 +1,15 @@
+module core.terminal
+
+pub fn announce(message: Text) -> Unit
+  intent "Print a message to the terminal."
+  version v1
+  contract
+    ensures result == unit
+  examples
+    announce("hello from Serow") == unit
+  properties
+    forall message: Text:
+      announce(message) == unit
+  effects [io]
+  impl
+    print(message)

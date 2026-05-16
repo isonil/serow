@@ -22,6 +22,7 @@ pub(crate) fn samples_for_type(type_name: &str) -> Option<Vec<Value>> {
             Value::Text("with space".to_string()),
             Value::Text("123".to_string()),
         ]),
+        "Unit" => Some(vec![Value::Unit]),
         _ => None,
     }
 }
@@ -201,5 +202,6 @@ fn value_complexity(value: &Value) -> usize {
         Value::Int(value) => value.unsigned_abs() as usize,
         Value::Bool(value) => usize::from(*value),
         Value::Text(value) => value.chars().count(),
+        Value::Unit => 0,
     }
 }

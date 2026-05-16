@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::diagnostic::{Diagnostic, Severity};
 use crate::eval::{Evaluator, Value, called_functions, resolve_function};
+use crate::intrinsics::is_intrinsic_symbol;
 use crate::ledger::{exact_intent_key, intent_terms, query_intent};
 use crate::model::{Function, Program};
 use crate::project::load_architecture;
@@ -19,7 +20,7 @@ const REQUIRED_PUBLIC_SECTIONS: &[&str] = &[
     "effects",
     "impl",
 ];
-const SUPPORTED_TYPES: &[&str] = &["Int", "Bool", "Text"];
+const SUPPORTED_TYPES: &[&str] = &["Int", "Bool", "Text", "Unit"];
 const NEAR_DUPLICATE_INTENT_SCORE: f64 = 0.75;
 const NEAR_DUPLICATE_INTENT_MIN_REASONS: usize = 2;
 
@@ -178,6 +179,9 @@ fn check_inferred_module_dependencies(
                 let Ok(callee) = resolve_function(&call_reference.raw, &program.functions) else {
                     continue;
                 };
+                if is_intrinsic_symbol(&callee.symbol()) {
+                    continue;
+                }
                 if callee.module == function.module {
                     continue;
                 }
@@ -441,6 +445,7 @@ fn check_duplicate_intents(program: &Program, summary: &mut CheckSummary) {
                 if candidate.score < NEAR_DUPLICATE_INTENT_SCORE
                     || reason_count < NEAR_DUPLICATE_INTENT_MIN_REASONS
                     || candidate.function.symbol() == function.symbol()
+                    || is_intrinsic_symbol(&candidate.function.symbol())
                     || candidate
                         .function
                         .intent

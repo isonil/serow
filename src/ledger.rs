@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::eval::{called_functions, resolve_function};
+use crate::intrinsics::intrinsic_functions;
 use crate::model::{Function, Program};
 
 #[derive(Clone, Debug)]
@@ -52,7 +53,7 @@ pub fn query_intent(program: &Program, text: &str, limit: usize) -> Vec<QueryMat
         return Vec::new();
     }
     let mut matches = Vec::new();
-    for function in &program.functions {
+    for function in queryable_functions(program) {
         let candidate_tokens = intent_token_weights(function);
         let mut overlap = query_tokens
             .iter()
@@ -113,7 +114,7 @@ pub fn exact_intent_key(text: &str) -> String {
 pub fn query_symbol(program: &Program, text: &str, limit: usize) -> Vec<QueryMatch> {
     let needle = text.to_lowercase();
     let mut matches = Vec::new();
-    for function in &program.functions {
+    for function in queryable_functions(program) {
         let mut score = 0.0;
         let mut reasons = Vec::new();
         if function.name.to_lowercase() == needle {
@@ -155,7 +156,7 @@ pub fn query_type(program: &Program, text: &str, limit: usize) -> Vec<QueryMatch
         return Vec::new();
     };
     let mut matches = Vec::new();
-    for function in &program.functions {
+    for function in queryable_functions(program) {
         if let Some((score, reasons)) = query.score(function) {
             matches.push(QueryMatch {
                 score,
@@ -176,9 +177,20 @@ pub fn query_type(program: &Program, text: &str, limit: usize) -> Vec<QueryMatch
 }
 
 pub fn symbols(program: &Program) -> Vec<Function> {
-    let mut functions = program.functions.clone();
+    let mut functions = queryable_functions(program)
+        .into_iter()
+        .cloned()
+        .collect::<Vec<_>>();
     functions.sort_by_key(Function::symbol);
     functions
+}
+
+fn queryable_functions(program: &Program) -> Vec<&Function> {
+    program
+        .functions
+        .iter()
+        .chain(intrinsic_functions().iter())
+        .collect()
 }
 
 pub fn query_dependents(program: &Program, text: &str) -> Vec<Dependent> {

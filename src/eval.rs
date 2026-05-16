@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::intrinsics::{PRINT_SYMBOL, READ_LINE_SYMBOL, intrinsic_functions};
 use crate::model::Function;
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -49,6 +50,7 @@ pub enum Value {
     Int(i64),
     Bool(bool),
     Text(String),
+    Unit,
 }
 
 impl std::fmt::Display for Value {
@@ -57,6 +59,7 @@ impl std::fmt::Display for Value {
             Value::Int(value) => write!(formatter, "{value}"),
             Value::Bool(value) => write!(formatter, "{value}"),
             Value::Text(value) => write!(formatter, "{value:?}"),
+            Value::Unit => write!(formatter, "unit"),
         }
     }
 }
@@ -83,6 +86,12 @@ impl Evaluator {
 
     pub fn call(&mut self, name: &str, args: Vec<Value>) -> Result<CallResult, String> {
         let function = resolve_function(name, &self.functions)?.clone();
+        if function.symbol() == PRINT_SYMBOL {
+            return call_print_intrinsic(name, args);
+        }
+        if function.symbol() == READ_LINE_SYMBOL {
+            return call_read_line_intrinsic(name, args);
+        }
         let Some(implementation) = &function.implementation else {
             return Err(format!("Function `{name}` has no implementation."));
         };
@@ -152,6 +161,7 @@ impl Evaluator {
 pub(crate) enum Token {
     Int(i64),
     Text(String),
+    Unit,
     Ident(String),
     True,
     False,
@@ -263,6 +273,7 @@ pub(crate) fn tokenize(expression: &str) -> Result<Vec<Token>, String> {
                 "and" => Token::And,
                 "or" => Token::Or,
                 "not" => Token::Not,
+                "unit" => Token::Unit,
                 _ => Token::Ident(ident.to_string()),
             });
             continue;
@@ -331,7 +342,24 @@ pub fn resolve_function<'a>(
         .collect::<Vec<_>>();
     match matches.as_slice() {
         [function] => Ok(function),
-        [] => Err(format!("Unknown function `{reference_text}`.")),
+        [] => {
+            let intrinsic_matches = intrinsic_functions()
+                .iter()
+                .filter(|function| function_matches_reference(function, &reference))
+                .collect::<Vec<_>>();
+            match intrinsic_matches.as_slice() {
+                [function] => Ok(function),
+                [] => Err(format!("Unknown function `{reference_text}`.")),
+                many => Err(format!(
+                    "Ambiguous function `{reference_text}` resolves to {} candidates: {}.",
+                    many.len(),
+                    many.iter()
+                        .map(|function| function.symbol())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )),
+            }
+        }
         many => Err(format!(
             "Ambiguous function `{reference_text}` resolves to {} candidates: {}.",
             many.len(),
@@ -524,6 +552,10 @@ impl<'a, 'b> ExprParser<'a, 'b> {
                 self.index += 1;
                 Ok(Value::Text(value))
             }
+            Token::Unit => {
+                self.index += 1;
+                Ok(Value::Unit)
+            }
             Token::True => {
                 self.index += 1;
                 Ok(Value::Bool(true))
@@ -632,4 +664,39 @@ fn as_ordered(
         _ => return Err("Ordered comparisons require matching Int or Text values.".to_string()),
     };
     Ok(predicate(ordering))
+}
+
+fn call_print_intrinsic(name: &str, args: Vec<Value>) -> Result<CallResult, String> {
+    if args.len() != 1 {
+        return Err(format!(
+            "Function `{name}` expected 1 arguments, got {}.",
+            args.len()
+        ));
+    }
+    match args.into_iter().next().expect("length checked above") {
+        Value::Text(text) => {
+            let mut bindings = HashMap::new();
+            bindings.insert("text".to_string(), Value::Text(text));
+            Ok(CallResult {
+                value: Value::Unit,
+                args: bindings,
+            })
+        }
+        actual => Err(format!(
+            "Function `{name}` argument 1 expected Text, got {actual}."
+        )),
+    }
+}
+
+fn call_read_line_intrinsic(name: &str, args: Vec<Value>) -> Result<CallResult, String> {
+    if !args.is_empty() {
+        return Err(format!(
+            "Function `{name}` expected 0 arguments, got {}.",
+            args.len()
+        ));
+    }
+    Ok(CallResult {
+        value: Value::Text(String::new()),
+        args: HashMap::new(),
+    })
 }

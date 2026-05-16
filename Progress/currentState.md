@@ -39,12 +39,16 @@ Selection policy for generic implementation prompts:
   - duplicate examples, executable examples that do not directly call the public function under test, duplicate contract clauses, duplicate sampled property blocks, duplicate migration acknowledgements, sampled properties with no bound variables, sampled properties that do not directly call the public function under test, and sampled properties with unsupported generator types as low-signal evidence warnings
   - ambiguous bare-call diagnostics with qualified-reference repair guidance and structured symbol lookup repair actions
   - unknown function static type errors with structured symbol lookup repair actions
-  - sampled `forall` properties over deterministic `Int`, `Bool`, and `Text` sample sets
+  - sampled `forall` properties over deterministic `Int`, `Bool`, `Text`, and singleton `Unit` sample sets
   - deterministic sampled-property failure and evaluation-error replay data with property indexes, sample indexes, seed strings, sampled bindings, and single-sample replay repair actions
   - deterministic sampled-property shrink data for failing or erroring properties when a simpler same-outcome binding exists in the built-in samples
   - single-sample property replay via `bin/serow replay property <sample-seed> [paths...] [--json]`, including the same deterministic shrink hint fields as checker failures and evaluation errors when a simpler same-outcome binding exists
   - inferred cross-module dependencies from function calls in implementations, contracts, examples, and properties
   - conservative structured effect capability validation: direct callers must declare every concrete non-`pure` capability required by resolved callees, and resolved direct-call wrappers warn on concrete capabilities not required by non-self callees
+- Compiler-owned terminal intrinsics:
+  - `print(text: Text) -> Unit`
+  - `read_line() -> Text`
+  - both require `io`, are available without source-level `use serow.intrinsic`, and use a non-interactive checker model so examples/properties do not perform terminal I/O
 - Source-level public symbol versions with `version vN`; omitted versions default to `v1` for compatibility.
 - Source-level function migration acknowledgements with `migration` records for `public-behavior-change`, `capability-expansion`, `evidence-weakening`, `implementation-change`, and `impact-review`.
 - Qualified function references in executable expressions:
@@ -97,12 +101,13 @@ Selection policy for generic implementation prompts:
   - runs the checked IR lowering path first and refuses to emit Rust when checker or IR lowering errors are present
   - emits deterministic Rust source on stdout in text mode and includes the generated source, deterministic source fingerprint, and source-location-aware symbol-to-Rust-name rows in JSON mode
   - writes a dependency-free Rust crate layout with `Cargo.toml` and `src/lib.rs` when passed `--out-dir <dir>`, using `--crate-name <name>` when provided and defaulting to `serow_generated`
-  - writes a runnable Rust binary crate entrypoint with `src/main.rs` when passed `--emit-bin`/`--bin`, requiring exactly one public zero-argument `main` returning `Text`, `Int`, or `Bool` and printing the returned value deterministically
+  - writes a runnable Rust binary crate entrypoint with `src/main.rs` when passed `--emit-bin`/`--bin`, requiring exactly one public zero-argument `main` returning `Text`, `Int`, `Bool`, or `Unit`; non-`Unit` values are printed deterministically and `Unit` entrypoints rely on explicit effects
   - records deterministic `package.metadata.serow` manifest rows for the backend id, IR version, generated source fingerprint, generated function/test counts, source locations, symbol-to-Rust-name mappings, and source-location-aware example/property evidence-to-test mappings in generated crates
-  - supports pure public functions over `Int`, `Bool`, and `Text` in the current expression subset, including arithmetic, text concatenation, comparisons, boolean operators, `if`, unary operators, resolved function calls, and runtime assertions for `requires` preconditions and `ensures` postconditions
-  - emits generated Rust `#[test]` functions for checked Serow examples and deterministic sampled-property bindings, and reports source-location-aware symbol/evidence-to-test mappings in JSON mode
+  - supports pure public functions over `Int`, `Bool`, `Text`, and `Unit` in the current expression subset, including arithmetic, text concatenation, comparisons, boolean operators, `if`, unary operators, resolved function calls, and runtime assertions for `requires` preconditions and `ensures` postconditions
+  - lowers checked terminal `io` intrinsics to Rust `println!` and stdin line reading
+  - emits generated Rust `#[test]` functions for checked pure Serow examples and deterministic sampled-property bindings, and reports source-location-aware symbol/evidence-to-test mappings in JSON mode
   - maps Serow `Text` to owned Rust `String` values in generated source
-  - rejects non-`pure` functions with explicit backend diagnostics instead of generating partial code
+  - rejects effects outside the current `pure`/terminal-`io` backend slice with explicit backend diagnostics instead of generating partial code
 - Structured patch commands:
   - `bin/serow patch add-function <path> <module> <signature> <intent> [--json]`
   - `bin/serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]`
@@ -1683,11 +1688,11 @@ cargo test --manifest-path <tmpdir>/Cargo.toml
 {
   "ok": true,
   "summary": {
-    "contracts": 12,
-    "examples": 7,
-    "functions": 3,
+    "contracts": 13,
+    "examples": 8,
+    "functions": 4,
     "holes": 0,
-    "properties": 3
+    "properties": 4
   }
 }
 ```
@@ -1698,13 +1703,13 @@ cargo test --manifest-path <tmpdir>/Cargo.toml
 - Intent duplicate errors are exact after simple normalization; near-duplicate warnings and intent search use deterministic token ranking with stopwords and light token normalization. Duplicate and near-duplicate diagnostics expose token overlap/differences, but they are not semantic similarity yet.
 - Type checking covers the current expression subset but does not yet model user-defined data types, generics, or effect polymorphism.
 - Expression support is intentionally small: literals, variables, direct or qualified calls, arithmetic, comparisons, booleans, and one-line `if ... then ... else ...`.
-- Properties are sampled, not proven; built-in samples are fixed small sets for `Int`, `Bool`, and `Text`. Failed or erroring sampled properties report replay data, include simpler shrunk same-outcome bindings when available, and can be rerun one sample at a time with `bin/serow replay property`.
-- Effects checking is intentionally conservative direct-call capability subset validation; it warns on unused declared capabilities only when resolved non-self direct callees establish a required capability set, and it does not yet model effect polymorphism or external effect primitives.
+- Properties are sampled, not proven; built-in samples are fixed small sets for `Int`, `Bool`, `Text`, and singleton `Unit`. Failed or erroring sampled properties report replay data, include simpler shrunk same-outcome bindings when available, and can be rerun one sample at a time with `bin/serow replay property`.
+- Effects checking is intentionally conservative direct-call capability subset validation; it warns on unused declared capabilities only when resolved non-self direct callees establish a required capability set, and it does not yet model effect polymorphism or external effect primitives beyond the compiler-owned terminal I/O intrinsics.
 - Structured patch coverage is intentionally narrow: module `use` insertion, public function skeleton insertion, public function rename with in-file resolved call rewrites, bare-call qualification to exact symbols, evidence insertion, indexed evidence removal, migration acknowledgement insertion/replacement/removal, indexed contract/example/property replacement, duplicate-intent-guarded intent replacement, effect declaration replacement, missing or existing implementation expression setting, version declaration and pinned-call-aware version bumps, and typed-hole filling are implemented.
 - Evidence patching can append or replace individual contract/example/property items, but dependent impact and evidence policy are still enforced by `serow plan` and unattended certification rather than by the patch command itself.
 - Formatting parses and re-emits the bootstrap projection; comments are not preserved yet.
 - The hand-written JSON output should eventually be replaced with `serde_json` once external dependencies are allowed/desired.
-- `serow compile rust` emits deterministic Rust source and can write a minimal Rust crate layout for pure checked `Int`/`Bool`/`Text` functions, including runtime `requires`/`ensures` assertions, generated Rust tests for checked examples and deterministic sampled-property bindings, a configurable generated crate name, deterministic generated-source fingerprint metadata, deterministic Serow manifest metadata for generated functions, source locations, source-location-aware evidence tests, and an optional runnable `src/main.rs` for a pure public zero-argument `main`, but terminal input, effectful functions, ownership-friendly state transforms, WASM, TypeScript, Python, and richer multi-target backend package layouts do not exist yet.
+- `serow compile rust` emits deterministic Rust source and can write a minimal Rust crate layout for pure checked `Int`/`Bool`/`Text`/`Unit` functions and the narrow terminal `io` intrinsic path, including runtime `requires`/`ensures` assertions, generated Rust tests for checked pure examples and deterministic sampled-property bindings, a configurable generated crate name, deterministic generated-source fingerprint metadata, deterministic Serow manifest metadata for generated functions, source locations, source-location-aware evidence tests, and an optional runnable `src/main.rs` for a public zero-argument `main`, but arbitrary effectful functions, ownership-friendly state transforms, WASM, TypeScript, Python, and richer multi-target backend package layouts do not exist yet.
 - Structured repair actions currently cover only command-style fixes already exposed by the bootstrap CLI.
 - `query callees` and `query dependents` report direct resolved call edges; use `query impact` for direct and transitive dependent paths. Ambiguous bare calls are intentionally skipped by ledger queries because they are checker errors.
 - `serow plan` is an early reporting primitive; it treats explicit path arguments as the selected change set, reports semantic change labels plus inferred direct-call capability requirements, suggested effect declarations, sampled-property coverage hints, and advisory lexical arithmetic intent/implementation mismatch risks for changed symbols, and compares public contract-surface, removed public symbols, declared capabilities, normalized implementation text, and evidence sections against `HEAD` when a tracked baseline is available. It reports whether added examples/properties directly call changed implementations, whether that added evidence would fail against the `HEAD` implementation, and whether impacted dependent call edges are covered by executable examples or sampled properties, but it does not yet compare full implementation AST behavior.

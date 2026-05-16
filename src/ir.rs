@@ -39,6 +39,7 @@ pub enum IrExpr {
     Int(i64),
     Bool(bool),
     Text(String),
+    Unit,
     Var(String),
     Call {
         reference: String,
@@ -536,6 +537,10 @@ impl<'a> IrParser<'a> {
             Token::Text(value) => {
                 self.index += 1;
                 Ok(IrExpr::Text(value))
+            }
+            Token::Unit => {
+                self.index += 1;
+                Ok(IrExpr::Unit)
             }
             Token::True => {
                 self.index += 1;

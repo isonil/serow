@@ -198,6 +198,10 @@ impl<'a> TypeParser<'a> {
                 self.index += 1;
                 Ok("Text".to_string())
             }
+            Token::Unit => {
+                self.index += 1;
+                Ok("Unit".to_string())
+            }
             Token::True | Token::False => {
                 self.index += 1;
                 Ok("Bool".to_string())
