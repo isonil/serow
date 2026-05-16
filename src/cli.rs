@@ -2557,6 +2557,11 @@ const CORE_AGENT_COMMANDS: &[AgentCommand] = &[
         "Lower checked public implementations, contracts, examples, and sampled properties to the portable bootstrap IR.",
     ),
     (
+        "compile rust",
+        "serow compile rust [paths...] [--out-dir <dir>] [--crate-name <name>] [--json]",
+        "Emit deterministic Rust source or a generated Rust crate with configurable package name, Serow manifest metadata, and generated evidence tests for the supported checked IR subset.",
+    ),
+    (
         "fmt",
         "serow fmt [paths...] [--check] [--json]",
         "Rewrite or verify canonical Serow source formatting.",

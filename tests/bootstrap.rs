@@ -1973,6 +1973,12 @@ fn agent_json_includes_compact_machine_readable_workflow() {
         "{stdout}"
     );
     assert!(
+        stdout.contains(
+            "serow compile rust [paths...] [--out-dir <dir>] [--crate-name <name>] [--json]"
+        ),
+        "{stdout}"
+    );
+    assert!(
         stdout.contains("serow plan [paths...] [--json]"),
         "{stdout}"
     );
@@ -1983,7 +1989,6 @@ fn agent_json_includes_compact_machine_readable_workflow() {
     );
     assert!(stdout.contains("bin/serow certify --json"), "{stdout}");
     assert!(stdout.contains("bin/serow plan --json"), "{stdout}");
-    assert!(!stdout.contains("serow compile rust"), "{stdout}");
     assert!(!stdout.contains("serow patch qualify-call"), "{stdout}");
     assert!(!stdout.contains("\"diagnostic_json\""), "{stdout}");
     assert!(!stdout.contains("\"plan_json\""), "{stdout}");

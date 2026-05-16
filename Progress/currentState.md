@@ -64,7 +64,7 @@ Selection policy for generic implementation prompts:
 - Agent bootstrap command:
   - `bin/serow agent`
   - `bin/serow agent --json`
-  - compact default output with core commands, workflow, requirements, gates, and known limits
+  - compact default output with core commands, backend entry points, workflow, requirements, gates, and known limits
   - `bin/serow agent commands [--json]` for the full command catalog
   - `bin/serow agent diagnostics [--json]` for detailed diagnostic and plan JSON protocol notes
 - Machine-readable change planning:
@@ -1608,6 +1608,26 @@ bin/serow certify --profile unattended --json
 bin/serow plan --json
 bin/serow compile rust examples/math.serow --out-dir <tmpdir> --crate-name serow_math --json
 cargo test --manifest-path <tmpdir>/Cargo.toml
+```
+
+Additional verification after exposing the Rust backend in compact agent bootstrap output:
+
+```sh
+bin/serow query intent "compile Serow programs to Rust crate and run generated evidence tests" --json
+bin/serow query symbol compile --json
+cargo fmt --check
+cargo test agent_json_includes_compact_machine_readable_workflow -- --nocapture
+bin/serow agent --json
+cargo clippy -- -D warnings
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+bin/serow compile rust examples/math.serow --json
+git diff --check
 ```
 
 `bin/serow check --json` currently reports:
