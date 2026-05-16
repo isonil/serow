@@ -6416,6 +6416,7 @@ fn compile_ir_json_reports_portable_ir() {
     assert!(stdout.contains("\"requires\": ["), "{stdout}");
     assert!(stdout.contains("\"ensures\": ["), "{stdout}");
     assert!(stdout.contains("\"examples\": ["), "{stdout}");
+    assert!(stdout.contains("\"properties\": ["), "{stdout}");
     assert!(stdout.contains("\"op\": \"not_eq\""), "{stdout}");
     assert!(stdout.contains("\"lowered_functions\": 3"), "{stdout}");
 }
@@ -6505,9 +6506,20 @@ fn compile_rust_json_emits_supported_backend_source() {
         stdout.contains("\"rust_name\": \"serow_test_core_math_add_v1_example_1\""),
         "{stdout}"
     );
+    assert!(
+        stdout.contains("fn serow_test_core_math_add_v1_property_1_sample_1()"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("assert!(serow_core_math_add_v1(serow_x, serow_y) == serow_core_math_add_v1(serow_y, serow_x)"),
+        "{stdout}"
+    );
+    assert!(stdout.contains("\"kind\": \"property\""), "{stdout}");
+    assert!(stdout.contains("\"property_index\": 1"), "{stdout}");
+    assert!(stdout.contains("\"sample_index\": 1"), "{stdout}");
     assert!(stdout.contains("serow_x / serow_y"), "{stdout}");
     assert!(stdout.contains("\"generated_functions\": 3"), "{stdout}");
-    assert!(stdout.contains("\"generated_tests\": 7"), "{stdout}");
+    assert!(stdout.contains("\"generated_tests\": 70"), "{stdout}");
 }
 
 #[test]
@@ -6644,6 +6656,10 @@ fn compile_rust_out_dir_writes_crate_layout() {
     assert!(source.contains("pub fn serow_core_math_add_v1"), "{source}");
     assert!(
         source.contains("fn serow_test_core_math_add_v1_example_1()"),
+        "{source}"
+    );
+    assert!(
+        source.contains("fn serow_test_core_math_add_v1_property_1_sample_1()"),
         "{source}"
     );
     assert!(

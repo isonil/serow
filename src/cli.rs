@@ -1618,6 +1618,7 @@ fn ir_function_json(function: &IrFunction) -> String {
             "\"module\": {}, ",
             "\"name\": {}, ",
             "\"params\": {}, ",
+            "\"properties\": {}, ",
             "\"requires\": {}, ",
             "\"return_type\": {}, ",
             "\"symbol\": {}, ",
@@ -1631,6 +1632,7 @@ fn ir_function_json(function: &IrFunction) -> String {
         json_string(&function.module),
         json_string(&function.name),
         params_json(&function.params),
+        ir_properties_json(&function.properties),
         ir_exprs_json(&function.requires),
         json_string(&function.return_type),
         json_string(&function.symbol),
@@ -1651,6 +1653,21 @@ fn params_json(params: &[crate::model::Param]) -> String {
         .collect::<Vec<_>>()
         .join(", ");
     format!("[{rows}]")
+}
+
+fn ir_properties_json(properties: &[crate::ir::IrProperty]) -> String {
+    let rows = properties
+        .iter()
+        .map(|property| {
+            format!(
+                "{{\"expression\": {}, \"index\": {}, \"variables\": {}}}",
+                ir_expr_json(&property.expression),
+                property.index,
+                params_json(&property.variables)
+            )
+        })
+        .collect::<Vec<_>>();
+    format!("[{}]", rows.join(", "))
 }
 
 fn ir_expr_json(expr: &IrExpr) -> String {
@@ -1766,10 +1783,19 @@ fn rust_program_json(rust: &GeneratedRustProgram) -> String {
         .tests
         .iter()
         .map(|test| {
+            if let Some(example_index) = test.example_index {
+                return format!(
+                    "{{\"example_index\": {example_index}, \"rust_name\": {}, \"symbol\": {}}}",
+                    json_string(&test.rust_name),
+                    json_string(&test.symbol)
+                );
+            }
             format!(
-                "{{\"example_index\": {}, \"rust_name\": {}, \"symbol\": {}}}",
-                test.example_index,
+                "{{\"kind\": {}, \"property_index\": {}, \"rust_name\": {}, \"sample_index\": {}, \"symbol\": {}}}",
+                json_string(&test.kind),
+                test.property_index.unwrap_or_default(),
                 json_string(&test.rust_name),
+                test.sample_index.unwrap_or_default(),
                 json_string(&test.symbol)
             )
         })
@@ -2420,7 +2446,7 @@ const CORE_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "compile ir",
         "serow compile ir [paths...] [--json]",
-        "Lower checked public implementations, contracts, and examples to the portable bootstrap IR.",
+        "Lower checked public implementations, contracts, examples, and sampled properties to the portable bootstrap IR.",
     ),
     (
         "fmt",
@@ -2468,12 +2494,12 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "compile ir",
         "serow compile ir [paths...] [--json]",
-        "Lower checked public implementations, contracts, and examples to the portable bootstrap IR.",
+        "Lower checked public implementations, contracts, examples, and sampled properties to the portable bootstrap IR.",
     ),
     (
         "compile rust",
         "serow compile rust [paths...] [--out-dir <dir>] [--json]",
-        "Emit deterministic Rust source or a generated Rust crate with tests for the supported checked IR subset.",
+        "Emit deterministic Rust source or a generated Rust crate with example and sampled-property tests for the supported checked IR subset.",
     ),
     (
         "fmt",
@@ -2701,7 +2727,7 @@ fn agent_json() -> String {
         str_array_json(&[
             "Properties are sampled, not proven; replay uses deterministic seeds.",
             "Intent search is deterministic token ranking, not semantic embeddings.",
-            "Rust backend emission is limited to pure Int/Bool/Text functions, emits runtime asserts for Serow requires and ensures clauses, and emits Rust tests for Serow examples.",
+            "Rust backend emission is limited to pure Int/Bool/Text functions, emits runtime asserts for Serow requires and ensures clauses, and emits Rust tests for Serow examples and deterministic sampled properties.",
             "Expression support is intentionally small and formatting does not preserve comments.",
             "JSON output is hand-written until external dependencies are accepted."
         ])
@@ -2910,7 +2936,7 @@ fn print_agent_bootstrap() {
     println!("  intent search is token-ranked, not semantic embeddings");
     println!("  Rust backend emission is limited to pure Int/Bool/Text functions");
     println!("  Rust backend emits runtime asserts for Serow requires and ensures clauses");
-    println!("  Rust backend emits Rust tests for Serow examples");
+    println!("  Rust backend emits Rust tests for Serow examples and sampled properties");
     println!("  expression support is small and formatting does not preserve comments");
 }
 

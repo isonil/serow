@@ -21,7 +21,15 @@ pub struct IrFunction {
     pub requires: Vec<IrExpr>,
     pub ensures: Vec<IrExpr>,
     pub examples: Vec<IrExpr>,
+    pub properties: Vec<IrProperty>,
     pub body: IrExpr,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IrProperty {
+    pub index: usize,
+    pub variables: Vec<Param>,
+    pub expression: IrExpr,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -222,6 +230,44 @@ pub fn lower_checked_program(program: &Program, parse_diagnostics: Vec<Diagnosti
             continue;
         }
 
+        let mut properties = Vec::new();
+        for property in property_blocks(&function.properties) {
+            match lower_expression_with_variables(
+                &property.expression,
+                property
+                    .variables
+                    .iter()
+                    .map(|param| param.name.clone())
+                    .collect(),
+                &program.functions,
+            ) {
+                Ok(expression) => properties.push(IrProperty {
+                    index: property.index,
+                    variables: property.variables,
+                    expression,
+                }),
+                Err(error) => {
+                    failed = true;
+                    diagnostics.push(
+                        Diagnostic::error(
+                            "IrLoweringError",
+                            format!(
+                                "Could not lower sampled property #{} for `{}` to portable IR: {error}",
+                                property.index, function.name
+                            ),
+                            Some(function.target()),
+                        )
+                        .with_data("symbol", function.symbol())
+                        .with_data("property_index", property.index.to_string())
+                        .with_data("property", property.expression),
+                    );
+                }
+            }
+        }
+        if failed {
+            continue;
+        }
+
         match lower_expression(implementation, function, &program.functions) {
             Ok(body) => functions.push(IrFunction {
                 symbol: function.symbol(),
@@ -234,6 +280,7 @@ pub fn lower_checked_program(program: &Program, parse_diagnostics: Vec<Diagnosti
                 requires,
                 ensures,
                 examples,
+                properties,
                 body,
             }),
             Err(error) => diagnostics.push(
@@ -260,6 +307,45 @@ pub fn lower_checked_program(program: &Program, parse_diagnostics: Vec<Diagnosti
         check_summary,
         ir,
     }
+}
+
+struct PropertyBlock {
+    index: usize,
+    variables: Vec<Param>,
+    expression: String,
+}
+
+fn property_blocks(lines: &[String]) -> Vec<PropertyBlock> {
+    let mut blocks = Vec::new();
+    let mut index = 0;
+    let mut property_index = 1;
+    while index < lines.len() {
+        let line = lines[index].trim();
+        if !line.starts_with("forall ") || !line.ends_with(':') {
+            index += 1;
+            continue;
+        }
+        let variables_text = &line["forall ".len()..line.len() - 1];
+        let mut variables = Vec::new();
+        for raw_var in variables_text.split(',') {
+            if let Some((name, type_name)) = raw_var.split_once(':') {
+                variables.push(Param {
+                    name: name.trim().to_string(),
+                    type_name: type_name.trim().to_string(),
+                });
+            }
+        }
+        if let Some(expression) = lines.get(index + 1) {
+            blocks.push(PropertyBlock {
+                index: property_index,
+                variables,
+                expression: expression.trim().to_string(),
+            });
+            property_index += 1;
+        }
+        index += 2;
+    }
+    blocks
 }
 
 fn lower_expression(

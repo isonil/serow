@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 
 use crate::diagnostic::{Diagnostic, has_errors};
+use crate::eval::Value;
 use crate::ir::{
     IrBinaryOp, IrExpr, IrFunction, IrProgram, IrSummary, IrUnaryOp, lower_checked_program,
 };
 use crate::model::Program;
+use crate::sampling::{cartesian_product, samples_for_type};
 
 #[derive(Clone, Debug)]
 pub struct RustBackendSummary {
@@ -37,7 +39,10 @@ pub struct GeneratedRustFunction {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GeneratedRustTest {
     pub symbol: String,
-    pub example_index: usize,
+    pub kind: String,
+    pub example_index: Option<usize>,
+    pub property_index: Option<usize>,
+    pub sample_index: Option<usize>,
     pub rust_name: String,
 }
 
@@ -338,9 +343,94 @@ fn render_function_tests(
         ));
         generated_tests.push(GeneratedRustTest {
             symbol: function.symbol.clone(),
-            example_index: index + 1,
+            kind: "example".to_string(),
+            example_index: Some(index + 1),
+            property_index: None,
+            sample_index: None,
             rust_name: test_name,
         });
+    }
+
+    for property in &function.properties {
+        let mut sample_sets = Vec::new();
+        for variable in &property.variables {
+            let Some(samples) = samples_for_type(&variable.type_name) else {
+                return Err(vec![unsupported_type_diagnostic(
+                    function,
+                    &variable.type_name,
+                    &format!(
+                        "No deterministic Rust backend samples exist for property variable `{}`.",
+                        variable.name
+                    ),
+                )]);
+            };
+            sample_sets.push(samples);
+        }
+        for (sample_offset, sample_values) in
+            cartesian_product(&sample_sets).into_iter().enumerate()
+        {
+            let sample_index = sample_offset + 1;
+            let mut variables = HashMap::new();
+            let mut variable_types = HashMap::new();
+            let mut allocated_variables = HashMap::<String, usize>::new();
+            let mut bindings = Vec::new();
+            for (variable, value) in property.variables.iter().zip(sample_values.iter()) {
+                let rust_variable =
+                    allocate_rust_identifier(&variable.name, &mut allocated_variables);
+                variables.insert(variable.name.clone(), rust_variable.clone());
+                variable_types.insert(variable.name.clone(), variable.type_name.clone());
+                bindings.push(format!(
+                    "        let {rust_variable} = {};",
+                    render_sample_value(value)
+                ));
+            }
+            let rendered = render_expr(
+                &property.expression,
+                &variables,
+                &variable_types,
+                rust_names,
+                signatures,
+            )
+            .map_err(|message| vec![backend_error(function, message)])?;
+            if rendered.type_name != "Bool" {
+                return Err(vec![backend_error(
+                    function,
+                    format!(
+                        "Lowered property #{} sample #{} has type {}, expected Bool.",
+                        property.index, sample_index, rendered.type_name
+                    ),
+                )]);
+            }
+
+            let test_name = allocate_rust_identifier(
+                &format!(
+                    "test_{}_property_{}_sample_{}",
+                    function.symbol, property.index, sample_index
+                ),
+                allocated_test_names,
+            );
+            let binding_block = if bindings.is_empty() {
+                String::new()
+            } else {
+                format!("{}\n", bindings.join("\n"))
+            };
+            rendered_tests.push(format!(
+                "    #[test]\n    fn {test_name}() {{\n{binding_block}        assert!({}, {});\n    }}",
+                strip_outer_parens(&rendered.code),
+                rust_string_literal(&format!(
+                    "Serow property failed for {} property #{} sample #{}",
+                    function.symbol, property.index, sample_index
+                ))
+            ));
+            generated_tests.push(GeneratedRustTest {
+                symbol: function.symbol.clone(),
+                kind: "property".to_string(),
+                example_index: None,
+                property_index: Some(property.index),
+                sample_index: Some(sample_index),
+                rust_name: test_name,
+            });
+        }
     }
 
     Ok((rendered_tests, generated_tests))
@@ -581,6 +671,14 @@ fn rust_string_literal(value: &str) -> String {
     }
     escaped.push('"');
     escaped
+}
+
+fn render_sample_value(value: &Value) -> String {
+    match value {
+        Value::Int(value) => value.to_string(),
+        Value::Bool(value) => value.to_string(),
+        Value::Text(value) => format!("String::from({})", rust_string_literal(value)),
+    }
 }
 
 fn rust_identifier(name: &str) -> String {
