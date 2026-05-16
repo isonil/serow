@@ -635,6 +635,47 @@ fn render_expr(
                 type_name: then_expr.type_name,
             })
         }
+        IrExpr::Let { name, value, body } => {
+            let value = render_expr(value, variables, variable_types, rust_names, signatures)?;
+            let rust_name = rust_identifier(name);
+            let mut body_variables = variables.clone();
+            let mut body_variable_types = variable_types.clone();
+            body_variables.insert(name.clone(), rust_name.clone());
+            body_variable_types.insert(name.clone(), value.type_name.clone());
+            let body = render_expr(
+                body,
+                &body_variables,
+                &body_variable_types,
+                rust_names,
+                signatures,
+            )?;
+            Ok(RenderedExpr {
+                code: format!(
+                    "{{ let {rust_name} = {}; {} }}",
+                    strip_outer_parens(&value.code),
+                    strip_outer_parens(&body.code)
+                ),
+                type_name: body.type_name,
+            })
+        }
+        IrExpr::Sequence { first, second } => {
+            let first = render_expr(first, variables, variable_types, rust_names, signatures)?;
+            if first.type_name != "Unit" {
+                return Err(format!(
+                    "Lowered sequence left expression has type {}, expected Unit.",
+                    first.type_name
+                ));
+            }
+            let second = render_expr(second, variables, variable_types, rust_names, signatures)?;
+            Ok(RenderedExpr {
+                code: format!(
+                    "{{ {}; {} }}",
+                    strip_outer_parens(&first.code),
+                    strip_outer_parens(&second.code)
+                ),
+                type_name: second.type_name,
+            })
+        }
     }
 }
 

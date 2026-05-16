@@ -60,6 +60,15 @@ pub enum IrExpr {
         then_expr: Box<IrExpr>,
         else_expr: Box<IrExpr>,
     },
+    Let {
+        name: String,
+        value: Box<IrExpr>,
+        body: Box<IrExpr>,
+    },
+    Sequence {
+        first: Box<IrExpr>,
+        second: Box<IrExpr>,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -385,9 +394,6 @@ fn lower_expression_with_variables(
     variables: Vec<String>,
     functions: &[Function],
 ) -> Result<IrExpr, String> {
-    if expression.contains('\n') {
-        return Err("multi-line expressions are not supported by the bootstrap IR".to_string());
-    }
     let tokens = tokenize(expression)?;
     let mut parser = IrParser::new(tokens, variables, functions);
     let expr = parser.parse_expression()?;
@@ -413,7 +419,34 @@ impl<'a> IrParser<'a> {
     }
 
     fn parse_expression(&mut self) -> Result<IrExpr, String> {
-        self.parse_if()
+        self.parse_sequence()
+    }
+
+    fn parse_sequence(&mut self) -> Result<IrExpr, String> {
+        if self.consume(&Token::Let) {
+            let name = self.expect_ident()?;
+            self.expect(&Token::Assign)?;
+            let value = self.parse_if()?;
+            self.expect(&Token::Semicolon)?;
+            self.variables.push(name.clone());
+            let body = self.parse_expression();
+            self.variables.pop();
+            return body.map(|body| IrExpr::Let {
+                name,
+                value: Box::new(value),
+                body: Box::new(body),
+            });
+        }
+
+        let first = self.parse_if()?;
+        if self.consume(&Token::Semicolon) {
+            let second = self.parse_expression()?;
+            return Ok(IrExpr::Sequence {
+                first: Box::new(first),
+                second: Box::new(second),
+            });
+        }
+        Ok(first)
     }
 
     fn parse_if(&mut self) -> Result<IrExpr, String> {
@@ -606,6 +639,17 @@ impl<'a> IrParser<'a> {
             Ok(())
         } else {
             Err(format!("Expected token {:?}.", expected))
+        }
+    }
+
+    fn expect_ident(&mut self) -> Result<String, String> {
+        match self.peek().cloned() {
+            Some(Token::Ident(name)) => {
+                self.index += 1;
+                Ok(name)
+            }
+            Some(token) => Err(format!("Expected identifier, got {:?}.", token)),
+            None => Err("Expected identifier, got end of expression.".to_string()),
         }
     }
 

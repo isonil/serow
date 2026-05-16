@@ -8,14 +8,8 @@ pub(crate) fn infer_expression_type(
     variables: &HashMap<String, String>,
     functions: &[Function],
 ) -> Result<String, String> {
-    if expression.contains('\n') {
-        return Err(
-            "Multi-line implementations are not type-checkable in the bootstrap checker."
-                .to_string(),
-        );
-    }
     let tokens = tokenize(expression)?;
-    let mut parser = TypeParser::new(tokens, variables, functions);
+    let mut parser = TypeParser::new(tokens, variables.clone(), functions);
     let type_name = parser.parse_expression()?;
     parser.expect_end()?;
     Ok(type_name)
@@ -24,14 +18,14 @@ pub(crate) fn infer_expression_type(
 struct TypeParser<'a> {
     tokens: Vec<Token>,
     index: usize,
-    variables: &'a HashMap<String, String>,
+    variables: HashMap<String, String>,
     functions: &'a [Function],
 }
 
 impl<'a> TypeParser<'a> {
     fn new(
         tokens: Vec<Token>,
-        variables: &'a HashMap<String, String>,
+        variables: HashMap<String, String>,
         functions: &'a [Function],
     ) -> Self {
         Self {
@@ -43,7 +37,34 @@ impl<'a> TypeParser<'a> {
     }
 
     fn parse_expression(&mut self) -> Result<String, String> {
-        self.parse_if()
+        self.parse_sequence()
+    }
+
+    fn parse_sequence(&mut self) -> Result<String, String> {
+        if self.consume(&Token::Let) {
+            let name = self.expect_ident()?;
+            self.expect(&Token::Assign)?;
+            let value_type = self.parse_if()?;
+            self.expect(&Token::Semicolon)?;
+            let previous = self.variables.insert(name.clone(), value_type);
+            let result = self.parse_expression();
+            match previous {
+                Some(value_type) => {
+                    self.variables.insert(name, value_type);
+                }
+                None => {
+                    self.variables.remove(&name);
+                }
+            }
+            return result;
+        }
+
+        let first = self.parse_if()?;
+        if self.consume(&Token::Semicolon) {
+            require_type(&first, "Unit", "sequence left expression")?;
+            return self.parse_expression();
+        }
+        Ok(first)
     }
 
     fn parse_if(&mut self) -> Result<String, String> {
@@ -274,6 +295,17 @@ impl<'a> TypeParser<'a> {
             Ok(())
         } else {
             Err(format!("Expected token {:?}.", expected))
+        }
+    }
+
+    fn expect_ident(&mut self) -> Result<String, String> {
+        match self.peek().cloned() {
+            Some(Token::Ident(name)) => {
+                self.index += 1;
+                Ok(name)
+            }
+            Some(token) => Err(format!("Expected identifier, got {:?}.", token)),
+            None => Err("Expected identifier, got end of expression.".to_string()),
         }
     }
 

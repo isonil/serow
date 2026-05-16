@@ -55,6 +55,10 @@ Selection policy for generic implementation prompts:
   - bare `name(...)` calls when the name is unambiguous
   - module-qualified `module.name(...)` and `module.name.vN(...)` calls
   - exact canonical `@module.name.vN(...)` calls
+- Ordered expression sequencing:
+  - `let name = expr; next` for local bindings scoped to the following expression
+  - `unit_expr; next` for ordered `Unit` evaluation with static rejection of non-`Unit` discards
+  - direct-call effect discovery through sequenced expressions, so terminal `print`/`read_line` still require `effects [io]`
 - Duplicate bare function names are allowed when call sites are qualified.
 - Semantic ledger queries:
   - `bin/serow query intent "<description>"` with deterministic token-ranked matching
@@ -96,6 +100,7 @@ Selection policy for generic implementation prompts:
   - runs the normal checker first and refuses to emit IR when checker errors are present
   - emits `serow.ir.v0` JSON for checked public implementations in the bootstrap expression subset
   - includes public symbol identity, source path and line provenance, signature, effects, parameters, return type, lowered `requires` preconditions, lowered `ensures` postconditions, lowered executable examples, lowered sampled properties, expression tree, and canonical resolved call targets
+  - lowers local `let` bindings and ordered sequences in the public expression tree
 - Phase 3 Rust backend:
   - `bin/serow compile rust [paths...] [--out-dir <dir>] [--emit-bin] [--crate-name <name>] [--json]`
   - runs the checked IR lowering path first and refuses to emit Rust when checker or IR lowering errors are present
@@ -104,6 +109,7 @@ Selection policy for generic implementation prompts:
   - writes a runnable Rust binary crate entrypoint with `src/main.rs` when passed `--emit-bin`/`--bin`, requiring exactly one public zero-argument `main` returning `Text`, `Int`, `Bool`, or `Unit`; non-`Unit` values are printed deterministically and `Unit` entrypoints rely on explicit effects
   - records deterministic `package.metadata.serow` manifest rows for the backend id, IR version, generated source fingerprint, generated function/test counts, source locations, symbol-to-Rust-name mappings, and source-location-aware example/property evidence-to-test mappings in generated crates
   - supports pure public functions over `Int`, `Bool`, `Text`, and `Unit` in the current expression subset, including arithmetic, text concatenation, comparisons, boolean operators, `if`, unary operators, resolved function calls, and runtime assertions for `requires` preconditions and `ensures` postconditions
+  - renders local `let` bindings and ordered sequences as Rust blocks
   - lowers checked terminal `io` intrinsics to Rust `println!` and stdin line reading
   - emits generated Rust `#[test]` functions for checked pure Serow examples and deterministic sampled-property bindings, and reports source-location-aware symbol/evidence-to-test mappings in JSON mode
   - maps Serow `Text` to owned Rust `String` values in generated source

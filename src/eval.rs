@@ -143,14 +143,8 @@ impl Evaluator {
         expression: &str,
         variables: &HashMap<String, Value>,
     ) -> Result<Value, String> {
-        if expression.contains('\n') {
-            return Err(
-                "Multi-line implementations are not executable in the bootstrap checker."
-                    .to_string(),
-            );
-        }
         let tokens = tokenize(expression)?;
-        let mut parser = ExprParser::new(tokens, variables, self);
+        let mut parser = ExprParser::new(tokens, variables.clone(), self);
         let value = parser.parse_expression()?;
         parser.expect_end()?;
         Ok(value)
@@ -168,6 +162,7 @@ pub(crate) enum Token {
     If,
     Then,
     Else,
+    Let,
     And,
     Or,
     Not,
@@ -182,6 +177,8 @@ pub(crate) enum Token {
     LtEq,
     Gt,
     GtEq,
+    Assign,
+    Semicolon,
     LParen,
     RParen,
     Comma,
@@ -270,6 +267,7 @@ pub(crate) fn tokenize(expression: &str) -> Result<Vec<Token>, String> {
                 "if" => Token::If,
                 "then" => Token::Then,
                 "else" => Token::Else,
+                "let" => Token::Let,
                 "and" => Token::And,
                 "or" => Token::Or,
                 "not" => Token::Not,
@@ -286,6 +284,7 @@ pub(crate) fn tokenize(expression: &str) -> Result<Vec<Token>, String> {
             '(' => Token::LParen,
             ')' => Token::RParen,
             ',' => Token::Comma,
+            ';' => Token::Semicolon,
             '/' if chars.get(index + 1) == Some(&'/') => {
                 index += 1;
                 Token::SlashSlash
@@ -294,6 +293,7 @@ pub(crate) fn tokenize(expression: &str) -> Result<Vec<Token>, String> {
                 index += 1;
                 Token::EqEq
             }
+            '=' => Token::Assign,
             '!' if chars.get(index + 1) == Some(&'=') => {
                 index += 1;
                 Token::NotEq
@@ -396,18 +396,18 @@ fn is_valid_version(version: &str) -> bool {
     !rest.is_empty() && rest.chars().all(|char| char.is_ascii_digit())
 }
 
-struct ExprParser<'a, 'b> {
+struct ExprParser<'a> {
     tokens: Vec<Token>,
     index: usize,
-    variables: &'a HashMap<String, Value>,
-    evaluator: &'b mut Evaluator,
+    variables: HashMap<String, Value>,
+    evaluator: &'a mut Evaluator,
 }
 
-impl<'a, 'b> ExprParser<'a, 'b> {
+impl<'a> ExprParser<'a> {
     fn new(
         tokens: Vec<Token>,
-        variables: &'a HashMap<String, Value>,
-        evaluator: &'b mut Evaluator,
+        variables: HashMap<String, Value>,
+        evaluator: &'a mut Evaluator,
     ) -> Self {
         Self {
             tokens,
@@ -418,7 +418,38 @@ impl<'a, 'b> ExprParser<'a, 'b> {
     }
 
     fn parse_expression(&mut self) -> Result<Value, String> {
-        self.parse_if()
+        self.parse_sequence()
+    }
+
+    fn parse_sequence(&mut self) -> Result<Value, String> {
+        if self.consume(&Token::Let) {
+            let name = self.expect_ident()?;
+            self.expect(&Token::Assign)?;
+            let value = self.parse_if()?;
+            self.expect(&Token::Semicolon)?;
+            let previous = self.variables.insert(name.clone(), value);
+            let result = self.parse_expression();
+            match previous {
+                Some(value) => {
+                    self.variables.insert(name, value);
+                }
+                None => {
+                    self.variables.remove(&name);
+                }
+            }
+            return result;
+        }
+
+        let first = self.parse_if()?;
+        if self.consume(&Token::Semicolon) {
+            if first != Value::Unit {
+                return Err(format!(
+                    "Sequence left expression must be Unit, got {first}."
+                ));
+            }
+            return self.parse_expression();
+        }
+        Ok(first)
     }
 
     fn parse_if(&mut self) -> Result<Value, String> {
@@ -610,6 +641,17 @@ impl<'a, 'b> ExprParser<'a, 'b> {
             Ok(())
         } else {
             Err(format!("Expected token {:?}.", expected))
+        }
+    }
+
+    fn expect_ident(&mut self) -> Result<String, String> {
+        match self.peek().cloned() {
+            Some(Token::Ident(name)) => {
+                self.index += 1;
+                Ok(name)
+            }
+            Some(token) => Err(format!("Expected identifier, got {:?}.", token)),
+            None => Err("Expected identifier, got end of expression.".to_string()),
         }
     }
 

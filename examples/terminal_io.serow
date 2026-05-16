@@ -13,3 +13,19 @@ pub fn announce(message: Text) -> Unit
   effects [io]
   impl
     print(message)
+
+pub fn greet_user() -> Unit
+  intent "Read a terminal name and print a greeting."
+  version v1
+  contract
+    ensures result == unit
+  examples
+    greet_user() == unit
+  properties
+    forall flag: Bool:
+      greet_user() == unit or flag == flag
+  effects [io]
+  impl
+    print("Welcome");
+    let name = read_line();
+    print("Hello " + name)

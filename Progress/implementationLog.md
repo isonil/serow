@@ -2,6 +2,10 @@
 
 ## 2026-05-17
 
+- Added minimal sequencing for terminal-style programs with `let name = expr; next` and `unit_expr; next`.
+- Sequenced expressions now type-check, evaluate, lower to `serow.ir.v0`, render to Rust blocks, and participate in direct-call effect discovery so nested `print`/`read_line` calls require `effects [io]`.
+- Added `examples/terminal_io.serow::greet_user` as a checked sample of `print; let read_line; print`.
+- Added regression coverage for binding scope, non-`Unit` discard type errors, effect propagation through sequencing, canonical formatting, IR JSON, and Rust backend rendering.
 - Added the first checked terminal I/O intrinsics: `print(text: Text) -> Unit` and `read_line() -> Text`.
 - Added minimal `Unit` support across expression tokens, type checking, evaluator values, deterministic sampling, IR JSON, and Rust backend lowering.
 - Intrinsics are compiler-owned ledger-queryable symbols and do not require `use serow.intrinsic`; direct callers must still declare `effects [io]`.

@@ -2025,6 +2025,30 @@ fn ir_expr_json(expr: &IrExpr) -> String {
             ir_expr_json(else_expr),
             ir_expr_json(then_expr)
         ),
+        IrExpr::Let { name, value, body } => format!(
+            concat!(
+                "{{",
+                "\"body\": {}, ",
+                "\"kind\": \"let\", ",
+                "\"name\": {}, ",
+                "\"value\": {}",
+                "}}"
+            ),
+            ir_expr_json(body),
+            json_string(name),
+            ir_expr_json(value)
+        ),
+        IrExpr::Sequence { first, second } => format!(
+            concat!(
+                "{{",
+                "\"first\": {}, ",
+                "\"kind\": \"sequence\", ",
+                "\"second\": {}",
+                "}}"
+            ),
+            ir_expr_json(first),
+            ir_expr_json(second)
+        ),
     }
 }
 

@@ -23,10 +23,10 @@ fn sample_program_checks() {
             .map(|diagnostic| &diagnostic.code)
             .collect::<Vec<_>>()
     );
-    assert_eq!(summary.functions, 4);
-    assert_eq!(summary.examples, 8);
-    assert_eq!(summary.properties, 4);
-    assert_eq!(summary.contracts, 13);
+    assert_eq!(summary.functions, 5);
+    assert_eq!(summary.examples, 9);
+    assert_eq!(summary.properties, 5);
+    assert_eq!(summary.contracts, 14);
 }
 
 #[test]
@@ -432,6 +432,203 @@ fn bad(message: Text) -> Unit
                     .any(|(key, value)| key == "missing_effects" && value == "io")),
         "{:#?}",
         summary.diagnostics
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn let_bindings_are_local_and_available_to_following_expression() {
+    let dir = unique_temp_dir("serow-let-bindings");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("let_bindings.serow");
+    fs::write(
+        &source,
+        r#"module test.let
+
+pub fn greet() -> Text
+  intent "Return a greeting built from a local binding."
+  version v1
+  contract
+    ensures result == "Hello Ada"
+  examples
+    greet() == "Hello Ada"
+  properties
+    forall flag: Bool:
+      greet() == "Hello Ada" or flag == flag
+  effects pure
+  impl
+    let name = "Ada";
+    "Hello " + name
+
+pub fn bad_scope() -> Int
+  intent "Try to use a local binding inside its own initializer."
+  version v1
+  contract
+    ensures result == 1
+  examples
+    bad_scope() == 1
+  properties
+    forall flag: Bool:
+      bad_scope() == 1 or flag == flag
+  effects pure
+  impl
+    let x = x;
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(
+        summary.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "TypeError"
+                && diagnostic.message.contains("Unknown variable `x`")
+                && diagnostic
+                    .data
+                    .iter()
+                    .any(|(key, value)| key == "context" && value == "impl")
+        }),
+        "{:#?}",
+        summary.diagnostics
+    );
+    assert!(
+        !summary.diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .data
+                .iter()
+                .any(|(key, value)| key == "function" && value == "@test.let.greet.v1")
+        }),
+        "{:#?}",
+        summary.diagnostics
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn sequence_requires_unit_before_discarding() {
+    let dir = unique_temp_dir("serow-sequence-type");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("sequence_type.serow");
+    fs::write(
+        &source,
+        r#"module test.sequence
+
+pub fn bad() -> Int
+  intent "Try to discard a non-unit expression."
+  version v1
+  contract
+    ensures result == 2
+  examples
+    bad() == 2
+  properties
+    forall flag: Bool:
+      bad() == 2 or flag == flag
+  effects pure
+  impl
+    1;
+    2
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(
+        summary.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "TypeError"
+                && diagnostic
+                    .message
+                    .contains("sequence left expression expected Unit, got Int")
+        }),
+        "{:#?}",
+        summary.diagnostics
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn sequenced_terminal_io_requires_io_effects() {
+    let dir = unique_temp_dir("serow-sequence-effects");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("effects.serow");
+    fs::write(
+        &source,
+        r#"module test.sequence
+
+fn bad() -> Unit
+  effects pure
+  impl
+    print("Welcome");
+    let name = read_line();
+    print("Hello " + name)
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == "EffectViolation")
+            .count()
+            >= 2,
+        "{:#?}",
+        summary.diagnostics
+    );
+    assert!(
+        summary.diagnostics.iter().any(|diagnostic| diagnostic
+            .data
+            .iter()
+            .any(|(key, value)| key == "callee" && value == "@serow.intrinsic.read_line.v1")),
+        "{:#?}",
+        summary.diagnostics
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn formatter_preserves_multiline_sequence_canonically() {
+    let dir = unique_temp_dir("serow-sequence-format");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("format.serow");
+    fs::write(
+        &source,
+        r#"module test.format
+
+pub fn greet() -> Unit
+  intent "Print a local greeting."
+  version v1
+  contract
+    ensures result == unit
+  examples
+    greet() == unit
+  properties
+    forall flag: Bool:
+      greet() == unit or flag == flag
+  effects [io]
+  impl
+       print("Welcome");
+        let name = read_line();
+      print("Hello " + name)
+"#,
+    )
+    .expect("write fixture");
+
+    let summary = format_paths(&[source.to_string_lossy().to_string()], false);
+    assert!(summary.ok(), "{:#?}", summary.diagnostics);
+    let formatted = fs::read_to_string(&source).expect("read formatted fixture");
+    assert!(
+        formatted.contains(
+            r#"  impl
+    print("Welcome");
+    let name = read_line();
+    print("Hello " + name)
+"#
+        ),
+        "{formatted}"
     );
     let _ = fs::remove_dir_all(dir);
 }
@@ -6538,6 +6735,27 @@ pub fn wrong(x: Int) -> Bool
 }
 
 #[test]
+fn compile_ir_lowers_let_and_sequence() {
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["compile", "ir", "examples/terminal_io.serow", "--json"])
+        .output()
+        .expect("run compile ir terminal sequence");
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("\"symbol\": \"@core.terminal.greet_user.v1\""),
+        "{stdout}"
+    );
+    assert!(stdout.contains("\"kind\": \"sequence\""), "{stdout}");
+    assert!(stdout.contains("\"kind\": \"let\""), "{stdout}");
+    assert!(stdout.contains("\"name\": \"name\""), "{stdout}");
+    assert!(
+        stdout.contains("\"target\": \"@serow.intrinsic.read_line.v1\""),
+        "{stdout}"
+    );
+}
+
+#[test]
 fn compile_rust_json_emits_supported_backend_source() {
     let output = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args(["compile", "rust", "examples/math.serow", "--json"])
@@ -6783,6 +7001,29 @@ pub fn input_once() -> Text
     assert!(stdout.contains("\"generated_functions\": 2"), "{stdout}");
     assert!(stdout.contains("\"generated_tests\": 0"), "{stdout}");
     let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn compile_rust_lowers_let_and_sequence_for_terminal_programs() {
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["compile", "rust", "examples/terminal_io.serow", "--json"])
+        .output()
+        .expect("run compile rust terminal sequence");
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("pub fn serow_core_terminal_greet_user_v1() -> ()"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("println!(\\\"{}\\\", String::from(\\\"Welcome\\\"))"),
+        "{stdout}"
+    );
+    assert!(stdout.contains("let serow_name = { let mut serow_line = String::new(); std::io::stdin().read_line(&mut serow_line)"), "{stdout}");
+    assert!(
+        stdout.contains("println!(\\\"{}\\\", format!(\\\"{}{}\\\", String::from(\\\"Hello \\\"), serow_name.clone()))"),
+        "{stdout}"
+    );
 }
 
 #[test]
