@@ -356,10 +356,12 @@ fn render_generated_cargo_toml(crate_name: &str, rust: &GeneratedRustProgram) ->
     for test in &rust.tests {
         source.push_str("\n[[package.metadata.serow.tests]]\n");
         source.push_str(&format!(
-            "symbol = {}\nkind = {}\nrust_name = {}\n",
+            "symbol = {}\nkind = {}\nrust_name = {}\nsource_path = {}\nline = {}\n",
             toml_string_literal(&test.symbol),
             toml_string_literal(&test.kind),
-            toml_string_literal(&test.rust_name)
+            toml_string_literal(&test.rust_name),
+            toml_string_literal(&test.source_path),
+            test.line
         ));
         if let Some(example_index) = test.example_index {
             source.push_str(&format!("example_index = {example_index}\n"));
@@ -1900,18 +1902,22 @@ fn rust_program_json(rust: &GeneratedRustProgram) -> String {
         .map(|test| {
             if let Some(example_index) = test.example_index {
                 return format!(
-                    "{{\"example_index\": {example_index}, \"kind\": {}, \"rust_name\": {}, \"symbol\": {}}}",
+                    "{{\"example_index\": {example_index}, \"kind\": {}, \"line\": {}, \"rust_name\": {}, \"source_path\": {}, \"symbol\": {}}}",
                     json_string(&test.kind),
+                    test.line,
                     json_string(&test.rust_name),
+                    json_string(&test.source_path),
                     json_string(&test.symbol)
                 );
             }
             format!(
-                "{{\"kind\": {}, \"property_index\": {}, \"rust_name\": {}, \"sample_index\": {}, \"symbol\": {}}}",
+                "{{\"kind\": {}, \"line\": {}, \"property_index\": {}, \"rust_name\": {}, \"sample_index\": {}, \"source_path\": {}, \"symbol\": {}}}",
                 json_string(&test.kind),
+                test.line,
                 test.property_index.unwrap_or_default(),
                 json_string(&test.rust_name),
                 test.sample_index.unwrap_or_default(),
+                json_string(&test.source_path),
                 json_string(&test.symbol)
             )
         })

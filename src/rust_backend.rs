@@ -45,6 +45,8 @@ pub struct GeneratedRustTest {
     pub example_index: Option<usize>,
     pub property_index: Option<usize>,
     pub sample_index: Option<usize>,
+    pub source_path: String,
+    pub line: usize,
     pub rust_name: String,
 }
 
@@ -351,6 +353,8 @@ fn render_function_tests(
             example_index: Some(index + 1),
             property_index: None,
             sample_index: None,
+            source_path: function.source_path.clone(),
+            line: function.line,
             rust_name: test_name,
         });
     }
@@ -432,6 +436,8 @@ fn render_function_tests(
                 example_index: None,
                 property_index: Some(property.index),
                 sample_index: Some(sample_index),
+                source_path: function.source_path.clone(),
+                line: function.line,
                 rust_name: test_name,
             });
         }

@@ -6525,6 +6525,12 @@ fn compile_rust_json_emits_supported_backend_source() {
     );
     assert!(stdout.contains("\"kind\": \"example\""), "{stdout}");
     assert!(
+        stdout.contains(
+            "\"rust_name\": \"serow_test_core_math_add_v1_example_1\", \"source_path\": \"examples/math.serow\""
+        ),
+        "{stdout}"
+    );
+    assert!(
         stdout.contains("fn serow_test_core_math_add_v1_property_1_sample_1()"),
         "{stdout}"
     );
@@ -6535,6 +6541,12 @@ fn compile_rust_json_emits_supported_backend_source() {
     assert!(stdout.contains("\"kind\": \"property\""), "{stdout}");
     assert!(stdout.contains("\"property_index\": 1"), "{stdout}");
     assert!(stdout.contains("\"sample_index\": 1"), "{stdout}");
+    assert!(
+        stdout.contains(
+            "\"rust_name\": \"serow_test_core_math_add_v1_property_1_sample_1\", \"sample_index\": 1, \"source_path\": \"examples/math.serow\""
+        ),
+        "{stdout}"
+    );
     assert!(stdout.contains("serow_x / serow_y"), "{stdout}");
     assert!(stdout.contains("\"generated_functions\": 3"), "{stdout}");
     assert!(stdout.contains("\"generated_tests\": 70"), "{stdout}");
@@ -6700,10 +6712,11 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{manifest}"
     );
     assert!(
-        manifest.contains("source_path = \"examples/math.serow\""),
+        manifest.contains(
+            "rust_name = \"serow_test_core_math_add_v1_example_1\"\nsource_path = \"examples/math.serow\"\nline = 3"
+        ),
         "{manifest}"
     );
-    assert!(manifest.contains("line = 3"), "{manifest}");
     assert!(
         manifest.contains("[[package.metadata.serow.tests]]"),
         "{manifest}"
@@ -6714,6 +6727,11 @@ fn compile_rust_out_dir_writes_crate_layout() {
         manifest.contains("rust_name = \"serow_test_core_math_add_v1_example_1\""),
         "{manifest}"
     );
+    assert!(
+        manifest.contains("source_path = \"examples/math.serow\""),
+        "{manifest}"
+    );
+    assert!(manifest.contains("line = 3"), "{manifest}");
     assert!(manifest.contains("kind = \"property\""), "{manifest}");
     assert!(manifest.contains("property_index = 1"), "{manifest}");
     assert!(manifest.contains("sample_index = 1"), "{manifest}");
