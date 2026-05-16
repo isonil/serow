@@ -1974,7 +1974,7 @@ fn agent_json_includes_compact_machine_readable_workflow() {
     );
     assert!(
         stdout.contains(
-            "serow compile rust [paths...] [--out-dir <dir>] [--crate-name <name>] [--json]"
+            "serow compile rust [paths...] [--out-dir <dir>] [--emit-bin] [--crate-name <name>] [--json]"
         ),
         "{stdout}"
     );
@@ -2006,7 +2006,7 @@ fn agent_commands_json_includes_full_command_catalog() {
     assert!(stdout.contains("\"ok\": true"), "{stdout}");
     assert!(
         stdout.contains(
-            "serow compile rust [paths...] [--out-dir <dir>] [--crate-name <name>] [--json]"
+            "serow compile rust [paths...] [--out-dir <dir>] [--emit-bin] [--crate-name <name>] [--json]"
         ),
         "{stdout}"
     );
@@ -6793,6 +6793,222 @@ fn compile_rust_out_dir_writes_crate_layout() {
         String::from_utf8_lossy(&cargo_test_output.stdout),
         String::from_utf8_lossy(&cargo_test_output.stderr)
     );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn compile_rust_emit_bin_writes_runnable_crate() {
+    let dir = unique_temp_dir("serow-compile-rust-emit-bin");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("app.serow");
+    fs::write(
+        &source,
+        r#"module app.entry
+
+pub fn main() -> Text
+  intent "Return the application message."
+  version v1
+  contract
+    ensures result == "hello from Serow"
+  examples
+    main() == "hello from Serow"
+  properties
+    forall flag: Bool:
+      main() == "hello from Serow" or flag == flag
+  effects pure
+  impl
+    "hello from Serow"
+"#,
+    )
+    .expect("write fixture");
+    let out_dir = dir.join("generated_app");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "compile",
+            "rust",
+            &source.to_string_lossy(),
+            "--out-dir",
+            &out_dir.to_string_lossy(),
+            "--emit-bin",
+            "--crate-name",
+            "serow_generated_app",
+            "--json",
+        ])
+        .output()
+        .expect("run compile rust --emit-bin");
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("src/main.rs"), "{stdout}");
+
+    let cargo_toml = out_dir.join("Cargo.toml");
+    let main_rs = out_dir.join("src").join("main.rs");
+    assert!(cargo_toml.exists(), "{cargo_toml:?}");
+    assert!(main_rs.exists(), "{main_rs:?}");
+    let manifest = fs::read_to_string(&cargo_toml).expect("read generated manifest");
+    assert!(
+        manifest.contains("binary_entrypoint_symbol = \"@app.entry.main.v1\""),
+        "{manifest}"
+    );
+    assert!(
+        manifest.contains("binary_entrypoint_return_type = \"Text\""),
+        "{manifest}"
+    );
+    let main_source = fs::read_to_string(&main_rs).expect("read generated main");
+    assert!(
+        main_source.contains("let result = serow_generated::serow_app_entry_main_v1();"),
+        "{main_source}"
+    );
+    assert!(
+        main_source.contains("println!(\"{}\", result);"),
+        "{main_source}"
+    );
+
+    let run_output = Command::new("cargo")
+        .args(["run", "--quiet", "--manifest-path"])
+        .arg(&cargo_toml)
+        .output()
+        .expect("cargo run generated crate");
+    assert!(
+        run_output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&run_output.stdout),
+        String::from_utf8_lossy(&run_output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&run_output.stdout),
+        "hello from Serow\n"
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn compile_rust_emit_bin_reports_missing_entrypoint() {
+    let dir = unique_temp_dir("serow-compile-rust-missing-entrypoint");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let out_dir = dir.join("generated_app");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "compile",
+            "rust",
+            "examples/math.serow",
+            "--out-dir",
+            &out_dir.to_string_lossy(),
+            "--emit-bin",
+            "--json",
+        ])
+        .output()
+        .expect("run compile rust --emit-bin without main");
+    assert!(!output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("\"code\": \"RustBinaryMissingEntrypoint\""),
+        "{stdout}"
+    );
+    assert!(!out_dir.join("src").join("main.rs").exists());
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn compile_rust_emit_bin_reports_wrong_entrypoint_arity() {
+    let dir = unique_temp_dir("serow-compile-rust-wrong-entrypoint-arity");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("app.serow");
+    fs::write(
+        &source,
+        r#"module app.entry
+
+pub fn main(x: Int) -> Int
+  intent "Return the provided application code."
+  version v1
+  contract
+    ensures result == x
+  examples
+    main(7) == 7
+  properties
+    forall x: Int:
+      main(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+    let out_dir = dir.join("generated_app");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "compile",
+            "rust",
+            &source.to_string_lossy(),
+            "--out-dir",
+            &out_dir.to_string_lossy(),
+            "--emit-bin",
+            "--json",
+        ])
+        .output()
+        .expect("run compile rust --emit-bin with arity");
+    assert!(!output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("\"code\": \"RustBinaryEntrypointArity\""),
+        "{stdout}"
+    );
+    assert!(!out_dir.join("src").join("main.rs").exists());
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn compile_rust_emit_bin_reports_unsupported_entrypoint_return_type() {
+    let dir = unique_temp_dir("serow-compile-rust-unsupported-entrypoint-return");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("app.serow");
+    fs::write(
+        &source,
+        r#"module app.entry
+
+pub fn main() -> Unit
+  intent "Return an unsupported application value."
+  version v1
+  contract
+    ensures true
+  examples
+    main() == main()
+  properties
+    forall flag: Bool:
+      main() == main() or flag == flag
+  effects pure
+  impl
+    0
+"#,
+    )
+    .expect("write fixture");
+    let out_dir = dir.join("generated_app");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "compile",
+            "rust",
+            &source.to_string_lossy(),
+            "--out-dir",
+            &out_dir.to_string_lossy(),
+            "--emit-bin",
+            "--json",
+        ])
+        .output()
+        .expect("run compile rust --emit-bin with unsupported return");
+    assert!(!output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("\"code\": \"RustBinaryUnsupportedEntrypointReturn\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"return_type\": \"Unit\"") || stdout.contains("\"key\": \"return_type\""),
+        "{stdout}"
+    );
+    assert!(!out_dir.join("src").join("main.rs").exists());
     let _ = fs::remove_dir_all(dir);
 }
 
