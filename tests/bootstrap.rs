@@ -6414,6 +6414,7 @@ fn compile_ir_json_reports_portable_ir() {
     assert!(stdout.contains("\"kind\": \"if\""), "{stdout}");
     assert!(stdout.contains("\"op\": \"div_trunc\""), "{stdout}");
     assert!(stdout.contains("\"requires\": ["), "{stdout}");
+    assert!(stdout.contains("\"ensures\": ["), "{stdout}");
     assert!(stdout.contains("\"examples\": ["), "{stdout}");
     assert!(stdout.contains("\"op\": \"not_eq\""), "{stdout}");
     assert!(stdout.contains("\"lowered_functions\": 3"), "{stdout}");
@@ -6479,6 +6480,16 @@ fn compile_rust_json_emits_supported_backend_source() {
     assert!(
         stdout.contains(
             "assert!(serow_y != 0, \\\"Serow precondition failed for @core.math.div_trunc.v1 requires #1\\\")"
+        ),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("let serow_result = serow_x + serow_y"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains(
+            "assert!(serow_result == (serow_x + serow_y), \\\"Serow postcondition failed for @core.math.add.v1 ensures #1\\\")"
         ),
         "{stdout}"
     );
@@ -6554,11 +6565,23 @@ pub fn greet(name: Text) -> Text
         "{stdout}"
     );
     assert!(
+        stdout.contains(
+            "assert!(serow_result == true, \\\"Serow postcondition failed for @test.rust.same_text.v1 ensures #1\\\")"
+        ),
+        "{stdout}"
+    );
+    assert!(
         stdout.contains("pub fn serow_test_rust_greet_v1(serow_name: String) -> String"),
         "{stdout}"
     );
     assert!(
         stdout.contains("format!(\\\"{}{}\\\", String::from(\\\"hi, \\\"), serow_name.clone())"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains(
+            "assert!(serow_result.clone() == format!(\\\"{}{}\\\", String::from(\\\"hi, \\\"), serow_name.clone()), \\\"Serow postcondition failed for @test.rust.greet.v1 ensures #1\\\")"
+        ),
         "{stdout}"
     );
 
@@ -6626,6 +6649,12 @@ fn compile_rust_out_dir_writes_crate_layout() {
     assert!(
         source.contains(
             "assert!(serow_y != 0, \"Serow precondition failed for @core.math.div_trunc.v1 requires #1\")"
+        ),
+        "{source}"
+    );
+    assert!(
+        source.contains(
+            "assert!(serow_result == (serow_x / serow_y), \"Serow postcondition failed for @core.math.div_trunc.v1 ensures #1\")"
         ),
         "{source}"
     );

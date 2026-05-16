@@ -19,6 +19,7 @@ pub struct IrFunction {
     pub return_type: String,
     pub effects: Vec<String>,
     pub requires: Vec<IrExpr>,
+    pub ensures: Vec<IrExpr>,
     pub examples: Vec<IrExpr>,
     pub body: IrExpr,
 }
@@ -169,6 +170,32 @@ pub fn lower_checked_program(program: &Program, parse_diagnostics: Vec<Diagnosti
             continue;
         }
 
+        let mut ensures = Vec::new();
+        for (index, contract) in function.contracts.iter().enumerate() {
+            match lower_contract_expression(contract, function, &program.functions) {
+                Ok(contract) => ensures.push(contract),
+                Err(error) => {
+                    failed = true;
+                    diagnostics.push(
+                        Diagnostic::error(
+                            "IrLoweringError",
+                            format!(
+                                "Could not lower postcondition #{} for `{}` to portable IR: {error}",
+                                index + 1,
+                                function.name
+                            ),
+                            Some(function.target()),
+                        )
+                        .with_data("symbol", function.symbol())
+                        .with_data("ensures", contract),
+                    );
+                }
+            }
+        }
+        if failed {
+            continue;
+        }
+
         let mut examples = Vec::new();
         for (index, example) in function.examples.iter().enumerate() {
             match lower_expression_with_variables(example, Vec::new(), &program.functions) {
@@ -205,6 +232,7 @@ pub fn lower_checked_program(program: &Program, parse_diagnostics: Vec<Diagnosti
                 return_type: function.return_type.clone(),
                 effects: function.effects.clone(),
                 requires,
+                ensures,
                 examples,
                 body,
             }),
@@ -244,6 +272,20 @@ fn lower_expression(
         .iter()
         .map(|param| param.name.clone())
         .collect::<Vec<_>>();
+    lower_expression_with_variables(expression, variables, functions)
+}
+
+fn lower_contract_expression(
+    expression: &str,
+    function: &Function,
+    functions: &[Function],
+) -> Result<IrExpr, String> {
+    let mut variables = function
+        .params
+        .iter()
+        .map(|param| param.name.clone())
+        .collect::<Vec<_>>();
+    variables.push("result".to_string());
     lower_expression_with_variables(expression, variables, functions)
 }
 

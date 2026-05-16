@@ -25,8 +25,8 @@ The current implementation is a bootstrap toolchain written in dependency-free R
 - a first machine-readable change plan for changed symbols, removed public symbols, semantic change labels, inferred direct-call capability requirements, sampled-property coverage hints, advisory intent/implementation mismatch risks, public contract-surface changes, capability changes, public implementation changes, implementation evidence coverage and HEAD-sensitivity, implementation/evidence drift, migration acknowledgements, stale migration acknowledgements, impact, impact-edge evidence coverage, HEAD evidence deltas, and residual risk
 - unattended certification gates for explicit versions, same-version public contract-surface changes, public symbol removal without a same-name replacement version, capability expansion, implementation changes without added executable evidence, added implementation evidence that does not call the function under test or would still pass against the HEAD implementation, implementation/evidence drift, evidence weakening against Git `HEAD`, unchecked dependent impact, uncovered impacted call edges, and stale migration acknowledgements, with explicit migration records for intentional decisions
 - strict-profile validation for structured diagnostic repair actions
-- a first portable backend IR emitted by `bin/serow compile ir`, including checked implementation bodies, `requires` preconditions, and executable examples
-- a first Rust backend source emitter for pure `Int`/`Bool`/`Text` functions through `bin/serow compile rust`, with runtime assertions for Serow preconditions and generated Rust tests for Serow examples
+- a first portable backend IR emitted by `bin/serow compile ir`, including checked implementation bodies, `requires` preconditions, `ensures` postconditions, and executable examples
+- a first Rust backend source emitter for pure `Int`/`Bool`/`Text` functions through `bin/serow compile rust`, with runtime assertions for Serow preconditions and postconditions plus generated Rust tests for Serow examples
 
 Print the current compact agent bootstrap contract:
 
@@ -59,7 +59,7 @@ bin/serow compile ir --json
 bin/serow compile ir examples/math.serow --json
 ```
 
-`compile ir` runs the checker first and only emits `serow.ir.v0` when there are no checker errors. The IR currently covers the bootstrap expression subset, carries function `requires` preconditions and executable examples, and resolves function calls to canonical public symbols; it is the input boundary used by the first Rust backend emitter.
+`compile ir` runs the checker first and only emits `serow.ir.v0` when there are no checker errors. The IR currently covers the bootstrap expression subset, carries function `requires` preconditions, `ensures` postconditions, and executable examples, and resolves function calls to canonical public symbols; it is the input boundary used by the first Rust backend emitter.
 
 Emit Rust source for the supported checked IR subset:
 
@@ -69,7 +69,7 @@ bin/serow compile rust examples/math.serow --json
 bin/serow compile rust examples/math.serow --out-dir generated/serow_math
 ```
 
-`compile rust` runs the same checked IR path first, then emits deterministic Rust source on stdout. With `--out-dir <dir>`, it writes a dependency-free Rust crate layout containing `Cargo.toml` and `src/lib.rs`. The first backend slice supports pure functions over `Int`, `Bool`, and `Text`; `requires` clauses become runtime `assert!` guards, Serow examples become Rust `#[test]` functions, and effectful functions produce backend diagnostics instead of generated code.
+`compile rust` runs the same checked IR path first, then emits deterministic Rust source on stdout. With `--out-dir <dir>`, it writes a dependency-free Rust crate layout containing `Cargo.toml` and `src/lib.rs`. The first backend slice supports pure functions over `Int`, `Bool`, and `Text`; `requires` and `ensures` clauses become runtime `assert!` guards, Serow examples become Rust `#[test]` functions, and effectful functions produce backend diagnostics instead of generated code.
 
 Format Serow source into the canonical textual projection:
 

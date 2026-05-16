@@ -123,9 +123,9 @@ This phase exists because the original Serow premise is not only "AI-first synta
 
 ## Phase 3: Backends
 
-- Emit a small portable IR after Phase 2.5 identity and evidence semantics are stable. _(Started: `bin/serow compile ir [paths...] [--json]` lowers checked public implementations, preconditions, and examples to `serow.ir.v0` JSON with canonical resolved call targets.)_
+- Emit a small portable IR after Phase 2.5 identity and evidence semantics are stable. _(Started: `bin/serow compile ir [paths...] [--json]` lowers checked public implementations, preconditions, postconditions, and examples to `serow.ir.v0` JSON with canonical resolved call targets.)_
 - Keep the Serow checker/interpreter responsible for compile-time evidence: examples, contracts, and sampled properties.
-- Add a Rust transpilation backend as the first production backend. _(Started: `bin/serow compile rust [paths...] [--out-dir <dir>] [--json]` emits deterministic Rust source or a minimal Rust crate layout with generated example tests for checked pure `Int`/`Bool`/`Text` functions from `serow.ir.v0`, and rejects effectful functions with backend diagnostics.)_
+- Add a Rust transpilation backend as the first production backend. _(Started: `bin/serow compile rust [paths...] [--out-dir <dir>] [--json]` emits deterministic Rust source or a minimal Rust crate layout with runtime contract assertions and generated example tests for checked pure `Int`/`Bool`/`Text` functions from `serow.ir.v0`, and rejects effectful functions with backend diagnostics.)_
 - Lower ownership-friendly state transforms, such as `World -> World`, to efficient Rust patterns where aliases permit in-place updates.
 - Consider WASM, TypeScript, or Python backends later for sandboxing and integration once the Rust backend proves the model.
 - Keep generated code separate from the Serow source of truth.

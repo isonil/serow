@@ -189,6 +189,7 @@ fn render_function(
         variable_types.insert(param.name.clone(), param.type_name.clone());
         params.push(format!("{rust_param_name}: {rust_type}"));
     }
+    let result_name = allocate_rust_identifier("result", &mut allocated_params);
     let return_type = match rust_type(&function.return_type) {
         Ok(rust_type) => rust_type,
         Err(message) => {
@@ -204,7 +205,7 @@ fn render_function(
         return Err(diagnostics);
     }
 
-    let mut guards = Vec::new();
+    let mut precondition_guards = Vec::new();
     for (index, requirement) in function.requires.iter().enumerate() {
         let requirement = render_expr(
             requirement,
@@ -224,7 +225,7 @@ fn render_function(
                 ),
             )]);
         }
-        guards.push(format!(
+        precondition_guards.push(format!(
             "    assert!({}, {});",
             strip_outer_parens(&requirement.code),
             rust_string_literal(&format!(
@@ -244,13 +245,55 @@ fn render_function(
     )
     .map(|body| strip_outer_parens(&body.code).to_string())
     .map_err(|message| vec![backend_error(function, message)])?;
-    let guard_block = if guards.is_empty() {
+
+    let mut contract_variables = variables;
+    let mut contract_variable_types = variable_types;
+    contract_variables.insert("result".to_string(), result_name.clone());
+    contract_variable_types.insert("result".to_string(), function.return_type.clone());
+
+    let mut postcondition_guards = Vec::new();
+    for (index, contract) in function.ensures.iter().enumerate() {
+        let contract = render_expr(
+            contract,
+            &contract_variables,
+            &contract_variable_types,
+            rust_names,
+            signatures,
+        )
+        .map_err(|message| vec![backend_error(function, message)])?;
+        if contract.type_name != "Bool" {
+            return Err(vec![backend_error(
+                function,
+                format!(
+                    "Lowered postcondition #{} has type {}, expected Bool.",
+                    index + 1,
+                    contract.type_name
+                ),
+            )]);
+        }
+        postcondition_guards.push(format!(
+            "    assert!({}, {});",
+            strip_outer_parens(&contract.code),
+            rust_string_literal(&format!(
+                "Serow postcondition failed for {} ensures #{}",
+                function.symbol,
+                index + 1
+            ))
+        ));
+    }
+
+    let precondition_block = if precondition_guards.is_empty() {
         String::new()
     } else {
-        format!("{}\n", guards.join("\n"))
+        format!("{}\n", precondition_guards.join("\n"))
+    };
+    let postcondition_block = if postcondition_guards.is_empty() {
+        String::new()
+    } else {
+        format!("\n{}", postcondition_guards.join("\n"))
     };
     Ok(format!(
-        "pub fn {rust_name}({}) -> {return_type} {{\n{guard_block}    {body}\n}}",
+        "pub fn {rust_name}({}) -> {return_type} {{\n{precondition_block}    let {result_name} = {body};{postcondition_block}\n    {result_name}\n}}",
         params.join(", ")
     ))
 }

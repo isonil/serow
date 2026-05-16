@@ -1613,6 +1613,7 @@ fn ir_function_json(function: &IrFunction) -> String {
             "{{",
             "\"body\": {}, ",
             "\"effects\": {}, ",
+            "\"ensures\": {}, ",
             "\"examples\": {}, ",
             "\"module\": {}, ",
             "\"name\": {}, ",
@@ -1625,6 +1626,7 @@ fn ir_function_json(function: &IrFunction) -> String {
         ),
         ir_expr_json(&function.body),
         string_array_json(&function.effects),
+        ir_exprs_json(&function.ensures),
         ir_exprs_json(&function.examples),
         json_string(&function.module),
         json_string(&function.name),
@@ -2418,7 +2420,7 @@ const CORE_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "compile ir",
         "serow compile ir [paths...] [--json]",
-        "Lower checked public implementations, preconditions, and examples to the portable bootstrap IR.",
+        "Lower checked public implementations, contracts, and examples to the portable bootstrap IR.",
     ),
     (
         "fmt",
@@ -2466,7 +2468,7 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "compile ir",
         "serow compile ir [paths...] [--json]",
-        "Lower checked public implementations, preconditions, and examples to the portable bootstrap IR.",
+        "Lower checked public implementations, contracts, and examples to the portable bootstrap IR.",
     ),
     (
         "compile rust",
@@ -2699,7 +2701,7 @@ fn agent_json() -> String {
         str_array_json(&[
             "Properties are sampled, not proven; replay uses deterministic seeds.",
             "Intent search is deterministic token ranking, not semantic embeddings.",
-            "Rust backend emission is limited to pure Int/Bool/Text functions, emits runtime asserts for Serow requires clauses, and emits Rust tests for Serow examples.",
+            "Rust backend emission is limited to pure Int/Bool/Text functions, emits runtime asserts for Serow requires and ensures clauses, and emits Rust tests for Serow examples.",
             "Expression support is intentionally small and formatting does not preserve comments.",
             "JSON output is hand-written until external dependencies are accepted."
         ])
@@ -2907,7 +2909,7 @@ fn print_agent_bootstrap() {
     println!("  properties are sampled, not proven");
     println!("  intent search is token-ranked, not semantic embeddings");
     println!("  Rust backend emission is limited to pure Int/Bool/Text functions");
-    println!("  Rust backend emits runtime asserts for Serow requires clauses");
+    println!("  Rust backend emits runtime asserts for Serow requires and ensures clauses");
     println!("  Rust backend emits Rust tests for Serow examples");
     println!("  expression support is small and formatting does not preserve comments");
 }

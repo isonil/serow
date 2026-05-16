@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "0.4.64-rust-bootstrap",
+  "version": "0.4.65-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -73,8 +73,10 @@
     "duplicate_evidence_warned": true,
     "duplicate_migrations_warned": true,
     "backend_ir_includes_preconditions": true,
+    "backend_ir_includes_postconditions": true,
     "backend_ir_includes_examples": true,
     "rust_backend_asserts_preconditions": true,
+    "rust_backend_asserts_postconditions": true,
     "rust_backend_generates_example_tests": true,
     "shallow_examples_warned": true,
     "low_signal_property_repair_actions": true,
