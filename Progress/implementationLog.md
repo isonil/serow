@@ -2,6 +2,11 @@
 
 ## 2026-05-17
 
+- Added a checked loop mechanism for terminal text games: `while <Bool> do (<Unit>)` returns `Unit`, and `set name = expr` updates an existing local `let` binding with same-type values only.
+- Loops now type-check, evaluate with a finite evidence iteration limit, lower to `serow.ir.v0`, render to Rust `while` loops, and preserve direct-call effect discovery for nested terminal I/O.
+- Added `examples/text_game.serow` as a tiny interactive skeleton that prints a room, reads a command, updates loop state, and exits on `quit` or the checker model's empty input.
+- Added regression coverage for loop execution, loop type diagnostics, local-assignment diagnostics, effect handling, IR JSON, and Rust backend lowering.
+- Updated the Python reference bootstrap enough to keep the current sample corpus executable for `Unit`, terminal intrinsics, multi-line sequencing, and the checked loop skeleton.
 - Added minimal sequencing for terminal-style programs with `let name = expr; next` and `unit_expr; next`.
 - Sequenced expressions now type-check, evaluate, lower to `serow.ir.v0`, render to Rust blocks, and participate in direct-call effect discovery so nested `print`/`read_line` calls require `effects [io]`.
 - Added `examples/terminal_io.serow::greet_user` as a checked sample of `print; let read_line; print`.

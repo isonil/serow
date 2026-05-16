@@ -76,6 +76,8 @@ pub struct Evaluator {
     call_depth: usize,
 }
 
+const WHILE_EVALUATION_LIMIT: usize = 10_000;
+
 impl Evaluator {
     pub fn new(functions: &[Function]) -> Self {
         Self {
@@ -163,6 +165,9 @@ pub(crate) enum Token {
     Then,
     Else,
     Let,
+    Set,
+    While,
+    Do,
     And,
     Or,
     Not,
@@ -268,6 +273,9 @@ pub(crate) fn tokenize(expression: &str) -> Result<Vec<Token>, String> {
                 "then" => Token::Then,
                 "else" => Token::Else,
                 "let" => Token::Let,
+                "set" => Token::Set,
+                "while" => Token::While,
+                "do" => Token::Do,
                 "and" => Token::And,
                 "or" => Token::Or,
                 "not" => Token::Not,
@@ -400,6 +408,7 @@ struct ExprParser<'a> {
     tokens: Vec<Token>,
     index: usize,
     variables: HashMap<String, Value>,
+    assignable: Vec<String>,
     evaluator: &'a mut Evaluator,
 }
 
@@ -413,6 +422,7 @@ impl<'a> ExprParser<'a> {
             tokens,
             index: 0,
             variables,
+            assignable: Vec::new(),
             evaluator,
         }
     }
@@ -428,7 +438,9 @@ impl<'a> ExprParser<'a> {
             let value = self.parse_if()?;
             self.expect(&Token::Semicolon)?;
             let previous = self.variables.insert(name.clone(), value);
+            self.assignable.push(name.clone());
             let result = self.parse_expression();
+            self.assignable.pop();
             match previous {
                 Some(value) => {
                     self.variables.insert(name, value);
@@ -440,7 +452,90 @@ impl<'a> ExprParser<'a> {
             return result;
         }
 
+        if self.consume(&Token::Set) {
+            let name = self.expect_ident()?;
+            self.expect(&Token::Assign)?;
+            if !self.assignable.iter().any(|variable| variable == &name) {
+                return Err(format!(
+                    "`set` can only update an existing local `let` binding, got `{name}`."
+                ));
+            }
+            let value = self.parse_if()?;
+            let Some(current) = self.variables.get(&name) else {
+                return Err(format!("Unknown variable `{name}`."));
+            };
+            if !same_value_type(current, &value) {
+                return Err(format!(
+                    "`set {name}` expected {}, got {}.",
+                    value_type_name(current),
+                    value_type_name(&value)
+                ));
+            }
+            self.variables.insert(name, value);
+            return self.parse_after_first(Value::Unit);
+        }
+
+        if self.consume(&Token::While) {
+            let condition_start = self.index;
+            let first_condition = self.parse_expression()?;
+            let condition_end = self.index;
+            self.expect(&Token::Do)?;
+            self.expect(&Token::LParen)?;
+            let body_start = self.index;
+            let body_end = self.matching_rparen(body_start)?;
+            self.index = body_end;
+            self.expect(&Token::RParen)?;
+
+            let condition_tokens = self.tokens[condition_start..condition_end].to_vec();
+            let body_tokens = self.tokens[body_start..body_end].to_vec();
+            let mut condition_value = first_condition;
+            let mut iterations = 0usize;
+            loop {
+                let condition = match condition_value {
+                    Value::Bool(value) => value,
+                    value => return Err(format!("While condition must be Bool, got {value}.")),
+                };
+                if !condition {
+                    return self.parse_after_first(Value::Unit);
+                }
+                if iterations >= WHILE_EVALUATION_LIMIT {
+                    return Err(format!(
+                        "While evaluation limit exceeded after {WHILE_EVALUATION_LIMIT} iterations."
+                    ));
+                }
+                iterations += 1;
+
+                let mut body_parser = ExprParser {
+                    tokens: body_tokens.clone(),
+                    index: 0,
+                    variables: self.variables.clone(),
+                    assignable: self.assignable.clone(),
+                    evaluator: self.evaluator,
+                };
+                let body = body_parser.parse_expression()?;
+                body_parser.expect_end()?;
+                if body != Value::Unit {
+                    return Err(format!("While body must be Unit, got {body}."));
+                }
+                self.variables = body_parser.variables;
+
+                let mut condition_parser = ExprParser {
+                    tokens: condition_tokens.clone(),
+                    index: 0,
+                    variables: self.variables.clone(),
+                    assignable: self.assignable.clone(),
+                    evaluator: self.evaluator,
+                };
+                condition_value = condition_parser.parse_expression()?;
+                condition_parser.expect_end()?;
+            }
+        }
+
         let first = self.parse_if()?;
+        self.parse_after_first(first)
+    }
+
+    fn parse_after_first(&mut self, first: Value) -> Result<Value, String> {
         if self.consume(&Token::Semicolon) {
             if first != Value::Unit {
                 return Err(format!(
@@ -667,6 +762,19 @@ impl<'a> ExprParser<'a> {
     fn peek(&self) -> Option<&Token> {
         self.tokens.get(self.index)
     }
+
+    fn matching_rparen(&self, start: usize) -> Result<usize, String> {
+        let mut depth = 0usize;
+        for index in start..self.tokens.len() {
+            match self.tokens[index] {
+                Token::LParen => depth += 1,
+                Token::RParen if depth == 0 => return Ok(index),
+                Token::RParen => depth -= 1,
+                _ => {}
+            }
+        }
+        Err("Expected token RParen to close while body.".to_string())
+    }
 }
 
 fn as_int(value: Value) -> Result<i64, String> {
@@ -680,6 +788,25 @@ fn as_bool(value: Value) -> Result<bool, String> {
     match value {
         Value::Bool(value) => Ok(value),
         other => Err(format!("Expected Bool, got {other}.")),
+    }
+}
+
+fn same_value_type(left: &Value, right: &Value) -> bool {
+    matches!(
+        (left, right),
+        (Value::Int(_), Value::Int(_))
+            | (Value::Bool(_), Value::Bool(_))
+            | (Value::Text(_), Value::Text(_))
+            | (Value::Unit, Value::Unit)
+    )
+}
+
+fn value_type_name(value: &Value) -> &'static str {
+    match value {
+        Value::Int(_) => "Int",
+        Value::Bool(_) => "Bool",
+        Value::Text(_) => "Text",
+        Value::Unit => "Unit",
     }
 }
 

@@ -19,6 +19,7 @@ struct TypeParser<'a> {
     tokens: Vec<Token>,
     index: usize,
     variables: HashMap<String, String>,
+    assignable: Vec<String>,
     functions: &'a [Function],
 }
 
@@ -32,6 +33,7 @@ impl<'a> TypeParser<'a> {
             tokens,
             index: 0,
             variables,
+            assignable: Vec::new(),
             functions,
         }
     }
@@ -47,7 +49,9 @@ impl<'a> TypeParser<'a> {
             let value_type = self.parse_if()?;
             self.expect(&Token::Semicolon)?;
             let previous = self.variables.insert(name.clone(), value_type);
+            self.assignable.push(name.clone());
             let result = self.parse_expression();
+            self.assignable.pop();
             match previous {
                 Some(value_type) => {
                     self.variables.insert(name, value_type);
@@ -59,7 +63,38 @@ impl<'a> TypeParser<'a> {
             return result;
         }
 
+        if self.consume(&Token::Set) {
+            let name = self.expect_ident()?;
+            self.expect(&Token::Assign)?;
+            let Some(expected) = self.variables.get(&name).cloned() else {
+                return Err(format!("Unknown variable `{name}`."));
+            };
+            if !self.assignable.iter().any(|variable| variable == &name) {
+                return Err(format!(
+                    "`set` can only update an existing local `let` binding, got `{name}`."
+                ));
+            }
+            let actual = self.parse_if()?;
+            require_type(&actual, &expected, &format!("`set {name}` value"))?;
+            return self.parse_after_first("Unit".to_string());
+        }
+
+        if self.consume(&Token::While) {
+            let condition_type = self.parse_expression()?;
+            require_type(&condition_type, "Bool", "while condition")?;
+            self.expect(&Token::Do)?;
+            self.expect(&Token::LParen)?;
+            let body_type = self.parse_expression()?;
+            require_type(&body_type, "Unit", "while body")?;
+            self.expect(&Token::RParen)?;
+            return self.parse_after_first("Unit".to_string());
+        }
+
         let first = self.parse_if()?;
+        self.parse_after_first(first)
+    }
+
+    fn parse_after_first(&mut self, first: String) -> Result<String, String> {
         if self.consume(&Token::Semicolon) {
             require_type(&first, "Unit", "sequence left expression")?;
             return self.parse_expression();

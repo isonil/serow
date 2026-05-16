@@ -23,10 +23,10 @@ fn sample_program_checks() {
             .map(|diagnostic| &diagnostic.code)
             .collect::<Vec<_>>()
     );
-    assert_eq!(summary.functions, 5);
-    assert_eq!(summary.examples, 9);
-    assert_eq!(summary.properties, 5);
-    assert_eq!(summary.contracts, 14);
+    assert_eq!(summary.functions, 6);
+    assert_eq!(summary.examples, 10);
+    assert_eq!(summary.properties, 6);
+    assert_eq!(summary.contracts, 15);
 }
 
 #[test]
@@ -562,6 +562,198 @@ fn bad() -> Unit
     print("Welcome");
     let name = read_line();
     print("Hello " + name)
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == "EffectViolation")
+            .count()
+            >= 2,
+        "{:#?}",
+        summary.diagnostics
+    );
+    assert!(
+        summary.diagnostics.iter().any(|diagnostic| diagnostic
+            .data
+            .iter()
+            .any(|(key, value)| key == "callee" && value == "@serow.intrinsic.read_line.v1")),
+        "{:#?}",
+        summary.diagnostics
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn while_loop_executes_with_local_assignment() {
+    let dir = unique_temp_dir("serow-while-execution");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("loop.serow");
+    fs::write(
+        &source,
+        r#"module test.loop
+
+pub fn count_to_three() -> Int
+  intent "Count up to three through a checked while loop."
+  version v1
+  contract
+    ensures result == 3
+  examples
+    count_to_three() == 3
+  properties
+    forall flag: Bool:
+      count_to_three() == 3 or flag == flag
+  effects pure
+  impl
+    let n = 0;
+    while n < 3 do (
+    set n = n + 1
+    );
+    n
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(summary.ok(), "{:#?}", summary.diagnostics);
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn while_requires_bool_condition_and_unit_body() {
+    let dir = unique_temp_dir("serow-while-type-errors");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("loop_type.serow");
+    fs::write(
+        &source,
+        r#"module test.loop
+
+pub fn bad_condition() -> Unit
+  intent "Use a non-boolean while condition."
+  version v1
+  contract
+    ensures result == unit
+  examples
+    bad_condition() == unit
+  properties
+    forall flag: Bool:
+      bad_condition() == unit or flag == flag
+  effects pure
+  impl
+    while 1 do (
+    unit
+    )
+
+pub fn bad_body() -> Unit
+  intent "Use a non-unit while body."
+  version v1
+  contract
+    ensures result == unit
+  examples
+    bad_body() == unit
+  properties
+    forall flag: Bool:
+      bad_body() == unit or flag == flag
+  effects pure
+  impl
+    let running = true;
+    while running do (
+    1
+    )
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(
+        summary.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "TypeError"
+                && diagnostic
+                    .message
+                    .contains("while condition expected Bool, got Int")
+        }),
+        "{:#?}",
+        summary.diagnostics
+    );
+    assert!(
+        summary.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "TypeError"
+                && diagnostic
+                    .message
+                    .contains("while body expected Unit, got Int")
+        }),
+        "{:#?}",
+        summary.diagnostics
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn set_requires_existing_local_binding() {
+    let dir = unique_temp_dir("serow-set-local-only");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("set_param.serow");
+    fs::write(
+        &source,
+        r#"module test.loop
+
+pub fn bad(x: Int) -> Unit
+  intent "Try to assign to a parameter."
+  version v1
+  contract
+    ensures result == unit
+  examples
+    bad(1) == unit
+  properties
+    forall x: Int:
+      bad(x) == unit
+  effects pure
+  impl
+    set x = x + 1
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(
+        summary.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "TypeError"
+                && diagnostic
+                    .message
+                    .contains("`set` can only update an existing local `let` binding")
+        }),
+        "{:#?}",
+        summary.diagnostics
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn while_terminal_io_requires_io_effects() {
+    let dir = unique_temp_dir("serow-while-effects");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("loop_effects.serow");
+    fs::write(
+        &source,
+        r#"module test.loop
+
+fn bad() -> Unit
+  effects pure
+  impl
+    let running = true;
+    while running do (
+    print("room");
+    let command = read_line();
+    if command == "" then set running = false else unit
+    )
 "#,
     )
     .expect("write fixture");
@@ -6756,6 +6948,48 @@ fn compile_ir_lowers_let_and_sequence() {
 }
 
 #[test]
+fn compile_ir_lowers_while_and_assignment() {
+    let dir = unique_temp_dir("serow-compile-ir-while");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("loop.serow");
+    fs::write(
+        &source,
+        r#"module test.loop
+
+pub fn count_to_three() -> Int
+  intent "Count up to three through a checked while loop."
+  version v1
+  contract
+    ensures result == 3
+  examples
+    count_to_three() == 3
+  properties
+    forall flag: Bool:
+      count_to_three() == 3 or flag == flag
+  effects pure
+  impl
+    let n = 0;
+    while n < 3 do (
+    set n = n + 1
+    );
+    n
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["compile", "ir", &source.to_string_lossy(), "--json"])
+        .output()
+        .expect("run compile ir while");
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("\"kind\": \"while\""), "{stdout}");
+    assert!(stdout.contains("\"kind\": \"assign\""), "{stdout}");
+    assert!(stdout.contains("\"name\": \"n\""), "{stdout}");
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn compile_rust_json_emits_supported_backend_source() {
     let output = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args(["compile", "rust", "examples/math.serow", "--json"])
@@ -7024,6 +7258,49 @@ fn compile_rust_lowers_let_and_sequence_for_terminal_programs() {
         stdout.contains("println!(\\\"{}\\\", format!(\\\"{}{}\\\", String::from(\\\"Hello \\\"), serow_name.clone()))"),
         "{stdout}"
     );
+}
+
+#[test]
+fn compile_rust_lowers_while_and_assignment() {
+    let dir = unique_temp_dir("serow-compile-rust-while");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("loop.serow");
+    fs::write(
+        &source,
+        r#"module test.loop
+
+pub fn count_to_three() -> Int
+  intent "Count up to three through a checked while loop."
+  version v1
+  contract
+    ensures result == 3
+  examples
+    count_to_three() == 3
+  properties
+    forall flag: Bool:
+      count_to_three() == 3 or flag == flag
+  effects pure
+  impl
+    let n = 0;
+    while n < 3 do (
+    set n = n + 1
+    );
+    n
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["compile", "rust", &source.to_string_lossy(), "--json"])
+        .output()
+        .expect("run compile rust while");
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("let mut serow_n = 0"), "{stdout}");
+    assert!(stdout.contains("while serow_n < 3"), "{stdout}");
+    assert!(stdout.contains("serow_n = serow_n + 1"), "{stdout}");
+    assert!(stdout.contains("\"generated_functions\": 1"), "{stdout}");
+    let _ = fs::remove_dir_all(dir);
 }
 
 #[test]

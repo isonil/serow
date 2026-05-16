@@ -3,7 +3,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List
 
-from .model import Function
+from .model import Function, Param
 
 
 class EvaluationError(Exception):
@@ -22,6 +22,16 @@ class Evaluator:
         self.call_depth = 0
 
     def call(self, name: str, args: List[Any]) -> CallResult:
+        if name in {"print", "@serow.intrinsic.print.v1", "serow.intrinsic.print"}:
+            if len(args) != 1:
+                raise EvaluationError(f"Function `{name}` expected 1 arguments, got {len(args)}.")
+            if not isinstance(args[0], str):
+                raise EvaluationError(f"Function `{name}` argument 1 expected Text.")
+            return CallResult(value=None, args={"text": args[0]})
+        if name in {"read_line", "@serow.intrinsic.read_line.v1", "serow.intrinsic.read_line"}:
+            if args:
+                raise EvaluationError(f"Function `{name}` expected 0 arguments, got {len(args)}.")
+            return CallResult(value="", args={})
         function = resolve_function(name, self.functions)
         if function.impl is None:
             raise EvaluationError(f"Function `{name}` has no implementation.")
@@ -43,6 +53,8 @@ class Evaluator:
         return CallResult(value=value, args=bindings)
 
     def eval(self, expression: str, variables: Dict[str, Any]) -> Any:
+        if "\n" in expression or expression.strip().startswith(("let ", "set ", "while ")):
+            return self._eval_block(expression, dict(variables))
         translated = translate_expr(expression)
         try:
             parsed = pyast.parse(translated, mode="eval")
@@ -53,6 +65,75 @@ class Evaluator:
     def _call_function(self, name: str, args: List[Any]) -> Any:
         return self.call(_decode_call_name(name), args).value
 
+    def _eval_block(self, expression: str, variables: Dict[str, Any]) -> Any:
+        lines = [line.strip() for line in expression.splitlines() if line.strip()]
+        return self._eval_lines(lines, variables, 0, len(lines))
+
+    def _eval_lines(self, lines: List[str], variables: Dict[str, Any], start: int, end: int) -> Any:
+        index = start
+        result = None
+        while index < end:
+            line = lines[index]
+            if line.startswith("let "):
+                if not line.endswith(";"):
+                    raise EvaluationError("Local `let` bindings must end with `;`.")
+                name, value_expr = _split_assignment(line[len("let ") : -1], "let")
+                variables[name] = self.eval(value_expr, variables)
+                result = None
+                index += 1
+                continue
+            if line.startswith("set "):
+                name, value_expr = _split_assignment(line[len("set ") :], "set")
+                if name not in variables:
+                    raise EvaluationError(f"Unknown variable `{name}`.")
+                variables[name] = self.eval(value_expr, variables)
+                result = None
+                index += 1
+                continue
+            if line.startswith("while "):
+                condition = line[len("while ") :]
+                if not condition.endswith("do ("):
+                    raise EvaluationError("While loops must use `while <condition> do (`.")
+                condition = condition[: -len("do (")].strip()
+                body_end = _find_closing_paren_line(lines, index + 1, end)
+                iterations = 0
+                while self.eval(condition, variables) is True:
+                    if iterations >= 10_000:
+                        raise EvaluationError("While evaluation limit exceeded after 10000 iterations.")
+                    iterations += 1
+                    self._eval_lines(lines, variables, index + 1, body_end)
+                result = None
+                index = body_end + 1
+                continue
+            if line.startswith("if "):
+                result = self._eval_if_statement(line, variables)
+                index += 1
+                continue
+
+            has_semicolon = line.endswith(";")
+            value = self.eval(line[:-1] if has_semicolon else line, variables)
+            if has_semicolon and value is not None:
+                raise EvaluationError(f"Sequence left expression must be Unit, got {value}.")
+            result = None if has_semicolon else value
+            index += 1
+        return result
+
+    def _eval_if_statement(self, line: str, variables: Dict[str, Any]) -> Any:
+        condition, rest = _split_keyword(line[len("if ") :], "then")
+        true_expr, false_expr = _split_keyword(rest, "else")
+        branch = true_expr if self.eval(condition, variables) is True else false_expr
+        return self._eval_statement_fragment(branch, variables)
+
+    def _eval_statement_fragment(self, fragment: str, variables: Dict[str, Any]) -> Any:
+        fragment = fragment.strip()
+        if fragment.startswith("set "):
+            name, value_expr = _split_assignment(fragment[len("set ") :], "set")
+            if name not in variables:
+                raise EvaluationError(f"Unknown variable `{name}`.")
+            variables[name] = self.eval(value_expr, variables)
+            return None
+        return self.eval(fragment, variables)
+
 
 def resolve_function(reference_text: str, functions: List[Function]) -> Function:
     reference = _parse_call_reference(reference_text)
@@ -60,6 +141,9 @@ def resolve_function(reference_text: str, functions: List[Function]) -> Function
     if len(matches) == 1:
         return matches[0]
     if not matches:
+        intrinsic = _resolve_intrinsic(reference_text)
+        if intrinsic:
+            return intrinsic
         raise EvaluationError(f"Unknown function `{reference_text}`.")
     symbols = ", ".join(function.symbol for function in matches)
     raise EvaluationError(f"Ambiguous function `{reference_text}` resolves to {len(matches)} candidates: {symbols}.")
@@ -71,7 +155,7 @@ class SafeExpressionEvaluator(pyast.NodeVisitor):
         self.call_function = call_function
 
     def visit_Constant(self, node: pyast.Constant) -> Any:
-        if isinstance(node.value, (int, bool, str)):
+        if node.value is None or isinstance(node.value, (int, bool, str)):
             return node.value
         raise EvaluationError(f"Unsupported literal `{node.value}`.")
 
@@ -159,13 +243,67 @@ class SafeExpressionEvaluator(pyast.NodeVisitor):
 
 def translate_expr(expression: str) -> str:
     expr = expression.strip()
-    if "\n" in expr:
-        raise EvaluationError("Multi-line implementations are not executable in the bootstrap checker.")
     expr = _encode_qualified_calls(expr)
     expr = _translate_if(expr)
     expr = re.sub(r"\btrue\b", "True", expr)
     expr = re.sub(r"\bfalse\b", "False", expr)
+    expr = re.sub(r"\bunit\b", "None", expr)
     return expr
+
+
+def _split_assignment(text: str, context: str):
+    if "=" not in text:
+        raise EvaluationError(f"Invalid `{context}` assignment.")
+    name, value = text.split("=", 1)
+    name = name.strip()
+    if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", name):
+        raise EvaluationError(f"Invalid assignment target `{name}`.")
+    return name, value.strip()
+
+
+def _split_keyword(text: str, keyword: str):
+    marker = f" {keyword} "
+    if marker not in text:
+        raise EvaluationError(f"Expected `{keyword}` in conditional expression.")
+    left, right = text.split(marker, 1)
+    return left.strip(), right.strip()
+
+
+def _find_closing_paren_line(lines: List[str], start: int, end: int) -> int:
+    for index in range(start, end):
+        if lines[index] == ")":
+            return index
+    raise EvaluationError("Expected `)` to close while body.")
+
+
+def _resolve_intrinsic(reference_text: str):
+    if reference_text in {"print", "@serow.intrinsic.print.v1", "serow.intrinsic.print"}:
+        return Function(
+            name="print",
+            module="serow.intrinsic",
+            public=True,
+            params=[Param("text", "Text")],
+            return_type="Unit",
+            source_path="<intrinsic>",
+            line=0,
+            version="v1",
+            version_explicit=True,
+            effects=["io"],
+        )
+    if reference_text in {"read_line", "@serow.intrinsic.read_line.v1", "serow.intrinsic.read_line"}:
+        return Function(
+            name="read_line",
+            module="serow.intrinsic",
+            public=True,
+            params=[],
+            return_type="Text",
+            source_path="<intrinsic>",
+            line=0,
+            version="v1",
+            version_explicit=True,
+            effects=["io"],
+        )
+    return None
 
 
 def _encode_qualified_calls(expr: str) -> str:

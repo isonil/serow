@@ -637,12 +637,17 @@ fn render_expr(
         }
         IrExpr::Let { name, value, body } => {
             let value = render_expr(value, variables, variable_types, rust_names, signatures)?;
+            let mutable = if ir_expr_assigns_to(body, name) {
+                "mut "
+            } else {
+                ""
+            };
             let rust_name = rust_identifier(name);
             let mut body_variables = variables.clone();
             let mut body_variable_types = variable_types.clone();
             body_variables.insert(name.clone(), rust_name.clone());
             body_variable_types.insert(name.clone(), value.type_name.clone());
-            let body = render_expr(
+            let rendered_body = render_expr(
                 body,
                 &body_variables,
                 &body_variable_types,
@@ -651,11 +656,55 @@ fn render_expr(
             )?;
             Ok(RenderedExpr {
                 code: format!(
-                    "{{ let {rust_name} = {}; {} }}",
+                    "{{ let {mutable}{rust_name} = {}; {} }}",
                     strip_outer_parens(&value.code),
+                    strip_outer_parens(&rendered_body.code)
+                ),
+                type_name: rendered_body.type_name,
+            })
+        }
+        IrExpr::Assign { name, value } => {
+            let variable = variables
+                .get(name)
+                .ok_or_else(|| format!("Unknown lowered assignment variable `{name}`."))?;
+            let expected = variable_types
+                .get(name)
+                .ok_or_else(|| format!("Unknown lowered assignment variable type for `{name}`."))?;
+            let value = render_expr(value, variables, variable_types, rust_names, signatures)?;
+            if &value.type_name != expected {
+                return Err(format!(
+                    "Lowered assignment to `{name}` has type {}, expected {}.",
+                    value.type_name, expected
+                ));
+            }
+            Ok(RenderedExpr {
+                code: format!("{{ {variable} = {}; () }}", strip_outer_parens(&value.code)),
+                type_name: "Unit".to_string(),
+            })
+        }
+        IrExpr::While { condition, body } => {
+            let condition =
+                render_expr(condition, variables, variable_types, rust_names, signatures)?;
+            if condition.type_name != "Bool" {
+                return Err(format!(
+                    "Lowered while condition has type {}, expected Bool.",
+                    condition.type_name
+                ));
+            }
+            let body = render_expr(body, variables, variable_types, rust_names, signatures)?;
+            if body.type_name != "Unit" {
+                return Err(format!(
+                    "Lowered while body has type {}, expected Unit.",
+                    body.type_name
+                ));
+            }
+            Ok(RenderedExpr {
+                code: format!(
+                    "{{ while {} {{ {}; }} }}",
+                    strip_outer_parens(&condition.code),
                     strip_outer_parens(&body.code)
                 ),
-                type_name: body.type_name,
+                type_name: "Unit".to_string(),
             })
         }
         IrExpr::Sequence { first, second } => {
@@ -683,6 +732,41 @@ fn rendered(code: String, type_name: &str) -> RenderedExpr {
     RenderedExpr {
         code,
         type_name: type_name.to_string(),
+    }
+}
+
+fn ir_expr_assigns_to(expr: &IrExpr, name: &str) -> bool {
+    match expr {
+        IrExpr::Assign { name: assigned, .. } => assigned == name,
+        IrExpr::Unary { expr, .. } => ir_expr_assigns_to(expr, name),
+        IrExpr::Binary { left, right, .. } => {
+            ir_expr_assigns_to(left, name) || ir_expr_assigns_to(right, name)
+        }
+        IrExpr::If {
+            condition,
+            then_expr,
+            else_expr,
+        } => {
+            ir_expr_assigns_to(condition, name)
+                || ir_expr_assigns_to(then_expr, name)
+                || ir_expr_assigns_to(else_expr, name)
+        }
+        IrExpr::Let {
+            name: let_name,
+            value,
+            ..
+        } if let_name == name => ir_expr_assigns_to(value, name),
+        IrExpr::Let { value, body, .. } => {
+            ir_expr_assigns_to(value, name) || ir_expr_assigns_to(body, name)
+        }
+        IrExpr::While { condition, body } => {
+            ir_expr_assigns_to(condition, name) || ir_expr_assigns_to(body, name)
+        }
+        IrExpr::Sequence { first, second } => {
+            ir_expr_assigns_to(first, name) || ir_expr_assigns_to(second, name)
+        }
+        IrExpr::Call { args, .. } => args.iter().any(|arg| ir_expr_assigns_to(arg, name)),
+        IrExpr::Int(_) | IrExpr::Bool(_) | IrExpr::Text(_) | IrExpr::Unit | IrExpr::Var(_) => false,
     }
 }
 

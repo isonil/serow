@@ -9,7 +9,7 @@ The current implementation is a bootstrap toolchain written in dependency-free R
 - mandatory contracts and properties
 - source-level public symbol versions
 - qualified function references (`module.name(...)` or `@module.name.vN(...)`)
-- ordered expression sequencing with local `let name = expr; next` bindings and `Unit` discards
+- ordered expression sequencing with local `let name = expr; next` bindings, `set name = expr` updates to local bindings, checked `while <Bool> do (<Unit>)` loops, and `Unit` discards
 - explicit effects with direct-call capability subset checks and conservative unused declared-capability warnings
 - explicit and inferred module dependencies checked against `serow.project`
 - exact duplicate public intent errors and near-duplicate intent warnings with structured overlap/difference data
@@ -60,7 +60,7 @@ bin/serow compile ir --json
 bin/serow compile ir examples/math.serow --json
 ```
 
-`compile ir` runs the checker first and only emits `serow.ir.v0` when there are no checker errors. The IR currently covers the bootstrap expression subset, including ordered sequencing and local `let` bindings, carries source path and line provenance, function `requires` preconditions, `ensures` postconditions, executable examples, and sampled properties, and resolves function calls to canonical public symbols; it is the input boundary used by the first Rust backend emitter.
+`compile ir` runs the checker first and only emits `serow.ir.v0` when there are no checker errors. The IR currently covers the bootstrap expression subset, including ordered sequencing, local `let` bindings, local `set` updates, and checked `while` loops, carries source path and line provenance, function `requires` preconditions, `ensures` postconditions, executable examples, and sampled properties, and resolves function calls to canonical public symbols; it is the input boundary used by the first Rust backend emitter.
 
 Emit Rust source for the supported checked IR subset:
 
@@ -72,7 +72,7 @@ bin/serow compile rust examples/math.serow --out-dir generated/serow_math --crat
 bin/serow compile rust examples/app.serow --out-dir generated/serow_app --emit-bin
 ```
 
-`compile rust` runs the same checked IR path first, then emits deterministic Rust source on stdout. With `--out-dir <dir>`, it writes a dependency-free Rust crate layout containing `Cargo.toml` and `src/lib.rs`; `--crate-name <name>` customizes the generated Cargo package name and defaults to `serow_generated`. With `--emit-bin` (or `--bin`), the generated crate also contains `src/main.rs` and requires exactly one public zero-argument Serow entrypoint named `main` returning `Text`, `Int`, `Bool`, or `Unit`; non-`Unit` binaries print the returned value deterministically, while `Unit` binaries rely on explicit effects such as `print(...)`. The generated manifest includes `package.metadata.serow` rows for the backend id, IR version, generated source fingerprint, generated evidence counts, source locations, symbol-to-Rust-name mappings, optional binary entrypoint metadata, and example/property evidence-to-test mappings with Serow source path and line provenance. The first backend slice supports pure functions over `Int`, `Bool`, `Text`, and `Unit`, ordered sequencing, local `let` bindings, plus the checked terminal `io` intrinsics `print(text: Text) -> Unit` and `read_line() -> Text`; `print` lowers to `println!` and `read_line` lowers to stdin reading with trailing newline removal. Generated Rust tests are emitted for pure Serow examples and deterministic sampled-property bindings; `io` functions are generated without Rust evidence tests to avoid terminal side effects during `cargo test`.
+`compile rust` runs the same checked IR path first, then emits deterministic Rust source on stdout. With `--out-dir <dir>`, it writes a dependency-free Rust crate layout containing `Cargo.toml` and `src/lib.rs`; `--crate-name <name>` customizes the generated Cargo package name and defaults to `serow_generated`. With `--emit-bin` (or `--bin`), the generated crate also contains `src/main.rs` and requires exactly one public zero-argument Serow entrypoint named `main` returning `Text`, `Int`, `Bool`, or `Unit`; non-`Unit` binaries print the returned value deterministically, while `Unit` binaries rely on explicit effects such as `print(...)`. The generated manifest includes `package.metadata.serow` rows for the backend id, IR version, generated source fingerprint, generated evidence counts, source locations, symbol-to-Rust-name mappings, optional binary entrypoint metadata, and example/property evidence-to-test mappings with Serow source path and line provenance. The first backend slice supports pure functions over `Int`, `Bool`, `Text`, and `Unit`, ordered sequencing, local `let` bindings, local `set` updates, checked `while` loops, plus the checked terminal `io` intrinsics `print(text: Text) -> Unit` and `read_line() -> Text`; `print` lowers to `println!` and `read_line` lowers to stdin reading with trailing newline removal. Generated Rust tests are emitted for pure Serow examples and deterministic sampled-property bindings; `io` functions are generated without Rust evidence tests to avoid terminal side effects during `cargo test`.
 
 Format Serow source into the canonical textual projection:
 

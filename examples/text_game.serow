@@ -1,0 +1,21 @@
+module core.text_game
+
+pub fn game_loop() -> Unit
+  intent "Run a tiny terminal text game loop until the command exits."
+  version v1
+  contract
+    ensures result == unit
+  examples
+    game_loop() == unit
+  properties
+    forall flag: Bool:
+      game_loop() == unit or flag == flag
+  effects [io]
+  impl
+    let running = true;
+    let room = "Hall";
+    while running do (
+    print(room);
+    let command = read_line();
+    if command == "quit" or command == "" then set running = false else set room = "Hall"
+    )

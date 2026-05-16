@@ -11,7 +11,7 @@ from .model import Function, Program
 
 
 REQUIRED_PUBLIC_SECTIONS = ["intent", "contract", "examples", "properties", "effects", "impl"]
-SUPPORTED_TYPES = {"Int", "Bool", "Text"}
+SUPPORTED_TYPES = {"Int", "Bool", "Text", "Unit"}
 HOLE_RE = re.compile(r"\bHOLE\s*\(")
 UNKNOWN_FUNCTION_RE = re.compile(r"^Unknown function `([^`]+)`\.$")
 NEAR_DUPLICATE_INTENT_SCORE = 0.75
@@ -1162,6 +1162,8 @@ def _samples_for_type(type_name: str):
         return [False, True]
     if type_name == "Text":
         return ["", "a", "Serow", "with space", "123"]
+    if type_name == "Unit":
+        return [None]
     return None
 
 

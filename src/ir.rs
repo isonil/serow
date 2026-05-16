@@ -65,6 +65,14 @@ pub enum IrExpr {
         value: Box<IrExpr>,
         body: Box<IrExpr>,
     },
+    Assign {
+        name: String,
+        value: Box<IrExpr>,
+    },
+    While {
+        condition: Box<IrExpr>,
+        body: Box<IrExpr>,
+    },
     Sequence {
         first: Box<IrExpr>,
         second: Box<IrExpr>,
@@ -405,6 +413,7 @@ struct IrParser<'a> {
     tokens: Vec<Token>,
     index: usize,
     variables: Vec<String>,
+    assignable: Vec<String>,
     functions: &'a [Function],
 }
 
@@ -414,6 +423,7 @@ impl<'a> IrParser<'a> {
             tokens,
             index: 0,
             variables,
+            assignable: Vec::new(),
             functions,
         }
     }
@@ -429,7 +439,9 @@ impl<'a> IrParser<'a> {
             let value = self.parse_if()?;
             self.expect(&Token::Semicolon)?;
             self.variables.push(name.clone());
+            self.assignable.push(name.clone());
             let body = self.parse_expression();
+            self.assignable.pop();
             self.variables.pop();
             return body.map(|body| IrExpr::Let {
                 name,
@@ -438,7 +450,41 @@ impl<'a> IrParser<'a> {
             });
         }
 
+        if self.consume(&Token::Set) {
+            let name = self.expect_ident()?;
+            self.expect(&Token::Assign)?;
+            if !self.variables.iter().any(|variable| variable == &name) {
+                return Err(format!("Unknown variable `{name}`."));
+            }
+            if !self.assignable.iter().any(|variable| variable == &name) {
+                return Err(format!(
+                    "`set` can only update an existing local `let` binding, got `{name}`."
+                ));
+            }
+            let value = self.parse_if()?;
+            return self.parse_after_first(IrExpr::Assign {
+                name,
+                value: Box::new(value),
+            });
+        }
+
+        if self.consume(&Token::While) {
+            let condition = self.parse_expression()?;
+            self.expect(&Token::Do)?;
+            self.expect(&Token::LParen)?;
+            let body = self.parse_expression()?;
+            self.expect(&Token::RParen)?;
+            return self.parse_after_first(IrExpr::While {
+                condition: Box::new(condition),
+                body: Box::new(body),
+            });
+        }
+
         let first = self.parse_if()?;
+        self.parse_after_first(first)
+    }
+
+    fn parse_after_first(&mut self, first: IrExpr) -> Result<IrExpr, String> {
         if self.consume(&Token::Semicolon) {
             let second = self.parse_expression()?;
             return Ok(IrExpr::Sequence {

@@ -2038,6 +2038,28 @@ fn ir_expr_json(expr: &IrExpr) -> String {
             json_string(name),
             ir_expr_json(value)
         ),
+        IrExpr::Assign { name, value } => format!(
+            concat!(
+                "{{",
+                "\"kind\": \"assign\", ",
+                "\"name\": {}, ",
+                "\"value\": {}",
+                "}}"
+            ),
+            json_string(name),
+            ir_expr_json(value)
+        ),
+        IrExpr::While { condition, body } => format!(
+            concat!(
+                "{{",
+                "\"body\": {}, ",
+                "\"condition\": {}, ",
+                "\"kind\": \"while\"",
+                "}}"
+            ),
+            ir_expr_json(body),
+            ir_expr_json(condition)
+        ),
         IrExpr::Sequence { first, second } => format!(
             concat!(
                 "{{",
