@@ -6660,6 +6660,29 @@ fn compile_rust_out_dir_writes_crate_layout() {
         manifest.contains("name = \"serow_math_generated\""),
         "{manifest}"
     );
+    assert!(manifest.contains("[package.metadata.serow]"), "{manifest}");
+    assert!(
+        manifest.contains("backend = \"serow.rust.v0\""),
+        "{manifest}"
+    );
+    assert!(
+        manifest.contains("ir_version = \"serow.ir.v0\""),
+        "{manifest}"
+    );
+    assert!(manifest.contains("generated_functions = 3"), "{manifest}");
+    assert!(manifest.contains("generated_tests = 70"), "{manifest}");
+    assert!(
+        manifest.contains("[[package.metadata.serow.functions]]"),
+        "{manifest}"
+    );
+    assert!(
+        manifest.contains("symbol = \"@core.math.add.v1\""),
+        "{manifest}"
+    );
+    assert!(
+        manifest.contains("rust_name = \"serow_core_math_add_v1\""),
+        "{manifest}"
+    );
     let source = fs::read_to_string(&lib_rs).expect("read generated lib");
     assert!(source.contains("pub fn serow_core_math_add_v1"), "{source}");
     assert!(
