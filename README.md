@@ -67,9 +67,10 @@ Emit Rust source for the supported checked IR subset:
 bin/serow compile rust examples/math.serow
 bin/serow compile rust examples/math.serow --json
 bin/serow compile rust examples/math.serow --out-dir generated/serow_math
+bin/serow compile rust examples/math.serow --out-dir generated/serow_math --crate-name serow_math
 ```
 
-`compile rust` runs the same checked IR path first, then emits deterministic Rust source on stdout. With `--out-dir <dir>`, it writes a dependency-free Rust crate layout containing `Cargo.toml` and `src/lib.rs`. The first backend slice supports pure functions over `Int`, `Bool`, and `Text`; `requires` and `ensures` clauses become runtime `assert!` guards, Serow examples and deterministic sampled-property bindings become Rust `#[test]` functions, and effectful functions produce backend diagnostics instead of generated code.
+`compile rust` runs the same checked IR path first, then emits deterministic Rust source on stdout. With `--out-dir <dir>`, it writes a dependency-free Rust crate layout containing `Cargo.toml` and `src/lib.rs`; `--crate-name <name>` customizes the generated Cargo package name and defaults to `serow_generated`. The first backend slice supports pure functions over `Int`, `Bool`, and `Text`; `requires` and `ensures` clauses become runtime `assert!` guards, Serow examples and deterministic sampled-property bindings become Rust `#[test]` functions, and effectful functions produce backend diagnostics instead of generated code.
 
 Format Serow source into the canonical textual projection:
 

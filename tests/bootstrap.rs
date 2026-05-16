@@ -2000,7 +2000,9 @@ fn agent_commands_json_includes_full_command_catalog() {
     let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
     assert!(stdout.contains("\"ok\": true"), "{stdout}");
     assert!(
-        stdout.contains("serow compile rust [paths...] [--out-dir <dir>] [--json]"),
+        stdout.contains(
+            "serow compile rust [paths...] [--out-dir <dir>] [--crate-name <name>] [--json]"
+        ),
         "{stdout}"
     );
     assert!(stdout.contains("serow patch qualify-call"), "{stdout}");
@@ -6633,12 +6635,18 @@ fn compile_rust_out_dir_writes_crate_layout() {
             "examples/math.serow",
             "--out-dir",
             &out_dir.to_string_lossy(),
+            "--crate-name",
+            "serow_math_generated",
             "--json",
         ])
         .output()
         .expect("run compile rust --out-dir");
     assert!(output.status.success(), "{output:#?}");
     let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("\"crate_name\": \"serow_math_generated\""),
+        "{stdout}"
+    );
     assert!(stdout.contains("\"written_files\": ["), "{stdout}");
     assert!(stdout.contains("Cargo.toml"), "{stdout}");
     assert!(stdout.contains("src/lib.rs"), "{stdout}");
@@ -6649,7 +6657,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
     assert!(lib_rs.exists(), "{lib_rs:?}");
     let manifest = fs::read_to_string(&cargo_toml).expect("read generated manifest");
     assert!(
-        manifest.contains("name = \"serow_generated\""),
+        manifest.contains("name = \"serow_math_generated\""),
         "{manifest}"
     );
     let source = fs::read_to_string(&lib_rs).expect("read generated lib");
@@ -6698,6 +6706,29 @@ fn compile_rust_out_dir_writes_crate_layout() {
         String::from_utf8_lossy(&cargo_test_output.stderr)
     );
     let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn compile_rust_rejects_invalid_crate_name() {
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "compile",
+            "rust",
+            "examples/math.serow",
+            "--out-dir",
+            "/tmp/serow-invalid-crate-name",
+            "--crate-name",
+            "BadName",
+            "--json",
+        ])
+        .output()
+        .expect("run compile rust with invalid crate name");
+    assert_eq!(output.status.code(), Some(2), "{output:#?}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("`--crate-name` must start with a lowercase ASCII letter or digit"),
+        "{stderr}"
+    );
 }
 
 fn unique_temp_dir(prefix: &str) -> PathBuf {
