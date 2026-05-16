@@ -6417,6 +6417,11 @@ fn compile_ir_json_reports_portable_ir() {
         stdout.contains("\"symbol\": \"@core.math.add.v1\""),
         "{stdout}"
     );
+    assert!(
+        stdout.contains("\"source_path\": \"examples/math.serow\""),
+        "{stdout}"
+    );
+    assert!(stdout.contains("\"line\": 3"), "{stdout}");
     assert!(stdout.contains("\"op\": \"add\""), "{stdout}");
     assert!(stdout.contains("\"kind\": \"if\""), "{stdout}");
     assert!(stdout.contains("\"op\": \"div_trunc\""), "{stdout}");
@@ -6484,6 +6489,11 @@ fn compile_rust_json_emits_supported_backend_source() {
         stdout.contains("pub fn serow_core_math_add_v1(serow_x: i64, serow_y: i64) -> i64"),
         "{stdout}"
     );
+    assert!(
+        stdout.contains("\"source_path\": \"examples/math.serow\""),
+        "{stdout}"
+    );
+    assert!(stdout.contains("\"line\": 3"), "{stdout}");
     assert!(stdout.contains("if serow_x < 0"), "{stdout}");
     assert!(
         stdout.contains(
@@ -6689,6 +6699,11 @@ fn compile_rust_out_dir_writes_crate_layout() {
         manifest.contains("rust_name = \"serow_core_math_add_v1\""),
         "{manifest}"
     );
+    assert!(
+        manifest.contains("source_path = \"examples/math.serow\""),
+        "{manifest}"
+    );
+    assert!(manifest.contains("line = 3"), "{manifest}");
     assert!(
         manifest.contains("[[package.metadata.serow.tests]]"),
         "{manifest}"

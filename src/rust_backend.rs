@@ -34,6 +34,8 @@ pub struct GeneratedRustProgram {
 pub struct GeneratedRustFunction {
     pub symbol: String,
     pub rust_name: String,
+    pub source_path: String,
+    pub line: usize,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -123,6 +125,8 @@ fn generate_rust_program(ir: &IrProgram) -> Result<GeneratedRustProgram, Vec<Dia
                 generated_functions.push(GeneratedRustFunction {
                     symbol: function.symbol.clone(),
                     rust_name,
+                    source_path: function.source_path.clone(),
+                    line: function.line,
                 });
                 match render_function_tests(
                     function,

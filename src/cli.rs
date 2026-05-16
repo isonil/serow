@@ -346,9 +346,11 @@ fn render_generated_cargo_toml(crate_name: &str, rust: &GeneratedRustProgram) ->
     for function in &rust.functions {
         source.push_str("\n[[package.metadata.serow.functions]]\n");
         source.push_str(&format!(
-            "symbol = {}\nrust_name = {}\n",
+            "symbol = {}\nrust_name = {}\nsource_path = {}\nline = {}\n",
             toml_string_literal(&function.symbol),
-            toml_string_literal(&function.rust_name)
+            toml_string_literal(&function.rust_name),
+            toml_string_literal(&function.source_path),
+            function.line
         ));
     }
     for test in &rust.tests {
@@ -1722,6 +1724,8 @@ fn ir_function_json(function: &IrFunction) -> String {
             "\"properties\": {}, ",
             "\"requires\": {}, ",
             "\"return_type\": {}, ",
+            "\"source_path\": {}, ",
+            "\"line\": {}, ",
             "\"symbol\": {}, ",
             "\"version\": {}",
             "}}"
@@ -1736,6 +1740,8 @@ fn ir_function_json(function: &IrFunction) -> String {
         ir_properties_json(&function.properties),
         ir_exprs_json(&function.requires),
         json_string(&function.return_type),
+        json_string(&function.source_path),
+        function.line,
         json_string(&function.symbol),
         json_string(&function.version)
     )
@@ -1879,8 +1885,10 @@ fn rust_program_json(rust: &GeneratedRustProgram) -> String {
         .iter()
         .map(|function| {
             format!(
-                "{{\"rust_name\": {}, \"symbol\": {}}}",
+                "{{\"line\": {}, \"rust_name\": {}, \"source_path\": {}, \"symbol\": {}}}",
+                function.line,
                 json_string(&function.rust_name),
+                json_string(&function.source_path),
                 json_string(&function.symbol)
             )
         })
@@ -2559,7 +2567,7 @@ const CORE_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "compile rust",
         "serow compile rust [paths...] [--out-dir <dir>] [--crate-name <name>] [--json]",
-        "Emit deterministic Rust source or a generated Rust crate with configurable package name, Serow manifest metadata, and generated evidence tests for the supported checked IR subset.",
+        "Emit deterministic Rust source or a generated Rust crate with configurable package name, Serow source metadata, and generated evidence tests for the supported checked IR subset.",
     ),
     (
         "fmt",
@@ -2612,7 +2620,7 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "compile rust",
         "serow compile rust [paths...] [--out-dir <dir>] [--crate-name <name>] [--json]",
-        "Emit deterministic Rust source or a generated Rust crate with configurable package name, Serow manifest metadata, and generated evidence tests for the supported checked IR subset.",
+        "Emit deterministic Rust source or a generated Rust crate with configurable package name, Serow source metadata, and generated evidence tests for the supported checked IR subset.",
     ),
     (
         "fmt",
@@ -2840,7 +2848,7 @@ fn agent_json() -> String {
         str_array_json(&[
             "Properties are sampled, not proven; replay uses deterministic seeds.",
             "Intent search is deterministic token ranking, not semantic embeddings.",
-            "Rust backend emission is limited to pure Int/Bool/Text functions, emits runtime asserts for Serow requires and ensures clauses, emits Rust tests for Serow examples and deterministic sampled properties, and records Serow metadata in generated Cargo manifests.",
+            "Rust backend emission is limited to pure Int/Bool/Text functions, emits runtime asserts for Serow requires and ensures clauses, emits Rust tests for Serow examples and deterministic sampled properties, and records Serow source and evidence metadata in generated Cargo manifests.",
             "Expression support is intentionally small and formatting does not preserve comments.",
             "JSON output is hand-written until external dependencies are accepted."
         ])
