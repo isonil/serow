@@ -6486,6 +6486,10 @@ fn compile_rust_json_emits_supported_backend_source() {
         "{stdout}"
     );
     assert!(
+        stdout.contains("\"source_fingerprint\": \"fnv1a64:"),
+        "{stdout}"
+    );
+    assert!(
         stdout.contains("pub fn serow_core_math_add_v1(serow_x: i64, serow_y: i64) -> i64"),
         "{stdout}"
     );
@@ -6740,6 +6744,11 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{manifest}"
     );
     let source = fs::read_to_string(&lib_rs).expect("read generated lib");
+    let fingerprint = stable_test_source_fingerprint(&source);
+    assert!(
+        manifest.contains(&format!("source_fingerprint = \"{fingerprint}\"")),
+        "{manifest}"
+    );
     assert!(source.contains("pub fn serow_core_math_add_v1"), "{source}");
     assert!(
         source.contains("fn serow_test_core_math_add_v1_example_1()"),
@@ -6816,6 +6825,15 @@ fn unique_temp_dir(prefix: &str) -> PathBuf {
         .expect("time")
         .as_nanos();
     std::env::temp_dir().join(format!("{prefix}-{nanos}"))
+}
+
+fn stable_test_source_fingerprint(source: &str) -> String {
+    let mut hash = 0xcbf29ce484222325u64;
+    for byte in source.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    format!("fnv1a64:{hash:016x}")
 }
 
 fn git(dir: &PathBuf, args: &[&str]) {

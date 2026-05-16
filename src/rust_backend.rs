@@ -26,6 +26,7 @@ pub struct GeneratedRustProgram {
     pub backend: String,
     pub ir_version: String,
     pub source: String,
+    pub source_fingerprint: String,
     pub functions: Vec<GeneratedRustFunction>,
     pub tests: Vec<GeneratedRustTest>,
 }
@@ -166,10 +167,20 @@ fn generate_rust_program(ir: &IrProgram) -> Result<GeneratedRustProgram, Vec<Dia
     Ok(GeneratedRustProgram {
         backend: "serow.rust.v0".to_string(),
         ir_version: ir.version.clone(),
+        source_fingerprint: stable_source_fingerprint(&source),
         source,
         functions: generated_functions,
         tests: generated_tests,
     })
+}
+
+fn stable_source_fingerprint(source: &str) -> String {
+    let mut hash = 0xcbf29ce484222325u64;
+    for byte in source.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    format!("fnv1a64:{hash:016x}")
 }
 
 fn render_function(

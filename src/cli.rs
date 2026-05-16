@@ -334,12 +334,14 @@ fn render_generated_cargo_toml(crate_name: &str, rust: &GeneratedRustProgram) ->
             "[package.metadata.serow]\n",
             "backend = {}\n",
             "ir_version = {}\n",
+            "source_fingerprint = {}\n",
             "generated_functions = {}\n",
             "generated_tests = {}\n",
         ),
         toml_string_literal(crate_name),
         toml_string_literal(&rust.backend),
         toml_string_literal(&rust.ir_version),
+        toml_string_literal(&rust.source_fingerprint),
         rust.functions.len(),
         rust.tests.len()
     );
@@ -1930,6 +1932,7 @@ fn rust_program_json(rust: &GeneratedRustProgram) -> String {
             "\"functions\": [{}], ",
             "\"ir_version\": {}, ",
             "\"source\": {}, ",
+            "\"source_fingerprint\": {}, ",
             "\"tests\": [{}]",
             "}}"
         ),
@@ -1937,6 +1940,7 @@ fn rust_program_json(rust: &GeneratedRustProgram) -> String {
         functions,
         json_string(&rust.ir_version),
         json_string(&rust.source),
+        json_string(&rust.source_fingerprint),
         tests
     )
 }
