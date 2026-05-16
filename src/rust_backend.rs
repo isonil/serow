@@ -174,6 +174,37 @@ fn render_function(
         return Err(diagnostics);
     }
 
+    let mut guards = Vec::new();
+    for (index, requirement) in function.requires.iter().enumerate() {
+        let requirement = render_expr(
+            requirement,
+            &variables,
+            &variable_types,
+            rust_names,
+            signatures,
+        )
+        .map_err(|message| vec![backend_error(function, message)])?;
+        if requirement.type_name != "Bool" {
+            return Err(vec![backend_error(
+                function,
+                format!(
+                    "Lowered precondition #{} has type {}, expected Bool.",
+                    index + 1,
+                    requirement.type_name
+                ),
+            )]);
+        }
+        guards.push(format!(
+            "    assert!({}, {});",
+            strip_outer_parens(&requirement.code),
+            rust_string_literal(&format!(
+                "Serow precondition failed for {} requires #{}",
+                function.symbol,
+                index + 1
+            ))
+        ));
+    }
+
     let body = render_expr(
         &function.body,
         &variables,
@@ -183,8 +214,13 @@ fn render_function(
     )
     .map(|body| strip_outer_parens(&body.code).to_string())
     .map_err(|message| vec![backend_error(function, message)])?;
+    let guard_block = if guards.is_empty() {
+        String::new()
+    } else {
+        format!("{}\n", guards.join("\n"))
+    };
     Ok(format!(
-        "pub fn {rust_name}({}) -> {return_type} {{\n    {body}\n}}",
+        "pub fn {rust_name}({}) -> {return_type} {{\n{guard_block}    {body}\n}}",
         params.join(", ")
     ))
 }

@@ -1611,6 +1611,7 @@ fn ir_function_json(function: &IrFunction) -> String {
             "\"module\": {}, ",
             "\"name\": {}, ",
             "\"params\": {}, ",
+            "\"requires\": {}, ",
             "\"return_type\": {}, ",
             "\"symbol\": {}, ",
             "\"version\": {}",
@@ -1621,6 +1622,7 @@ fn ir_function_json(function: &IrFunction) -> String {
         json_string(&function.module),
         json_string(&function.name),
         params_json(&function.params),
+        ir_exprs_json(&function.requires),
         json_string(&function.return_type),
         json_string(&function.symbol),
         json_string(&function.version)
@@ -2669,7 +2671,7 @@ fn agent_json() -> String {
         str_array_json(&[
             "Properties are sampled, not proven; replay uses deterministic seeds.",
             "Intent search is deterministic token ranking, not semantic embeddings.",
-            "Rust backend emission is limited to pure Int/Bool/Text functions.",
+            "Rust backend emission is limited to pure Int/Bool/Text functions and emits runtime asserts for Serow requires clauses.",
             "Expression support is intentionally small and formatting does not preserve comments.",
             "JSON output is hand-written until external dependencies are accepted."
         ])
@@ -2877,6 +2879,7 @@ fn print_agent_bootstrap() {
     println!("  properties are sampled, not proven");
     println!("  intent search is token-ranked, not semantic embeddings");
     println!("  Rust backend emission is limited to pure Int/Bool/Text functions");
+    println!("  Rust backend emits runtime asserts for Serow requires clauses");
     println!("  expression support is small and formatting does not preserve comments");
 }
 

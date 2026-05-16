@@ -18,6 +18,7 @@ pub struct IrFunction {
     pub params: Vec<Param>,
     pub return_type: String,
     pub effects: Vec<String>,
+    pub requires: Vec<IrExpr>,
     pub body: IrExpr,
 }
 
@@ -140,6 +141,33 @@ pub fn lower_checked_program(program: &Program, parse_diagnostics: Vec<Diagnosti
             ));
             continue;
         };
+        let mut requires = Vec::new();
+        let mut failed = false;
+        for (index, requirement) in function.requires.iter().enumerate() {
+            match lower_expression(requirement, function, &program.functions) {
+                Ok(requirement) => requires.push(requirement),
+                Err(error) => {
+                    failed = true;
+                    diagnostics.push(
+                        Diagnostic::error(
+                            "IrLoweringError",
+                            format!(
+                                "Could not lower precondition #{} for `{}` to portable IR: {error}",
+                                index + 1,
+                                function.name
+                            ),
+                            Some(function.target()),
+                        )
+                        .with_data("symbol", function.symbol())
+                        .with_data("requires", requirement),
+                    );
+                }
+            }
+        }
+        if failed {
+            continue;
+        }
+
         match lower_expression(implementation, function, &program.functions) {
             Ok(body) => functions.push(IrFunction {
                 symbol: function.symbol(),
@@ -149,6 +177,7 @@ pub fn lower_checked_program(program: &Program, parse_diagnostics: Vec<Diagnosti
                 params: function.params.clone(),
                 return_type: function.return_type.clone(),
                 effects: function.effects.clone(),
+                requires,
                 body,
             }),
             Err(error) => diagnostics.push(

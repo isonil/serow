@@ -6413,6 +6413,8 @@ fn compile_ir_json_reports_portable_ir() {
     assert!(stdout.contains("\"op\": \"add\""), "{stdout}");
     assert!(stdout.contains("\"kind\": \"if\""), "{stdout}");
     assert!(stdout.contains("\"op\": \"div_trunc\""), "{stdout}");
+    assert!(stdout.contains("\"requires\": ["), "{stdout}");
+    assert!(stdout.contains("\"op\": \"not_eq\""), "{stdout}");
     assert!(stdout.contains("\"lowered_functions\": 3"), "{stdout}");
 }
 
@@ -6473,6 +6475,12 @@ fn compile_rust_json_emits_supported_backend_source() {
         "{stdout}"
     );
     assert!(stdout.contains("if serow_x < 0"), "{stdout}");
+    assert!(
+        stdout.contains(
+            "assert!(serow_y != 0, \\\"Serow precondition failed for @core.math.div_trunc.v1 requires #1\\\")"
+        ),
+        "{stdout}"
+    );
     assert!(stdout.contains("serow_x / serow_y"), "{stdout}");
     assert!(stdout.contains("\"generated_functions\": 3"), "{stdout}");
 }
@@ -6597,6 +6605,12 @@ fn compile_rust_out_dir_writes_crate_layout() {
     );
     let source = fs::read_to_string(&lib_rs).expect("read generated lib");
     assert!(source.contains("pub fn serow_core_math_add_v1"), "{source}");
+    assert!(
+        source.contains(
+            "assert!(serow_y != 0, \"Serow precondition failed for @core.math.div_trunc.v1 requires #1\")"
+        ),
+        "{source}"
+    );
 
     let cargo_output = Command::new("cargo")
         .args(["check", "--manifest-path"])

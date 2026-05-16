@@ -1,6 +1,6 @@
 # Current State
 
-Date: 2026-05-13
+Date: 2026-05-16
 
 ## Active Mode
 
@@ -91,13 +91,13 @@ Selection policy for generic implementation prompts:
   - `bin/serow compile ir [paths...] [--json]`
   - runs the normal checker first and refuses to emit IR when checker errors are present
   - emits `serow.ir.v0` JSON for checked public implementations in the bootstrap expression subset
-  - includes public symbol identity, signature, effects, parameters, return type, expression tree, and canonical resolved call targets
+  - includes public symbol identity, signature, effects, parameters, return type, lowered `requires` preconditions, expression tree, and canonical resolved call targets
 - Phase 3 Rust backend:
   - `bin/serow compile rust [paths...] [--out-dir <dir>] [--json]`
   - runs the checked IR lowering path first and refuses to emit Rust when checker or IR lowering errors are present
   - emits deterministic Rust source on stdout in text mode and includes the generated source plus symbol-to-Rust-name rows in JSON mode
   - writes a dependency-free Rust crate layout with `Cargo.toml` and `src/lib.rs` when passed `--out-dir <dir>`
-  - supports pure public functions over `Int`, `Bool`, and `Text` in the current expression subset, including arithmetic, text concatenation, comparisons, boolean operators, `if`, unary operators, and resolved function calls
+  - supports pure public functions over `Int`, `Bool`, and `Text` in the current expression subset, including arithmetic, text concatenation, comparisons, boolean operators, `if`, unary operators, resolved function calls, and runtime assertions for `requires` preconditions
   - maps Serow `Text` to owned Rust `String` values in generated source
   - rejects non-`pure` functions with explicit backend diagnostics instead of generating partial code
 - Structured patch commands:
