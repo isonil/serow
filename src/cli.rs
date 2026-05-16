@@ -1150,7 +1150,7 @@ fn print_rust_artifact_summary(summary: &RustBackendSummary, written_files: &[St
         .unwrap_or_default();
     println!("serow compile rust: {status}");
     println!(
-        "summary: {} functions checked, {} functions lowered, {} functions generated",
+        "summary: {} functions checked, {} functions lowered, {} functions generated, {} tests generated",
         summary.ir_summary.check_summary.functions,
         summary
             .ir_summary
@@ -1158,7 +1158,12 @@ fn print_rust_artifact_summary(summary: &RustBackendSummary, written_files: &[St
             .as_ref()
             .map(|ir| ir.functions.len())
             .unwrap_or_default(),
-        generated
+        generated,
+        summary
+            .rust
+            .as_ref()
+            .map(|rust| rust.tests.len())
+            .unwrap_or_default()
     );
     for file in written_files {
         println!("wrote: {file}");
@@ -1608,6 +1613,7 @@ fn ir_function_json(function: &IrFunction) -> String {
             "{{",
             "\"body\": {}, ",
             "\"effects\": {}, ",
+            "\"examples\": {}, ",
             "\"module\": {}, ",
             "\"name\": {}, ",
             "\"params\": {}, ",
@@ -1619,6 +1625,7 @@ fn ir_function_json(function: &IrFunction) -> String {
         ),
         ir_expr_json(&function.body),
         string_array_json(&function.effects),
+        ir_exprs_json(&function.examples),
         json_string(&function.module),
         json_string(&function.name),
         params_json(&function.params),
@@ -1706,6 +1713,7 @@ fn rust_summary_json(summary: &RustBackendSummary, written_files: &[String]) -> 
             "  \"summary\": {{\n",
             "    \"checked_functions\": {},\n",
             "    \"generated_functions\": {},\n",
+            "    \"generated_tests\": {},\n",
             "    \"lowered_functions\": {}\n",
             "  }},\n",
             "  \"written_files\": {}\n",
@@ -1723,6 +1731,11 @@ fn rust_summary_json(summary: &RustBackendSummary, written_files: &[String]) -> 
             .rust
             .as_ref()
             .map(|rust| rust.functions.len())
+            .unwrap_or_default(),
+        summary
+            .rust
+            .as_ref()
+            .map(|rust| rust.tests.len())
             .unwrap_or_default(),
         summary
             .ir_summary
@@ -1747,19 +1760,34 @@ fn rust_program_json(rust: &GeneratedRustProgram) -> String {
         })
         .collect::<Vec<_>>()
         .join(", ");
+    let tests = rust
+        .tests
+        .iter()
+        .map(|test| {
+            format!(
+                "{{\"example_index\": {}, \"rust_name\": {}, \"symbol\": {}}}",
+                test.example_index,
+                json_string(&test.rust_name),
+                json_string(&test.symbol)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
     format!(
         concat!(
             "{{",
             "\"backend\": {}, ",
             "\"functions\": [{}], ",
             "\"ir_version\": {}, ",
-            "\"source\": {}",
+            "\"source\": {}, ",
+            "\"tests\": [{}]",
             "}}"
         ),
         json_string(&rust.backend),
         functions,
         json_string(&rust.ir_version),
-        json_string(&rust.source)
+        json_string(&rust.source),
+        tests
     )
 }
 
@@ -2390,7 +2418,7 @@ const CORE_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "compile ir",
         "serow compile ir [paths...] [--json]",
-        "Lower checked public implementations to the portable bootstrap IR.",
+        "Lower checked public implementations, preconditions, and examples to the portable bootstrap IR.",
     ),
     (
         "fmt",
@@ -2438,12 +2466,12 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "compile ir",
         "serow compile ir [paths...] [--json]",
-        "Lower checked public implementations to the portable bootstrap IR.",
+        "Lower checked public implementations, preconditions, and examples to the portable bootstrap IR.",
     ),
     (
         "compile rust",
         "serow compile rust [paths...] [--out-dir <dir>] [--json]",
-        "Emit deterministic Rust source or a generated Rust crate for the supported checked IR subset.",
+        "Emit deterministic Rust source or a generated Rust crate with tests for the supported checked IR subset.",
     ),
     (
         "fmt",
@@ -2671,7 +2699,7 @@ fn agent_json() -> String {
         str_array_json(&[
             "Properties are sampled, not proven; replay uses deterministic seeds.",
             "Intent search is deterministic token ranking, not semantic embeddings.",
-            "Rust backend emission is limited to pure Int/Bool/Text functions and emits runtime asserts for Serow requires clauses.",
+            "Rust backend emission is limited to pure Int/Bool/Text functions, emits runtime asserts for Serow requires clauses, and emits Rust tests for Serow examples.",
             "Expression support is intentionally small and formatting does not preserve comments.",
             "JSON output is hand-written until external dependencies are accepted."
         ])
@@ -2880,6 +2908,7 @@ fn print_agent_bootstrap() {
     println!("  intent search is token-ranked, not semantic embeddings");
     println!("  Rust backend emission is limited to pure Int/Bool/Text functions");
     println!("  Rust backend emits runtime asserts for Serow requires clauses");
+    println!("  Rust backend emits Rust tests for Serow examples");
     println!("  expression support is small and formatting does not preserve comments");
 }
 

@@ -6414,6 +6414,7 @@ fn compile_ir_json_reports_portable_ir() {
     assert!(stdout.contains("\"kind\": \"if\""), "{stdout}");
     assert!(stdout.contains("\"op\": \"div_trunc\""), "{stdout}");
     assert!(stdout.contains("\"requires\": ["), "{stdout}");
+    assert!(stdout.contains("\"examples\": ["), "{stdout}");
     assert!(stdout.contains("\"op\": \"not_eq\""), "{stdout}");
     assert!(stdout.contains("\"lowered_functions\": 3"), "{stdout}");
 }
@@ -6481,8 +6482,21 @@ fn compile_rust_json_emits_supported_backend_source() {
         ),
         "{stdout}"
     );
+    assert!(
+        stdout.contains("fn serow_test_core_math_add_v1_example_1()"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("assert!(serow_core_math_div_trunc_v1(7, 2) == 3"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"rust_name\": \"serow_test_core_math_add_v1_example_1\""),
+        "{stdout}"
+    );
     assert!(stdout.contains("serow_x / serow_y"), "{stdout}");
     assert!(stdout.contains("\"generated_functions\": 3"), "{stdout}");
+    assert!(stdout.contains("\"generated_tests\": 7"), "{stdout}");
 }
 
 #[test]
@@ -6606,6 +6620,10 @@ fn compile_rust_out_dir_writes_crate_layout() {
     let source = fs::read_to_string(&lib_rs).expect("read generated lib");
     assert!(source.contains("pub fn serow_core_math_add_v1"), "{source}");
     assert!(
+        source.contains("fn serow_test_core_math_add_v1_example_1()"),
+        "{source}"
+    );
+    assert!(
         source.contains(
             "assert!(serow_y != 0, \"Serow precondition failed for @core.math.div_trunc.v1 requires #1\")"
         ),
@@ -6622,6 +6640,17 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{}{}",
         String::from_utf8_lossy(&cargo_output.stdout),
         String::from_utf8_lossy(&cargo_output.stderr)
+    );
+    let cargo_test_output = Command::new("cargo")
+        .args(["test", "--manifest-path"])
+        .arg(&cargo_toml)
+        .output()
+        .expect("cargo test generated crate");
+    assert!(
+        cargo_test_output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&cargo_test_output.stdout),
+        String::from_utf8_lossy(&cargo_test_output.stderr)
     );
     let _ = fs::remove_dir_all(dir);
 }

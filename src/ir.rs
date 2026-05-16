@@ -19,6 +19,7 @@ pub struct IrFunction {
     pub return_type: String,
     pub effects: Vec<String>,
     pub requires: Vec<IrExpr>,
+    pub examples: Vec<IrExpr>,
     pub body: IrExpr,
 }
 
@@ -168,6 +169,32 @@ pub fn lower_checked_program(program: &Program, parse_diagnostics: Vec<Diagnosti
             continue;
         }
 
+        let mut examples = Vec::new();
+        for (index, example) in function.examples.iter().enumerate() {
+            match lower_expression_with_variables(example, Vec::new(), &program.functions) {
+                Ok(example) => examples.push(example),
+                Err(error) => {
+                    failed = true;
+                    diagnostics.push(
+                        Diagnostic::error(
+                            "IrLoweringError",
+                            format!(
+                                "Could not lower example #{} for `{}` to portable IR: {error}",
+                                index + 1,
+                                function.name
+                            ),
+                            Some(function.target()),
+                        )
+                        .with_data("symbol", function.symbol())
+                        .with_data("example", example),
+                    );
+                }
+            }
+        }
+        if failed {
+            continue;
+        }
+
         match lower_expression(implementation, function, &program.functions) {
             Ok(body) => functions.push(IrFunction {
                 symbol: function.symbol(),
@@ -178,6 +205,7 @@ pub fn lower_checked_program(program: &Program, parse_diagnostics: Vec<Diagnosti
                 return_type: function.return_type.clone(),
                 effects: function.effects.clone(),
                 requires,
+                examples,
                 body,
             }),
             Err(error) => diagnostics.push(
@@ -211,14 +239,22 @@ fn lower_expression(
     function: &Function,
     functions: &[Function],
 ) -> Result<IrExpr, String> {
-    if expression.contains('\n') {
-        return Err("multi-line expressions are not supported by the bootstrap IR".to_string());
-    }
     let variables = function
         .params
         .iter()
         .map(|param| param.name.clone())
         .collect::<Vec<_>>();
+    lower_expression_with_variables(expression, variables, functions)
+}
+
+fn lower_expression_with_variables(
+    expression: &str,
+    variables: Vec<String>,
+    functions: &[Function],
+) -> Result<IrExpr, String> {
+    if expression.contains('\n') {
+        return Err("multi-line expressions are not supported by the bootstrap IR".to_string());
+    }
     let tokens = tokenize(expression)?;
     let mut parser = IrParser::new(tokens, variables, functions);
     let expr = parser.parse_expression()?;

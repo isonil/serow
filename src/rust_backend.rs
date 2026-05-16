@@ -25,11 +25,19 @@ pub struct GeneratedRustProgram {
     pub ir_version: String,
     pub source: String,
     pub functions: Vec<GeneratedRustFunction>,
+    pub tests: Vec<GeneratedRustTest>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GeneratedRustFunction {
     pub symbol: String,
+    pub rust_name: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GeneratedRustTest {
+    pub symbol: String,
+    pub example_index: usize,
     pub rust_name: String,
 }
 
@@ -69,7 +77,10 @@ fn generate_rust_program(ir: &IrProgram) -> Result<GeneratedRustProgram, Vec<Dia
     let rust_names = rust_function_names(&ir.functions);
     let signatures = rust_function_signatures(&ir.functions);
     let mut rendered_functions = Vec::new();
+    let mut rendered_tests = Vec::new();
     let mut generated_functions = Vec::new();
+    let mut generated_tests = Vec::new();
+    let mut allocated_test_names = HashMap::<String, usize>::new();
 
     for function in &ir.functions {
         if function.effects != ["pure"] {
@@ -108,6 +119,18 @@ fn generate_rust_program(ir: &IrProgram) -> Result<GeneratedRustProgram, Vec<Dia
                     symbol: function.symbol.clone(),
                     rust_name,
                 });
+                match render_function_tests(
+                    function,
+                    &rust_names,
+                    &signatures,
+                    &mut allocated_test_names,
+                ) {
+                    Ok((test_sources, test_rows)) => {
+                        rendered_tests.extend(test_sources);
+                        generated_tests.extend(test_rows);
+                    }
+                    Err(mut function_diagnostics) => diagnostics.append(&mut function_diagnostics),
+                }
             }
             Err(mut function_diagnostics) => diagnostics.append(&mut function_diagnostics),
         }
@@ -122,12 +145,19 @@ fn generate_rust_program(ir: &IrProgram) -> Result<GeneratedRustProgram, Vec<Dia
     source.push_str("// The .serow source remains the source of truth.\n\n");
     source.push_str(&rendered_functions.join("\n\n"));
     source.push('\n');
+    if !rendered_tests.is_empty() {
+        source.push_str("\n#[cfg(test)]\nmod tests {\n");
+        source.push_str("    use super::*;\n\n");
+        source.push_str(&rendered_tests.join("\n\n"));
+        source.push_str("\n}\n");
+    }
 
     Ok(GeneratedRustProgram {
         backend: "serow.rust.v0".to_string(),
         ir_version: ir.version.clone(),
         source,
         functions: generated_functions,
+        tests: generated_tests,
     })
 }
 
@@ -225,6 +255,54 @@ fn render_function(
     ))
 }
 
+fn render_function_tests(
+    function: &IrFunction,
+    rust_names: &HashMap<String, String>,
+    signatures: &HashMap<String, RustFunctionSignature>,
+    allocated_test_names: &mut HashMap<String, usize>,
+) -> Result<(Vec<String>, Vec<GeneratedRustTest>), Vec<Diagnostic>> {
+    let variables = HashMap::new();
+    let variable_types = HashMap::new();
+    let mut rendered_tests = Vec::new();
+    let mut generated_tests = Vec::new();
+
+    for (index, example) in function.examples.iter().enumerate() {
+        let rendered = render_expr(example, &variables, &variable_types, rust_names, signatures)
+            .map_err(|message| vec![backend_error(function, message)])?;
+        if rendered.type_name != "Bool" {
+            return Err(vec![backend_error(
+                function,
+                format!(
+                    "Lowered example #{} has type {}, expected Bool.",
+                    index + 1,
+                    rendered.type_name
+                ),
+            )]);
+        }
+
+        let test_name = allocate_rust_identifier(
+            &format!("test_{}_example_{}", function.symbol, index + 1),
+            allocated_test_names,
+        );
+        rendered_tests.push(format!(
+            "    #[test]\n    fn {test_name}() {{\n        assert!({}, {});\n    }}",
+            strip_outer_parens(&rendered.code),
+            rust_string_literal(&format!(
+                "Serow example failed for {} example #{}",
+                function.symbol,
+                index + 1
+            ))
+        ));
+        generated_tests.push(GeneratedRustTest {
+            symbol: function.symbol.clone(),
+            example_index: index + 1,
+            rust_name: test_name,
+        });
+    }
+
+    Ok((rendered_tests, generated_tests))
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct RustFunctionSignature {
     params: Vec<String>,
@@ -300,7 +378,7 @@ fn render_expr(
                 code: format!(
                     "{rust_name}({})",
                     args.iter()
-                        .map(|arg| arg.code.clone())
+                        .map(|arg| strip_outer_parens(&arg.code).to_string())
                         .collect::<Vec<_>>()
                         .join(", ")
                 ),
