@@ -351,6 +351,24 @@ fn render_generated_cargo_toml(crate_name: &str, rust: &GeneratedRustProgram) ->
             toml_string_literal(&function.rust_name)
         ));
     }
+    for test in &rust.tests {
+        source.push_str("\n[[package.metadata.serow.tests]]\n");
+        source.push_str(&format!(
+            "symbol = {}\nkind = {}\nrust_name = {}\n",
+            toml_string_literal(&test.symbol),
+            toml_string_literal(&test.kind),
+            toml_string_literal(&test.rust_name)
+        ));
+        if let Some(example_index) = test.example_index {
+            source.push_str(&format!("example_index = {example_index}\n"));
+        }
+        if let Some(property_index) = test.property_index {
+            source.push_str(&format!("property_index = {property_index}\n"));
+        }
+        if let Some(sample_index) = test.sample_index {
+            source.push_str(&format!("sample_index = {sample_index}\n"));
+        }
+    }
     source
 }
 
@@ -1874,7 +1892,8 @@ fn rust_program_json(rust: &GeneratedRustProgram) -> String {
         .map(|test| {
             if let Some(example_index) = test.example_index {
                 return format!(
-                    "{{\"example_index\": {example_index}, \"rust_name\": {}, \"symbol\": {}}}",
+                    "{{\"example_index\": {example_index}, \"kind\": {}, \"rust_name\": {}, \"symbol\": {}}}",
+                    json_string(&test.kind),
                     json_string(&test.rust_name),
                     json_string(&test.symbol)
                 );

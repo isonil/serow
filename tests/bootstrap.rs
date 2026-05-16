@@ -6508,6 +6508,7 @@ fn compile_rust_json_emits_supported_backend_source() {
         stdout.contains("\"rust_name\": \"serow_test_core_math_add_v1_example_1\""),
         "{stdout}"
     );
+    assert!(stdout.contains("\"kind\": \"example\""), "{stdout}");
     assert!(
         stdout.contains("fn serow_test_core_math_add_v1_property_1_sample_1()"),
         "{stdout}"
@@ -6681,6 +6682,23 @@ fn compile_rust_out_dir_writes_crate_layout() {
     );
     assert!(
         manifest.contains("rust_name = \"serow_core_math_add_v1\""),
+        "{manifest}"
+    );
+    assert!(
+        manifest.contains("[[package.metadata.serow.tests]]"),
+        "{manifest}"
+    );
+    assert!(manifest.contains("kind = \"example\""), "{manifest}");
+    assert!(manifest.contains("example_index = 1"), "{manifest}");
+    assert!(
+        manifest.contains("rust_name = \"serow_test_core_math_add_v1_example_1\""),
+        "{manifest}"
+    );
+    assert!(manifest.contains("kind = \"property\""), "{manifest}");
+    assert!(manifest.contains("property_index = 1"), "{manifest}");
+    assert!(manifest.contains("sample_index = 1"), "{manifest}");
+    assert!(
+        manifest.contains("rust_name = \"serow_test_core_math_add_v1_property_1_sample_1\""),
         "{manifest}"
     );
     let source = fs::read_to_string(&lib_rs).expect("read generated lib");

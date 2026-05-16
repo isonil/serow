@@ -139,7 +139,8 @@
     "rust_backend_text_codegen": true,
     "rust_backend_crate_layout": true,
     "rust_backend_crate_tests": true,
-    "rust_backend_crate_metadata": true
+    "rust_backend_crate_metadata": true,
+    "rust_backend_crate_test_metadata": true
   },
   "source_roots": [
     "examples"
