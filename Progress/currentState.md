@@ -1,6 +1,6 @@
 # Current State
 
-Date: 2026-05-16
+Date: 2026-05-17
 
 ## Active Mode
 
@@ -186,6 +186,7 @@ Selection policy for generic implementation prompts:
 - Empty module declarations are preserved in the parsed program so structured patches can target modules before functions exist.
 - `patch add-function` and `patch set-intent` reject exact normalized duplicate public intents before writing, returning a `PossibleDuplicate` diagnostic with a `query intent` repair action.
 - Sample program in `examples/math.serow`.
+- Deterministic terminal RPG demo in `examples/rpg.serow`, including seed-threaded pure randomness helpers, command parsing, room navigation, HP/gold/potion state, win/loss/end states, and a `pub fn main() -> Unit` entrypoint for the Rust binary backend.
 - Rust unit/integration tests in `tests/bootstrap.rs`.
 - Earlier Python bootstrap remains in `serowlang/` as reference code.
 - Project license: Apache-2.0.
@@ -1708,13 +1709,37 @@ cargo test --manifest-path <tmpdir>/Cargo.toml
 {
   "ok": true,
   "summary": {
-    "contracts": 13,
-    "examples": 8,
-    "functions": 4,
+    "contracts": 47,
+    "examples": 42,
+    "functions": 18,
     "holes": 0,
-    "properties": 4
+    "properties": 18
   }
 }
+```
+
+Additional verification after adding the deterministic RPG demo:
+
+```sh
+bin/serow query intent "random deterministic choice RNG random_range next_random"
+bin/serow query intent "choose command parsing terminal game commands rooms game state"
+bin/serow query symbol "random"
+bin/serow query symbol "choose"
+bin/serow query symbol "command"
+bin/serow query symbol "room"
+bin/serow query symbol "GameState"
+bin/serow query intent "rooms navigation room state RPG inventory gold HP win lose"
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow check examples/rpg.serow
+bin/serow compile rust examples/rpg.serow --json
+bin/serow compile rust examples/rpg.serow --out-dir <tmpdir> --emit-bin --crate-name serow_rpg_demo --json
+cargo test --manifest-path <tmpdir>/Cargo.toml
+printf 'north\nfight\n' | cargo run --quiet --manifest-path <tmpdir>/Cargo.toml
+cargo fmt --check
+cargo clippy -- -D warnings
+cargo test
+bin/serow certify
 ```
 
 ## Known Limits

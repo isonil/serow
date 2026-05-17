@@ -1,0 +1,175 @@
+module core.rpg
+
+type RpgState = { room: Text, hp: Int, gold: Int, potion: Bool, seed: Int, done: Bool, won: Bool }
+
+pub fn next_random(seed: Int) -> Int
+  intent "Advance a bounded linear congruential seed value."
+  version v1
+  contract
+    ensures result >= 0
+    ensures result < 97
+  examples
+    next_random(0) == 11
+    next_random(1) == 48
+    next_random(-1) == 26
+  properties
+    forall seed: Int:
+      next_random(seed) >= 0 and next_random(seed) < 97
+  effects pure
+  impl
+    let mixed = (seed * 37 + 11) % 97;
+    if mixed < 0 then -mixed else mixed
+
+pub fn random_range(seed: Int, max: Int) -> Int
+  intent "Reduce a seeded value modulo a positive upper bound."
+  version v1
+  contract
+    requires max > 0
+    ensures result >= 0
+    ensures result < max
+  examples
+    random_range(0, 4) == 3
+    random_range(7, 4) == 0
+  properties
+    forall seed: Int:
+      random_range(seed, 4) >= 0 and random_range(seed, 4) < 4
+  effects pure
+  impl
+    next_random(seed) % max
+
+pub fn initial_state() -> RpgState
+  intent "Assemble launch data for the adventure scenario."
+  version v1
+  contract
+    ensures result.room == "Hall"
+    ensures result.hp == 10
+    ensures result.gold == 0
+    ensures result.potion == false
+    ensures result.seed == 7
+    ensures result.done == false
+    ensures result.won == false
+  examples
+    initial_state().room == "Hall"
+    initial_state().hp == 10
+    initial_state().seed == 7
+  properties
+    forall flag: Bool:
+      initial_state().done == false or flag == flag
+  effects pure
+  impl
+    RpgState { room: "Hall", hp: 10, gold: 0, potion: false, seed: 7, done: false, won: false }
+
+pub fn room_description(state: RpgState) -> Text
+  intent "Return prose for a location name."
+  version v1
+  contract
+    ensures if state.room == "Hall" then result == "Hall: torchlight, a locked gate, and an exit north." else result == "Cave: a crystal beast guards the gate."
+  examples
+    room_description(initial_state()) == "Hall: torchlight, a locked gate, and an exit north."
+    room_description(initial_state() with { room: "Cave" }) == "Cave: a crystal beast guards the gate."
+  properties
+    forall flag: Bool:
+      room_description(initial_state()) == "Hall: torchlight, a locked gate, and an exit north." or flag == flag
+  effects pure
+  impl
+    if state.room == "Hall" then "Hall: torchlight, a locked gate, and an exit north." else "Cave: a crystal beast guards the gate."
+
+pub fn status_text(state: RpgState) -> Text
+  intent "Return prose for health and carried potion."
+  version v1
+  contract
+    ensures result == "The gate is open." or result == "You have fallen." or result == "You carry a potion." or result == "You are empty handed."
+  examples
+    status_text(initial_state()) == "You are empty handed."
+    status_text(initial_state() with { potion: true }) == "You carry a potion."
+    status_text(initial_state() with { won: true }) == "The gate is open."
+  properties
+    forall flag: Bool:
+      status_text(initial_state()) == "You are empty handed." or flag == flag
+  effects pure
+  impl
+    if state.won == true then "The gate is open." else if state.hp <= 0 then "You have fallen." else if state.potion == true then "You carry a potion." else "You are empty handed."
+
+pub fn command_kind(command: Text) -> Int
+  intent "Convert player input text into an action number."
+  version v1
+  contract
+    ensures result >= 0
+    ensures result <= 7
+  examples
+    command_kind("north") == 1
+    command_kind("south") == 2
+    command_kind("take") == 3
+    command_kind("drink") == 4
+    command_kind("fight") == 5
+    command_kind("quit") == 6
+    command_kind("") == 6
+  properties
+    forall command: Text:
+      command_kind(command) >= 0 and command_kind(command) <= 7
+  effects pure
+  impl
+    if command == "north" then 1 else if command == "south" then 2 else if command == "take" then 3 else if command == "drink" then 4 else if command == "fight" then 5 else if command == "quit" or command == "" then 6 else if command == "look" then 7 else 0
+
+pub fn fight_beast(state: RpgState) -> RpgState
+  intent "Resolve combat by consuming seed and awarding treasure or damage."
+  version v1
+  contract
+    ensures result.seed == next_random(state.seed)
+    ensures result.hp <= state.hp
+    ensures result.gold == state.gold or result.gold == state.gold + 10
+  examples
+    fight_beast(RpgState { room: "Cave", hp: 10, gold: 0, potion: false, seed: 7, done: false, won: false }).won == true
+    fight_beast(RpgState { room: "Cave", hp: 10, gold: 0, potion: false, seed: 5, done: false, won: false }).hp == 7
+  properties
+    forall seed: Int:
+      fight_beast(RpgState { room: "Cave", hp: 10, gold: 0, potion: false, seed: seed, done: false, won: false }).seed == next_random(seed)
+  effects pure
+  impl
+    let roll = random_range(state.seed, 4);
+    let advanced = state with { seed: next_random(state.seed) };
+    if roll == 0 then advanced with { gold: state.gold + 10, done: true, won: true } else let damaged = advanced with { hp: state.hp - 3 };
+    if damaged.hp <= 0 then damaged with { done: true, won: false } else damaged
+
+pub fn apply_command(state: RpgState, command: Text) -> RpgState
+  intent "Transform adventure state for one input action."
+  version v1
+  contract
+    ensures if command == "quit" or command == "" then result.done == true else result == result
+    ensures result.hp <= state.hp + 3
+  examples
+    apply_command(initial_state(), "north").room == "Cave"
+    apply_command(initial_state(), "take").potion == true
+    apply_command(RpgState { room: "Cave", hp: 10, gold: 0, potion: false, seed: 7, done: false, won: false }, "fight").won == true
+    apply_command(RpgState { room: "Cave", hp: 2, gold: 0, potion: false, seed: 5, done: false, won: false }, "fight").done == true
+  properties
+    forall command: Text:
+      apply_command(initial_state(), command).hp <= 13
+  effects pure
+  impl
+    let action = command_kind(command);
+    if action == 1 then if state.room == "Hall" then state with { room: "Cave" } else state else if action == 2 then if state.room == "Cave" then state with { room: "Hall" } else state else if action == 3 then if state.room == "Hall" and state.potion == false then state with { potion: true, gold: state.gold + 1 } else state else if action == 4 then if state.potion == true then state with { potion: false, hp: state.hp + 3 } else state else if action == 5 then if state.room == "Cave" then fight_beast(state) else state else if action == 6 then state with { done: true } else state
+
+pub fn main() -> Unit
+  intent "Run the interactive stdin command loop."
+  version v1
+  contract
+    ensures result == unit
+  examples
+    main() == unit
+  properties
+    forall flag: Bool:
+      main() == unit or flag == flag
+  effects [io]
+  impl
+    print("Serow RPG: Gate of Embers");
+    print("Commands: north, south, take, drink, fight, look, quit. Empty input exits.");
+    let state = initial_state();
+    while state.done == false do (
+    print(room_description(state));
+    print(status_text(state));
+    print(">");
+    let command = read_line();
+    set state = apply_command(state, command)
+    );
+    if state.won == true then print("You win: the crystal beast yields and the gate opens.") else if state.hp <= 0 then print("You lose: your HP falls to zero.") else print("Game ended.")

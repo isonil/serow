@@ -2,6 +2,10 @@
 
 ## 2026-05-17
 
+- Added `examples/rpg.serow`, a deterministic terminal RPG demo with two rooms, HP/gold/potion state, command parsing, win/loss/end states, and a `pub fn main() -> Unit` entrypoint for generated Rust binaries.
+- Added seed-threaded pure randomness helpers `next_random(seed: Int) -> Int` and `random_range(seed: Int, max: Int) -> Int` instead of adding ambient randomness.
+- Added pure RPG helper evidence for command parsing, room/status descriptions, deterministic combat, and state transitions, plus Rust backend integration coverage for generated helper source, generated Rust tests, and a scripted winning binary run.
+- Updated README with the command sequence for building and running the RPG demo through `bin/serow compile rust --emit-bin`.
 - Added minimal structured record state support for small RPG-style models.
 - The Rust parser/model/formatter now handle top-level `type Name = { field: Type }` record declarations.
 - Expressions now support explicit record construction, field access, and copy-update with static checking, evaluation, IR lowering, and Rust backend emission.

@@ -1,6 +1,7 @@
 use std::fs;
+use std::io::Write;
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serow::checker::check_program;
@@ -23,10 +24,10 @@ fn sample_program_checks() {
             .map(|diagnostic| &diagnostic.code)
             .collect::<Vec<_>>()
     );
-    assert_eq!(summary.functions, 9);
-    assert_eq!(summary.examples, 15);
-    assert_eq!(summary.properties, 9);
-    assert_eq!(summary.contracts, 15);
+    assert_eq!(summary.functions, 18);
+    assert_eq!(summary.examples, 42);
+    assert_eq!(summary.properties, 18);
+    assert_eq!(summary.contracts, 47);
 }
 
 #[test]
@@ -2066,7 +2067,22 @@ fn type_query_finds_functions_by_signature_shape() {
         .iter()
         .map(|query_match| query_match.function.name.as_str())
         .collect::<Vec<_>>();
-    assert_eq!(wildcard_names, ["abs"], "{wildcard_matches:#?}");
+    assert!(wildcard_names.contains(&"abs"), "{wildcard_matches:#?}");
+    assert!(
+        wildcard_names.contains(&"next_random"),
+        "{wildcard_matches:#?}"
+    );
+
+    let int_unary_matches = query_type(&program, "Int -> Int", 10);
+    let int_unary_names = int_unary_matches
+        .iter()
+        .map(|query_match| query_match.function.name.as_str())
+        .collect::<Vec<_>>();
+    assert!(int_unary_names.contains(&"abs"), "{int_unary_matches:#?}");
+    assert!(
+        int_unary_names.contains(&"next_random"),
+        "{int_unary_matches:#?}"
+    );
 
     let cli = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args(["query", "type", "Int, Int -> Int", "examples", "--json"])
@@ -7872,6 +7888,151 @@ pub fn main() -> Unit
     assert_eq!(
         String::from_utf8_lossy(&run_output.stdout),
         "hello from Serow\n"
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn compile_rust_rpg_json_emits_seeded_helpers_and_terminal_loop() {
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["compile", "rust", "examples/rpg.serow", "--json"])
+        .output()
+        .expect("run compile rust rpg json");
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("\"symbol\": \"@core.rpg.next_random.v1\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("pub fn serow_core_rpg_next_random_v1(serow_seed: i64) -> i64"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("let serow_mixed = ((serow_seed * 37) + 11) % 97"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains(
+            "pub fn serow_core_rpg_random_range_v1(serow_seed: i64, serow_max: i64) -> i64"
+        ),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("assert!(serow_max > 0, \\\"Serow precondition failed for @core.rpg.random_range.v1 requires #1\\\")"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("pub struct SerowCoreRpgRpgState"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("pub fn serow_core_rpg_command_kind_v1(serow_command: String) -> i64"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("std::io::stdin().read_line(&mut serow_line)"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("while (serow_state.clone()).serow_done == false"),
+        "{stdout}"
+    );
+    assert!(stdout.contains("\"generated_functions\": 9"), "{stdout}");
+    assert!(stdout.contains("\"generated_tests\": 63"), "{stdout}");
+    assert!(
+        stdout.contains("serow_test_core_rpg_next_random_v1_example_1"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("serow_test_core_rpg_apply_command_v1_example_3"),
+        "{stdout}"
+    );
+}
+
+#[test]
+fn compile_rust_rpg_emit_bin_runs_generated_crate_tests_and_scripted_win() {
+    let dir = unique_temp_dir("serow-compile-rust-rpg-emit-bin");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let out_dir = dir.join("generated_rpg");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "compile",
+            "rust",
+            "examples/rpg.serow",
+            "--out-dir",
+            &out_dir.to_string_lossy(),
+            "--emit-bin",
+            "--crate-name",
+            "serow_rpg_demo",
+            "--json",
+        ])
+        .output()
+        .expect("run compile rust rpg --emit-bin");
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("src/main.rs"), "{stdout}");
+
+    let cargo_toml = out_dir.join("Cargo.toml");
+    let manifest = fs::read_to_string(&cargo_toml).expect("read generated manifest");
+    assert!(
+        manifest.contains("binary_entrypoint_symbol = \"@core.rpg.main.v1\""),
+        "{manifest}"
+    );
+    assert!(manifest.contains("generated_functions = 9"), "{manifest}");
+    assert!(manifest.contains("generated_tests = 63"), "{manifest}");
+
+    let cargo_test_output = Command::new("cargo")
+        .args(["test", "--manifest-path"])
+        .arg(&cargo_toml)
+        .output()
+        .expect("cargo test generated rpg crate");
+    assert!(
+        cargo_test_output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&cargo_test_output.stdout),
+        String::from_utf8_lossy(&cargo_test_output.stderr)
+    );
+
+    let mut child = Command::new("cargo")
+        .args(["run", "--quiet", "--manifest-path"])
+        .arg(&cargo_toml)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn generated rpg binary");
+    child
+        .stdin
+        .as_mut()
+        .expect("child stdin")
+        .write_all(b"north\nfight\n")
+        .expect("write scripted commands");
+    let run_output = child.wait_with_output().expect("run generated rpg binary");
+    assert!(
+        run_output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&run_output.stdout),
+        String::from_utf8_lossy(&run_output.stderr)
+    );
+    let run_stdout = String::from_utf8_lossy(&run_output.stdout);
+    assert!(
+        run_stdout.contains("Serow RPG: Gate of Embers"),
+        "{run_stdout}"
+    );
+    assert!(
+        run_stdout.contains("Cave: a crystal beast guards the gate."),
+        "{run_stdout}"
+    );
+    assert!(
+        run_stdout.contains("You win: the crystal beast yields and the gate opens."),
+        "{run_stdout}"
+    );
+    assert!(
+        String::from_utf8_lossy(&run_output.stderr).is_empty(),
+        "{}",
+        String::from_utf8_lossy(&run_output.stderr)
     );
     let _ = fs::remove_dir_all(dir);
 }
