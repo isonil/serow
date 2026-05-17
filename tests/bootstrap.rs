@@ -7938,6 +7938,11 @@ pub fn main() -> Text
     assert!(output.status.success(), "{output:#?}");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("src/main.rs"), "{stdout}");
+    assert!(
+        stdout.contains("\"binary_entrypoint\": {\"line\": 3, \"return_type\": \"Text\", \"rust_name\": \"serow_app_entry_main_v1\", \"source_path\": \"")
+            && stdout.contains("app.serow\", \"symbol\": \"@app.entry.main.v1\""),
+        "{stdout}"
+    );
 
     let cargo_toml = out_dir.join("Cargo.toml");
     let main_rs = out_dir.join("src").join("main.rs");
@@ -7949,7 +7954,16 @@ pub fn main() -> Text
         "{manifest}"
     );
     assert!(
+        manifest.contains("binary_entrypoint_rust_name = \"serow_app_entry_main_v1\""),
+        "{manifest}"
+    );
+    assert!(
         manifest.contains("binary_entrypoint_return_type = \"Text\""),
+        "{manifest}"
+    );
+    assert!(
+        manifest.contains("binary_entrypoint_source_path = \"")
+            && manifest.contains("app.serow\"\nbinary_entrypoint_line = 3"),
         "{manifest}"
     );
     let main_source = fs::read_to_string(&main_rs).expect("read generated main");
@@ -8104,6 +8118,14 @@ pub fn main() -> Player
     let manifest = fs::read_to_string(&cargo_toml).expect("read generated manifest");
     assert!(
         manifest.contains("binary_entrypoint_return_type = \"Player\""),
+        "{manifest}"
+    );
+    assert!(
+        manifest.contains("binary_entrypoint_rust_name = \"serow_app_entry_main_v1\""),
+        "{manifest}"
+    );
+    assert!(
+        manifest.contains("app.serow\"\nbinary_entrypoint_line = 5"),
         "{manifest}"
     );
     assert!(manifest.contains("generated_types = 1"), "{manifest}");

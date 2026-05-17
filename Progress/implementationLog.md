@@ -2,6 +2,10 @@
 
 ## 2026-05-17
 
+- Chose resolved Rust binary entrypoint provenance as the next backend slice because generated binary crates recorded the Serow entrypoint symbol and return type but not the resolved Rust function name or source location as first-class binary metadata.
+- Extended `compile rust --emit-bin --json` with a `binary_entrypoint` object containing symbol, Rust name, return type, source path, and line.
+- Extended generated `Cargo.toml` `package.metadata.serow` binary entrypoint metadata with the same Rust-name and source-location fields.
+- Updated README, `serow.project`, and Progress docs to advertise binary entrypoint provenance metadata.
 - Chose declared-record property sampling as the next cross-phase language/backend slice because record state is now central to Serow examples but sampled `forall` evidence could not quantify over declared record types.
 - Made deterministic property sampling program-aware: declared record types now receive bounded samples consisting of a default record plus one-field-at-a-time variants from deterministic field samples, while recursive record sample cycles remain unsupported.
 - Updated checker execution, single-sample property replay, plan property coverage, shrinking, HEAD-sensitivity analysis, and generated Rust property tests to use the same declared-record sample sets.

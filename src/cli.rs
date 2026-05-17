@@ -231,7 +231,12 @@ fn run_compile_rust(args: &[String]) -> i32 {
     if json_output {
         println!(
             "{}",
-            rust_summary_json(&summary, &written_files, &parsed.crate_name)
+            rust_summary_json(
+                &summary,
+                &written_files,
+                &parsed.crate_name,
+                binary_entrypoint.as_ref()
+            )
         );
     } else if parsed.out_dir.is_some() {
         print_rust_artifact_summary(&summary, &written_files);
@@ -395,9 +400,18 @@ fn render_generated_cargo_toml(
     );
     if let Some(entrypoint) = binary_entrypoint {
         source.push_str(&format!(
-            "binary_entrypoint_symbol = {}\nbinary_entrypoint_return_type = {}\n",
+            concat!(
+                "binary_entrypoint_symbol = {}\n",
+                "binary_entrypoint_rust_name = {}\n",
+                "binary_entrypoint_return_type = {}\n",
+                "binary_entrypoint_source_path = {}\n",
+                "binary_entrypoint_line = {}\n",
+            ),
             toml_string_literal(&entrypoint.symbol),
-            toml_string_literal(&entrypoint.return_type)
+            toml_string_literal(&entrypoint.rust_name),
+            toml_string_literal(&entrypoint.return_type),
+            toml_string_literal(&entrypoint.source_path),
+            entrypoint.line
         ));
     }
     for type_decl in &rust.types {
@@ -454,6 +468,8 @@ struct BinaryEntrypoint {
     symbol: String,
     rust_name: String,
     return_type: String,
+    source_path: String,
+    line: usize,
 }
 
 fn validate_binary_entrypoint_shape(
@@ -573,6 +589,8 @@ fn resolve_binary_entrypoint(
         symbol: shape.symbol.clone(),
         rust_name: function.rust_name.clone(),
         return_type: shape.return_type.clone(),
+        source_path: function.source_path.clone(),
+        line: function.line,
     })
 }
 
@@ -2169,10 +2187,12 @@ fn rust_summary_json(
     summary: &RustBackendSummary,
     written_files: &[String],
     crate_name: &str,
+    binary_entrypoint: Option<&BinaryEntrypoint>,
 ) -> String {
     format!(
         concat!(
             "{{\n",
+            "  \"binary_entrypoint\": {},\n",
             "  \"crate_name\": {},\n",
             "  \"diagnostics\": {},\n",
             "  \"ok\": {},\n",
@@ -2187,6 +2207,9 @@ fn rust_summary_json(
             "  \"written_files\": {}\n",
             "}}"
         ),
+        binary_entrypoint
+            .map(binary_entrypoint_json)
+            .unwrap_or_else(|| "null".to_string()),
         json_string(crate_name),
         diagnostics_array_json(&summary.diagnostics),
         summary.ok(),
@@ -2218,6 +2241,25 @@ fn rust_summary_json(
             .map(|ir| ir.functions.len())
             .unwrap_or_default(),
         string_array_json(written_files)
+    )
+}
+
+fn binary_entrypoint_json(entrypoint: &BinaryEntrypoint) -> String {
+    format!(
+        concat!(
+            "{{",
+            "\"line\": {}, ",
+            "\"return_type\": {}, ",
+            "\"rust_name\": {}, ",
+            "\"source_path\": {}, ",
+            "\"symbol\": {}",
+            "}}"
+        ),
+        entrypoint.line,
+        json_string(&entrypoint.return_type),
+        json_string(&entrypoint.rust_name),
+        json_string(&entrypoint.source_path),
+        json_string(&entrypoint.symbol)
     )
 }
 
@@ -3212,7 +3254,7 @@ fn agent_json() -> String {
         str_array_json(&[
             "Properties are sampled, not proven; replay uses deterministic seeds for built-in and bounded declared-record samples.",
             "Intent search is deterministic token ranking, not semantic embeddings.",
-            "Rust backend emission supports pure Int/Bool/Text/Unit functions, declared records, and terminal io intrinsics, emits runtime asserts for Serow requires and ensures clauses, emits Rust tests for pure Serow examples and deterministic sampled properties, and records Serow type, source, and evidence metadata in generated Cargo manifests.",
+            "Rust backend emission supports pure Int/Bool/Text/Unit functions, declared records, and terminal io intrinsics, emits runtime asserts for Serow requires and ensures clauses, emits Rust tests for pure Serow examples and deterministic sampled properties, and records Serow type, source, binary entrypoint, and evidence metadata in generated Cargo manifests.",
             "Expression support is intentionally small and formatting does not preserve comments.",
             "JSON output is hand-written until external dependencies are accepted."
         ])
@@ -3427,7 +3469,9 @@ fn print_agent_bootstrap() {
     );
     println!("  Rust backend emits runtime asserts for Serow requires and ensures clauses");
     println!("  Rust backend emits Rust tests for pure Serow examples and sampled properties");
-    println!("  Rust backend records type, function, and evidence metadata in Cargo manifests");
+    println!(
+        "  Rust backend records type, function, binary entrypoint, and evidence metadata in Cargo manifests"
+    );
     println!("  expression support is small and formatting does not preserve comments");
 }
 
