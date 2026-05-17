@@ -7501,6 +7501,8 @@ type Player = { hp: Int, gold: Int }
 
 type GameState = { room: Text, hp: Int, done: Bool }
 
+type Pair = { a: Int, b: Int }
+
 pub fn award(player: Player, amount: Int) -> Player
   intent "Copy a player and add gold."
   version v1
@@ -7535,6 +7537,23 @@ pub fn loop_state() -> GameState
     set state = state with { hp: state.hp - 1 }
     );
     state with { done: true }
+
+pub fn swap_pair() -> Pair
+  intent "Swap two fields through a same-record state update."
+  version v1
+  contract
+    ensures result.a == 2
+    ensures result.b == 1
+  examples
+    swap_pair().a == 2
+  properties
+    forall flag: Bool:
+      swap_pair().b == 1 or flag == flag
+  effects pure
+  impl
+    let pair = Pair { a: 1, b: 2 };
+    set pair = pair with { a: pair.b, b: pair.a };
+    pair
 "#,
     )
     .expect("write fixture");
@@ -7555,19 +7574,27 @@ pub fn loop_state() -> GameState
         "{stdout}"
     );
     assert!(
-        stdout.contains("(serow_player.clone()).serow_gold"),
+        stdout.contains("serow_player.serow_gold + serow_amount"),
         "{stdout}"
     );
     assert!(
-        stdout.contains("SerowTestRecordsPlayer { serow_gold:"),
+        stdout.contains("SerowTestRecordsPlayer { serow_gold: serow_player.serow_gold + serow_amount, ..serow_player.clone() }"),
         "{stdout}"
     );
     assert!(
-        stdout.contains("while (serow_state.clone()).serow_hp > 0"),
+        stdout.contains("while serow_state.serow_hp > 0"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("let serow_state_update_hp = serow_state.serow_hp - 1; serow_state.serow_hp = serow_state_update_hp;"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("let serow_pair_update_a = serow_pair.serow_b; let serow_pair_update_b = serow_pair.serow_a; serow_pair.serow_a = serow_pair_update_a; serow_pair.serow_b = serow_pair_update_b;"),
         "{stdout}"
     );
     assert!(stdout.contains("\"types\": ["), "{stdout}");
-    assert!(stdout.contains("\"generated_types\": 2"), "{stdout}");
+    assert!(stdout.contains("\"generated_types\": 3"), "{stdout}");
 
     let output = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args(["compile", "rust", &source.to_string_lossy()])
@@ -7588,6 +7615,29 @@ pub fn loop_state() -> GameState
         "{}{}",
         String::from_utf8_lossy(&rustc_output.stdout),
         String::from_utf8_lossy(&rustc_output.stderr)
+    );
+    let generated_tests = dir.join("generated_tests");
+    let rustc_test_output = Command::new("rustc")
+        .arg("--test")
+        .arg(&generated)
+        .arg("-o")
+        .arg(&generated_tests)
+        .output()
+        .expect("compile generated rust tests");
+    assert!(
+        rustc_test_output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&rustc_test_output.stdout),
+        String::from_utf8_lossy(&rustc_test_output.stderr)
+    );
+    let run_tests_output = Command::new(&generated_tests)
+        .output()
+        .expect("run generated rust tests");
+    assert!(
+        run_tests_output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&run_tests_output.stdout),
+        String::from_utf8_lossy(&run_tests_output.stderr)
     );
     let _ = fs::remove_dir_all(dir);
 }
@@ -8035,7 +8085,7 @@ fn compile_rust_rpg_json_emits_seeded_helpers_and_terminal_loop() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("while (serow_state.clone()).serow_done == false"),
+        stdout.contains("while serow_state.serow_done == false"),
         "{stdout}"
     );
     assert!(stdout.contains("\"generated_functions\": 9"), "{stdout}");

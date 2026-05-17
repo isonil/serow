@@ -708,6 +708,31 @@ fn render_expr(
             })
         }
         IrExpr::FieldAccess { base, field } => {
+            if let IrExpr::Var(base_name) = base.as_ref() {
+                let variable = variables
+                    .get(base_name)
+                    .ok_or_else(|| format!("Unknown lowered variable `{base_name}`."))?;
+                let base_type = variable_types
+                    .get(base_name)
+                    .ok_or_else(|| format!("Unknown lowered variable type for `{base_name}`."))?;
+                let type_decl = record_type(base_type, types)?;
+                let field_type = type_decl
+                    .fields
+                    .iter()
+                    .find(|declared| declared.name == *field)
+                    .map(|field| field.type_name.clone())
+                    .ok_or_else(|| format!("Record `{base_type}` has no field `{field}`."))?;
+                let access = format!("{variable}.{}", rust_field_identifier(field));
+                let code = if type_needs_clone(&field_type) {
+                    format!("{access}.clone()")
+                } else {
+                    access
+                };
+                return Ok(RenderedExpr {
+                    code,
+                    type_name: field_type,
+                });
+            }
             let base = render_expr(
                 base,
                 variables,
@@ -791,7 +816,7 @@ fn render_expr(
             };
             Ok(RenderedExpr {
                 code: format!(
-                    "{rust_type} {{ {updates}..{}.clone() }}",
+                    "{rust_type} {{ {updates}..{} }}",
                     strip_outer_parens(&base.code)
                 ),
                 type_name: base.type_name,
@@ -967,6 +992,22 @@ fn render_expr(
             let expected = variable_types
                 .get(name)
                 .ok_or_else(|| format!("Unknown lowered assignment variable type for `{name}`."))?;
+            if let Some(rendered) = render_in_place_record_update_assignment(
+                name,
+                variable,
+                expected,
+                value,
+                RenderContext {
+                    variables,
+                    variable_types,
+                    rust_names,
+                    type_names,
+                    types,
+                    signatures,
+                },
+            )? {
+                return Ok(rendered);
+            }
             let value = render_expr(
                 value,
                 variables,
@@ -1062,6 +1103,75 @@ fn render_expr(
             })
         }
     }
+}
+
+fn render_in_place_record_update_assignment(
+    name: &str,
+    variable: &str,
+    expected_type: &str,
+    value: &IrExpr,
+    context: RenderContext<'_>,
+) -> Result<Option<RenderedExpr>, String> {
+    let IrExpr::RecordUpdate { base, fields } = value else {
+        return Ok(None);
+    };
+    let IrExpr::Var(base_name) = base.as_ref() else {
+        return Ok(None);
+    };
+    if base_name != name {
+        return Ok(None);
+    }
+
+    let type_decl = record_type(expected_type, context.types)?;
+    let mut allocated = HashMap::<String, usize>::new();
+    for rust_name in context.variables.values() {
+        allocated.insert(rust_name.clone(), 1);
+    }
+
+    let mut value_bindings = Vec::new();
+    let mut field_assignments = Vec::new();
+    for (field, field_value) in fields {
+        let Some(declared) = type_decl
+            .fields
+            .iter()
+            .find(|declared| declared.name == *field)
+        else {
+            return Err(format!("Record `{expected_type}` has no field `{field}`."));
+        };
+        let rendered_value = render_expr(
+            field_value,
+            context.variables,
+            context.variable_types,
+            context.rust_names,
+            context.type_names,
+            context.types,
+            context.signatures,
+        )?;
+        if rendered_value.type_name != declared.type_name {
+            return Err(format!(
+                "Record `{expected_type}` update field `{field}` lowered as {}, expected {}.",
+                rendered_value.type_name, declared.type_name
+            ));
+        }
+        let temp_name = allocate_rust_identifier(&format!("{name}_update_{field}"), &mut allocated);
+        value_bindings.push(format!(
+            "let {temp_name} = {};",
+            strip_outer_parens(&rendered_value.code)
+        ));
+        field_assignments.push(format!(
+            "{variable}.{} = {temp_name};",
+            rust_field_identifier(field)
+        ));
+    }
+
+    let mut statements = Vec::new();
+    statements.extend(value_bindings);
+    statements.extend(field_assignments);
+    statements.push("()".to_string());
+    Ok(Some(RenderedExpr {
+        code: format!("{{ {} }}", statements.join(" ")),
+        type_name: "Unit".to_string(),
+    }))
 }
 
 fn rendered(code: String, type_name: &str) -> RenderedExpr {

@@ -2,6 +2,9 @@
 
 ## 2026-05-17
 
+- Chose the first ownership-friendly Rust record-state lowering slice because records and loops are now central to terminal programs, but generated field reads and same-variable record updates still cloned more state than necessary.
+- Updated the Rust backend so direct field reads from local record variables access the field without cloning the whole record, and `set state = state with { ... }` lowers to in-place field assignments after evaluating update values.
+- Added regression coverage for generated record Rust and the RPG terminal loop to verify direct field reads, in-place state updates, old-value swap semantics, generated Rust compilation, and generated evidence execution.
 - Chose generated Rust record-type manifest provenance as the next cross-phase backend task because JSON output already exposed generated type mappings but generated crates did not persist those rows in `Cargo.toml`.
 - Extended generated `package.metadata.serow` with a deterministic `generated_types` count and `[[package.metadata.serow.types]]` rows containing Serow type symbols, generated Rust type names, source paths, and line numbers.
 - Updated README, `serow.project`, and Progress docs to advertise source-location-aware generated type metadata in Rust crate manifests.
