@@ -119,6 +119,7 @@ Selection policy for generic implementation prompts:
   - runs the checked IR lowering path first and refuses to emit Rust when checker or IR lowering errors are present
   - emits deterministic Rust source on stdout in text mode and includes the generated source, deterministic aggregate Serow input fingerprint, per-source input paths/fingerprints/byte counts, deterministic generated source fingerprint, and source-location-aware symbol-to-Rust-name rows in JSON mode
   - writes a dependency-free Rust crate layout with `Cargo.toml` and `src/lib.rs` when passed `--out-dir <dir>`, using `--crate-name <name>` when provided and defaulting to `serow_generated`
+  - writes deterministic `serow-metadata.json` sidecar metadata for generated Rust crates, mirroring backend, input, generated-source, type, function, binary entrypoint, and evidence-test provenance in JSON
   - writes a runnable Rust binary crate entrypoint with `src/main.rs` when passed `--emit-bin`/`--bin`, requiring exactly one public zero-argument `main` returning `Text`, `Int`, `Bool`, `Unit`, or a declared record type; scalar and record values are printed deterministically and `Unit` entrypoints rely on explicit effects
   - records deterministic `package.metadata.serow` manifest rows for the backend id, IR version, aggregate Serow input fingerprint, per-source input paths/fingerprints/byte counts, generated source fingerprint, generated type/function/test counts, source-location-aware type and function symbol-to-Rust-name mappings, binary entrypoint symbol/Rust-name/source-location metadata, and source-location-aware example/property evidence-to-test mappings in generated crates
   - supports pure public functions over `Int`, `Bool`, `Text`, `Unit`, and declared record types in the current expression subset, including arithmetic, text concatenation, comparisons, boolean operators, `if`, unary operators, resolved function calls, record construction, field access, record copy-update, and runtime assertions for `requires` preconditions and `ensures` postconditions
@@ -1782,6 +1783,31 @@ bin/serow agent --json
 git diff --check
 ```
 
+Additional verification after adding generated Rust JSON metadata sidecars:
+
+```sh
+bin/serow query intent "emit deterministic Rust backend module manifest metadata for generated crates" --json
+bin/serow query intent "record generated Rust backend metadata in JSON and Cargo manifest" --json
+bin/serow query symbol "compile rust" --json
+bin/serow query symbol "RustBackend" --json
+cargo fmt --check
+cargo test compile_rust_out_dir_writes_crate_layout -- --nocapture
+cargo test compile_rust_emit_bin_writes_runnable_crate -- --nocapture
+bin/serow compile rust examples/math.serow --out-dir /tmp/serow-metadata-sidecar-check --crate-name serow_metadata_sidecar_check --json
+bin/serow agent --json
+cargo clippy -- -D warnings
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+cargo test --manifest-path /tmp/serow-metadata-sidecar-check/Cargo.toml
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+git diff --check
+python3 -m json.tool /tmp/serow-metadata-sidecar-check/serow-metadata.json
+```
+
 ## Known Limits
 
 - This is not yet a full compiler; it is a parser/checker/ledger bootstrap with a first portable IR emitter and a narrow Rust source emitter.
@@ -1794,7 +1820,7 @@ git diff --check
 - Evidence patching can append or replace individual contract/example/property items, but dependent impact and evidence policy are still enforced by `serow plan` and unattended certification rather than by the patch command itself.
 - Formatting parses and re-emits the bootstrap projection; comments are not preserved yet.
 - The hand-written JSON output should eventually be replaced with `serde_json` once external dependencies are allowed/desired.
-- `serow compile rust` emits deterministic Rust source and can write a minimal Rust crate layout for pure checked `Int`/`Bool`/`Text`/`Unit` functions, declared record types, and the narrow terminal `io` intrinsic path, including runtime `requires`/`ensures` assertions, generated Rust tests for checked pure examples and deterministic sampled-property bindings, a configurable generated crate name, deterministic aggregate/per-source Serow input and generated-source fingerprint metadata, deterministic Serow manifest metadata for generated types, functions, source locations, binary entrypoints, source-location-aware evidence tests, direct local record field reads without whole-record clones, in-place same-variable record state updates, final-position record update moves when postconditions permit, and an optional runnable `src/main.rs` for a public zero-argument `main` returning a scalar, `Unit`, or declared record type, but arbitrary effectful functions, broader ownership-friendly state transforms, WASM, TypeScript, Python, and richer multi-target backend package layouts do not exist yet.
+- `serow compile rust` emits deterministic Rust source and can write a minimal Rust crate layout for pure checked `Int`/`Bool`/`Text`/`Unit` functions, declared record types, and the narrow terminal `io` intrinsic path, including runtime `requires`/`ensures` assertions, generated Rust tests for checked pure examples and deterministic sampled-property bindings, a configurable generated crate name, deterministic aggregate/per-source Serow input and generated-source fingerprint metadata, deterministic Serow manifest and JSON sidecar metadata for generated types, functions, source locations, binary entrypoints, source-location-aware evidence tests, direct local record field reads without whole-record clones, in-place same-variable record state updates, final-position record update moves when postconditions permit, and an optional runnable `src/main.rs` for a public zero-argument `main` returning a scalar, `Unit`, or declared record type, but arbitrary effectful functions, broader ownership-friendly state transforms, WASM, TypeScript, Python, and richer multi-target backend package layouts do not exist yet.
 - Structured repair actions currently cover only command-style fixes already exposed by the bootstrap CLI.
 - `query callees` and `query dependents` report direct resolved call edges; use `query impact` for direct and transitive dependent paths. Ambiguous bare calls are intentionally skipped by ledger queries because they are checker errors.
 - `serow plan` is an early reporting primitive; it treats explicit path arguments as the selected change set, reports semantic change labels plus inferred direct-call capability requirements, suggested effect declarations, sampled-property coverage hints, and advisory lexical arithmetic intent/implementation mismatch risks for changed symbols, and compares public contract-surface, removed public symbols, declared capabilities, normalized implementation text, and evidence sections against `HEAD` when a tracked baseline is available. It reports whether added examples/properties directly call changed implementations, whether that added evidence would fail against the `HEAD` implementation, and whether impacted dependent call edges are covered by executable examples or sampled properties, but it does not yet compare full implementation AST behavior.

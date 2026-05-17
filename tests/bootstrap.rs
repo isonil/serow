@@ -7811,11 +7811,14 @@ fn compile_rust_out_dir_writes_crate_layout() {
     );
     assert!(stdout.contains("\"written_files\": ["), "{stdout}");
     assert!(stdout.contains("Cargo.toml"), "{stdout}");
+    assert!(stdout.contains("serow-metadata.json"), "{stdout}");
     assert!(stdout.contains("src/lib.rs"), "{stdout}");
 
     let cargo_toml = out_dir.join("Cargo.toml");
+    let metadata_json = out_dir.join("serow-metadata.json");
     let lib_rs = out_dir.join("src").join("lib.rs");
     assert!(cargo_toml.exists(), "{cargo_toml:?}");
+    assert!(metadata_json.exists(), "{metadata_json:?}");
     assert!(lib_rs.exists(), "{lib_rs:?}");
     let manifest = fs::read_to_string(&cargo_toml).expect("read generated manifest");
     assert!(
@@ -7899,6 +7902,47 @@ fn compile_rust_out_dir_writes_crate_layout() {
     assert!(
         manifest.contains(&format!("source_fingerprint = \"{fingerprint}\"")),
         "{manifest}"
+    );
+    let metadata = fs::read_to_string(&metadata_json).expect("read generated metadata");
+    assert!(
+        metadata.contains("\"schema\": \"serow.rust.metadata.v0\""),
+        "{metadata}"
+    );
+    assert!(
+        metadata.contains("\"crate_name\": \"serow_math_generated\""),
+        "{metadata}"
+    );
+    assert!(
+        metadata.contains(&format!("\"input_fingerprint\": \"{input_fingerprint}\"")),
+        "{metadata}"
+    );
+    assert!(
+        metadata.contains(&format!(
+            "\"inputs\": [\n    {{\"bytes\": {}, \"fingerprint\": \"{}\", \"path\": \"examples/math.serow\"}}\n  ]",
+            source_bytes.len(),
+            source_fingerprint
+        )),
+        "{metadata}"
+    );
+    assert!(
+        metadata.contains("\"generated_counts\": {\"functions\": 3, \"tests\": 70, \"types\": 0}"),
+        "{metadata}"
+    );
+    assert!(
+        metadata.contains(
+            "{\"line\": 3, \"rust_name\": \"serow_core_math_add_v1\", \"source_path\": \"examples/math.serow\", \"symbol\": \"@core.math.add.v1\"}"
+        ),
+        "{metadata}"
+    );
+    assert!(
+        metadata.contains("\"rust_name\": \"serow_test_core_math_add_v1_property_1_sample_1\"")
+            && metadata.contains("\"property_index\": 1")
+            && metadata.contains("\"sample_index\": 1"),
+        "{metadata}"
+    );
+    assert!(
+        metadata.contains(&format!("\"source_fingerprint\": \"{fingerprint}\"")),
+        "{metadata}"
     );
     assert!(source.contains("pub fn serow_core_math_add_v1"), "{source}");
     assert!(
@@ -7998,8 +8042,10 @@ pub fn main() -> Text
     );
 
     let cargo_toml = out_dir.join("Cargo.toml");
+    let metadata_json = out_dir.join("serow-metadata.json");
     let main_rs = out_dir.join("src").join("main.rs");
     assert!(cargo_toml.exists(), "{cargo_toml:?}");
+    assert!(metadata_json.exists(), "{metadata_json:?}");
     assert!(main_rs.exists(), "{main_rs:?}");
     let manifest = fs::read_to_string(&cargo_toml).expect("read generated manifest");
     assert!(
@@ -8018,6 +8064,12 @@ pub fn main() -> Text
         manifest.contains("binary_entrypoint_source_path = \"")
             && manifest.contains("app.serow\"\nbinary_entrypoint_line = 3"),
         "{manifest}"
+    );
+    let metadata = fs::read_to_string(&metadata_json).expect("read generated metadata");
+    assert!(
+        metadata.contains("\"binary_entrypoint\": {\"line\": 3, \"return_type\": \"Text\", \"rust_name\": \"serow_app_entry_main_v1\", \"source_path\": \"")
+            && metadata.contains("app.serow\", \"symbol\": \"@app.entry.main.v1\""),
+        "{metadata}"
     );
     let main_source = fs::read_to_string(&main_rs).expect("read generated main");
     assert!(

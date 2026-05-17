@@ -29,7 +29,9 @@ use crate::plan::{
     unattended_uncovered_impact_evidence_diagnostics,
 };
 use crate::replay::{PropertyReplaySummary, replay_property};
-use crate::rust_backend::{GeneratedRustProgram, RustBackendSummary, generate_checked_rust};
+use crate::rust_backend::{
+    GeneratedRustProgram, GeneratedRustTest, RustBackendSummary, generate_checked_rust,
+};
 
 pub fn main(args: impl Iterator<Item = String>) -> i32 {
     let args = args.collect::<Vec<_>>();
@@ -333,6 +335,7 @@ fn write_rust_crate(
     let src_dir = root.join("src");
     write_backend_file(&src_dir, fs::create_dir_all(&src_dir).map(|_| ()), out_dir)?;
     let cargo_toml = root.join("Cargo.toml");
+    let metadata_json = root.join("serow-metadata.json");
     let lib_rs = src_dir.join("lib.rs");
     let cargo_source = render_generated_cargo_toml(
         crate_name,
@@ -341,10 +344,23 @@ fn write_rust_crate(
         source_inputs,
         binary_entrypoint,
     );
+    let metadata_source = render_generated_metadata_json(
+        crate_name,
+        rust,
+        input_fingerprint,
+        source_inputs,
+        binary_entrypoint,
+    );
     write_backend_file(&cargo_toml, fs::write(&cargo_toml, cargo_source), out_dir)?;
+    write_backend_file(
+        &metadata_json,
+        fs::write(&metadata_json, metadata_source),
+        out_dir,
+    )?;
     write_backend_file(&lib_rs, fs::write(&lib_rs, &rust.source), out_dir)?;
     let mut written_files = vec![
         cargo_toml.display().to_string(),
+        metadata_json.display().to_string(),
         lib_rs.display().to_string(),
     ];
     if let Some(entrypoint) = binary_entrypoint {
@@ -482,6 +498,114 @@ fn render_generated_cargo_toml(
         }
     }
     source
+}
+
+fn render_generated_metadata_json(
+    crate_name: &str,
+    rust: &GeneratedRustProgram,
+    input_fingerprint: Option<&str>,
+    source_inputs: &[SourceInput],
+    binary_entrypoint: Option<&BinaryEntrypoint>,
+) -> String {
+    let inputs = source_inputs
+        .iter()
+        .map(|input| {
+            format!(
+                "    {{\"bytes\": {}, \"fingerprint\": {}, \"path\": {}}}",
+                input.bytes,
+                json_string(&input.fingerprint),
+                json_string(&input.path)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",\n");
+    let types = rust
+        .types
+        .iter()
+        .map(|type_decl| {
+            format!(
+                "    {{\"line\": {}, \"rust_name\": {}, \"source_path\": {}, \"symbol\": {}}}",
+                type_decl.line,
+                json_string(&type_decl.rust_name),
+                json_string(&type_decl.source_path),
+                json_string(&type_decl.symbol)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",\n");
+    let functions = rust
+        .functions
+        .iter()
+        .map(|function| {
+            format!(
+                "    {{\"line\": {}, \"rust_name\": {}, \"source_path\": {}, \"symbol\": {}}}",
+                function.line,
+                json_string(&function.rust_name),
+                json_string(&function.source_path),
+                json_string(&function.symbol)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",\n");
+    let tests = rust
+        .tests
+        .iter()
+        .map(generated_test_metadata_json)
+        .collect::<Vec<_>>()
+        .join(",\n");
+    format!(
+        concat!(
+            "{{\n",
+            "  \"backend\": {},\n",
+            "  \"binary_entrypoint\": {},\n",
+            "  \"crate_name\": {},\n",
+            "  \"generated_counts\": {{\"functions\": {}, \"tests\": {}, \"types\": {}}},\n",
+            "  \"input_fingerprint\": {},\n",
+            "  \"inputs\": [\n{}\n  ],\n",
+            "  \"ir_version\": {},\n",
+            "  \"schema\": \"serow.rust.metadata.v0\",\n",
+            "  \"source_fingerprint\": {},\n",
+            "  \"types\": [\n{}\n  ],\n",
+            "  \"functions\": [\n{}\n  ],\n",
+            "  \"tests\": [\n{}\n  ]\n",
+            "}}\n"
+        ),
+        json_string(&rust.backend),
+        binary_entrypoint
+            .map(binary_entrypoint_json)
+            .unwrap_or_else(|| "null".to_string()),
+        json_string(crate_name),
+        rust.functions.len(),
+        rust.tests.len(),
+        rust.types.len(),
+        json_string(input_fingerprint.unwrap_or("unknown")),
+        inputs,
+        json_string(&rust.ir_version),
+        json_string(&rust.source_fingerprint),
+        types,
+        functions,
+        tests
+    )
+}
+
+fn generated_test_metadata_json(test: &GeneratedRustTest) -> String {
+    let mut fields = vec![
+        format!("\"kind\": {}", json_string(&test.kind)),
+        format!("\"line\": {}", test.line),
+        format!("\"rust_name\": {}", json_string(&test.rust_name)),
+        format!("\"source_path\": {}", json_string(&test.source_path)),
+        format!("\"symbol\": {}", json_string(&test.symbol)),
+    ];
+    if let Some(example_index) = test.example_index {
+        fields.push(format!("\"example_index\": {example_index}"));
+    }
+    if let Some(property_index) = test.property_index {
+        fields.push(format!("\"property_index\": {property_index}"));
+    }
+    if let Some(sample_index) = test.sample_index {
+        fields.push(format!("\"sample_index\": {sample_index}"));
+    }
+    format!("    {{{}}}", fields.join(", "))
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -3073,7 +3197,7 @@ const CORE_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "compile rust",
         "serow compile rust [paths...] [--out-dir <dir>] [--emit-bin] [--crate-name <name>] [--json]",
-        "Emit deterministic Rust source, or a generated Rust crate with optional binary entrypoint, configurable package name, Serow input/type/source metadata, and generated evidence tests for the supported checked IR subset.",
+        "Emit deterministic Rust source, or a generated Rust crate with optional binary entrypoint, configurable package name, Cargo/JSON provenance metadata, and generated evidence tests for the supported checked IR subset.",
     ),
     (
         "fmt",
@@ -3126,7 +3250,7 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "compile rust",
         "serow compile rust [paths...] [--out-dir <dir>] [--emit-bin] [--crate-name <name>] [--json]",
-        "Emit deterministic Rust source, or a generated Rust crate with optional binary entrypoint, configurable package name, Serow input/type/source metadata, and generated evidence tests for the supported checked IR subset.",
+        "Emit deterministic Rust source, or a generated Rust crate with optional binary entrypoint, configurable package name, Cargo/JSON provenance metadata, and generated evidence tests for the supported checked IR subset.",
     ),
     (
         "fmt",
@@ -3354,7 +3478,7 @@ fn agent_json() -> String {
         str_array_json(&[
             "Properties are sampled, not proven; replay uses deterministic seeds for built-in and bounded declared-record samples.",
             "Intent search is deterministic token ranking, not semantic embeddings.",
-            "Rust backend emission supports pure Int/Bool/Text/Unit functions, declared records, and terminal io intrinsics, emits runtime asserts for Serow requires and ensures clauses, emits Rust tests for pure Serow examples and deterministic sampled properties, moves final record update bases when postconditions do not need the original value, and records aggregate/per-source Serow input fingerprints plus type, source, binary entrypoint, and evidence metadata in generated Cargo manifests.",
+            "Rust backend emission supports pure Int/Bool/Text/Unit functions, declared records, and terminal io intrinsics, emits runtime asserts for Serow requires and ensures clauses, emits Rust tests for pure Serow examples and deterministic sampled properties, moves final record update bases when postconditions do not need the original value, and records aggregate/per-source Serow input fingerprints plus type, source, binary entrypoint, and evidence metadata in generated Cargo manifests and serow-metadata.json sidecars.",
             "Expression support is intentionally small and formatting does not preserve comments.",
             "JSON output is hand-written until external dependencies are accepted."
         ])
@@ -3570,7 +3694,7 @@ fn print_agent_bootstrap() {
     println!("  Rust backend emits runtime asserts for Serow requires and ensures clauses");
     println!("  Rust backend emits Rust tests for pure Serow examples and sampled properties");
     println!(
-        "  Rust backend records source input, type, function, binary entrypoint, and evidence metadata in Cargo manifests"
+        "  Rust backend records source input, type, function, binary entrypoint, and evidence metadata in Cargo manifests and serow-metadata.json sidecars"
     );
     println!("  expression support is small and formatting does not preserve comments");
 }

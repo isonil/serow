@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "0.4.79-rust-bootstrap",
+  "version": "0.4.80-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -152,7 +152,8 @@
     "rust_backend_in_place_record_state_updates": true,
     "rust_backend_final_record_update_moves": true,
     "rust_backend_binary_entrypoint": true,
-    "rust_backend_binary_entrypoint_metadata": true
+    "rust_backend_binary_entrypoint_metadata": true,
+    "rust_backend_json_metadata_sidecar": true
   },
   "source_roots": [
     "examples"
