@@ -210,6 +210,7 @@ fn run_compile_rust(args: &[String]) -> i32 {
         summary.diagnostics.append(&mut diagnostics);
     }
     let mut written_files = Vec::new();
+    let mut checked_files = Vec::new();
     let mut binary_entrypoint = None;
     if summary.ok()
         && let (Some(Ok(shape)), Some(rust)) = (&binary_entrypoint_shape, &summary.rust)
@@ -222,16 +223,24 @@ fn run_compile_rust(args: &[String]) -> i32 {
     if summary.ok()
         && let (Some(out_dir), Some(rust)) = (&parsed.out_dir, &summary.rust)
     {
-        match write_rust_crate(
+        let artifact = RustCrateArtifact::new(
             out_dir,
             &parsed.crate_name,
             rust,
             input_fingerprint.as_deref(),
             source_inputs.as_deref().unwrap_or(&[]),
             binary_entrypoint.as_ref(),
-        ) {
-            Ok(files) => written_files = files,
-            Err(diagnostic) => summary.diagnostics.push(*diagnostic),
+        );
+        if parsed.check_out_dir {
+            match check_rust_crate_artifact(&artifact) {
+                Ok(files) => checked_files = files,
+                Err(mut diagnostics) => summary.diagnostics.append(&mut diagnostics),
+            }
+        } else {
+            match write_rust_crate_artifact(&artifact) {
+                Ok(files) => written_files = files,
+                Err(diagnostic) => summary.diagnostics.push(*diagnostic),
+            }
         }
     }
     if json_output {
@@ -240,12 +249,15 @@ fn run_compile_rust(args: &[String]) -> i32 {
             rust_summary_json(
                 &summary,
                 &written_files,
+                &checked_files,
                 &parsed.crate_name,
                 input_fingerprint.as_deref(),
                 source_inputs.as_deref().unwrap_or(&[]),
                 binary_entrypoint.as_ref()
             )
         );
+    } else if parsed.check_out_dir {
+        print_rust_artifact_check_summary(&summary, &checked_files);
     } else if parsed.out_dir.is_some() {
         print_rust_artifact_summary(&summary, &written_files);
     } else {
@@ -261,6 +273,7 @@ struct CompileRustArgs {
     out_dir: Option<String>,
     crate_name: String,
     emit_bin: bool,
+    check_out_dir: bool,
 }
 
 fn parse_compile_rust_args(args: &[String]) -> Result<CompileRustArgs, String> {
@@ -269,6 +282,7 @@ fn parse_compile_rust_args(args: &[String]) -> Result<CompileRustArgs, String> {
     let mut out_dir = None;
     let mut crate_name = "serow_generated".to_string();
     let mut emit_bin = false;
+    let mut check_out_dir = false;
     let mut index = 0;
     while index < args.len() {
         let arg = &args[index];
@@ -279,6 +293,12 @@ fn parse_compile_rust_args(args: &[String]) -> Result<CompileRustArgs, String> {
                     return Err("`--emit-bin`/`--bin` can only be provided once.".to_string());
                 }
                 emit_bin = true;
+            }
+            "--check-out-dir" => {
+                if check_out_dir {
+                    return Err("`--check-out-dir` can only be provided once.".to_string());
+                }
+                check_out_dir = true;
             }
             "--out-dir" => {
                 if out_dir.is_some() {
@@ -314,62 +334,158 @@ fn parse_compile_rust_args(args: &[String]) -> Result<CompileRustArgs, String> {
     if emit_bin && out_dir.is_none() {
         return Err("`--emit-bin` requires `--out-dir`.".to_string());
     }
+    if check_out_dir && out_dir.is_none() {
+        return Err("`--check-out-dir` requires `--out-dir`.".to_string());
+    }
     Ok(CompileRustArgs {
         paths,
         json_output,
         out_dir,
         crate_name,
         emit_bin,
+        check_out_dir,
     })
 }
 
-fn write_rust_crate(
-    out_dir: &str,
-    crate_name: &str,
-    rust: &GeneratedRustProgram,
-    input_fingerprint: Option<&str>,
-    source_inputs: &[SourceInput],
-    binary_entrypoint: Option<&BinaryEntrypoint>,
-) -> Result<Vec<String>, Box<Diagnostic>> {
-    let root = Path::new(out_dir);
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct RustCrateArtifact {
+    out_dir: String,
+    files: Vec<RustCrateArtifactFile>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct RustCrateArtifactFile {
+    path: std::path::PathBuf,
+    source: String,
+}
+
+impl RustCrateArtifact {
+    fn new(
+        out_dir: &str,
+        crate_name: &str,
+        rust: &GeneratedRustProgram,
+        input_fingerprint: Option<&str>,
+        source_inputs: &[SourceInput],
+        binary_entrypoint: Option<&BinaryEntrypoint>,
+    ) -> Self {
+        let root = Path::new(out_dir);
+        let src_dir = root.join("src");
+        let mut files = vec![
+            RustCrateArtifactFile {
+                path: root.join("Cargo.toml"),
+                source: render_generated_cargo_toml(
+                    crate_name,
+                    rust,
+                    input_fingerprint,
+                    source_inputs,
+                    binary_entrypoint,
+                ),
+            },
+            RustCrateArtifactFile {
+                path: root.join("serow-metadata.json"),
+                source: render_generated_metadata_json(
+                    crate_name,
+                    rust,
+                    input_fingerprint,
+                    source_inputs,
+                    binary_entrypoint,
+                ),
+            },
+            RustCrateArtifactFile {
+                path: src_dir.join("lib.rs"),
+                source: rust.source.clone(),
+            },
+        ];
+        if let Some(entrypoint) = binary_entrypoint {
+            files.push(RustCrateArtifactFile {
+                path: src_dir.join("main.rs"),
+                source: render_generated_main_rs(entrypoint),
+            });
+        }
+        Self {
+            out_dir: out_dir.to_string(),
+            files,
+        }
+    }
+}
+
+fn write_rust_crate_artifact(artifact: &RustCrateArtifact) -> Result<Vec<String>, Box<Diagnostic>> {
+    let root = Path::new(&artifact.out_dir);
     let src_dir = root.join("src");
-    write_backend_file(&src_dir, fs::create_dir_all(&src_dir).map(|_| ()), out_dir)?;
-    let cargo_toml = root.join("Cargo.toml");
-    let metadata_json = root.join("serow-metadata.json");
-    let lib_rs = src_dir.join("lib.rs");
-    let cargo_source = render_generated_cargo_toml(
-        crate_name,
-        rust,
-        input_fingerprint,
-        source_inputs,
-        binary_entrypoint,
-    );
-    let metadata_source = render_generated_metadata_json(
-        crate_name,
-        rust,
-        input_fingerprint,
-        source_inputs,
-        binary_entrypoint,
-    );
-    write_backend_file(&cargo_toml, fs::write(&cargo_toml, cargo_source), out_dir)?;
     write_backend_file(
-        &metadata_json,
-        fs::write(&metadata_json, metadata_source),
-        out_dir,
+        &src_dir,
+        fs::create_dir_all(&src_dir).map(|_| ()),
+        &artifact.out_dir,
     )?;
-    write_backend_file(&lib_rs, fs::write(&lib_rs, &rust.source), out_dir)?;
-    let mut written_files = vec![
-        cargo_toml.display().to_string(),
-        metadata_json.display().to_string(),
-        lib_rs.display().to_string(),
-    ];
-    if let Some(entrypoint) = binary_entrypoint {
-        let main_rs = src_dir.join("main.rs");
-        let main_source = render_generated_main_rs(entrypoint);
-        write_backend_file(&main_rs, fs::write(&main_rs, main_source), out_dir)?;
-        written_files.push(main_rs.display().to_string());
+    let mut written_files = Vec::new();
+    for file in &artifact.files {
+        write_backend_file(
+            &file.path,
+            fs::write(&file.path, &file.source),
+            &artifact.out_dir,
+        )?;
+        written_files.push(file.path.display().to_string());
     }
     Ok(written_files)
+}
+
+fn check_rust_crate_artifact(artifact: &RustCrateArtifact) -> Result<Vec<String>, Vec<Diagnostic>> {
+    let mut checked_files = Vec::new();
+    let mut diagnostics = Vec::new();
+    for file in &artifact.files {
+        match fs::read_to_string(&file.path) {
+            Ok(actual) if actual == file.source => {
+                checked_files.push(file.path.display().to_string());
+            }
+            Ok(actual) => diagnostics.push(
+                Diagnostic::error(
+                    "RustBackendArtifactDrift",
+                    format!(
+                        "Generated Rust artifact `{}` differs from current Serow sources.",
+                        file.path.display()
+                    ),
+                    Some(artifact.out_dir.clone()),
+                )
+                .with_data("path", file.path.display().to_string())
+                .with_data(
+                    "expected_fingerprint",
+                    source_bytes_fingerprint(file.source.as_bytes()),
+                )
+                .with_data(
+                    "actual_fingerprint",
+                    source_bytes_fingerprint(actual.as_bytes()),
+                ),
+            ),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => diagnostics.push(
+                Diagnostic::error(
+                    "RustBackendMissingArtifact",
+                    format!(
+                        "Generated Rust artifact `{}` is missing.",
+                        file.path.display()
+                    ),
+                    Some(artifact.out_dir.clone()),
+                )
+                .with_data("path", file.path.display().to_string()),
+            ),
+            Err(error) => diagnostics.push(
+                Diagnostic::error(
+                    "RustBackendReadError",
+                    format!(
+                        "Could not read generated Rust artifact `{}`: {error}",
+                        file.path.display()
+                    ),
+                    Some(artifact.out_dir.clone()),
+                )
+                .with_data("path", file.path.display().to_string())
+                .with_data("error", error.to_string()),
+            ),
+        }
+    }
+    if diagnostics.is_empty() {
+        Ok(checked_files)
+    } else {
+        Err(diagnostics)
+    }
 }
 
 fn write_backend_file<T>(
@@ -1744,6 +1860,55 @@ fn print_rust_artifact_summary(summary: &RustBackendSummary, written_files: &[St
     }
 }
 
+fn print_rust_artifact_check_summary(summary: &RustBackendSummary, checked_files: &[String]) {
+    let status = if summary.ok() { "ok" } else { "failed" };
+    let generated = summary
+        .rust
+        .as_ref()
+        .map(|rust| rust.functions.len())
+        .unwrap_or_default();
+    println!("serow compile rust --check-out-dir: {status}");
+    println!(
+        "summary: {} functions checked, {} functions lowered, {} functions generated, {} tests generated",
+        summary.ir_summary.check_summary.functions,
+        summary
+            .ir_summary
+            .ir
+            .as_ref()
+            .map(|ir| ir.functions.len())
+            .unwrap_or_default(),
+        generated,
+        summary
+            .rust
+            .as_ref()
+            .map(|rust| rust.tests.len())
+            .unwrap_or_default()
+    );
+    for file in checked_files {
+        println!("checked: {file}");
+    }
+    for diagnostic in &summary.diagnostics {
+        let target = diagnostic
+            .target
+            .as_ref()
+            .map(|target| format!(" {target}"))
+            .unwrap_or_default();
+        println!(
+            "{}: {}:{} {}",
+            diagnostic.severity.as_str(),
+            diagnostic.code,
+            target,
+            diagnostic.message
+        );
+        if !diagnostic.data.is_empty() {
+            println!("  data: {}", data_json(&diagnostic.data));
+        }
+        if !diagnostic.repairs.is_empty() {
+            println!("  repairs: {}", diagnostic.repairs.join(", "));
+        }
+    }
+}
+
 fn print_format_summary(summary: &FormatSummary, check: bool) {
     let mode = if check { "fmt --check" } else { "fmt" };
     let status = if summary.ok() { "ok" } else { "failed" };
@@ -2388,6 +2553,7 @@ fn ir_record_fields_json(fields: &[(String, IrExpr)]) -> String {
 fn rust_summary_json(
     summary: &RustBackendSummary,
     written_files: &[String],
+    checked_files: &[String],
     crate_name: &str,
     input_fingerprint: Option<&str>,
     source_inputs: &[SourceInput],
@@ -2397,6 +2563,7 @@ fn rust_summary_json(
         concat!(
             "{{\n",
             "  \"binary_entrypoint\": {},\n",
+            "  \"checked_files\": {},\n",
             "  \"crate_name\": {},\n",
             "  \"diagnostics\": {},\n",
             "  \"ok\": {},\n",
@@ -2414,6 +2581,7 @@ fn rust_summary_json(
         binary_entrypoint
             .map(binary_entrypoint_json)
             .unwrap_or_else(|| "null".to_string()),
+        string_array_json(checked_files),
         json_string(crate_name),
         diagnostics_array_json(&summary.diagnostics),
         summary.ok(),
@@ -3196,8 +3364,8 @@ const CORE_AGENT_COMMANDS: &[AgentCommand] = &[
     ),
     (
         "compile rust",
-        "serow compile rust [paths...] [--out-dir <dir>] [--emit-bin] [--crate-name <name>] [--json]",
-        "Emit deterministic Rust source, or a generated Rust crate with optional binary entrypoint, configurable package name, Cargo/JSON provenance metadata, and generated evidence tests for the supported checked IR subset.",
+        "serow compile rust [paths...] [--out-dir <dir>] [--check-out-dir] [--emit-bin] [--crate-name <name>] [--json]",
+        "Emit deterministic Rust source, write a generated Rust crate, or verify an existing generated crate with optional binary entrypoint, configurable package name, Cargo/JSON provenance metadata, and generated evidence tests for the supported checked IR subset.",
     ),
     (
         "fmt",
@@ -3249,8 +3417,8 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
     ),
     (
         "compile rust",
-        "serow compile rust [paths...] [--out-dir <dir>] [--emit-bin] [--crate-name <name>] [--json]",
-        "Emit deterministic Rust source, or a generated Rust crate with optional binary entrypoint, configurable package name, Cargo/JSON provenance metadata, and generated evidence tests for the supported checked IR subset.",
+        "serow compile rust [paths...] [--out-dir <dir>] [--check-out-dir] [--emit-bin] [--crate-name <name>] [--json]",
+        "Emit deterministic Rust source, write a generated Rust crate, or verify an existing generated crate with optional binary entrypoint, configurable package name, Cargo/JSON provenance metadata, and generated evidence tests for the supported checked IR subset.",
     ),
     (
         "fmt",
@@ -3478,7 +3646,7 @@ fn agent_json() -> String {
         str_array_json(&[
             "Properties are sampled, not proven; replay uses deterministic seeds for built-in and bounded declared-record samples.",
             "Intent search is deterministic token ranking, not semantic embeddings.",
-            "Rust backend emission supports pure Int/Bool/Text/Unit functions, declared records, and terminal io intrinsics, emits runtime asserts for Serow requires and ensures clauses, emits Rust tests for pure Serow examples and deterministic sampled properties, moves final record update bases when postconditions do not need the original value, and records aggregate/per-source Serow input fingerprints plus type, source, binary entrypoint, and evidence metadata in generated Cargo manifests and serow-metadata.json sidecars.",
+            "Rust backend emission supports pure Int/Bool/Text/Unit functions, declared records, and terminal io intrinsics, emits runtime asserts for Serow requires and ensures clauses, emits Rust tests for pure Serow examples and deterministic sampled properties, moves final record update bases when postconditions do not need the original value, records aggregate/per-source Serow input fingerprints plus type, source, binary entrypoint, and evidence metadata in generated Cargo manifests and serow-metadata.json sidecars, and can check generated crate artifacts for drift.",
             "Expression support is intentionally small and formatting does not preserve comments.",
             "JSON output is hand-written until external dependencies are accepted."
         ])
@@ -3753,7 +3921,7 @@ fn print_usage() {
     eprintln!("  serow certify [paths...] [--profile unattended] [--json]");
     eprintln!("  serow compile ir [paths...] [--json]");
     eprintln!(
-        "  serow compile rust [paths...] [--out-dir <dir>] [--emit-bin] [--crate-name <name>] [--json]"
+        "  serow compile rust [paths...] [--out-dir <dir>] [--check-out-dir] [--emit-bin] [--crate-name <name>] [--json]"
     );
     eprintln!("  serow fmt [paths...] [--check] [--json]");
     eprintln!(
@@ -3806,7 +3974,7 @@ fn print_compile_usage() {
     eprintln!("usage:");
     eprintln!("  serow compile ir [paths...] [--json]");
     eprintln!(
-        "  serow compile rust [paths...] [--out-dir <dir>] [--emit-bin] [--crate-name <name>] [--json]"
+        "  serow compile rust [paths...] [--out-dir <dir>] [--check-out-dir] [--emit-bin] [--crate-name <name>] [--json]"
     );
 }
 

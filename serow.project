@@ -18,7 +18,7 @@
     "certify": "bin/serow certify",
     "certify_unattended": "bin/serow certify --profile unattended",
     "compile_ir": "bin/serow compile ir [paths...]",
-    "compile_rust": "bin/serow compile rust [paths...] [--out-dir <dir>] [--emit-bin] [--crate-name <name>]",
+    "compile_rust": "bin/serow compile rust [paths...] [--out-dir <dir>] [--check-out-dir] [--emit-bin] [--crate-name <name>]",
     "patch_add_contract": "bin/serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression>",
     "patch_add_example": "bin/serow patch add-example <path> <symbol-or-name> <expression>",
     "patch_add_function": "bin/serow patch add-function <path> <module> <signature> <intent>",
@@ -153,7 +153,8 @@
     "rust_backend_final_record_update_moves": true,
     "rust_backend_binary_entrypoint": true,
     "rust_backend_binary_entrypoint_metadata": true,
-    "rust_backend_json_metadata_sidecar": true
+    "rust_backend_json_metadata_sidecar": true,
+    "rust_backend_artifact_drift_check": true
   },
   "source_roots": [
     "examples"

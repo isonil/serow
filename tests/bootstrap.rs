@@ -2552,7 +2552,7 @@ fn agent_json_includes_compact_machine_readable_workflow() {
     );
     assert!(
         stdout.contains(
-            "serow compile rust [paths...] [--out-dir <dir>] [--emit-bin] [--crate-name <name>] [--json]"
+            "serow compile rust [paths...] [--out-dir <dir>] [--check-out-dir] [--emit-bin] [--crate-name <name>] [--json]"
         ),
         "{stdout}"
     );
@@ -2584,7 +2584,7 @@ fn agent_commands_json_includes_full_command_catalog() {
     assert!(stdout.contains("\"ok\": true"), "{stdout}");
     assert!(
         stdout.contains(
-            "serow compile rust [paths...] [--out-dir <dir>] [--emit-bin] [--crate-name <name>] [--json]"
+            "serow compile rust [paths...] [--out-dir <dir>] [--check-out-dir] [--emit-bin] [--crate-name <name>] [--json]"
         ),
         "{stdout}"
     );
@@ -7965,6 +7965,57 @@ fn compile_rust_out_dir_writes_crate_layout() {
         ),
         "{source}"
     );
+
+    let check_output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "compile",
+            "rust",
+            "examples/math.serow",
+            "--out-dir",
+            &out_dir.to_string_lossy(),
+            "--crate-name",
+            "serow_math_generated",
+            "--check-out-dir",
+            "--json",
+        ])
+        .output()
+        .expect("run compile rust --check-out-dir");
+    assert!(check_output.status.success(), "{check_output:#?}");
+    let check_stdout = String::from_utf8_lossy(&check_output.stdout);
+    assert!(
+        check_stdout.contains("\"checked_files\": ["),
+        "{check_stdout}"
+    );
+    assert!(check_stdout.contains("Cargo.toml"), "{check_stdout}");
+    assert!(
+        check_stdout.contains("serow-metadata.json"),
+        "{check_stdout}"
+    );
+    assert!(check_stdout.contains("src/lib.rs"), "{check_stdout}");
+
+    fs::write(&lib_rs, format!("{source}\n// stale generated edit\n"))
+        .expect("make generated lib stale");
+    let stale_output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "compile",
+            "rust",
+            "examples/math.serow",
+            "--out-dir",
+            &out_dir.to_string_lossy(),
+            "--crate-name",
+            "serow_math_generated",
+            "--check-out-dir",
+            "--json",
+        ])
+        .output()
+        .expect("run stale compile rust --check-out-dir");
+    assert!(!stale_output.status.success(), "{stale_output:#?}");
+    let stale_stdout = String::from_utf8_lossy(&stale_output.stdout);
+    assert!(
+        stale_stdout.contains("\"code\": \"RustBackendArtifactDrift\""),
+        "{stale_stdout}"
+    );
+    fs::write(&lib_rs, source).expect("restore generated lib");
 
     let cargo_output = Command::new("cargo")
         .args(["check", "--manifest-path"])
