@@ -381,6 +381,7 @@ fn render_generated_cargo_toml(
             "backend = {}\n",
             "ir_version = {}\n",
             "source_fingerprint = {}\n",
+            "generated_types = {}\n",
             "generated_functions = {}\n",
             "generated_tests = {}\n",
         ),
@@ -388,6 +389,7 @@ fn render_generated_cargo_toml(
         toml_string_literal(&rust.backend),
         toml_string_literal(&rust.ir_version),
         toml_string_literal(&rust.source_fingerprint),
+        rust.types.len(),
         rust.functions.len(),
         rust.tests.len()
     );
@@ -396,6 +398,16 @@ fn render_generated_cargo_toml(
             "binary_entrypoint_symbol = {}\nbinary_entrypoint_return_type = {}\n",
             toml_string_literal(&entrypoint.symbol),
             toml_string_literal(&entrypoint.return_type)
+        ));
+    }
+    for type_decl in &rust.types {
+        source.push_str("\n[[package.metadata.serow.types]]\n");
+        source.push_str(&format!(
+            "symbol = {}\nrust_name = {}\nsource_path = {}\nline = {}\n",
+            toml_string_literal(&type_decl.symbol),
+            toml_string_literal(&type_decl.rust_name),
+            toml_string_literal(&type_decl.source_path),
+            type_decl.line
         ));
     }
     for function in &rust.functions {
@@ -2169,6 +2181,7 @@ fn rust_summary_json(
             "    \"checked_functions\": {},\n",
             "    \"generated_functions\": {},\n",
             "    \"generated_tests\": {},\n",
+            "    \"generated_types\": {},\n",
             "    \"lowered_functions\": {}\n",
             "  }},\n",
             "  \"written_files\": {}\n",
@@ -2192,6 +2205,11 @@ fn rust_summary_json(
             .rust
             .as_ref()
             .map(|rust| rust.tests.len())
+            .unwrap_or_default(),
+        summary
+            .rust
+            .as_ref()
+            .map(|rust| rust.types.len())
             .unwrap_or_default(),
         summary
             .ir_summary
@@ -2913,7 +2931,7 @@ const CORE_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "compile rust",
         "serow compile rust [paths...] [--out-dir <dir>] [--emit-bin] [--crate-name <name>] [--json]",
-        "Emit deterministic Rust source, or a generated Rust crate with optional binary entrypoint, configurable package name, Serow source metadata, and generated evidence tests for the supported checked IR subset.",
+        "Emit deterministic Rust source, or a generated Rust crate with optional binary entrypoint, configurable package name, Serow type/source metadata, and generated evidence tests for the supported checked IR subset.",
     ),
     (
         "fmt",
@@ -2966,7 +2984,7 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "compile rust",
         "serow compile rust [paths...] [--out-dir <dir>] [--emit-bin] [--crate-name <name>] [--json]",
-        "Emit deterministic Rust source, or a generated Rust crate with optional binary entrypoint, configurable package name, Serow source metadata, and generated evidence tests for the supported checked IR subset.",
+        "Emit deterministic Rust source, or a generated Rust crate with optional binary entrypoint, configurable package name, Serow type/source metadata, and generated evidence tests for the supported checked IR subset.",
     ),
     (
         "fmt",
@@ -3194,7 +3212,7 @@ fn agent_json() -> String {
         str_array_json(&[
             "Properties are sampled, not proven; replay uses deterministic seeds.",
             "Intent search is deterministic token ranking, not semantic embeddings.",
-            "Rust backend emission supports pure Int/Bool/Text/Unit functions, declared records, and terminal io intrinsics, emits runtime asserts for Serow requires and ensures clauses, emits Rust tests for pure Serow examples and deterministic sampled properties, and records Serow source and evidence metadata in generated Cargo manifests.",
+            "Rust backend emission supports pure Int/Bool/Text/Unit functions, declared records, and terminal io intrinsics, emits runtime asserts for Serow requires and ensures clauses, emits Rust tests for pure Serow examples and deterministic sampled properties, and records Serow type, source, and evidence metadata in generated Cargo manifests.",
             "Expression support is intentionally small and formatting does not preserve comments.",
             "JSON output is hand-written until external dependencies are accepted."
         ])
@@ -3409,6 +3427,7 @@ fn print_agent_bootstrap() {
     );
     println!("  Rust backend emits runtime asserts for Serow requires and ensures clauses");
     println!("  Rust backend emits Rust tests for pure Serow examples and sampled properties");
+    println!("  Rust backend records type, function, and evidence metadata in Cargo manifests");
     println!("  expression support is small and formatting does not preserve comments");
 }
 

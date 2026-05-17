@@ -2,6 +2,9 @@
 
 ## 2026-05-17
 
+- Chose generated Rust record-type manifest provenance as the next cross-phase backend task because JSON output already exposed generated type mappings but generated crates did not persist those rows in `Cargo.toml`.
+- Extended generated `package.metadata.serow` with a deterministic `generated_types` count and `[[package.metadata.serow.types]]` rows containing Serow type symbols, generated Rust type names, source paths, and line numbers.
+- Updated README, `serow.project`, and Progress docs to advertise source-location-aware generated type metadata in Rust crate manifests.
 - Extended Rust binary backend entrypoints to accept declared record return types in addition to `Text`, `Int`, `Bool`, and `Unit`.
 - Generated `src/main.rs` now prints scalar entrypoint results with `Display`, record results with derived `Debug`, and leaves `Unit` entrypoints to explicit effects.
 - Added integration coverage that compiles a record-returning Serow `main`, writes a generated Rust crate, verifies manifest metadata and `main.rs`, and runs the binary.

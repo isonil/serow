@@ -120,7 +120,7 @@ Selection policy for generic implementation prompts:
   - emits deterministic Rust source on stdout in text mode and includes the generated source, deterministic source fingerprint, and source-location-aware symbol-to-Rust-name rows in JSON mode
   - writes a dependency-free Rust crate layout with `Cargo.toml` and `src/lib.rs` when passed `--out-dir <dir>`, using `--crate-name <name>` when provided and defaulting to `serow_generated`
   - writes a runnable Rust binary crate entrypoint with `src/main.rs` when passed `--emit-bin`/`--bin`, requiring exactly one public zero-argument `main` returning `Text`, `Int`, `Bool`, `Unit`, or a declared record type; scalar and record values are printed deterministically and `Unit` entrypoints rely on explicit effects
-  - records deterministic `package.metadata.serow` manifest rows for the backend id, IR version, generated source fingerprint, generated function/test counts, source locations, symbol-to-Rust-name mappings, and source-location-aware example/property evidence-to-test mappings in generated crates
+  - records deterministic `package.metadata.serow` manifest rows for the backend id, IR version, generated source fingerprint, generated type/function/test counts, source-location-aware type and function symbol-to-Rust-name mappings, and source-location-aware example/property evidence-to-test mappings in generated crates
   - supports pure public functions over `Int`, `Bool`, `Text`, `Unit`, and declared record types in the current expression subset, including arithmetic, text concatenation, comparisons, boolean operators, `if`, unary operators, resolved function calls, record construction, field access, record copy-update, and runtime assertions for `requires` preconditions and `ensures` postconditions
   - emits generated Rust structs for Serow record declarations
   - renders local `let` bindings, local assignments, checked while loops, and ordered sequences as Rust blocks
@@ -1742,6 +1742,25 @@ cargo test
 bin/serow certify
 ```
 
+Additional verification after adding generated Rust type manifest metadata:
+
+```sh
+bin/serow query intent "improve Rust backend support for generated programs" --json
+bin/serow query symbol "compile rust" --json
+cargo fmt --check
+cargo test compile_rust -- --nocapture
+bin/serow compile rust examples/text_game.serow --out-dir /tmp/serow_type_metadata_final --json
+cargo clippy -- -D warnings
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+git diff --check
+```
+
 ## Known Limits
 
 - This is not yet a full compiler; it is a parser/checker/ledger bootstrap with a first portable IR emitter and a narrow Rust source emitter.
@@ -1754,7 +1773,7 @@ bin/serow certify
 - Evidence patching can append or replace individual contract/example/property items, but dependent impact and evidence policy are still enforced by `serow plan` and unattended certification rather than by the patch command itself.
 - Formatting parses and re-emits the bootstrap projection; comments are not preserved yet.
 - The hand-written JSON output should eventually be replaced with `serde_json` once external dependencies are allowed/desired.
-- `serow compile rust` emits deterministic Rust source and can write a minimal Rust crate layout for pure checked `Int`/`Bool`/`Text`/`Unit` functions, declared record types, and the narrow terminal `io` intrinsic path, including runtime `requires`/`ensures` assertions, generated Rust tests for checked pure examples and deterministic sampled-property bindings, a configurable generated crate name, deterministic generated-source fingerprint metadata, deterministic Serow manifest metadata for generated functions, source locations, source-location-aware evidence tests, and an optional runnable `src/main.rs` for a public zero-argument `main` returning a scalar, `Unit`, or declared record type, but arbitrary effectful functions, ownership-friendly state transforms, WASM, TypeScript, Python, and richer multi-target backend package layouts do not exist yet.
+- `serow compile rust` emits deterministic Rust source and can write a minimal Rust crate layout for pure checked `Int`/`Bool`/`Text`/`Unit` functions, declared record types, and the narrow terminal `io` intrinsic path, including runtime `requires`/`ensures` assertions, generated Rust tests for checked pure examples and deterministic sampled-property bindings, a configurable generated crate name, deterministic generated-source fingerprint metadata, deterministic Serow manifest metadata for generated types, functions, source locations, source-location-aware evidence tests, and an optional runnable `src/main.rs` for a public zero-argument `main` returning a scalar, `Unit`, or declared record type, but arbitrary effectful functions, ownership-friendly state transforms, WASM, TypeScript, Python, and richer multi-target backend package layouts do not exist yet.
 - Structured repair actions currently cover only command-style fixes already exposed by the bootstrap CLI.
 - `query callees` and `query dependents` report direct resolved call edges; use `query impact` for direct and transitive dependent paths. Ambiguous bare calls are intentionally skipped by ledger queries because they are checker errors.
 - `serow plan` is an early reporting primitive; it treats explicit path arguments as the selected change set, reports semantic change labels plus inferred direct-call capability requirements, suggested effect declarations, sampled-property coverage hints, and advisory lexical arithmetic intent/implementation mismatch risks for changed symbols, and compares public contract-surface, removed public symbols, declared capabilities, normalized implementation text, and evidence sections against `HEAD` when a tracked baseline is available. It reports whether added examples/properties directly call changed implementations, whether that added evidence would fail against the `HEAD` implementation, and whether impacted dependent call edges are covered by executable examples or sampled properties, but it does not yet compare full implementation AST behavior.

@@ -7567,6 +7567,7 @@ pub fn loop_state() -> GameState
         "{stdout}"
     );
     assert!(stdout.contains("\"types\": ["), "{stdout}");
+    assert!(stdout.contains("\"generated_types\": 2"), "{stdout}");
 
     let output = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args(["compile", "rust", &source.to_string_lossy()])
@@ -7638,6 +7639,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         manifest.contains("ir_version = \"serow.ir.v0\""),
         "{manifest}"
     );
+    assert!(manifest.contains("generated_types = 0"), "{manifest}");
     assert!(manifest.contains("generated_functions = 3"), "{manifest}");
     assert!(manifest.contains("generated_tests = 70"), "{manifest}");
     assert!(
@@ -7943,6 +7945,23 @@ pub fn main() -> Player
     let manifest = fs::read_to_string(&cargo_toml).expect("read generated manifest");
     assert!(
         manifest.contains("binary_entrypoint_return_type = \"Player\""),
+        "{manifest}"
+    );
+    assert!(manifest.contains("generated_types = 1"), "{manifest}");
+    assert!(
+        manifest.contains("[[package.metadata.serow.types]]"),
+        "{manifest}"
+    );
+    assert!(
+        manifest.contains("symbol = \"@app.entry.Player\""),
+        "{manifest}"
+    );
+    assert!(
+        manifest.contains("rust_name = \"SerowAppEntryPlayer\""),
+        "{manifest}"
+    );
+    assert!(
+        manifest.contains("source_path = \"") && manifest.contains("app.serow\"\nline = 3"),
         "{manifest}"
     );
     let main_source = fs::read_to_string(&main_rs).expect("read generated main");
