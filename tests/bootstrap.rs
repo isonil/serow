@@ -7627,6 +7627,20 @@ pub fn award(player: Player, amount: Int) -> Player
   impl
     player with { gold: player.gold + amount }
 
+pub fn force_gold(player: Player) -> Player
+  intent "Move a player into a returned state with fixed gold."
+  version v1
+  contract
+    ensures result.gold == 4
+  examples
+    force_gold(Player { hp: 8, gold: 2 }).gold == 4
+  properties
+    forall hp: Int:
+      force_gold(Player { hp: hp, gold: 0 }).gold == 4
+  effects pure
+  impl
+    player with { gold: 4 }
+
 pub fn loop_state() -> GameState
   intent "Use a record state value inside a while loop."
   version v1
@@ -7688,6 +7702,10 @@ pub fn swap_pair() -> Pair
     );
     assert!(
         stdout.contains("SerowTestRecordsPlayer { serow_gold: serow_player.serow_gold + serow_amount, ..serow_player.clone() }"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("let serow_player_update_gold = 4; SerowTestRecordsPlayer { serow_gold: serow_player_update_gold, ..serow_player }"),
         "{stdout}"
     );
     assert!(

@@ -2,6 +2,11 @@
 
 ## 2026-05-17
 
+- Chose ownership-aware final record-update lowering as the next backend slice because `World -> World` style functions still cloned whole records in final return position even when generated postcondition checks no longer needed the original base value.
+- Updated the Rust backend to detect top-level function bodies shaped as `record with { ... }`, evaluate update values before moving the base, and emit Rust struct update syntax with `..base` instead of `..base.clone()` when no lowered postcondition references the original base variable.
+- Added regression coverage proving the backend keeps clone-based lowering when postconditions still inspect the original input, while moving the base record for fixed-output final updates.
+- Updated README, `serow.project`, agent bootstrap text, and Progress docs to advertise ownership-aware final record update lowering.
+- Verified with `bin/serow query intent "avoid cloning records in generated Rust record update expressions" --json`, `bin/serow query symbol "record update" --json`, `bin/serow query symbol "RustBackend" --json`, `cargo fmt --check`, `cargo test compile_rust_emits_record_structs_and_operations -- --nocapture`, `cargo test compile_rust -- --nocapture`, `bin/serow check --json`, `bin/serow agent --json`, `cargo clippy -- -D warnings`, `cargo test`, `python3 -m unittest discover -s tests`, `bin/serow fmt --check --json`, `bin/serow certify --json`, `bin/serow certify --profile unattended --json`, `bin/serow plan --json`, `bin/serow compile rust examples/text_game.serow --json`, and `git diff --check`.
 - Chose resolved Rust binary entrypoint provenance as the next backend slice because generated binary crates recorded the Serow entrypoint symbol and return type but not the resolved Rust function name or source location as first-class binary metadata.
 - Extended `compile rust --emit-bin --json` with a `binary_entrypoint` object containing symbol, Rust name, return type, source path, and line.
 - Extended generated `Cargo.toml` `package.metadata.serow` binary entrypoint metadata with the same Rust-name and source-location fields.

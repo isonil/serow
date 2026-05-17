@@ -345,8 +345,8 @@ fn render_function(
         ));
     }
 
-    let body = render_expr(
-        &function.body,
+    let body = render_function_body_expr(
+        function,
         &variables,
         &variable_types,
         rust_names,
@@ -1173,10 +1173,168 @@ fn render_in_place_record_update_assignment(
     }))
 }
 
+fn render_function_body_expr(
+    function: &IrFunction,
+    variables: &HashMap<String, String>,
+    variable_types: &HashMap<String, String>,
+    rust_names: &HashMap<String, String>,
+    type_names: &HashMap<String, String>,
+    types: &[TypeDecl],
+    signatures: &HashMap<String, RustFunctionSignature>,
+) -> Result<RenderedExpr, String> {
+    if let IrExpr::RecordUpdate { base, fields } = &function.body
+        && let IrExpr::Var(base_name) = base.as_ref()
+        && function
+            .ensures
+            .iter()
+            .all(|contract| !ir_expr_references_var(contract, base_name))
+    {
+        let variable = variables
+            .get(base_name)
+            .ok_or_else(|| format!("Unknown lowered variable `{base_name}`."))?;
+        let expected_type = variable_types
+            .get(base_name)
+            .ok_or_else(|| format!("Unknown lowered variable type for `{base_name}`."))?;
+        return render_moving_record_update_expression(
+            base_name,
+            variable,
+            expected_type,
+            fields,
+            RenderContext {
+                variables,
+                variable_types,
+                rust_names,
+                type_names,
+                types,
+                signatures,
+            },
+        );
+    }
+
+    render_expr(
+        &function.body,
+        variables,
+        variable_types,
+        rust_names,
+        type_names,
+        types,
+        signatures,
+    )
+}
+
+fn render_moving_record_update_expression(
+    name: &str,
+    variable: &str,
+    expected_type: &str,
+    fields: &[(String, IrExpr)],
+    context: RenderContext<'_>,
+) -> Result<RenderedExpr, String> {
+    let type_decl = record_type(expected_type, context.types)?;
+    let rust_type = rust_type(expected_type, context.type_names)?;
+    let mut allocated = HashMap::<String, usize>::new();
+    for rust_name in context.variables.values() {
+        allocated.insert(rust_name.clone(), 1);
+    }
+
+    let mut value_bindings = Vec::new();
+    let mut rendered_fields = Vec::new();
+    for (field, field_value) in fields {
+        let Some(declared) = type_decl
+            .fields
+            .iter()
+            .find(|declared| declared.name == *field)
+        else {
+            return Err(format!("Record `{expected_type}` has no field `{field}`."));
+        };
+        let rendered_value = render_expr(
+            field_value,
+            context.variables,
+            context.variable_types,
+            context.rust_names,
+            context.type_names,
+            context.types,
+            context.signatures,
+        )?;
+        if rendered_value.type_name != declared.type_name {
+            return Err(format!(
+                "Record `{expected_type}` update field `{field}` lowered as {}, expected {}.",
+                rendered_value.type_name, declared.type_name
+            ));
+        }
+        let temp_name = allocate_rust_identifier(&format!("{name}_update_{field}"), &mut allocated);
+        value_bindings.push(format!(
+            "let {temp_name} = {};",
+            strip_outer_parens(&rendered_value.code)
+        ));
+        rendered_fields.push(format!("{}: {temp_name}", rust_field_identifier(field)));
+    }
+
+    let mut statements = value_bindings;
+    let updates = if rendered_fields.is_empty() {
+        String::new()
+    } else {
+        format!("{}, ", rendered_fields.join(", "))
+    };
+    statements.push(format!("{rust_type} {{ {updates}..{variable} }}"));
+    Ok(RenderedExpr {
+        code: format!("{{ {} }}", statements.join(" ")),
+        type_name: expected_type.to_string(),
+    })
+}
+
 fn rendered(code: String, type_name: &str) -> RenderedExpr {
     RenderedExpr {
         code,
         type_name: type_name.to_string(),
+    }
+}
+
+fn ir_expr_references_var(expr: &IrExpr, name: &str) -> bool {
+    match expr {
+        IrExpr::Var(value) => value == name,
+        IrExpr::Unary { expr, .. } => ir_expr_references_var(expr, name),
+        IrExpr::Binary { left, right, .. } => {
+            ir_expr_references_var(left, name) || ir_expr_references_var(right, name)
+        }
+        IrExpr::If {
+            condition,
+            then_expr,
+            else_expr,
+        } => {
+            ir_expr_references_var(condition, name)
+                || ir_expr_references_var(then_expr, name)
+                || ir_expr_references_var(else_expr, name)
+        }
+        IrExpr::Let {
+            name: let_name,
+            value,
+            ..
+        } if let_name == name => ir_expr_references_var(value, name),
+        IrExpr::Let { value, body, .. } => {
+            ir_expr_references_var(value, name) || ir_expr_references_var(body, name)
+        }
+        IrExpr::While { condition, body } => {
+            ir_expr_references_var(condition, name) || ir_expr_references_var(body, name)
+        }
+        IrExpr::Sequence { first, second } => {
+            ir_expr_references_var(first, name) || ir_expr_references_var(second, name)
+        }
+        IrExpr::Assign {
+            name: assigned,
+            value,
+        } => assigned == name || ir_expr_references_var(value, name),
+        IrExpr::Call { args, .. } => args.iter().any(|arg| ir_expr_references_var(arg, name)),
+        IrExpr::RecordConstruct { fields, .. } => fields
+            .iter()
+            .any(|(_, value)| ir_expr_references_var(value, name)),
+        IrExpr::RecordUpdate { base, fields } => {
+            ir_expr_references_var(base, name)
+                || fields
+                    .iter()
+                    .any(|(_, value)| ir_expr_references_var(value, name))
+        }
+        IrExpr::FieldAccess { base, .. } => ir_expr_references_var(base, name),
+        IrExpr::Int(_) | IrExpr::Bool(_) | IrExpr::Text(_) | IrExpr::Unit => false,
     }
 }
 
