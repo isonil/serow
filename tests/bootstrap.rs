@@ -7893,6 +7893,87 @@ pub fn main() -> Unit
 }
 
 #[test]
+fn compile_rust_emit_bin_prints_record_entrypoint_with_debug() {
+    let dir = unique_temp_dir("serow-compile-rust-emit-bin-record");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("app.serow");
+    fs::write(
+        &source,
+        r#"module app.entry
+
+type Player = { hp: Int, gold: Int }
+
+pub fn main() -> Player
+  intent "Return the application player state."
+  version v1
+  contract
+    ensures result.hp == 9
+    ensures result.gold == 4
+  examples
+    main().gold == 4
+  properties
+    forall flag: Bool:
+      main().hp == 9 or flag == flag
+  effects pure
+  impl
+    Player { hp: 9, gold: 4 }
+"#,
+    )
+    .expect("write fixture");
+    let out_dir = dir.join("generated_app");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "compile",
+            "rust",
+            &source.to_string_lossy(),
+            "--out-dir",
+            &out_dir.to_string_lossy(),
+            "--emit-bin",
+            "--crate-name",
+            "serow_generated_record_app",
+            "--json",
+        ])
+        .output()
+        .expect("run compile rust --emit-bin record");
+    assert!(output.status.success(), "{output:#?}");
+
+    let cargo_toml = out_dir.join("Cargo.toml");
+    let main_rs = out_dir.join("src").join("main.rs");
+    let manifest = fs::read_to_string(&cargo_toml).expect("read generated manifest");
+    assert!(
+        manifest.contains("binary_entrypoint_return_type = \"Player\""),
+        "{manifest}"
+    );
+    let main_source = fs::read_to_string(&main_rs).expect("read generated main");
+    assert!(
+        main_source.contains("let result = serow_generated::serow_app_entry_main_v1();"),
+        "{main_source}"
+    );
+    assert!(
+        main_source.contains("println!(\"{:?}\", result);"),
+        "{main_source}"
+    );
+
+    let run_output = Command::new("cargo")
+        .args(["run", "--quiet", "--manifest-path"])
+        .arg(&cargo_toml)
+        .output()
+        .expect("cargo run generated record crate");
+    assert!(
+        run_output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&run_output.stdout),
+        String::from_utf8_lossy(&run_output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&run_output.stdout),
+        "SerowAppEntryPlayer { serow_hp: 9, serow_gold: 4 }\n"
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn compile_rust_rpg_json_emits_seeded_helpers_and_terminal_loop() {
     let output = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args(["compile", "rust", "examples/rpg.serow", "--json"])

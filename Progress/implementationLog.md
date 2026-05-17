@@ -2,6 +2,11 @@
 
 ## 2026-05-17
 
+- Extended Rust binary backend entrypoints to accept declared record return types in addition to `Text`, `Int`, `Bool`, and `Unit`.
+- Generated `src/main.rs` now prints scalar entrypoint results with `Display`, record results with derived `Debug`, and leaves `Unit` entrypoints to explicit effects.
+- Added integration coverage that compiles a record-returning Serow `main`, writes a generated Rust crate, verifies manifest metadata and `main.rs`, and runs the binary.
+- Refreshed the Python reference bootstrap for the current sample corpus by parsing record declarations, evaluating record construction/access/update, and recognizing current sample evidence counts.
+- Updated CLI help, README, and Progress docs to advertise record-returning Rust binary entrypoints.
 - Added `examples/rpg.serow`, a deterministic terminal RPG demo with two rooms, HP/gold/potion state, command parsing, win/loss/end states, and a `pub fn main() -> Unit` entrypoint for generated Rust binaries.
 - Added seed-threaded pure randomness helpers `next_random(seed: Int) -> Int` and `random_range(seed: Int, max: Int) -> Int` instead of adding ambient randomness.
 - Added pure RPG helper evidence for command parsing, room/status descriptions, deterministic combat, and state transitions, plus Rust backend integration coverage for generated helper source, generated Rust tests, and a scripted winning binary run.

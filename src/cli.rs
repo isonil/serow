@@ -459,7 +459,10 @@ fn validate_binary_entrypoint_shape(
                 "Rust binary emission requires exactly one public zero-argument `main` function.",
                 None,
             )
-            .with_data("expected", "pub fn main() -> Text | Int | Bool | Unit"),
+            .with_data(
+                "expected",
+                "pub fn main() -> Text | Int | Bool | Unit | <declared-record>",
+            ),
         ]);
     };
     if entrypoints.len() > 1 {
@@ -496,15 +499,12 @@ fn validate_binary_entrypoint_shape(
             .with_data("arity", function.params.len().to_string()),
         );
     }
-    if !matches!(
-        function.return_type.as_str(),
-        "Text" | "Int" | "Bool" | "Unit"
-    ) {
+    if !is_supported_binary_entrypoint_return(&function.return_type, program) {
         diagnostics.push(
             Diagnostic::error(
                 "RustBinaryUnsupportedEntrypointReturn",
                 format!(
-                    "Rust binary entrypoint `{}` returns unsupported type `{}`; expected Text, Int, Bool, or Unit.",
+                    "Rust binary entrypoint `{}` returns unsupported type `{}`; expected Text, Int, Bool, Unit, or a declared record type.",
                     function.symbol(),
                     function.return_type
                 ),
@@ -512,7 +512,10 @@ fn validate_binary_entrypoint_shape(
             )
             .with_data("symbol", function.symbol())
             .with_data("return_type", function.return_type.clone())
-            .with_data("supported_return_types", "Text, Int, Bool, Unit"),
+            .with_data(
+                "supported_return_types",
+                "Text, Int, Bool, Unit, declared records",
+            ),
         );
     }
     if diagnostics.is_empty() {
@@ -523,6 +526,14 @@ fn validate_binary_entrypoint_shape(
     } else {
         Err(diagnostics)
     }
+}
+
+fn is_supported_binary_entrypoint_return(type_name: &str, program: &crate::model::Program) -> bool {
+    matches!(type_name, "Text" | "Int" | "Bool" | "Unit")
+        || program
+            .types
+            .iter()
+            .any(|type_decl| type_decl.name == type_name)
 }
 
 fn resolve_binary_entrypoint(
@@ -556,9 +567,14 @@ fn resolve_binary_entrypoint(
 fn render_generated_main_rs(entrypoint: &BinaryEntrypoint) -> String {
     let body = if entrypoint.return_type == "Unit" {
         format!("    serow_generated::{}();\n", entrypoint.rust_name)
-    } else {
+    } else if matches!(entrypoint.return_type.as_str(), "Text" | "Int" | "Bool") {
         format!(
             "    let result = serow_generated::{}();\n    println!(\"{{}}\", result);\n",
+            entrypoint.rust_name
+        )
+    } else {
+        format!(
+            "    let result = serow_generated::{}();\n    println!(\"{{:?}}\", result);\n",
             entrypoint.rust_name
         )
     };
@@ -3388,7 +3404,9 @@ fn print_agent_bootstrap() {
     println!(
         "  Rust backend emission supports pure Int/Bool/Text/Unit functions, declared records, and terminal io intrinsics"
     );
-    println!("  Rust binary emission requires pub fn main() -> Text | Int | Bool | Unit");
+    println!(
+        "  Rust binary emission requires pub fn main() -> Text | Int | Bool | Unit | declared record"
+    );
     println!("  Rust backend emits runtime asserts for Serow requires and ensures clauses");
     println!("  Rust backend emits Rust tests for pure Serow examples and sampled properties");
     println!("  expression support is small and formatting does not preserve comments");

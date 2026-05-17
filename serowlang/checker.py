@@ -52,7 +52,7 @@ def check_program(program: Program, parse_diagnostics: List[Diagnostic]) -> Chec
     _check_ambiguous_unqualified_calls(program, summary)
     _check_duplicate_intents(program, summary)
     for function in program.functions:
-        _check_function_shape(function, summary)
+        _check_function_shape(function, program, summary)
         _check_repeated_evidence(function, summary)
         _check_repeated_migrations(function, summary)
     for function in program.functions:
@@ -223,7 +223,7 @@ def _normalize_intent(intent: str) -> str:
     return " ".join(re.findall(r"[A-Za-z0-9]+", intent.lower()))
 
 
-def _check_function_shape(function: Function, summary: CheckSummary) -> None:
+def _check_function_shape(function: Function, program: Program, summary: CheckSummary) -> None:
     if function.impl and HOLE_RE.search(function.impl):
         summary.holes += 1
         obligations = _typed_hole_obligations(function)
@@ -304,8 +304,9 @@ def _check_function_shape(function: Function, summary: CheckSummary) -> None:
                 )
             summary.diagnostics.append(diagnostic)
 
+    known_types = SUPPORTED_TYPES | {type_decl.name for type_decl in program.types}
     for param in function.params:
-        if param.type_name not in SUPPORTED_TYPES:
+        if param.type_name not in known_types:
             summary.diagnostics.append(
                 Diagnostic(
                     severity="warning",
@@ -314,7 +315,7 @@ def _check_function_shape(function: Function, summary: CheckSummary) -> None:
                     target=function.target,
                 )
             )
-    if function.return_type not in SUPPORTED_TYPES:
+    if function.return_type not in known_types:
         summary.diagnostics.append(
             Diagnostic(
                 severity="warning",
@@ -1196,6 +1197,7 @@ def _eval_args(args_text: str, evaluator: Evaluator) -> List[Any]:
 def _split_args(text: str) -> List[str]:
     parts = []
     depth = 0
+    brace_depth = 0
     in_string = False
     current = []
     for char in text:
@@ -1206,7 +1208,11 @@ def _split_args(text: str) -> List[str]:
                 depth += 1
             elif char == ")":
                 depth -= 1
-            elif char == "," and depth == 0:
+            elif char == "{":
+                brace_depth += 1
+            elif char == "}":
+                brace_depth -= 1
+            elif char == "," and depth == 0 and brace_depth == 0:
                 parts.append("".join(current).strip())
                 current = []
                 continue

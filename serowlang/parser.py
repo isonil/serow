@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Iterable, List, Tuple
 
 from .diagnostics import Diagnostic
-from .model import Function, MigrationRecord, Param, Program
+from .model import Function, MigrationRecord, Param, Program, RecordField, TypeDecl
 
 
 FUNCTION_RE = re.compile(
@@ -11,6 +11,9 @@ FUNCTION_RE = re.compile(
     r"\((?P<params>[^)]*)\)\s*->\s*(?P<return>[A-Za-z_][A-Za-z0-9_<>, ]*)\s*$"
 )
 MODULE_RE = re.compile(r"^module\s+(?P<name>[A-Za-z_][A-Za-z0-9_.]*)\s*$")
+TYPE_RE = re.compile(
+    r"^type\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*\{(?P<fields>.*)\}\s*$"
+)
 INTENT_RE = re.compile(r'^intent\s+"(?P<intent>.*)"\s*$')
 
 
@@ -42,6 +45,8 @@ def parse_files(paths: Iterable[str]) -> Tuple[Program, List[Diagnostic]]:
     for source in discover_sources(paths):
         parsed, file_diagnostics = parse_file(source)
         diagnostics.extend(file_diagnostics)
+        for type_decl in parsed.types:
+            program.add_type(type_decl)
         for function in parsed.functions:
             program.add_function(function)
     return program, diagnostics
@@ -64,6 +69,20 @@ def parse_file(path: Path) -> Tuple[Program, List[Diagnostic]]:
         module_match = MODULE_RE.match(stripped)
         if module_match:
             module = module_match.group("name")
+            index += 1
+            continue
+
+        type_match = TYPE_RE.match(stripped)
+        if type_match:
+            type_decl, type_diagnostics = _parse_type_decl(
+                path=str(path),
+                module=module,
+                line=index + 1,
+                header=type_match,
+            )
+            diagnostics.extend(type_diagnostics)
+            if type_decl:
+                program.add_type(type_decl)
             index += 1
             continue
 
@@ -105,8 +124,51 @@ def _find_function_end(lines: List[str], start: int) -> int:
         if stripped and not lines[index].startswith((" ", "\t")):
             if MODULE_RE.match(stripped) or FUNCTION_RE.match(stripped):
                 break
+            if TYPE_RE.match(stripped):
+                break
         index += 1
     return index
+
+
+def _parse_type_decl(path: str, module: str, line: int, header: re.Match):
+    diagnostics: List[Diagnostic] = []
+    fields = []
+    fields_text = header.group("fields").strip()
+    if fields_text:
+        for raw_field in fields_text.split(","):
+            if ":" not in raw_field:
+                diagnostics.append(
+                    Diagnostic(
+                        severity="error",
+                        code="ParseError",
+                        message=f"Invalid record field `{raw_field.strip()}`.",
+                        target=f"{path}:{line}",
+                        repairs=["Use `field: Type` entries in record declarations."],
+                    )
+                )
+                continue
+            name, type_name = [piece.strip() for piece in raw_field.split(":", 1)]
+            if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", name):
+                diagnostics.append(
+                    Diagnostic(
+                        severity="error",
+                        code="ParseError",
+                        message=f"Invalid record field name `{name}`.",
+                        target=f"{path}:{line}",
+                    )
+                )
+                continue
+            fields.append(RecordField(name=name, type_name=type_name))
+    return (
+        TypeDecl(
+            name=header.group("name"),
+            module=module,
+            source_path=path,
+            line=line,
+            fields=fields,
+        ),
+        diagnostics,
+    )
 
 
 def _parse_function(path: str, module: str, line: int, header: re.Match, block: List[str]):

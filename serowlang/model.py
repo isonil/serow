@@ -14,6 +14,21 @@ class MigrationRecord:
     note: str
 
 
+@dataclass(frozen=True)
+class RecordField:
+    name: str
+    type_name: str
+
+
+@dataclass(frozen=True)
+class TypeDecl:
+    name: str
+    module: str
+    source_path: str
+    line: int
+    fields: List[RecordField]
+
+
 @dataclass
 class Function:
     name: str
@@ -52,13 +67,21 @@ class Function:
 class Module:
     name: str
     source_path: str
+    types: List[TypeDecl] = field(default_factory=list)
     functions: List[Function] = field(default_factory=list)
 
 
 @dataclass
 class Program:
     modules: Dict[str, Module] = field(default_factory=dict)
+    types: List[TypeDecl] = field(default_factory=list)
     functions: List[Function] = field(default_factory=list)
+
+    def add_type(self, type_decl: TypeDecl) -> None:
+        if type_decl.module not in self.modules:
+            self.modules[type_decl.module] = Module(type_decl.module, type_decl.source_path)
+        self.modules[type_decl.module].types.append(type_decl)
+        self.types.append(type_decl)
 
     def add_function(self, function: Function) -> None:
         if function.module not in self.modules:

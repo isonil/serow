@@ -107,6 +107,8 @@ class Evaluator:
                 continue
             if line.startswith("if "):
                 result = self._eval_if_statement(line, variables)
+                if result is not None:
+                    return result
                 index += 1
                 continue
 
@@ -119,19 +121,35 @@ class Evaluator:
         return result
 
     def _eval_if_statement(self, line: str, variables: Dict[str, Any]) -> Any:
-        condition, rest = _split_keyword(line[len("if ") :], "then")
-        true_expr, false_expr = _split_keyword(rest, "else")
+        then_index = _find_keyword(line, " then ")
+        else_index = _find_matching_else(line, then_index + len(" then ")) if then_index >= 0 else -1
+        if then_index < 0 or else_index < 0:
+            raise EvaluationError("If expressions must use `if <cond> then <value> else <value>`.")
+        condition = line[len("if ") : then_index].strip()
+        true_expr = line[then_index + len(" then ") : else_index].strip()
+        false_start = else_index + len("else")
+        if false_start < len(line) and line[false_start] == " ":
+            false_start += 1
+        false_expr = line[false_start:].strip()
         branch = true_expr if self.eval(condition, variables) is True else false_expr
         return self._eval_statement_fragment(branch, variables)
 
     def _eval_statement_fragment(self, fragment: str, variables: Dict[str, Any]) -> Any:
         fragment = fragment.strip()
+        if fragment.startswith("let "):
+            if not fragment.endswith(";"):
+                raise EvaluationError("Local `let` bindings must end with `;`.")
+            name, value_expr = _split_assignment(fragment[len("let ") : -1], "let")
+            variables[name] = self.eval(value_expr, variables)
+            return None
         if fragment.startswith("set "):
             name, value_expr = _split_assignment(fragment[len("set ") :], "set")
             if name not in variables:
                 raise EvaluationError(f"Unknown variable `{name}`.")
             variables[name] = self.eval(value_expr, variables)
             return None
+        if fragment.startswith("if "):
+            return self._eval_if_statement(fragment, variables)
         return self.eval(fragment, variables)
 
 
@@ -233,9 +251,29 @@ class SafeExpressionEvaluator(pyast.NodeVisitor):
     def visit_Call(self, node: pyast.Call) -> Any:
         if not isinstance(node.func, pyast.Name):
             raise EvaluationError("Only direct function calls are supported.")
+        if node.func.id == "__serow_record__":
+            if len(node.args) != 1 or not isinstance(node.args[0], pyast.Constant):
+                raise EvaluationError("Invalid record construction.")
+            return _record_value(
+                str(node.args[0].value),
+                {keyword.arg: self.visit(keyword.value) for keyword in node.keywords},
+            )
+        if node.func.id == "__serow_update__":
+            if len(node.args) != 1:
+                raise EvaluationError("Invalid record update.")
+            return _record_update(
+                self.visit(node.args[0]),
+                {keyword.arg: self.visit(keyword.value) for keyword in node.keywords},
+            )
         if node.keywords:
             raise EvaluationError("Keyword arguments are not supported.")
         return self.call_function(node.func.id, [self.visit(arg) for arg in node.args])
+
+    def visit_Attribute(self, node: pyast.Attribute) -> Any:
+        value = self.visit(node.value)
+        if isinstance(value, dict) and node.attr in value:
+            return value[node.attr]
+        raise EvaluationError(f"Record value has no field `{node.attr}`.")
 
     def generic_visit(self, node: pyast.AST) -> Any:
         raise EvaluationError(f"Unsupported expression node `{type(node).__name__}`.")
@@ -243,12 +281,114 @@ class SafeExpressionEvaluator(pyast.NodeVisitor):
 
 def translate_expr(expression: str) -> str:
     expr = expression.strip()
+    expr = _translate_record_syntax(expr)
     expr = _encode_qualified_calls(expr)
     expr = _translate_if(expr)
     expr = re.sub(r"\btrue\b", "True", expr)
     expr = re.sub(r"\bfalse\b", "False", expr)
     expr = re.sub(r"\bunit\b", "None", expr)
     return expr
+
+
+def _record_value(type_name: str, fields: Dict[str, Any]) -> Dict[str, Any]:
+    value = {"__type": type_name}
+    value.update(fields)
+    return value
+
+
+def _record_update(base: Any, fields: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(base, dict) or "__type" not in base:
+        raise EvaluationError("Record update base is not a record value.")
+    updated = dict(base)
+    updated.update(fields)
+    return updated
+
+
+def _translate_record_syntax(expression: str) -> str:
+    expr = expression
+    previous = None
+    while previous != expr:
+        previous = expr
+        expr = _translate_record_updates(expr)
+        expr = _translate_record_constructs(expr)
+    return expr
+
+
+def _translate_record_constructs(expression: str) -> str:
+    pattern = re.compile(r"\b([A-Z][A-Za-z0-9_]*)\s*\{([^{}]*)\}")
+
+    def replace(match):
+        return f'__serow_record__("{match.group(1)}", {_fields_to_keywords(match.group(2))})'
+
+    return pattern.sub(replace, expression)
+
+
+def _translate_record_updates(expression: str) -> str:
+    pattern = re.compile(
+        r"(?P<base>[A-Za-z_][A-Za-z0-9_]*(?:\([^(){}]*\)|(?:\.[A-Za-z_][A-Za-z0-9_]*)?))\s+with\s*\{(?P<fields>[^{}]*)\}"
+    )
+
+    def replace(match):
+        return f'__serow_update__({match.group("base")}, {_fields_to_keywords(match.group("fields"))})'
+
+    return pattern.sub(replace, expression)
+
+
+def _fields_to_keywords(fields_text: str) -> str:
+    keywords = []
+    for field in _split_top_level(fields_text, ","):
+        if not field.strip():
+            continue
+        name, value = _split_field(field)
+        keywords.append(f"{name}={value}")
+    return ", ".join(keywords)
+
+
+def _split_field(field: str):
+    parts = _split_top_level(field, ":")
+    if len(parts) != 2:
+        raise EvaluationError(f"Invalid record field `{field.strip()}`.")
+    name, value = parts[0].strip(), parts[1].strip()
+    if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", name):
+        raise EvaluationError(f"Invalid record field `{name}`.")
+    return name, value
+
+
+def _split_top_level(text: str, delimiter: str) -> List[str]:
+    parts = []
+    current = []
+    depth = 0
+    brace_depth = 0
+    in_string = False
+    escape = False
+    for char in text:
+        if escape:
+            current.append(char)
+            escape = False
+            continue
+        if char == "\\" and in_string:
+            current.append(char)
+            escape = True
+            continue
+        if char == '"':
+            in_string = not in_string
+        elif not in_string:
+            if char == "(":
+                depth += 1
+            elif char == ")":
+                depth -= 1
+            elif char == "{":
+                brace_depth += 1
+            elif char == "}":
+                brace_depth -= 1
+            elif char == delimiter and depth == 0 and brace_depth == 0:
+                parts.append("".join(current).strip())
+                current = []
+                continue
+        current.append(char)
+    if current:
+        parts.append("".join(current).strip())
+    return parts
 
 
 def _split_assignment(text: str, context: str):
@@ -271,7 +411,7 @@ def _split_keyword(text: str, keyword: str):
 
 def _find_closing_paren_line(lines: List[str], start: int, end: int) -> int:
     for index in range(start, end):
-        if lines[index] == ")":
+        if lines[index] in {")", ");"}:
             return index
     raise EvaluationError("Expected `)` to close while body.")
 
@@ -363,17 +503,21 @@ def _translate_if(expr: str) -> str:
     if not expr.startswith("if "):
         return expr
     then_index = _find_keyword(expr, " then ")
-    else_index = _find_keyword(expr, " else ")
+    else_index = _find_matching_else(expr, then_index + len(" then ")) if then_index >= 0 else -1
     if then_index < 0 or else_index < 0 or else_index < then_index:
         raise EvaluationError("If expressions must use `if <cond> then <value> else <value>`.")
     condition = expr[3:then_index].strip()
     true_expr = expr[then_index + len(" then ") : else_index].strip()
-    false_expr = expr[else_index + len(" else ") :].strip()
+    false_start = else_index + len("else")
+    if false_start < len(expr) and expr[false_start] == " ":
+        false_start += 1
+    false_expr = expr[false_start:].strip()
     return f"({_translate_if(true_expr)} if {_translate_if(condition)} else {_translate_if(false_expr)})"
 
 
 def _find_keyword(expr: str, keyword: str) -> int:
     depth = 0
+    brace_depth = 0
     in_string = False
     index = 0
     while index <= len(expr) - len(keyword):
@@ -385,7 +529,62 @@ def _find_keyword(expr: str, keyword: str) -> int:
                 depth += 1
             elif char == ")":
                 depth -= 1
-            elif depth == 0 and expr.startswith(keyword, index):
+            elif char == "{":
+                brace_depth += 1
+            elif char == "}":
+                brace_depth -= 1
+            elif depth == 0 and brace_depth == 0 and expr.startswith(keyword, index):
                 return index
         index += 1
     return -1
+
+
+def _find_matching_else(expr: str, start: int) -> int:
+    depth = 0
+    paren_depth = 0
+    brace_depth = 0
+    in_string = False
+    index = start
+    while index < len(expr):
+        char = expr[index]
+        if char == '"':
+            in_string = not in_string
+            index += 1
+            continue
+        if in_string:
+            index += 1
+            continue
+        if char == "(":
+            paren_depth += 1
+        elif char == ")":
+            paren_depth -= 1
+        elif char == "{":
+            brace_depth += 1
+        elif char == "}":
+            brace_depth -= 1
+        if paren_depth == 0 and brace_depth == 0:
+            token = _word_at(expr, index)
+            if token == "if":
+                depth += 1
+                index += len(token)
+                continue
+            if token == "else":
+                if depth == 0:
+                    return index
+                depth -= 1
+                index += len(token)
+                continue
+        index += 1
+    return -1
+
+
+def _word_at(expr: str, index: int):
+    if index > 0 and (expr[index - 1].isalnum() or expr[index - 1] == "_"):
+        return None
+    for word in ("if", "else"):
+        end = index + len(word)
+        if expr.startswith(word, index) and (
+            end == len(expr) or not (expr[end].isalnum() or expr[end] == "_")
+        ):
+            return word
+    return None
