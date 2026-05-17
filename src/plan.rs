@@ -1918,7 +1918,7 @@ fn property_coverage_hints(
             let mut unsupported_types = block
                 .variables
                 .iter()
-                .filter(|(_, type_name)| samples_for_type(type_name).is_none())
+                .filter(|(_, type_name)| samples_for_type(type_name, &program.types).is_none())
                 .map(|(_, type_name)| type_name.clone())
                 .collect::<Vec<_>>();
             unsupported_types.sort();
@@ -1927,7 +1927,7 @@ fn property_coverage_hints(
                 block
                     .variables
                     .iter()
-                    .filter_map(|(_, type_name)| samples_for_type(type_name))
+                    .filter_map(|(_, type_name)| samples_for_type(type_name, &program.types))
                     .map(|samples| samples.len())
                     .try_fold(1usize, |count, len| count.checked_mul(len))
                     .unwrap_or(usize::MAX)
@@ -1956,7 +1956,7 @@ fn property_fails_against_program(
     let sample_sets = property
         .variables
         .iter()
-        .map(|(_, type_name)| samples_for_type(type_name))
+        .map(|(_, type_name)| samples_for_type(type_name, &program.types))
         .collect::<Option<Vec<_>>>();
     let Some(sample_sets) = sample_sets else {
         return false;

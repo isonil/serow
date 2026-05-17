@@ -40,7 +40,7 @@ Selection policy for generic implementation prompts:
   - duplicate examples, executable examples that do not directly call the public function under test, duplicate contract clauses, duplicate sampled property blocks, duplicate migration acknowledgements, sampled properties with no bound variables, sampled properties that do not directly call the public function under test, and sampled properties with unsupported generator types as low-signal evidence warnings
   - ambiguous bare-call diagnostics with qualified-reference repair guidance and structured symbol lookup repair actions
   - unknown function static type errors with structured symbol lookup repair actions
-  - sampled `forall` properties over deterministic `Int`, `Bool`, `Text`, and singleton `Unit` sample sets
+  - sampled `forall` properties over deterministic `Int`, `Bool`, `Text`, singleton `Unit`, and bounded declared-record sample sets
   - deterministic sampled-property failure and evaluation-error replay data with property indexes, sample indexes, seed strings, sampled bindings, and single-sample replay repair actions
   - deterministic sampled-property shrink data for failing or erroring properties when a simpler same-outcome binding exists in the built-in samples
   - single-sample property replay via `bin/serow replay property <sample-seed> [paths...] [--json]`, including the same deterministic shrink hint fields as checker failures and evaluation errors when a simpler same-outcome binding exists
@@ -71,7 +71,7 @@ Selection policy for generic implementation prompts:
   - field access such as `player.hp`
   - clone-style copy update such as `player with { gold: player.gold + amount }`
   - static checking and evaluation for missing, unknown, duplicate, and wrongly typed record fields
-  - record values can be used in local `let`, local `set`, checked loops, contracts, examples, and sampled properties over built-in variables
+  - record values can be used in local `let`, local `set`, checked loops, contracts, examples, and sampled properties over bounded declared-record generators
 - Duplicate bare function names are allowed when call sites are qualified.
 - Semantic ledger queries:
   - `bin/serow query intent "<description>"` with deterministic token-ranked matching
@@ -1762,13 +1762,33 @@ bin/serow plan --json
 git diff --check
 ```
 
+Additional verification after adding declared-record sampled property generators:
+
+```sh
+bin/serow query intent "sample declared record values for forall properties" --json
+bin/serow query symbol "samples_for_type" --json
+bin/serow query symbol "PropertyNotExecutable" --json
+cargo fmt --check
+cargo test sampled_properties_support_declared_record_types -- --nocapture
+cargo clippy -- -D warnings
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+bin/serow agent --json
+git diff --check
+```
+
 ## Known Limits
 
 - This is not yet a full compiler; it is a parser/checker/ledger bootstrap with a first portable IR emitter and a narrow Rust source emitter.
 - Intent duplicate errors are exact after simple normalization; near-duplicate warnings and intent search use deterministic token ranking with stopwords and light token normalization. Duplicate and near-duplicate diagnostics expose token overlap/differences, but they are not semantic similarity yet.
 - Type checking covers the current expression subset but does not yet model user-defined data types, generics, or effect polymorphism.
 - Expression support is intentionally small: literals, variables, direct or qualified calls, arithmetic, comparisons, booleans, and one-line `if ... then ... else ...`.
-- Properties are sampled, not proven; built-in samples are fixed small sets for `Int`, `Bool`, `Text`, and singleton `Unit`. Failed or erroring sampled properties report replay data, include simpler shrunk same-outcome bindings when available, and can be rerun one sample at a time with `bin/serow replay property`.
+- Properties are sampled, not proven; built-in samples are fixed small sets for `Int`, `Bool`, `Text`, singleton `Unit`, and bounded declared-record values. Failed or erroring sampled properties report replay data, include simpler shrunk same-outcome bindings when available, and can be rerun one sample at a time with `bin/serow replay property`.
 - Effects checking is intentionally conservative direct-call capability subset validation; it warns on unused declared capabilities only when resolved non-self direct callees establish a required capability set, and it does not yet model effect polymorphism or external effect primitives beyond the compiler-owned terminal I/O intrinsics.
 - Structured patch coverage is intentionally narrow: module `use` insertion, public function skeleton insertion, public function rename with in-file resolved call rewrites, bare-call qualification to exact symbols, evidence insertion, indexed evidence removal, migration acknowledgement insertion/replacement/removal, indexed contract/example/property replacement, duplicate-intent-guarded intent replacement, effect declaration replacement, missing or existing implementation expression setting, version declaration and pinned-call-aware version bumps, and typed-hole filling are implemented.
 - Evidence patching can append or replace individual contract/example/property items, but dependent impact and evidence policy are still enforced by `serow plan` and unattended certification rather than by the patch command itself.

@@ -1660,6 +1660,115 @@ pub fn id(x: Int) -> Int
 }
 
 #[test]
+fn sampled_properties_support_declared_record_types() {
+    let dir = unique_temp_dir("serow-record-property-samples");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("record_property.serow");
+    fs::write(
+        &source,
+        r#"module test.property
+
+type Player = { hp: Int, gold: Int }
+
+pub fn heal(player: Player) -> Player
+  version v1
+  intent "Increase a player's hit points while preserving gold."
+  contract
+    ensures result.hp == player.hp + 1
+    ensures result.gold == player.gold
+  examples
+    heal(Player { hp: 4, gold: 2 }).hp == 5
+  properties
+    forall player: Player:
+      heal(player).hp == player.hp + 1 and heal(player).gold == player.gold
+  effects pure
+  impl
+    player with { hp: player.hp + 1 }
+"#,
+    )
+    .expect("write fixture");
+
+    let source_arg = source.to_string_lossy().to_string();
+    let (program, parse_diagnostics) = parse_paths(&[source_arg.clone()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(summary.ok(), "{:#?}", summary.diagnostics);
+    assert_eq!(summary.properties, 1);
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "PropertyNotExecutable"),
+        "{:#?}",
+        summary.diagnostics
+    );
+
+    let replay = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "replay",
+            "property",
+            "@test.property.heal.v1#property:1#sample:2",
+            &source_arg,
+            "--json",
+        ])
+        .output()
+        .expect("run property replay");
+    assert!(replay.status.success(), "{replay:#?}");
+    let replay_stdout = String::from_utf8(replay.stdout).expect("stdout is utf8");
+    assert!(
+        replay_stdout.contains("\"actual\": \"true\""),
+        "{replay_stdout}"
+    );
+    assert!(
+        replay_stdout.contains("player=Player { gold: -2, hp: -1 }"),
+        "{replay_stdout}"
+    );
+
+    let plan = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["plan", &source_arg, "--json"])
+        .output()
+        .expect("run plan");
+    assert!(plan.status.success(), "{plan:#?}");
+    let plan_stdout = String::from_utf8(plan.stdout).expect("stdout is utf8");
+    assert!(
+        plan_stdout.contains("\"sample_count\": 13"),
+        "{plan_stdout}"
+    );
+    assert!(
+        plan_stdout.contains("\"unsupported_types\": []"),
+        "{plan_stdout}"
+    );
+
+    let rust = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["compile", "rust", &source_arg])
+        .output()
+        .expect("run compile rust");
+    assert!(rust.status.success(), "{rust:#?}");
+    let generated_source = String::from_utf8(rust.stdout.clone()).expect("generated rust is utf8");
+    let generated = dir.join("generated.rs");
+    fs::write(&generated, &rust.stdout).expect("write generated rust");
+    assert!(
+        generated_source.contains(
+            "let serow_player = SerowTestPropertyPlayer { serow_gold: -2, serow_hp: -2 };"
+        ),
+        "{generated_source}"
+    );
+    let rustc_test_output = Command::new("rustc")
+        .arg("--test")
+        .arg(&generated)
+        .arg("-o")
+        .arg(dir.join("generated_tests"))
+        .output()
+        .expect("compile generated rust tests");
+    assert!(
+        rustc_test_output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&rustc_test_output.stdout),
+        String::from_utf8_lossy(&rustc_test_output.stderr)
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn property_replay_unsupported_type_has_indexed_repair_action() {
     let dir = unique_temp_dir("serow-replay-unsupported-property-type");
     fs::create_dir_all(&dir).expect("create temp dir");

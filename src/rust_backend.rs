@@ -474,7 +474,7 @@ fn render_function_tests(
     for property in &function.properties {
         let mut sample_sets = Vec::new();
         for variable in &property.variables {
-            let Some(samples) = samples_for_type(&variable.type_name) else {
+            let Some(samples) = samples_for_type(&variable.type_name, types) else {
                 return Err(vec![unsupported_type_diagnostic(
                     function,
                     &variable.type_name,
@@ -499,10 +499,9 @@ fn render_function_tests(
                     allocate_rust_identifier(&variable.name, &mut allocated_variables);
                 variables.insert(variable.name.clone(), rust_variable.clone());
                 variable_types.insert(variable.name.clone(), variable.type_name.clone());
-                bindings.push(format!(
-                    "        let {rust_variable} = {};",
-                    render_sample_value(value)
-                ));
+                let rendered_value = render_sample_value(value, type_names)
+                    .map_err(|message| vec![backend_error(function, message)])?;
+                bindings.push(format!("        let {rust_variable} = {};", rendered_value));
             }
             let rendered = render_expr(
                 &property.expression,
@@ -1319,15 +1318,29 @@ fn rust_string_literal(value: &str) -> String {
     escaped
 }
 
-fn render_sample_value(value: &Value) -> String {
+fn render_sample_value(
+    value: &Value,
+    type_names: &HashMap<String, String>,
+) -> Result<String, String> {
     match value {
-        Value::Int(value) => value.to_string(),
-        Value::Bool(value) => value.to_string(),
-        Value::Text(value) => format!("String::from({})", rust_string_literal(value)),
-        Value::Record { type_name, .. } => {
-            format!("/* unsupported sample record {type_name} */ unreachable!()")
+        Value::Int(value) => Ok(value.to_string()),
+        Value::Bool(value) => Ok(value.to_string()),
+        Value::Text(value) => Ok(format!("String::from({})", rust_string_literal(value))),
+        Value::Record { type_name, fields } => {
+            let rust_name = type_names.get(type_name).ok_or_else(|| {
+                format!("No generated Rust type for record sample `{type_name}`.")
+            })?;
+            let mut rendered_fields = Vec::new();
+            for (field, value) in fields {
+                rendered_fields.push(format!(
+                    "{}: {}",
+                    rust_field_identifier(field),
+                    render_sample_value(value, type_names)?
+                ));
+            }
+            Ok(format!("{rust_name} {{ {} }}", rendered_fields.join(", ")))
         }
-        Value::Unit => "()".to_string(),
+        Value::Unit => Ok("()".to_string()),
     }
 }
 

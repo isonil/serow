@@ -20,7 +20,7 @@ The current implementation is a bootstrap toolchain written in dependency-free R
 - typed-hole diagnostics with structured implementation obligations derived from signatures, contracts, examples, and sampled properties, plus type-shape lookup repair actions
 - duplicate public examples, executable examples that do not call the function under test, contract clauses, sampled property blocks, sampled properties with no bound variables, sampled properties that do not call the function under test, and sampled properties with unsupported generator types reported as low-signal evidence warnings, with indexed removal repair actions where available
 - duplicate migration acknowledgements reported as warnings with indexed removal repair actions
-- sampled properties over built-in `Int`, `Bool`, `Text`, and singleton `Unit` sample sets, with deterministic sample indexes, seed strings, bindings, simpler shrunk failing or erroring bindings when available, and a single-sample replay command for failures
+- sampled properties over built-in `Int`, `Bool`, `Text`, singleton `Unit`, and bounded declared-record sample sets, with deterministic sample indexes, seed strings, bindings, simpler shrunk failing or erroring bindings when available, and a single-sample replay command for failures
 - structured JSON diagnostics with machine-readable repair actions where available
 - a semantic ledger for agent queries, including token-ranked intent search, direct callees, direct dependents, and transitive impact paths
 - type-shape ledger lookup for finding public functions by parameter and return types
@@ -158,7 +158,7 @@ bin/serow query impact @core.math.add.v1
 
 `query type` accepts exact bootstrap type shapes such as `Int, Int -> Int`, wildcard shapes such as `_ -> Int`, simple type-token queries such as `Text`, and declared record type names that appear in public signatures.
 
-Replay a failing sampled property from a diagnostic seed. Built-in property samples currently include `Int` values `-2, -1, 0, 1, 2, -10, 10`, both `Bool` values, representative `Text` values including empty, short, spaced, and numeric-looking strings, and the singleton `Unit` value. Failed replay diagnostics include shrink hint fields when a simpler failing or erroring sampled binding exists. Non-executable replay diagnostics include indexed `patch remove-property` repair actions.
+Replay a failing sampled property from a diagnostic seed. Built-in property samples currently include `Int` values `-2, -1, 0, 1, 2, -10, 10`, both `Bool` values, representative `Text` values including empty, short, spaced, and numeric-looking strings, the singleton `Unit` value, and bounded declared-record samples built from those values. Failed replay diagnostics include shrink hint fields when a simpler failing or erroring sampled binding exists. Non-executable replay diagnostics include indexed `patch remove-property` repair actions.
 
 ```sh
 bin/serow replay property "@core.math.add.v1#property:1#sample:1" examples/math.serow --json

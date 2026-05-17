@@ -1,9 +1,17 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use crate::eval::{Evaluator, Value};
 use crate::model::{Function, TypeDecl};
 
-pub(crate) fn samples_for_type(type_name: &str) -> Option<Vec<Value>> {
+pub(crate) fn samples_for_type(type_name: &str, types: &[TypeDecl]) -> Option<Vec<Value>> {
+    samples_for_type_inner(type_name, types, &mut Vec::new())
+}
+
+fn samples_for_type_inner(
+    type_name: &str,
+    types: &[TypeDecl],
+    active_records: &mut Vec<String>,
+) -> Option<Vec<Value>> {
     match type_name {
         "Int" => Some(vec![
             Value::Int(-2),
@@ -23,8 +31,55 @@ pub(crate) fn samples_for_type(type_name: &str) -> Option<Vec<Value>> {
             Value::Text("123".to_string()),
         ]),
         "Unit" => Some(vec![Value::Unit]),
-        _ => None,
+        _ => record_samples_for_type(type_name, types, active_records),
     }
+}
+
+fn record_samples_for_type(
+    type_name: &str,
+    types: &[TypeDecl],
+    active_records: &mut Vec<String>,
+) -> Option<Vec<Value>> {
+    if active_records.iter().any(|active| active == type_name) {
+        return None;
+    }
+    let type_decl = types.iter().find(|declared| declared.name == type_name)?;
+    active_records.push(type_name.to_string());
+
+    let mut field_samples = Vec::<(String, Vec<Value>)>::new();
+    for field in &type_decl.fields {
+        let samples = samples_for_type_inner(&field.type_name, types, active_records)?;
+        if samples.is_empty() {
+            active_records.pop();
+            return None;
+        }
+        field_samples.push((field.name.clone(), samples));
+    }
+    active_records.pop();
+
+    let mut default_fields = BTreeMap::new();
+    for (name, samples) in &field_samples {
+        default_fields.insert(name.clone(), samples[0].clone());
+    }
+
+    let mut records = vec![Value::Record {
+        type_name: type_name.to_string(),
+        fields: default_fields.clone(),
+    }];
+    for (name, samples) in &field_samples {
+        for sample in samples.iter().skip(1) {
+            let mut fields = default_fields.clone();
+            fields.insert(name.clone(), sample.clone());
+            let record = Value::Record {
+                type_name: type_name.to_string(),
+                fields,
+            };
+            if !records.contains(&record) {
+                records.push(record);
+            }
+        }
+    }
+    Some(records)
 }
 
 pub(crate) fn cartesian_product(sample_sets: &[Vec<Value>]) -> Vec<Vec<Value>> {

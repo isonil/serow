@@ -3210,7 +3210,7 @@ fn agent_json() -> String {
             "bin/serow plan --json"
         ]),
         str_array_json(&[
-            "Properties are sampled, not proven; replay uses deterministic seeds.",
+            "Properties are sampled, not proven; replay uses deterministic seeds for built-in and bounded declared-record samples.",
             "Intent search is deterministic token ranking, not semantic embeddings.",
             "Rust backend emission supports pure Int/Bool/Text/Unit functions, declared records, and terminal io intrinsics, emits runtime asserts for Serow requires and ensures clauses, emits Rust tests for pure Serow examples and deterministic sampled properties, and records Serow type, source, and evidence metadata in generated Cargo manifests.",
             "Expression support is intentionally small and formatting does not preserve comments.",
@@ -3246,7 +3246,7 @@ fn agent_diagnostics_json() -> String {
         "{\n",
         "  \"ok\": true,\n",
         "  \"diagnostic_json\": {\"repairs\": \"legacy human-readable repair strings\", \"repair_actions\": \"machine-readable command actions when available\", \"missing_sections\": \"MissingRequiredSection diagnostics include safe set-effects/set-impl patch command actions when those non-evidence sections are absent\", \"typed_holes\": \"TypedHole diagnostics include symbol, signature, hole_type, expected_type, obligations data, and a query type command action for the declared signature shape\", \"unknown_function_type_errors\": \"TypeError diagnostics for unknown function calls include the missing function name and a query symbol command action\", \"architecture\": \"MissingModuleDependency and declared ArchitectureViolation diagnostics include add-use or remove-use patch command actions when the repair is exact\", \"ambiguous_calls\": \"AmbiguousUnqualifiedCall diagnostics include candidate symbols and a query symbol command action\", \"intent_reuse\": \"PossibleDuplicate and NearDuplicateIntent include shared_terms, new_only_terms, and candidate_only_terms data\", \"duplicate_evidence\": \"Duplicate evidence diagnostics include indexed remove-evidence patch command actions\", \"duplicate_migrations\": \"DuplicateMigration includes indexed remove-migration patch command actions\", \"low_signal_examples\": \"ShallowExample includes indexed remove-example patch command actions\", \"low_signal_properties\": \"VacuousProperty, ShallowProperty, and PropertyNotExecutable include indexed remove-property patch command actions\", \"property_replay\": \"PropertyFailed and PropertyEvaluationError include property_index, sample_index, sample_seed, bindings, and a replay command action; replayed PropertyNotExecutable diagnostics include indexed remove-property repair actions\", \"property_shrinking\": \"PropertyFailed and PropertyEvaluationError include shrunk_sample_index, shrunk_sample_seed, and shrunk_bindings when a simpler failing or erroring sampled binding is found\"},\n",
-        "  \"plan_json\": {\"semantic_changes\": \"changed symbols include deterministic labels with acknowledgement state and details for public deltas\", \"removed_symbols\": \"changed tracked files include removed public canonical symbols and same-name replacement candidates\", \"property_coverage\": \"changed symbols include sampled-property sample counts, direct-call flags, vacuous flags, and unsupported generator types\", \"intent_implementation_risks\": \"changed symbols include advisory lexical arithmetic intent/implementation mismatch risks\", \"stale_migrations\": \"changed symbols include indexed migration acknowledgements that no current unattended gate requires\"}\n",
+        "  \"plan_json\": {\"semantic_changes\": \"changed symbols include deterministic labels with acknowledgement state and details for public deltas\", \"removed_symbols\": \"changed tracked files include removed public canonical symbols and same-name replacement candidates\", \"property_coverage\": \"changed symbols include sampled-property sample counts, direct-call flags, vacuous flags, and unsupported generator types after built-in and bounded declared-record sampling\", \"intent_implementation_risks\": \"changed symbols include advisory lexical arithmetic intent/implementation mismatch risks\", \"stale_migrations\": \"changed symbols include indexed migration acknowledgements that no current unattended gate requires\"}\n",
         "}"
     )
     .to_string()
@@ -3417,7 +3417,7 @@ fn print_agent_bootstrap() {
     println!("  bin/serow certify --profile unattended --json");
     println!("  bin/serow plan --json");
     println!("known limits:");
-    println!("  properties are sampled, not proven");
+    println!("  properties are sampled, not proven; declared-record samples are bounded");
     println!("  intent search is token-ranked, not semantic embeddings");
     println!(
         "  Rust backend emission supports pure Int/Bool/Text/Unit functions, declared records, and terminal io intrinsics"
@@ -3461,7 +3461,7 @@ fn print_agent_diagnostics() {
     );
     println!("  typed holes report symbol, expected type, and implementation obligations");
     println!(
-        "  built-in property samples cover boundary and representative Int, Bool, and Text values"
+        "  property samples cover boundary and representative Int, Bool, Text, Unit, and bounded declared-record values"
     );
     println!("  unattended certification validates structured repair action commands");
     println!("plan json:");

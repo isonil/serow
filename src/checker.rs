@@ -1537,14 +1537,14 @@ fn check_property(
     let samples = property
         .variables
         .iter()
-        .map(|(_, type_name)| samples_for_type(type_name))
+        .map(|(_, type_name)| samples_for_type(type_name, &program.types))
         .collect::<Vec<_>>();
     if samples.iter().any(Option::is_none) {
         let mut unsupported_types = property
             .variables
             .iter()
             .filter_map(|(_, type_name)| {
-                samples_for_type(type_name)
+                samples_for_type(type_name, &program.types)
                     .is_none()
                     .then_some(type_name.clone())
             })

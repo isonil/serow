@@ -107,14 +107,14 @@ pub fn replay_property(program: &Program, sample_seed: &str) -> PropertyReplaySu
     let sample_sets = property
         .variables
         .iter()
-        .map(|(_, type_name)| samples_for_type(type_name))
+        .map(|(_, type_name)| samples_for_type(type_name, &program.types))
         .collect::<Vec<_>>();
     if sample_sets.iter().any(Option::is_none) {
         let mut unsupported_types = property
             .variables
             .iter()
             .filter_map(|(_, type_name)| {
-                samples_for_type(type_name)
+                samples_for_type(type_name, &program.types)
                     .is_none()
                     .then_some(type_name.clone())
             })

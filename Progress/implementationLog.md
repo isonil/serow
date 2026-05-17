@@ -2,6 +2,11 @@
 
 ## 2026-05-17
 
+- Chose declared-record property sampling as the next cross-phase language/backend slice because record state is now central to Serow examples but sampled `forall` evidence could not quantify over declared record types.
+- Made deterministic property sampling program-aware: declared record types now receive bounded samples consisting of a default record plus one-field-at-a-time variants from deterministic field samples, while recursive record sample cycles remain unsupported.
+- Updated checker execution, single-sample property replay, plan property coverage, shrinking, HEAD-sensitivity analysis, and generated Rust property tests to use the same declared-record sample sets.
+- Added regression coverage proving record-typed properties are checkable, replayable, reported with correct plan sample counts, and emitted as compilable Rust tests.
+- Updated README, agent bootstrap text, `serow.project`, and Progress docs to document bounded declared-record property samples.
 - Chose the first ownership-friendly Rust record-state lowering slice because records and loops are now central to terminal programs, but generated field reads and same-variable record updates still cloned more state than necessary.
 - Updated the Rust backend so direct field reads from local record variables access the field without cloning the whole record, and `set state = state with { ... }` lowers to in-place field assignments after evaluating update values.
 - Added regression coverage for generated record Rust and the RPG terminal loop to verify direct field reads, in-place state updates, old-value swap semantics, generated Rust compilation, and generated evidence execution.
