@@ -2,6 +2,10 @@
 
 ## 2026-05-17
 
+- Chose generated Rust input traceability as the next backend metadata slice because generated crates recorded the generated `src/lib.rs` fingerprint but not the exact Serow source inputs used to produce the artifact.
+- Added a deterministic FNV-1a input fingerprint over discovered `.serow` source paths and bytes, exposed it in `compile rust --json`, and recorded it as `package.metadata.serow.input_fingerprint` in generated Cargo manifests.
+- Updated README, agent bootstrap known limits, `serow.project`, and Progress docs to advertise Serow input fingerprint metadata.
+- Verified with `bin/serow query intent "record Serow source input fingerprint in generated Rust backend artifacts" --json`, `bin/serow query symbol "input_fingerprint" --json`, `cargo fmt --check`, `cargo test compile_rust_out_dir_writes_crate_layout -- --nocapture`, `cargo test compile_rust -- --nocapture`, `bin/serow compile rust examples/math.serow --out-dir /tmp/serow-fingerprint-check --crate-name serow_fingerprint_check --json`, `cargo clippy -- -D warnings`, `python3 -m unittest discover -s tests`, `cargo test`, `bin/serow fmt --check --json`, `bin/serow check --json`, `bin/serow agent --json`, `bin/serow certify --json`, `bin/serow certify --profile unattended --json`, `bin/serow plan --json`, and `git diff --check`.
 - Chose ownership-aware final record-update lowering as the next backend slice because `World -> World` style functions still cloned whole records in final return position even when generated postcondition checks no longer needed the original base value.
 - Updated the Rust backend to detect top-level function bodies shaped as `record with { ... }`, evaluate update values before moving the base, and emit Rust struct update syntax with `..base` instead of `..base.clone()` when no lowered postcondition references the original base variable.
 - Added regression coverage proving the backend keeps clone-based lowering when postconditions still inspect the original input, while moving the base record for fixed-output final updates.

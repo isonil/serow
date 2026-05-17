@@ -7790,8 +7790,13 @@ fn compile_rust_out_dir_writes_crate_layout() {
         .expect("run compile rust --out-dir");
     assert!(output.status.success(), "{output:#?}");
     let stdout = String::from_utf8_lossy(&output.stdout);
+    let input_fingerprint = stable_test_input_fingerprint(&[PathBuf::from("examples/math.serow")]);
     assert!(
         stdout.contains("\"crate_name\": \"serow_math_generated\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains(&format!("\"input_fingerprint\": \"{input_fingerprint}\"")),
         "{stdout}"
     );
     assert!(stdout.contains("\"written_files\": ["), "{stdout}");
@@ -7814,6 +7819,10 @@ fn compile_rust_out_dir_writes_crate_layout() {
     );
     assert!(
         manifest.contains("ir_version = \"serow.ir.v0\""),
+        "{manifest}"
+    );
+    assert!(
+        manifest.contains(&format!("input_fingerprint = \"{input_fingerprint}\"")),
         "{manifest}"
     );
     assert!(manifest.contains("generated_types = 0"), "{manifest}");
@@ -8505,6 +8514,28 @@ fn stable_test_source_fingerprint(source: &str) -> String {
         hash = hash.wrapping_mul(0x100000001b3);
     }
     format!("fnv1a64:{hash:016x}")
+}
+
+fn stable_test_input_fingerprint(paths: &[PathBuf]) -> String {
+    let mut hash = 0xcbf29ce484222325u64;
+    for path in paths {
+        let path_text = path.to_string_lossy();
+        for byte in path_text.as_bytes() {
+            update_test_fnv1a64(&mut hash, *byte);
+        }
+        update_test_fnv1a64(&mut hash, 0);
+        let bytes = fs::read(path).expect("read input source for fingerprint");
+        for byte in bytes {
+            update_test_fnv1a64(&mut hash, byte);
+        }
+        update_test_fnv1a64(&mut hash, 0);
+    }
+    format!("fnv1a64:{hash:016x}")
+}
+
+fn update_test_fnv1a64(hash: &mut u64, byte: u8) {
+    *hash ^= u64::from(byte);
+    *hash = hash.wrapping_mul(0x100000001b3);
 }
 
 fn git(dir: &PathBuf, args: &[&str]) {
