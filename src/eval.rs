@@ -1,7 +1,7 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use crate::intrinsics::{PRINT_SYMBOL, READ_LINE_SYMBOL, intrinsic_functions};
-use crate::model::Function;
+use crate::model::{Function, TypeDecl};
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct CallReference {
@@ -50,6 +50,10 @@ pub enum Value {
     Int(i64),
     Bool(bool),
     Text(String),
+    Record {
+        type_name: String,
+        fields: BTreeMap<String, Value>,
+    },
     Unit,
 }
 
@@ -59,6 +63,14 @@ impl std::fmt::Display for Value {
             Value::Int(value) => write!(formatter, "{value}"),
             Value::Bool(value) => write!(formatter, "{value}"),
             Value::Text(value) => write!(formatter, "{value:?}"),
+            Value::Record { type_name, fields } => {
+                let fields = fields
+                    .iter()
+                    .map(|(name, value)| format!("{name}: {value}"))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                write!(formatter, "{type_name} {{ {fields} }}")
+            }
             Value::Unit => write!(formatter, "unit"),
         }
     }
@@ -73,15 +85,17 @@ pub struct CallResult {
 #[derive(Clone, Debug)]
 pub struct Evaluator {
     functions: Vec<Function>,
+    types: Vec<TypeDecl>,
     call_depth: usize,
 }
 
 const WHILE_EVALUATION_LIMIT: usize = 10_000;
 
 impl Evaluator {
-    pub fn new(functions: &[Function]) -> Self {
+    pub fn new(functions: &[Function], types: &[TypeDecl]) -> Self {
         Self {
             functions: functions.to_vec(),
+            types: types.to_vec(),
             call_depth: 0,
         }
     }
@@ -168,6 +182,7 @@ pub(crate) enum Token {
     Set,
     While,
     Do,
+    With,
     And,
     Or,
     Not,
@@ -186,7 +201,11 @@ pub(crate) enum Token {
     Semicolon,
     LParen,
     RParen,
+    LBrace,
+    RBrace,
     Comma,
+    Colon,
+    Dot,
 }
 
 pub(crate) fn tokenize(expression: &str) -> Result<Vec<Token>, String> {
@@ -256,16 +275,11 @@ pub(crate) fn tokenize(expression: &str) -> Result<Vec<Token>, String> {
             let start = index;
             index += 1;
             while index < chars.len()
-                && (chars[index].is_ascii_alphanumeric()
-                    || chars[index] == '_'
-                    || chars[index] == '.')
+                && (chars[index].is_ascii_alphanumeric() || chars[index] == '_')
             {
                 index += 1;
             }
             let ident = &expression[start..index];
-            if ident.ends_with('.') {
-                return Err(format!("Invalid qualified identifier `{ident}`."));
-            }
             tokens.push(match ident {
                 "true" => Token::True,
                 "false" => Token::False,
@@ -276,6 +290,7 @@ pub(crate) fn tokenize(expression: &str) -> Result<Vec<Token>, String> {
                 "set" => Token::Set,
                 "while" => Token::While,
                 "do" => Token::Do,
+                "with" => Token::With,
                 "and" => Token::And,
                 "or" => Token::Or,
                 "not" => Token::Not,
@@ -291,7 +306,11 @@ pub(crate) fn tokenize(expression: &str) -> Result<Vec<Token>, String> {
             '%' => Token::Percent,
             '(' => Token::LParen,
             ')' => Token::RParen,
+            '{' => Token::LBrace,
+            '}' => Token::RBrace,
             ',' => Token::Comma,
+            ':' => Token::Colon,
+            '.' => Token::Dot,
             ';' => Token::Semicolon,
             '/' if chars.get(index + 1) == Some(&'/') => {
                 index += 1;
@@ -328,12 +347,29 @@ pub fn called_functions(expression: &str) -> Result<Vec<CallReference>, String> 
     let mut calls = Vec::new();
     for line in expression.lines() {
         let tokens = tokenize(line)?;
-        for window in tokens.windows(2) {
-            if let [Token::Ident(name), Token::LParen] = window
-                && !calls.iter().any(|call: &CallReference| call.raw == *name)
+        let mut index = 0;
+        while index < tokens.len() {
+            let Some(Token::Ident(first)) = tokens.get(index) else {
+                index += 1;
+                continue;
+            };
+            let mut name = first.clone();
+            let mut next = index + 1;
+            while matches!(tokens.get(next), Some(Token::Dot))
+                && matches!(tokens.get(next + 1), Some(Token::Ident(_)))
             {
-                calls.push(CallReference::parse(name));
+                if let Some(Token::Ident(part)) = tokens.get(next + 1) {
+                    name.push('.');
+                    name.push_str(part);
+                }
+                next += 2;
             }
+            if matches!(tokens.get(next), Some(Token::LParen))
+                && !calls.iter().any(|call: &CallReference| call.raw == name)
+            {
+                calls.push(CallReference::parse(&name));
+            }
+            index = next + 1;
         }
     }
     Ok(calls)
@@ -662,7 +698,23 @@ impl<'a> ExprParser<'a> {
         if self.consume(&Token::Not) {
             return Ok(Value::Bool(!as_bool(self.parse_unary()?)?));
         }
-        self.parse_primary()
+        self.parse_postfix()
+    }
+
+    fn parse_postfix(&mut self) -> Result<Value, String> {
+        let mut value = self.parse_primary()?;
+        loop {
+            if self.consume(&Token::Dot) {
+                let field = self.expect_ident()?;
+                value = record_field(value, &field)?;
+                continue;
+            }
+            if self.consume(&Token::With) {
+                value = self.parse_record_update(value)?;
+                continue;
+            }
+            return Ok(value);
+        }
     }
 
     fn parse_primary(&mut self) -> Result<Value, String> {
@@ -692,6 +744,8 @@ impl<'a> ExprParser<'a> {
             }
             Token::Ident(name) => {
                 self.index += 1;
+                let parts = self.parse_name_parts(name)?;
+                let name = parts.join(".");
                 if self.consume(&Token::LParen) {
                     let mut args = Vec::new();
                     if !self.consume(&Token::RParen) {
@@ -705,10 +759,23 @@ impl<'a> ExprParser<'a> {
                     }
                     return self.evaluator.call(&name, args).map(|result| result.value);
                 }
-                self.variables
-                    .get(&name)
+                if self.consume(&Token::LBrace) {
+                    if parts.len() != 1 {
+                        return Err(format!(
+                            "Record construction requires an unqualified type name, got `{name}`."
+                        ));
+                    }
+                    return self.parse_record_construct(&name);
+                }
+                let mut value = self
+                    .variables
+                    .get(&parts[0])
                     .cloned()
-                    .ok_or_else(|| format!("Unknown variable `{name}`."))
+                    .ok_or_else(|| format!("Unknown variable `{}`.", parts[0]))?;
+                for field in parts.iter().skip(1) {
+                    value = record_field(value, field)?;
+                }
+                Ok(value)
             }
             Token::LParen => {
                 self.index += 1;
@@ -718,6 +785,115 @@ impl<'a> ExprParser<'a> {
             }
             _ => Err(format!("Unexpected token {:?}.", token)),
         }
+    }
+
+    fn parse_name_parts(&mut self, first: String) -> Result<Vec<String>, String> {
+        let mut parts = vec![first];
+        while self.consume(&Token::Dot) {
+            parts.push(self.expect_ident()?);
+        }
+        Ok(parts)
+    }
+
+    fn parse_record_construct(&mut self, type_name: &str) -> Result<Value, String> {
+        let type_decl = record_type(type_name, &self.evaluator.types)?.clone();
+        let mut fields = BTreeMap::new();
+        if !self.consume(&Token::RBrace) {
+            loop {
+                let field = self.expect_ident()?;
+                self.expect(&Token::Colon)?;
+                if fields.contains_key(&field) {
+                    return Err(format!("Record `{type_name}` repeats field `{field}`."));
+                }
+                let Some(declared) = type_decl
+                    .fields
+                    .iter()
+                    .find(|declared| declared.name == field)
+                else {
+                    return Err(format!("Record `{type_name}` has unknown field `{field}`."));
+                };
+                let value = self.parse_expression()?;
+                let actual = value_type_name(&value);
+                if actual != declared.type_name {
+                    return Err(format!(
+                        "Record `{type_name}` field `{field}` expected {}, got {actual}.",
+                        declared.type_name
+                    ));
+                }
+                fields.insert(field, value);
+                if self.consume(&Token::RBrace) {
+                    break;
+                }
+                self.expect(&Token::Comma)?;
+            }
+        }
+        for declared in &type_decl.fields {
+            if !fields.contains_key(&declared.name) {
+                return Err(format!(
+                    "Record `{type_name}` is missing field `{}`.",
+                    declared.name
+                ));
+            }
+        }
+        for field in fields.keys() {
+            if !type_decl
+                .fields
+                .iter()
+                .any(|declared| declared.name == *field)
+            {
+                return Err(format!("Record `{type_name}` has unknown field `{field}`."));
+            }
+        }
+        Ok(Value::Record {
+            type_name: type_name.to_string(),
+            fields,
+        })
+    }
+
+    fn parse_record_update(&mut self, base: Value) -> Result<Value, String> {
+        let Value::Record {
+            type_name,
+            mut fields,
+        } = base
+        else {
+            return Err(format!(
+                "Record update requires a record value, got {base}."
+            ));
+        };
+        let type_decl = record_type(&type_name, &self.evaluator.types)?.clone();
+        self.expect(&Token::LBrace)?;
+        if !self.consume(&Token::RBrace) {
+            loop {
+                let field = self.expect_ident()?;
+                if !type_decl
+                    .fields
+                    .iter()
+                    .any(|declared| declared.name == field)
+                {
+                    return Err(format!("Record `{type_name}` has unknown field `{field}`."));
+                }
+                self.expect(&Token::Colon)?;
+                let value = self.parse_expression()?;
+                let declared = type_decl
+                    .fields
+                    .iter()
+                    .find(|declared| declared.name == field)
+                    .expect("field existence checked above");
+                let actual = value_type_name(&value);
+                if actual != declared.type_name {
+                    return Err(format!(
+                        "Record `{type_name}` update field `{field}` expected {}, got {actual}.",
+                        declared.type_name
+                    ));
+                }
+                fields.insert(field, value);
+                if self.consume(&Token::RBrace) {
+                    break;
+                }
+                self.expect(&Token::Comma)?;
+            }
+        }
+        Ok(Value::Record { type_name, fields })
     }
 
     fn expect_end(&self) -> Result<(), String> {
@@ -792,21 +968,49 @@ fn as_bool(value: Value) -> Result<bool, String> {
 }
 
 fn same_value_type(left: &Value, right: &Value) -> bool {
-    matches!(
-        (left, right),
+    match (left, right) {
         (Value::Int(_), Value::Int(_))
-            | (Value::Bool(_), Value::Bool(_))
-            | (Value::Text(_), Value::Text(_))
-            | (Value::Unit, Value::Unit)
-    )
+        | (Value::Bool(_), Value::Bool(_))
+        | (Value::Text(_), Value::Text(_))
+        | (Value::Unit, Value::Unit) => true,
+        (
+            Value::Record {
+                type_name: left, ..
+            },
+            Value::Record {
+                type_name: right, ..
+            },
+        ) => left == right,
+        _ => false,
+    }
 }
 
-fn value_type_name(value: &Value) -> &'static str {
+fn value_type_name(value: &Value) -> String {
     match value {
-        Value::Int(_) => "Int",
-        Value::Bool(_) => "Bool",
-        Value::Text(_) => "Text",
-        Value::Unit => "Unit",
+        Value::Int(_) => "Int".to_string(),
+        Value::Bool(_) => "Bool".to_string(),
+        Value::Text(_) => "Text".to_string(),
+        Value::Record { type_name, .. } => type_name.clone(),
+        Value::Unit => "Unit".to_string(),
+    }
+}
+
+fn record_type<'a>(type_name: &str, types: &'a [TypeDecl]) -> Result<&'a TypeDecl, String> {
+    types
+        .iter()
+        .find(|type_decl| type_decl.name == type_name)
+        .ok_or_else(|| format!("Unknown record type `{type_name}`."))
+}
+
+fn record_field(value: Value, field: &str) -> Result<Value, String> {
+    match value {
+        Value::Record { type_name, fields } => fields
+            .get(field)
+            .cloned()
+            .ok_or_else(|| format!("Record `{type_name}` has no field `{field}`.")),
+        other => Err(format!(
+            "Field access `.{field}` requires a record, got {other}."
+        )),
     }
 }
 

@@ -5,6 +5,31 @@ pub struct Param {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecordField {
+    pub name: String,
+    pub type_name: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TypeDecl {
+    pub name: String,
+    pub module: String,
+    pub source_path: String,
+    pub line: usize,
+    pub fields: Vec<RecordField>,
+}
+
+impl TypeDecl {
+    pub fn symbol(&self) -> String {
+        format!("@{}.{}", self.module, self.name)
+    }
+
+    pub fn target(&self) -> String {
+        format!("{}:{}:{}", self.source_path, self.line, self.name)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Function {
     pub name: String,
     pub module: String,
@@ -73,12 +98,14 @@ pub struct Module {
     pub name: String,
     pub source_path: String,
     pub dependencies: Vec<ModuleDependency>,
+    pub types: Vec<TypeDecl>,
     pub functions: Vec<Function>,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Program {
     pub modules: Vec<Module>,
+    pub types: Vec<TypeDecl>,
     pub functions: Vec<Function>,
 }
 
@@ -104,6 +131,12 @@ impl Program {
         self.functions.push(function);
     }
 
+    pub fn add_type(&mut self, type_decl: TypeDecl) {
+        let module = self.ensure_module(&type_decl.module, &type_decl.source_path);
+        module.types.push(type_decl.clone());
+        self.types.push(type_decl);
+    }
+
     fn ensure_module(&mut self, name: &str, source_path: &str) -> &mut Module {
         if let Some(index) = self.modules.iter().position(|module| module.name == name) {
             return &mut self.modules[index];
@@ -112,6 +145,7 @@ impl Program {
             name: name.to_string(),
             source_path: source_path.to_string(),
             dependencies: Vec::new(),
+            types: Vec::new(),
             functions: Vec::new(),
         });
         self.modules

@@ -50,11 +50,12 @@ pub fn check_program(program: &Program, parse_diagnostics: Vec<Diagnostic>) -> C
         ..CheckSummary::default()
     };
     check_module_dependencies(program, &mut summary);
+    check_type_declarations(program, &mut summary);
     check_duplicate_symbols(program, &mut summary);
     check_ambiguous_unqualified_calls(program, &mut summary);
     check_duplicate_intents(program, &mut summary);
     for function in &program.functions {
-        check_function_shape(function, &mut summary);
+        check_function_shape(function, program, &mut summary);
         check_repeated_evidence(function, &mut summary);
         check_repeated_migrations(function, &mut summary);
     }
@@ -70,6 +71,49 @@ pub fn check_program(program: &Program, parse_diagnostics: Vec<Diagnostic>) -> C
         check_executable_evidence(function, program, &mut summary);
     }
     summary
+}
+
+fn check_type_declarations(program: &Program, summary: &mut CheckSummary) {
+    let mut seen = HashMap::<String, String>::new();
+    for type_decl in &program.types {
+        if let Some(first) = seen.get(&type_decl.name) {
+            summary.diagnostics.push(
+                Diagnostic::error(
+                    "DuplicateType",
+                    format!("Duplicate type declaration `{}`.", type_decl.name),
+                    Some(type_decl.target()),
+                )
+                .with_data("first", first.clone())
+                .with_repair("Rename one type or keep type names unique during the bootstrap."),
+            );
+        } else {
+            seen.insert(type_decl.name.clone(), type_decl.target());
+        }
+
+        let mut fields = HashSet::<String>::new();
+        for field in &type_decl.fields {
+            if !fields.insert(field.name.clone()) {
+                summary.diagnostics.push(Diagnostic::error(
+                    "DuplicateRecordField",
+                    format!(
+                        "Type `{}` declares duplicate field `{}`.",
+                        type_decl.name, field.name
+                    ),
+                    Some(type_decl.target()),
+                ));
+            }
+            if !is_known_type(&field.type_name, program) {
+                summary.diagnostics.push(Diagnostic::warning(
+                    "UnknownType",
+                    format!(
+                        "Field `{}` on type `{}` uses type `{}`, which is not executable in the bootstrap checker.",
+                        field.name, type_decl.name, field.type_name
+                    ),
+                    Some(type_decl.target()),
+                ));
+            }
+        }
+    }
 }
 
 pub fn enforce_unattended_profile(program: &Program, summary: &mut CheckSummary) {
@@ -434,6 +478,7 @@ fn check_duplicate_intents(program: &Program, summary: &mut CheckSummary) {
         } else {
             let seen_program = Program {
                 modules: Vec::new(),
+                types: program.types.clone(),
                 functions: seen_functions.clone(),
             };
             for candidate in query_intent(&seen_program, intent, 3) {
@@ -548,7 +593,7 @@ fn normalize_intent(intent: &str) -> String {
     exact_intent_key(intent)
 }
 
-fn check_function_shape(function: &Function, summary: &mut CheckSummary) {
+fn check_function_shape(function: &Function, program: &Program, summary: &mut CheckSummary) {
     if let Some(implementation) = function
         .implementation
         .as_deref()
@@ -654,7 +699,7 @@ fn check_function_shape(function: &Function, summary: &mut CheckSummary) {
     }
 
     for param in &function.params {
-        if !SUPPORTED_TYPES.contains(&param.type_name.as_str()) {
+        if !is_known_type(&param.type_name, program) {
             summary.diagnostics.push(Diagnostic::warning(
                 "UnknownType",
                 format!(
@@ -665,7 +710,7 @@ fn check_function_shape(function: &Function, summary: &mut CheckSummary) {
             ));
         }
     }
-    if !SUPPORTED_TYPES.contains(&function.return_type.as_str()) {
+    if !is_known_type(&function.return_type, program) {
         summary.diagnostics.push(Diagnostic::warning(
             "UnknownType",
             format!(
@@ -675,6 +720,14 @@ fn check_function_shape(function: &Function, summary: &mut CheckSummary) {
             Some(function.target()),
         ));
     }
+}
+
+fn is_known_type(type_name: &str, program: &Program) -> bool {
+    SUPPORTED_TYPES.contains(&type_name)
+        || program
+            .types
+            .iter()
+            .any(|type_decl| type_decl.name == type_name)
 }
 
 fn typed_hole_type(implementation: &str) -> Option<String> {
@@ -995,7 +1048,12 @@ fn check_static_types(function: &Function, program: &Program, summary: &mut Chec
         && !implementation.contains("HOLE(")
     {
         let variables = function_type_variables(function, false);
-        match infer_expression_type(implementation, &variables, &program.functions) {
+        match infer_expression_type(
+            implementation,
+            &variables,
+            &program.functions,
+            &program.types,
+        ) {
             Ok(actual) if actual == function.return_type => {}
             Ok(actual) => summary.diagnostics.push(
                 Diagnostic::error(
@@ -1233,7 +1291,7 @@ fn check_bool_expression(
     summary: &mut CheckSummary,
     context: &str,
 ) {
-    match infer_expression_type(expression, variables, &program.functions) {
+    match infer_expression_type(expression, variables, &program.functions, &program.types) {
         Ok(actual) if actual == "Bool" => {}
         Ok(actual) => summary.diagnostics.push(
             Diagnostic::error(
@@ -1333,7 +1391,7 @@ fn check_example(
         }
     }
 
-    let mut evaluator = Evaluator::new(&program.functions);
+    let mut evaluator = Evaluator::new(&program.functions, &program.types);
     let empty = HashMap::new();
     match evaluator.eval(example, &empty) {
         Ok(Value::Bool(true)) => {}
@@ -1362,7 +1420,7 @@ fn check_example(
     }
 
     if let Some(args) = direct_call_args {
-        let mut evaluator = Evaluator::new(&program.functions);
+        let mut evaluator = Evaluator::new(&program.functions, &program.types);
         match evaluator.call(&function.symbol(), args) {
             Ok(call_result) => {
                 check_contracts(
@@ -1393,7 +1451,7 @@ fn check_requires(
     let mut passed = true;
     for requirement in &function.requires {
         summary.contracts += 1;
-        let mut evaluator = Evaluator::new(&program.functions);
+        let mut evaluator = Evaluator::new(&program.functions, &program.types);
         match evaluator.eval(requirement, bindings) {
             Ok(Value::Bool(true)) => {}
             Ok(Value::Bool(false)) => {
@@ -1447,7 +1505,7 @@ fn check_contracts(
         summary.contracts += 1;
         let mut variables = bindings.clone();
         variables.insert("result".to_string(), result.clone());
-        let mut evaluator = Evaluator::new(&program.functions);
+        let mut evaluator = Evaluator::new(&program.functions, &program.types);
         match evaluator.eval(contract, &variables) {
             Ok(Value::Bool(true)) => {}
             Ok(actual) => summary.diagnostics.push(
@@ -1526,7 +1584,7 @@ fn check_property(
         let sample_index = sample_offset + 1;
         let sample_seed = property_sample_seed(function, &property, sample_index);
         let bindings_text = format_sample_bindings(&property.variables, &bindings);
-        let mut evaluator = Evaluator::new(&program.functions);
+        let mut evaluator = Evaluator::new(&program.functions, &program.types);
         match evaluator.eval(&property.expression, &bindings) {
             Ok(Value::Bool(true)) => {}
             Ok(actual) => {
@@ -1552,6 +1610,7 @@ fn check_property(
                     &property.variables,
                     &property.expression,
                     &program.functions,
+                    &program.types,
                     &sample_sets,
                     &sample_values,
                     sample_index,
@@ -1590,6 +1649,7 @@ fn check_property(
                     &property.variables,
                     &property.expression,
                     &program.functions,
+                    &program.types,
                     &sample_sets,
                     &sample_values,
                     sample_index,
@@ -1715,7 +1775,7 @@ fn eval_args(args_text: &str, program: &Program) -> Result<Vec<Value>, String> {
     let empty = HashMap::new();
     let mut args = Vec::new();
     for part in split_args(args_text) {
-        let mut evaluator = Evaluator::new(&program.functions);
+        let mut evaluator = Evaluator::new(&program.functions, &program.types);
         args.push(evaluator.eval(&part, &empty)?);
     }
     Ok(args)
@@ -1724,6 +1784,7 @@ fn eval_args(args_text: &str, program: &Program) -> Result<Vec<Value>, String> {
 fn split_args(text: &str) -> Vec<String> {
     let mut parts = Vec::new();
     let mut depth = 0;
+    let mut brace_depth = 0;
     let mut in_string = false;
     let mut current = String::new();
     for char in text.chars() {
@@ -1733,7 +1794,11 @@ fn split_args(text: &str) -> Vec<String> {
             depth += 1;
         } else if !in_string && char == ')' {
             depth -= 1;
-        } else if !in_string && char == ',' && depth == 0 {
+        } else if !in_string && char == '{' {
+            brace_depth += 1;
+        } else if !in_string && char == '}' {
+            brace_depth -= 1;
+        } else if !in_string && char == ',' && depth == 0 && brace_depth == 0 {
             parts.push(current.trim().to_string());
             current.clear();
             continue;

@@ -2,7 +2,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::diagnostic::Diagnostic;
-use crate::model::{Function, MigrationRecord, ModuleDependency, Param, Program};
+use crate::model::{
+    Function, MigrationRecord, ModuleDependency, Param, Program, RecordField, TypeDecl,
+};
 
 const BLOCK_SECTIONS: &[&str] = &["contract", "examples", "properties", "migration", "impl"];
 const MIGRATION_KINDS: &[&str] = &[
@@ -23,6 +25,9 @@ pub fn parse_paths(paths: &[String]) -> (Program, Vec<Diagnostic>) {
             program.add_module(&module.name, &module.source_path);
             for dependency in module.dependencies {
                 program.add_module_dependency(&module.name, dependency);
+            }
+            for type_decl in module.types {
+                program.add_type(type_decl);
             }
             for function in module.functions {
                 program.add_function(function);
@@ -132,6 +137,14 @@ pub fn parse_source(source_path: &str, source: &str) -> (Program, Vec<Diagnostic
             index += 1;
             continue;
         }
+        if let Some(type_decl) = parse_type_decl(source_path, &module, index + 1, stripped) {
+            match type_decl {
+                Ok(type_decl) => program.add_type(type_decl),
+                Err(diagnostic) => diagnostics.push(diagnostic),
+            }
+            index += 1;
+            continue;
+        }
         if let Some(header) = parse_function_header(stripped) {
             let block_start = index + 1;
             let block_end = find_function_end(&lines, block_start);
@@ -155,7 +168,9 @@ pub fn parse_source(source_path: &str, source: &str) -> (Program, Vec<Diagnostic
                 format!("Unexpected top-level syntax: {stripped}"),
                 Some(format!("{}:{}", source_path, index + 1)),
             )
-            .with_repair("Use `module <name>`, `use <module>`, or `pub fn name(args) -> Type`."),
+            .with_repair(
+                "Use `module <name>`, `use <module>`, `type Name = { field: Type }`, or `pub fn name(args) -> Type`.",
+            ),
         );
         index += 1;
     }
@@ -201,6 +216,78 @@ fn parse_function_header(line: &str) -> Option<FunctionHeader> {
     })
 }
 
+fn parse_type_decl(
+    path: &str,
+    module: &str,
+    line: usize,
+    stripped: &str,
+) -> Option<Result<TypeDecl, Diagnostic>> {
+    let rest = stripped.strip_prefix("type ")?;
+    let Some((name, body)) = rest.split_once('=') else {
+        return Some(Err(Diagnostic::error(
+            "ParseError",
+            format!("Invalid type declaration `{stripped}`."),
+            Some(format!("{path}:{line}")),
+        )
+        .with_repair("Use `type Name = { field: Type, other: Type }`.")));
+    };
+    let name = name.trim();
+    if !is_valid_ident(name) {
+        return Some(Err(Diagnostic::error(
+            "ParseError",
+            format!("Invalid type name `{name}`."),
+            Some(format!("{path}:{line}")),
+        )));
+    }
+    let body = body.trim();
+    let Some(fields_text) = body
+        .strip_prefix('{')
+        .and_then(|value| value.strip_suffix('}'))
+    else {
+        return Some(Err(Diagnostic::error(
+            "ParseError",
+            format!("Type `{name}` must be a record literal shape."),
+            Some(format!("{path}:{line}")),
+        )
+        .with_repair("Use `type Name = { field: Type, other: Type }`.")));
+    };
+
+    let mut fields = Vec::new();
+    if !fields_text.trim().is_empty() {
+        for raw_field in fields_text.split(',') {
+            let field = raw_field.trim();
+            let Some((field_name, type_name)) = field.split_once(':') else {
+                return Some(Err(Diagnostic::error(
+                    "ParseError",
+                    format!("Invalid record field syntax `{field}`."),
+                    Some(format!("{path}:{line}")),
+                )
+                .with_repair("Use `field: Type`.")));
+            };
+            let field_name = field_name.trim();
+            if !is_valid_ident(field_name) {
+                return Some(Err(Diagnostic::error(
+                    "ParseError",
+                    format!("Invalid record field name `{field_name}`."),
+                    Some(format!("{path}:{line}")),
+                )));
+            }
+            fields.push(RecordField {
+                name: field_name.to_string(),
+                type_name: type_name.trim().to_string(),
+            });
+        }
+    }
+
+    Some(Ok(TypeDecl {
+        name: name.to_string(),
+        module: module.to_string(),
+        source_path: path.to_string(),
+        line,
+        fields,
+    }))
+}
+
 fn find_function_end(lines: &[String], start: usize) -> usize {
     let mut index = start;
     while index < lines.len() {
@@ -210,6 +297,7 @@ fn find_function_end(lines: &[String], start: usize) -> usize {
             && !lines[index].starts_with(' ')
             && (stripped.starts_with("module ")
                 || stripped.starts_with("use ")
+                || stripped.starts_with("type ")
                 || stripped.starts_with("pub fn ")
                 || stripped.starts_with("fn "))
         {

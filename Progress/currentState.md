@@ -22,6 +22,7 @@ Selection policy for generic implementation prompts:
 - Parser for a compact textual Serow projection:
   - `module <name>`
   - `use <module>`
+  - `type Name = { field: Type }` record declarations
   - `pub fn name(args) -> Type`
   - required public sections: `intent`, `contract`, `examples`, `properties`, `effects`, `impl`
 - Checker for:
@@ -64,6 +65,13 @@ Selection policy for generic implementation prompts:
   - `set name = expr` updates an existing local `let` binding and returns `Unit`
   - the checker and evaluator reject non-`Bool` loop conditions, non-`Unit` loop bodies, assignment to parameters or unknown variables, and assignment type mismatches
   - executable evidence has a finite while-iteration limit so local checking reports an error instead of hanging; the Rust backend emits native loops for interactive programs
+- Minimal structured state support:
+  - record declarations such as `type Player = { hp: Int, gold: Int }`
+  - explicit record construction such as `Player { hp: 10, gold: 0 }`
+  - field access such as `player.hp`
+  - clone-style copy update such as `player with { gold: player.gold + amount }`
+  - static checking and evaluation for missing, unknown, duplicate, and wrongly typed record fields
+  - record values can be used in local `let`, local `set`, checked loops, contracts, examples, and sampled properties over built-in variables
 - Duplicate bare function names are allowed when call sites are qualified.
 - Semantic ledger queries:
   - `bin/serow query intent "<description>"` with deterministic token-ranked matching
@@ -105,7 +113,7 @@ Selection policy for generic implementation prompts:
   - runs the normal checker first and refuses to emit IR when checker errors are present
   - emits `serow.ir.v0` JSON for checked public implementations in the bootstrap expression subset
   - includes public symbol identity, source path and line provenance, signature, effects, parameters, return type, lowered `requires` preconditions, lowered `ensures` postconditions, lowered executable examples, lowered sampled properties, expression tree, and canonical resolved call targets
-  - lowers local `let` bindings, local assignments, checked while loops, and ordered sequences in the public expression tree
+  - lowers record construction, field access, record copy-update, local `let` bindings, local assignments, checked while loops, and ordered sequences in the public expression tree
 - Phase 3 Rust backend:
   - `bin/serow compile rust [paths...] [--out-dir <dir>] [--emit-bin] [--crate-name <name>] [--json]`
   - runs the checked IR lowering path first and refuses to emit Rust when checker or IR lowering errors are present
@@ -113,7 +121,8 @@ Selection policy for generic implementation prompts:
   - writes a dependency-free Rust crate layout with `Cargo.toml` and `src/lib.rs` when passed `--out-dir <dir>`, using `--crate-name <name>` when provided and defaulting to `serow_generated`
   - writes a runnable Rust binary crate entrypoint with `src/main.rs` when passed `--emit-bin`/`--bin`, requiring exactly one public zero-argument `main` returning `Text`, `Int`, `Bool`, or `Unit`; non-`Unit` values are printed deterministically and `Unit` entrypoints rely on explicit effects
   - records deterministic `package.metadata.serow` manifest rows for the backend id, IR version, generated source fingerprint, generated function/test counts, source locations, symbol-to-Rust-name mappings, and source-location-aware example/property evidence-to-test mappings in generated crates
-  - supports pure public functions over `Int`, `Bool`, `Text`, and `Unit` in the current expression subset, including arithmetic, text concatenation, comparisons, boolean operators, `if`, unary operators, resolved function calls, and runtime assertions for `requires` preconditions and `ensures` postconditions
+  - supports pure public functions over `Int`, `Bool`, `Text`, `Unit`, and declared record types in the current expression subset, including arithmetic, text concatenation, comparisons, boolean operators, `if`, unary operators, resolved function calls, record construction, field access, record copy-update, and runtime assertions for `requires` preconditions and `ensures` postconditions
+  - emits generated Rust structs for Serow record declarations
   - renders local `let` bindings, local assignments, checked while loops, and ordered sequences as Rust blocks
   - lowers checked terminal `io` intrinsics to Rust `println!` and stdin line reading
   - emits generated Rust `#[test]` functions for checked pure Serow examples and deterministic sampled-property bindings, and reports source-location-aware symbol/evidence-to-test mappings in JSON mode

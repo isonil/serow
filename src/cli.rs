@@ -1906,10 +1906,39 @@ fn ir_program_json(ir: &IrProgram) -> String {
         .map(ir_function_json)
         .collect::<Vec<_>>()
         .join(",\n    ");
+    let types = ir
+        .types
+        .iter()
+        .map(type_decl_json)
+        .collect::<Vec<_>>()
+        .join(", ");
     format!(
-        "{{\"functions\": [\n    {}\n  ], \"version\": {}}}",
+        "{{\"functions\": [\n    {}\n  ], \"types\": [{}], \"version\": {}}}",
         functions,
+        types,
         json_string(&ir.version)
+    )
+}
+
+fn type_decl_json(type_decl: &crate::model::TypeDecl) -> String {
+    let fields = type_decl
+        .fields
+        .iter()
+        .map(|field| {
+            format!(
+                "{{\"name\": {}, \"type\": {}}}",
+                json_string(&field.name),
+                json_string(&field.type_name)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!(
+        "{{\"fields\": [{}], \"module\": {}, \"name\": {}, \"symbol\": {}}}",
+        fields,
+        json_string(&type_decl.module),
+        json_string(&type_decl.name),
+        json_string(&type_decl.symbol())
     )
 }
 
@@ -1997,6 +2026,21 @@ fn ir_expr_json(expr: &IrExpr) -> String {
             json_string(reference),
             json_string(target)
         ),
+        IrExpr::RecordConstruct { type_name, fields } => format!(
+            "{{\"fields\": {}, \"kind\": \"record_construct\", \"type\": {}}}",
+            ir_record_fields_json(fields),
+            json_string(type_name)
+        ),
+        IrExpr::FieldAccess { base, field } => format!(
+            "{{\"base\": {}, \"field\": {}, \"kind\": \"field_access\"}}",
+            ir_expr_json(base),
+            json_string(field)
+        ),
+        IrExpr::RecordUpdate { base, fields } => format!(
+            "{{\"base\": {}, \"fields\": {}, \"kind\": \"record_update\"}}",
+            ir_expr_json(base),
+            ir_record_fields_json(fields)
+        ),
         IrExpr::Unary { op, expr } => format!(
             "{{\"expr\": {}, \"kind\": \"unary\", \"op\": {}}}",
             ir_expr_json(expr),
@@ -2076,6 +2120,20 @@ fn ir_expr_json(expr: &IrExpr) -> String {
 
 fn ir_exprs_json(exprs: &[IrExpr]) -> String {
     let rows = exprs.iter().map(ir_expr_json).collect::<Vec<_>>();
+    format!("[{}]", rows.join(", "))
+}
+
+fn ir_record_fields_json(fields: &[(String, IrExpr)]) -> String {
+    let rows = fields
+        .iter()
+        .map(|(name, value)| {
+            format!(
+                "{{\"name\": {}, \"value\": {}}}",
+                json_string(name),
+                ir_expr_json(value)
+            )
+        })
+        .collect::<Vec<_>>();
     format!("[{}]", rows.join(", "))
 }
 
@@ -2171,6 +2229,20 @@ fn rust_program_json(rust: &GeneratedRustProgram) -> String {
         })
         .collect::<Vec<_>>()
         .join(", ");
+    let types = rust
+        .types
+        .iter()
+        .map(|type_decl| {
+            format!(
+                "{{\"line\": {}, \"rust_name\": {}, \"source_path\": {}, \"symbol\": {}}}",
+                type_decl.line,
+                json_string(&type_decl.rust_name),
+                json_string(&type_decl.source_path),
+                json_string(&type_decl.symbol)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
     format!(
         concat!(
             "{{",
@@ -2179,7 +2251,8 @@ fn rust_program_json(rust: &GeneratedRustProgram) -> String {
             "\"ir_version\": {}, ",
             "\"source\": {}, ",
             "\"source_fingerprint\": {}, ",
-            "\"tests\": [{}]",
+            "\"tests\": [{}], ",
+            "\"types\": [{}]",
             "}}"
         ),
         json_string(&rust.backend),
@@ -2187,7 +2260,8 @@ fn rust_program_json(rust: &GeneratedRustProgram) -> String {
         json_string(&rust.ir_version),
         json_string(&rust.source),
         json_string(&rust.source_fingerprint),
-        tests
+        tests,
+        types
     )
 }
 
@@ -3089,7 +3163,7 @@ fn agent_json() -> String {
             "effects",
             "impl"
         ]),
-        str_array_json(&["Int", "Bool", "Text", "Unit"]),
+        str_array_json(&["Int", "Bool", "Text", "Unit", "declared records"]),
         str_array_json(&[
             "cargo fmt --check",
             "cargo clippy -- -D warnings",
@@ -3104,7 +3178,7 @@ fn agent_json() -> String {
         str_array_json(&[
             "Properties are sampled, not proven; replay uses deterministic seeds.",
             "Intent search is deterministic token ranking, not semantic embeddings.",
-            "Rust backend emission is limited to pure Int/Bool/Text/Unit functions plus terminal io intrinsics, emits runtime asserts for Serow requires and ensures clauses, emits Rust tests for pure Serow examples and deterministic sampled properties, and records Serow source and evidence metadata in generated Cargo manifests.",
+            "Rust backend emission supports pure Int/Bool/Text/Unit functions, declared records, and terminal io intrinsics, emits runtime asserts for Serow requires and ensures clauses, emits Rust tests for pure Serow examples and deterministic sampled properties, and records Serow source and evidence metadata in generated Cargo manifests.",
             "Expression support is intentionally small and formatting does not preserve comments.",
             "JSON output is hand-written until external dependencies are accepted."
         ])
@@ -3297,7 +3371,7 @@ fn print_agent_bootstrap() {
     println!("  version (optional; unattended requires explicit vN)");
     println!("  intent, contract, examples, properties, effects, impl");
     println!("supported bootstrap types:");
-    println!("  Int, Bool, Text");
+    println!("  Int, Bool, Text, Unit, declared records");
     println!("verification gates:");
     println!("  cargo fmt --check");
     println!("  cargo clippy -- -D warnings");
@@ -3312,7 +3386,7 @@ fn print_agent_bootstrap() {
     println!("  properties are sampled, not proven");
     println!("  intent search is token-ranked, not semantic embeddings");
     println!(
-        "  Rust backend emission is limited to pure Int/Bool/Text/Unit functions plus terminal io intrinsics"
+        "  Rust backend emission supports pure Int/Bool/Text/Unit functions, declared records, and terminal io intrinsics"
     );
     println!("  Rust binary emission requires pub fn main() -> Text | Int | Bool | Unit");
     println!("  Rust backend emits runtime asserts for Serow requires and ensures clauses");

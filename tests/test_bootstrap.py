@@ -12,9 +12,9 @@ class BootstrapTests(unittest.TestCase):
         program, parse_diagnostics = parse_files(["examples"])
         summary = check_program(program, parse_diagnostics)
         self.assertTrue(summary.ok, [diagnostic.to_dict() for diagnostic in summary.diagnostics])
-        self.assertEqual(summary.functions, 6)
-        self.assertEqual(summary.examples, 10)
-        self.assertEqual(summary.properties, 6)
+        self.assertEqual(summary.functions, 9)
+        self.assertEqual(summary.examples, 15)
+        self.assertEqual(summary.properties, 9)
 
     def test_failed_example_is_reported(self):
         with tempfile.TemporaryDirectory() as directory:

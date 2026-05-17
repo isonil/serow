@@ -1980,7 +1980,7 @@ fn evidence_fails_against_program(
     variables: &HashMap<String, Value>,
     program: &crate::model::Program,
 ) -> bool {
-    let mut evaluator = Evaluator::new(&program.functions);
+    let mut evaluator = Evaluator::new(&program.functions, &program.types);
     !matches!(evaluator.eval(expression, variables), Ok(Value::Bool(true)))
 }
 

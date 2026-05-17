@@ -1,15 +1,16 @@
 use std::collections::HashMap;
 
 use crate::eval::{Token, resolve_function, tokenize};
-use crate::model::Function;
+use crate::model::{Function, TypeDecl};
 
 pub(crate) fn infer_expression_type(
     expression: &str,
     variables: &HashMap<String, String>,
     functions: &[Function],
+    types: &[TypeDecl],
 ) -> Result<String, String> {
     let tokens = tokenize(expression)?;
-    let mut parser = TypeParser::new(tokens, variables.clone(), functions);
+    let mut parser = TypeParser::new(tokens, variables.clone(), functions, types);
     let type_name = parser.parse_expression()?;
     parser.expect_end()?;
     Ok(type_name)
@@ -21,6 +22,7 @@ struct TypeParser<'a> {
     variables: HashMap<String, String>,
     assignable: Vec<String>,
     functions: &'a [Function],
+    types: &'a [TypeDecl],
 }
 
 impl<'a> TypeParser<'a> {
@@ -28,6 +30,7 @@ impl<'a> TypeParser<'a> {
         tokens: Vec<Token>,
         variables: HashMap<String, String>,
         functions: &'a [Function],
+        types: &'a [TypeDecl],
     ) -> Self {
         Self {
             tokens,
@@ -35,6 +38,7 @@ impl<'a> TypeParser<'a> {
             variables,
             assignable: Vec::new(),
             functions,
+            types,
         }
     }
 
@@ -238,7 +242,23 @@ impl<'a> TypeParser<'a> {
             require_type(&inner, "Bool", "`not` operand")?;
             return Ok("Bool".to_string());
         }
-        self.parse_primary()
+        self.parse_postfix()
+    }
+
+    fn parse_postfix(&mut self) -> Result<String, String> {
+        let mut type_name = self.parse_primary()?;
+        loop {
+            if self.consume(&Token::Dot) {
+                let field = self.expect_ident()?;
+                type_name = self.field_type(&type_name, &field)?;
+                continue;
+            }
+            if self.consume(&Token::With) {
+                type_name = self.parse_record_update(&type_name)?;
+                continue;
+            }
+            return Ok(type_name);
+        }
     }
 
     fn parse_primary(&mut self) -> Result<String, String> {
@@ -264,13 +284,28 @@ impl<'a> TypeParser<'a> {
             }
             Token::Ident(name) => {
                 self.index += 1;
+                let parts = self.parse_name_parts(name)?;
+                let name = parts.join(".");
                 if self.consume(&Token::LParen) {
                     return self.parse_call(&name);
                 }
-                self.variables
-                    .get(&name)
+                if self.consume(&Token::LBrace) {
+                    if parts.len() != 1 {
+                        return Err(format!(
+                            "Record construction requires an unqualified type name, got `{name}`."
+                        ));
+                    }
+                    return self.parse_record_construct(&name);
+                }
+                let mut type_name = self
+                    .variables
+                    .get(&parts[0])
                     .cloned()
-                    .ok_or_else(|| format!("Unknown variable `{name}`."))
+                    .ok_or_else(|| format!("Unknown variable `{}`.", parts[0]))?;
+                for field in parts.iter().skip(1) {
+                    type_name = self.field_type(&type_name, field)?;
+                }
+                Ok(type_name)
             }
             Token::LParen => {
                 self.index += 1;
@@ -312,6 +347,101 @@ impl<'a> TypeParser<'a> {
             }
         }
         Ok(function.return_type.clone())
+    }
+
+    fn parse_name_parts(&mut self, first: String) -> Result<Vec<String>, String> {
+        let mut parts = vec![first];
+        while self.consume(&Token::Dot) {
+            parts.push(self.expect_ident()?);
+        }
+        Ok(parts)
+    }
+
+    fn parse_record_construct(&mut self, type_name: &str) -> Result<String, String> {
+        let type_decl = self.record_type(type_name)?.clone();
+        let mut seen = Vec::<String>::new();
+        if !self.consume(&Token::RBrace) {
+            loop {
+                let field = self.expect_ident()?;
+                if seen.iter().any(|seen| seen == &field) {
+                    return Err(format!("Record `{type_name}` repeats field `{field}`."));
+                }
+                let Some(declared) = type_decl
+                    .fields
+                    .iter()
+                    .find(|declared| declared.name == field)
+                else {
+                    return Err(format!("Record `{type_name}` has unknown field `{field}`."));
+                };
+                self.expect(&Token::Colon)?;
+                let actual = self.parse_expression()?;
+                require_type(
+                    &actual,
+                    &declared.type_name,
+                    &format!("Record `{type_name}` field `{field}`"),
+                )?;
+                seen.push(field);
+                if self.consume(&Token::RBrace) {
+                    break;
+                }
+                self.expect(&Token::Comma)?;
+            }
+        }
+        for declared in &type_decl.fields {
+            if !seen.iter().any(|field| field == &declared.name) {
+                return Err(format!(
+                    "Record `{type_name}` is missing field `{}`.",
+                    declared.name
+                ));
+            }
+        }
+        Ok(type_name.to_string())
+    }
+
+    fn parse_record_update(&mut self, type_name: &str) -> Result<String, String> {
+        let type_decl = self.record_type(type_name)?.clone();
+        self.expect(&Token::LBrace)?;
+        if !self.consume(&Token::RBrace) {
+            loop {
+                let field = self.expect_ident()?;
+                let Some(declared) = type_decl
+                    .fields
+                    .iter()
+                    .find(|declared| declared.name == field)
+                else {
+                    return Err(format!("Record `{type_name}` has unknown field `{field}`."));
+                };
+                self.expect(&Token::Colon)?;
+                let actual = self.parse_expression()?;
+                require_type(
+                    &actual,
+                    &declared.type_name,
+                    &format!("Record `{type_name}` update field `{field}`"),
+                )?;
+                if self.consume(&Token::RBrace) {
+                    break;
+                }
+                self.expect(&Token::Comma)?;
+            }
+        }
+        Ok(type_name.to_string())
+    }
+
+    fn field_type(&self, type_name: &str, field: &str) -> Result<String, String> {
+        let type_decl = self.record_type(type_name)?;
+        type_decl
+            .fields
+            .iter()
+            .find(|declared| declared.name == field)
+            .map(|field| field.type_name.clone())
+            .ok_or_else(|| format!("Record `{type_name}` has no field `{field}`."))
+    }
+
+    fn record_type(&self, type_name: &str) -> Result<&TypeDecl, String> {
+        self.types
+            .iter()
+            .find(|type_decl| type_decl.name == type_name)
+            .ok_or_else(|| format!("Unknown record type `{type_name}`."))
     }
 
     fn expect_end(&self) -> Result<(), String> {

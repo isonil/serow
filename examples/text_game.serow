@@ -1,5 +1,61 @@
 module core.text_game
 
+type Player = { hp: Int, gold: Int }
+
+type GameState = { room: Text, hp: Int, done: Bool }
+
+pub fn starter_player() -> Player
+  intent "Create the initial small RPG player state."
+  version v1
+  contract
+    ensures result.hp == 10
+    ensures result.gold == 0
+  examples
+    starter_player().hp == 10
+    starter_player().gold == 0
+  properties
+    forall flag: Bool:
+      starter_player().hp == 10 or flag == flag
+  effects pure
+  impl
+    Player { hp: 10, gold: 0 }
+
+pub fn award_gold(player: Player, amount: Int) -> Player
+  intent "Preserve health while increasing currency by amount."
+  version v1
+  contract
+    ensures result.hp == player.hp
+    ensures result.gold == player.gold + amount
+  examples
+    award_gold(Player { hp: 7, gold: 2 }, 5).gold == 7
+  properties
+    forall amount: Int:
+      award_gold(Player { hp: 4, gold: amount }, 0).gold == amount
+  effects pure
+  impl
+    player with { gold: player.gold + amount }
+
+pub fn countdown_state() -> GameState
+  intent "Count down hit points inside a local game state loop."
+  version v1
+  contract
+    ensures result.room == "Hall"
+    ensures result.hp == 0
+    ensures result.done == true
+  examples
+    countdown_state().hp == 0
+    countdown_state().done == true
+  properties
+    forall flag: Bool:
+      countdown_state().done == true or flag == flag
+  effects pure
+  impl
+    let state = GameState { room: "Hall", hp: 3, done: false };
+    while state.hp > 0 do (
+    set state = state with { hp: state.hp - 1 }
+    );
+    state with { done: true }
+
 pub fn game_loop() -> Unit
   intent "Run a tiny terminal text game loop until the command exits."
   version v1

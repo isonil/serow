@@ -41,6 +41,10 @@ Supported now:
 
 - integers, booleans, text literals
 - variables
+- record construction, field access, and copy-update:
+  - `Player { hp: 10, gold: 0 }`
+  - `player.hp`
+  - `player with { gold: player.gold + amount }`
 - direct function calls by bare name, module-qualified name, or exact symbol:
   - `add(1, 2)`
   - `core.math.add(1, 2)`
@@ -59,6 +63,15 @@ Unsupported expressions should produce structured diagnostics instead of silent 
 ## Modules
 
 Source files declare the active module with `module <name>`.
+
+Top-level record declarations define minimal structured state types:
+
+```serow
+type Player = { hp: Int, gold: Int }
+type GameState = { room: Text, hp: Int, done: Bool }
+```
+
+Record construction must name the type explicitly and provide every field. Field access returns the declared field type. Copy-update preserves the original record type and replaces only the named fields. The bootstrap checker rejects missing fields, unknown fields, duplicate construction fields, and field values whose type does not match the declaration. Record types are executable in examples and contracts, but sampled `forall` generators are still limited to built-in `Int`, `Bool`, `Text`, and `Unit` values.
 
 Top-level `use <module>` declarations record explicit module dependencies for the active module:
 
@@ -186,13 +199,13 @@ This is a deliberately weak early version of certification. Later phases should 
 
 The emitted IR currently uses `version` value `serow.ir.v0`. It contains one row per checked public function, with canonical public symbol identity, module, name, source version, source path and line, parameters, return type, declared effects, lowered `requires` preconditions, lowered `ensures` postconditions, lowered executable examples, lowered sampled properties with their forall bindings, and a lowered expression tree for the implementation. Calls in the IR keep the source reference text and include the resolved canonical target symbol so later backends do not need to repeat ambiguous-call resolution.
 
-The bootstrap IR covers the current expression subset only: literals, variables, function calls, unary operators, binary operators, `if then else`, local `let` bindings, local assignment, checked `while` loops, and ordered `Unit` sequencing.
+The bootstrap IR covers the current expression subset only: literals, variables, function calls, record construction, field access, record copy-update, unary operators, binary operators, `if then else`, local `let` bindings, local assignment, checked `while` loops, and ordered `Unit` sequencing.
 
 ## Rust Backend
 
 `bin/serow compile rust [paths...] [--out-dir <dir>] [--emit-bin] [--crate-name <name>] [--json]` is the first production-backend slice. It runs the same checked IR lowering path first, then emits deterministic Rust source for supported functions. In normal text mode, stdout is the generated Rust source so it can be redirected to a backend artifact. With `--out-dir <dir>`, the command writes a dependency-free Rust crate layout containing `Cargo.toml` and `src/lib.rs`; `--crate-name <name>` customizes the generated Cargo package name and defaults to `serow_generated`. With `--emit-bin` or `--bin`, the generated crate also contains `src/main.rs` and requires exactly one public zero-argument Serow entrypoint named `main` returning `Text`, `Int`, or `Bool`; the generated Rust binary calls the lowered entrypoint and prints the returned value deterministically. The generated manifest includes deterministic `package.metadata.serow` rows for the backend id, IR version, generated-source fingerprint, generated function and test counts, source locations, symbol-to-Rust-name mappings, optional binary entrypoint metadata, and source-location-aware example/property evidence-to-test mappings. JSON output additionally reports `written_files` and the crate name used for the artifact. JSON output includes backend id `serow.rust.v0`, the input IR version, generated source text, generated-source fingerprint, symbol-to-Rust-name rows with source path and line provenance, and source-location-aware symbol/evidence-to-test rows.
 
-The current Rust backend supports pure public functions over `Int`, `Bool`, `Text`, and `Unit`, and a narrow `io` path for the compiler-owned terminal intrinsics. It maps `Int` to `i64`, `Bool` to `bool`, `Text` to owned `String`, and `Unit` to Rust `()`. It emits Rust for arithmetic, integer division and remainder, text concatenation, comparisons, boolean operators, unary operators, `if`, local `let` bindings, local assignment, checked `while` loops, ordered sequencing, resolved calls to other generated functions, runtime `assert!` guards for Serow `requires` preconditions, and runtime `assert!` guards for Serow `ensures` postconditions with `result` bound to the computed return value. `print(text)` lowers to `println!("{}", text)` and `read_line()` lowers to stdin line reading with trailing newline removal. It emits one Rust `#[test]` function for each checked pure Serow example and one Rust `#[test]` function for each deterministic sampled-property binding over supported pure sample types, so generated crates can run pure checked evidence with `cargo test`; `io` functions are generated without Rust evidence tests to avoid terminal side effects during generated crate tests. Canonical Serow symbols are lowered to deterministic Rust identifiers such as `@core.math.add.v1` -> `serow_core_math_add_v1`.
+The current Rust backend supports pure public functions over `Int`, `Bool`, `Text`, `Unit`, and declared record types, and a narrow `io` path for the compiler-owned terminal intrinsics. It maps `Int` to `i64`, `Bool` to `bool`, `Text` to owned `String`, `Unit` to Rust `()`, and each Serow record declaration to a generated Rust `struct` deriving `Clone`, `Debug`, `PartialEq`, and `Eq`. It emits Rust for arithmetic, integer division and remainder, text concatenation, comparisons, boolean operators, unary operators, `if`, record construction, field access, record copy-update, local `let` bindings, local assignment, checked `while` loops, ordered sequencing, resolved calls to other generated functions, runtime `assert!` guards for Serow `requires` preconditions, and runtime `assert!` guards for Serow `ensures` postconditions with `result` bound to the computed return value. `print(text)` lowers to `println!("{}", text)` and `read_line()` lowers to stdin line reading with trailing newline removal. It emits one Rust `#[test]` function for each checked pure Serow example and one Rust `#[test]` function for each deterministic sampled-property binding over supported pure sample types, so generated crates can run pure checked evidence with `cargo test`; `io` functions are generated without Rust evidence tests to avoid terminal side effects during generated crate tests. Canonical Serow symbols are lowered to deterministic Rust identifiers such as `@core.math.add.v1` -> `serow_core_math_add_v1`.
 
 The backend rejects unsupported code instead of emitting partial artifacts. Effects other than `pure` and `io` return `RustBackendUnsupportedEffect`; unknown future source types return `RustBackendUnsupportedType`. Binary crate emission additionally reports `RustBinaryMissingEntrypoint`, `RustBinaryEntrypointArity`, or `RustBinaryUnsupportedEntrypointReturn` when the public `main` convention is not met. Binary `main` may return `Text`, `Int`, `Bool`, or `Unit`; non-`Unit` values are printed by the generated `main`, while `Unit` entrypoints rely on explicit effects. WASM, TypeScript, Python, external effect boundaries beyond terminal I/O, ownership-friendly state transforms, richer package metadata beyond deterministic Serow manifest rows, and multi-target backend layouts are still future Phase 3 work.
 

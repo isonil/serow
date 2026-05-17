@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::eval::{Evaluator, Value};
-use crate::model::Function;
+use crate::model::{Function, TypeDecl};
 
 pub(crate) fn samples_for_type(type_name: &str) -> Option<Vec<Value>> {
     match type_name {
@@ -94,6 +94,7 @@ pub(crate) fn find_shrunk_property_failure(
     variables: &[(String, String)],
     expression: &str,
     functions: &[Function],
+    types: &[TypeDecl],
     sample_sets: &[Vec<Value>],
     original_values: &[Value],
     original_sample_index: usize,
@@ -114,7 +115,7 @@ pub(crate) fn find_shrunk_property_failure(
             .zip(values.iter().cloned())
             .map(|((name, _), value)| (name.clone(), value))
             .collect::<HashMap<_, _>>();
-        let mut evaluator = Evaluator::new(functions);
+        let mut evaluator = Evaluator::new(functions, types);
         match evaluator.eval(expression, &bindings) {
             Ok(Value::Bool(true)) | Err(_) => continue,
             Ok(_) => {}
@@ -148,6 +149,7 @@ pub(crate) fn find_shrunk_property_evaluation_error(
     variables: &[(String, String)],
     expression: &str,
     functions: &[Function],
+    types: &[TypeDecl],
     sample_sets: &[Vec<Value>],
     original_values: &[Value],
     original_sample_index: usize,
@@ -168,7 +170,7 @@ pub(crate) fn find_shrunk_property_evaluation_error(
             .zip(values.iter().cloned())
             .map(|((name, _), value)| (name.clone(), value))
             .collect::<HashMap<_, _>>();
-        let mut evaluator = Evaluator::new(functions);
+        let mut evaluator = Evaluator::new(functions, types);
         if evaluator.eval(expression, &bindings).is_ok() {
             continue;
         }
@@ -202,6 +204,7 @@ fn value_complexity(value: &Value) -> usize {
         Value::Int(value) => value.unsigned_abs() as usize,
         Value::Bool(value) => usize::from(*value),
         Value::Text(value) => value.chars().count(),
+        Value::Record { fields, .. } => fields.values().map(value_complexity).sum(),
         Value::Unit => 0,
     }
 }

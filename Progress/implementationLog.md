@@ -2,6 +2,12 @@
 
 ## 2026-05-17
 
+- Added minimal structured record state support for small RPG-style models.
+- The Rust parser/model/formatter now handle top-level `type Name = { field: Type }` record declarations.
+- Expressions now support explicit record construction, field access, and copy-update with static checking, evaluation, IR lowering, and Rust backend emission.
+- The Rust backend emits generated structs for declared record types and lowers copy-update through clone-based Rust struct update syntax.
+- Added `Player` and `GameState` examples in `examples/text_game.serow`, including `GameState` updates inside checked loop code.
+- Added regression coverage for record construction/access/update, record type errors, IR JSON nodes, generated Rust structs, and record state in loops.
 - Added a checked loop mechanism for terminal text games: `while <Bool> do (<Unit>)` returns `Unit`, and `set name = expr` updates an existing local `let` binding with same-type values only.
 - Loops now type-check, evaluate with a finite evidence iteration limit, lower to `serow.ir.v0`, render to Rust `while` loops, and preserve direct-call effect discovery for nested terminal I/O.
 - Added `examples/text_game.serow` as a tiny interactive skeleton that prints a room, reads a command, updates loop state, and exits on `quit` or the checker model's empty input.

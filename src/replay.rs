@@ -185,7 +185,7 @@ pub fn replay_property(program: &Program, sample_seed: &str) -> PropertyReplaySu
         .collect::<HashMap<_, _>>();
     let bindings_text = format_sample_bindings(&property.variables, &bindings);
     let expected_seed = property_sample_seed(&function, property.index, parsed_seed.sample_index);
-    let mut evaluator = Evaluator::new(&program.functions);
+    let mut evaluator = Evaluator::new(&program.functions, &program.types);
     match evaluator.eval(&property.expression, &bindings) {
         Ok(actual) => {
             let result = PropertyReplayResult {
@@ -218,6 +218,7 @@ pub fn replay_property(program: &Program, sample_seed: &str) -> PropertyReplaySu
                     &property.variables,
                     &property.expression,
                     &program.functions,
+                    &program.types,
                     &concrete_samples,
                     &sample_values,
                     parsed_seed.sample_index,
@@ -250,6 +251,7 @@ pub fn replay_property(program: &Program, sample_seed: &str) -> PropertyReplaySu
                 &property.variables,
                 &property.expression,
                 &program.functions,
+                &program.types,
                 &concrete_samples,
                 &sample_values,
                 parsed_seed.sample_index,

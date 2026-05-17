@@ -23,9 +23,9 @@ fn sample_program_checks() {
             .map(|diagnostic| &diagnostic.code)
             .collect::<Vec<_>>()
     );
-    assert_eq!(summary.functions, 6);
-    assert_eq!(summary.examples, 10);
-    assert_eq!(summary.properties, 6);
+    assert_eq!(summary.functions, 9);
+    assert_eq!(summary.examples, 15);
+    assert_eq!(summary.properties, 9);
     assert_eq!(summary.contracts, 15);
 }
 
@@ -6990,6 +6990,175 @@ pub fn count_to_three() -> Int
 }
 
 #[test]
+fn records_construct_access_update_and_loop_state() {
+    let dir = unique_temp_dir("serow-records");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("records.serow");
+    fs::write(
+        &source,
+        r#"module test.records
+
+type Player = { hp: Int, gold: Int }
+
+type GameState = { room: Text, hp: Int, done: Bool }
+
+pub fn award(player: Player, amount: Int) -> Player
+  intent "Copy a player and add gold."
+  version v1
+  contract
+    ensures result.hp == player.hp
+    ensures result.gold == player.gold + amount
+  examples
+    award(Player { hp: 8, gold: 2 }, 5).gold == 7
+  properties
+    forall amount: Int:
+      award(Player { hp: 8, gold: amount }, 0).gold == amount
+  effects pure
+  impl
+    player with { gold: player.gold + amount }
+
+pub fn loop_state() -> GameState
+  intent "Use a record state value inside a while loop."
+  version v1
+  contract
+    ensures result.room == "Hall"
+    ensures result.hp == 0
+    ensures result.done == true
+  examples
+    loop_state().hp == 0
+    loop_state().done == true
+  properties
+    forall flag: Bool:
+      loop_state().done == true or flag == flag
+  effects pure
+  impl
+    let state = GameState { room: "Hall", hp: 2, done: false };
+    while state.hp > 0 do (
+    set state = state with { hp: state.hp - 1 }
+    );
+    state with { done: true }
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(summary.ok(), "{:#?}", summary.diagnostics);
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn record_type_errors_are_reported() {
+    let dir = unique_temp_dir("serow-record-type-errors");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("bad_records.serow");
+    fs::write(
+        &source,
+        r#"module test.records
+
+type Player = { hp: Int, gold: Int }
+
+pub fn bad_field_type() -> Player
+  intent "Build a player with a wrongly typed field."
+  version v1
+  contract
+    ensures result.hp == 0
+  examples
+    bad_field_type().hp == 0
+  properties
+    forall flag: Bool:
+      bad_field_type().hp == 0 or flag == flag
+  effects pure
+  impl
+    Player { hp: "hurt", gold: 0 }
+
+pub fn bad_update(player: Player) -> Player
+  intent "Update a player field that does not exist."
+  version v1
+  contract
+    ensures result.hp == player.hp
+  examples
+    bad_update(Player { hp: 1, gold: 0 }).hp == 1
+  properties
+    forall flag: Bool:
+      bad_update(Player { hp: 1, gold: 0 }).hp == 1 or flag == flag
+  effects pure
+  impl
+    player with { room: "Hall" }
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(
+        summary.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "TypeError"
+                && diagnostic
+                    .message
+                    .contains("Record `Player` field `hp` expected Int, got Text")
+        }),
+        "{:#?}",
+        summary.diagnostics
+    );
+    assert!(
+        summary.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "TypeError"
+                && diagnostic
+                    .message
+                    .contains("Record `Player` has unknown field `room`")
+        }),
+        "{:#?}",
+        summary.diagnostics
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn compile_ir_lowers_record_expressions() {
+    let dir = unique_temp_dir("serow-compile-ir-records");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("records.serow");
+    fs::write(
+        &source,
+        r#"module test.records
+
+type Player = { hp: Int, gold: Int }
+
+pub fn award(player: Player, amount: Int) -> Player
+  intent "Copy a player and add gold."
+  version v1
+  contract
+    ensures result.gold == player.gold + amount
+  examples
+    award(Player { hp: 8, gold: 2 }, 5).gold == 7
+  properties
+    forall amount: Int:
+      award(Player { hp: 8, gold: amount }, 0).gold == amount
+  effects pure
+  impl
+    player with { gold: player.gold + amount }
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["compile", "ir", &source.to_string_lossy(), "--json"])
+        .output()
+        .expect("run compile ir records");
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("\"kind\": \"record_construct\""),
+        "{stdout}"
+    );
+    assert!(stdout.contains("\"kind\": \"field_access\""), "{stdout}");
+    assert!(stdout.contains("\"kind\": \"record_update\""), "{stdout}");
+    assert!(stdout.contains("\"types\": ["), "{stdout}");
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn compile_rust_json_emits_supported_backend_source() {
     let output = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args(["compile", "rust", "examples/math.serow", "--json"])
@@ -7300,6 +7469,109 @@ pub fn count_to_three() -> Int
     assert!(stdout.contains("while serow_n < 3"), "{stdout}");
     assert!(stdout.contains("serow_n = serow_n + 1"), "{stdout}");
     assert!(stdout.contains("\"generated_functions\": 1"), "{stdout}");
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn compile_rust_emits_record_structs_and_operations() {
+    let dir = unique_temp_dir("serow-compile-rust-records");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("records.serow");
+    fs::write(
+        &source,
+        r#"module test.records
+
+type Player = { hp: Int, gold: Int }
+
+type GameState = { room: Text, hp: Int, done: Bool }
+
+pub fn award(player: Player, amount: Int) -> Player
+  intent "Copy a player and add gold."
+  version v1
+  contract
+    ensures result.hp == player.hp
+    ensures result.gold == player.gold + amount
+  examples
+    award(Player { hp: 8, gold: 2 }, 5).gold == 7
+  properties
+    forall amount: Int:
+      award(Player { hp: 8, gold: amount }, 0).gold == amount
+  effects pure
+  impl
+    player with { gold: player.gold + amount }
+
+pub fn loop_state() -> GameState
+  intent "Use a record state value inside a while loop."
+  version v1
+  contract
+    ensures result.room == "Hall"
+    ensures result.hp == 0
+    ensures result.done == true
+  examples
+    loop_state().done == true
+  properties
+    forall flag: Bool:
+      loop_state().done == true or flag == flag
+  effects pure
+  impl
+    let state = GameState { room: "Hall", hp: 2, done: false };
+    while state.hp > 0 do (
+    set state = state with { hp: state.hp - 1 }
+    );
+    state with { done: true }
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["compile", "rust", &source.to_string_lossy(), "--json"])
+        .output()
+        .expect("run compile rust records json");
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("pub struct SerowTestRecordsPlayer"),
+        "{stdout}"
+    );
+    assert!(stdout.contains("pub serow_hp: i64"), "{stdout}");
+    assert!(
+        stdout.contains("pub fn serow_test_records_award_v1(serow_player: SerowTestRecordsPlayer, serow_amount: i64) -> SerowTestRecordsPlayer"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("(serow_player.clone()).serow_gold"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("SerowTestRecordsPlayer { serow_gold:"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("while (serow_state.clone()).serow_hp > 0"),
+        "{stdout}"
+    );
+    assert!(stdout.contains("\"types\": ["), "{stdout}");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["compile", "rust", &source.to_string_lossy()])
+        .output()
+        .expect("run compile rust records");
+    assert!(output.status.success(), "{output:#?}");
+    let generated = dir.join("generated.rs");
+    fs::write(&generated, &output.stdout).expect("write generated rust");
+    let rustc_output = Command::new("rustc")
+        .args(["--crate-type", "lib"])
+        .arg(&generated)
+        .arg("-o")
+        .arg(dir.join("libgenerated.rlib"))
+        .output()
+        .expect("run rustc");
+    assert!(
+        rustc_output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&rustc_output.stdout),
+        String::from_utf8_lossy(&rustc_output.stderr)
+    );
     let _ = fs::remove_dir_all(dir);
 }
 

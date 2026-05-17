@@ -1,11 +1,12 @@
 use crate::checker::{CheckSummary, check_program};
 use crate::diagnostic::{Diagnostic, has_errors};
 use crate::eval::{Token, resolve_function, tokenize};
-use crate::model::{Function, Param, Program};
+use crate::model::{Function, Param, Program, TypeDecl};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct IrProgram {
     pub version: String,
+    pub types: Vec<TypeDecl>,
     pub functions: Vec<IrFunction>,
 }
 
@@ -45,6 +46,18 @@ pub enum IrExpr {
         reference: String,
         target: String,
         args: Vec<IrExpr>,
+    },
+    RecordConstruct {
+        type_name: String,
+        fields: Vec<(String, IrExpr)>,
+    },
+    FieldAccess {
+        base: Box<IrExpr>,
+        field: String,
+    },
+    RecordUpdate {
+        base: Box<IrExpr>,
+        fields: Vec<(String, IrExpr)>,
     },
     Unary {
         op: IrUnaryOp,
@@ -322,6 +335,7 @@ pub fn lower_checked_program(program: &Program, parse_diagnostics: Vec<Diagnosti
 
     let ir = (!has_errors(&diagnostics)).then_some(IrProgram {
         version: "serow.ir.v0".to_string(),
+        types: program.types.clone(),
         functions,
     });
     IrSummary {
@@ -601,7 +615,26 @@ impl<'a> IrParser<'a> {
                 expr: Box::new(self.parse_unary()?),
             });
         }
-        self.parse_primary()
+        self.parse_postfix()
+    }
+
+    fn parse_postfix(&mut self) -> Result<IrExpr, String> {
+        let mut expr = self.parse_primary()?;
+        loop {
+            if self.consume(&Token::Dot) {
+                let field = self.expect_ident()?;
+                expr = IrExpr::FieldAccess {
+                    base: Box::new(expr),
+                    field,
+                };
+                continue;
+            }
+            if self.consume(&Token::With) {
+                expr = self.parse_record_update(expr)?;
+                continue;
+            }
+            return Ok(expr);
+        }
     }
 
     fn parse_primary(&mut self) -> Result<IrExpr, String> {
@@ -631,13 +664,30 @@ impl<'a> IrParser<'a> {
             }
             Token::Ident(name) => {
                 self.index += 1;
+                let parts = self.parse_name_parts(name)?;
+                let name = parts.join(".");
                 if self.consume(&Token::LParen) {
                     return self.parse_call(&name);
                 }
-                if self.variables.iter().any(|variable| variable == &name) {
-                    Ok(IrExpr::Var(name))
+                if self.consume(&Token::LBrace) {
+                    if parts.len() != 1 {
+                        return Err(format!(
+                            "Record construction requires an unqualified type name, got `{name}`."
+                        ));
+                    }
+                    return self.parse_record_construct(&name);
+                }
+                if self.variables.iter().any(|variable| variable == &parts[0]) {
+                    let mut expr = IrExpr::Var(parts[0].clone());
+                    for field in parts.iter().skip(1) {
+                        expr = IrExpr::FieldAccess {
+                            base: Box::new(expr),
+                            field: field.clone(),
+                        };
+                    }
+                    Ok(expr)
                 } else {
-                    Err(format!("Unknown variable `{name}`."))
+                    Err(format!("Unknown variable `{}`.", parts[0]))
                 }
             }
             Token::LParen => {
@@ -666,6 +716,55 @@ impl<'a> IrParser<'a> {
             reference: reference.to_string(),
             target,
             args,
+        })
+    }
+
+    fn parse_name_parts(&mut self, first: String) -> Result<Vec<String>, String> {
+        let mut parts = vec![first];
+        while self.consume(&Token::Dot) {
+            parts.push(self.expect_ident()?);
+        }
+        Ok(parts)
+    }
+
+    fn parse_record_construct(&mut self, type_name: &str) -> Result<IrExpr, String> {
+        let mut fields = Vec::new();
+        if !self.consume(&Token::RBrace) {
+            loop {
+                let field = self.expect_ident()?;
+                self.expect(&Token::Colon)?;
+                let value = self.parse_expression()?;
+                fields.push((field, value));
+                if self.consume(&Token::RBrace) {
+                    break;
+                }
+                self.expect(&Token::Comma)?;
+            }
+        }
+        Ok(IrExpr::RecordConstruct {
+            type_name: type_name.to_string(),
+            fields,
+        })
+    }
+
+    fn parse_record_update(&mut self, base: IrExpr) -> Result<IrExpr, String> {
+        self.expect(&Token::LBrace)?;
+        let mut fields = Vec::new();
+        if !self.consume(&Token::RBrace) {
+            loop {
+                let field = self.expect_ident()?;
+                self.expect(&Token::Colon)?;
+                let value = self.parse_expression()?;
+                fields.push((field, value));
+                if self.consume(&Token::RBrace) {
+                    break;
+                }
+                self.expect(&Token::Comma)?;
+            }
+        }
+        Ok(IrExpr::RecordUpdate {
+            base: Box::new(base),
+            fields,
         })
     }
 
