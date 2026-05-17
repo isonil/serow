@@ -7799,6 +7799,16 @@ fn compile_rust_out_dir_writes_crate_layout() {
         stdout.contains(&format!("\"input_fingerprint\": \"{input_fingerprint}\"")),
         "{stdout}"
     );
+    let source_bytes = fs::read("examples/math.serow").expect("read math source");
+    let source_fingerprint = stable_test_source_fingerprint_bytes(&source_bytes);
+    assert!(
+        stdout.contains(&format!(
+            "\"inputs\": [{{\"bytes\": {}, \"fingerprint\": \"{}\", \"path\": \"examples/math.serow\"}}]",
+            source_bytes.len(),
+            source_fingerprint
+        )),
+        "{stdout}"
+    );
     assert!(stdout.contains("\"written_files\": ["), "{stdout}");
     assert!(stdout.contains("Cargo.toml"), "{stdout}");
     assert!(stdout.contains("src/lib.rs"), "{stdout}");
@@ -7823,6 +7833,22 @@ fn compile_rust_out_dir_writes_crate_layout() {
     );
     assert!(
         manifest.contains(&format!("input_fingerprint = \"{input_fingerprint}\"")),
+        "{manifest}"
+    );
+    assert!(
+        manifest.contains("[[package.metadata.serow.inputs]]"),
+        "{manifest}"
+    );
+    assert!(
+        manifest.contains("path = \"examples/math.serow\""),
+        "{manifest}"
+    );
+    assert!(
+        manifest.contains(&format!("fingerprint = \"{source_fingerprint}\"")),
+        "{manifest}"
+    );
+    assert!(
+        manifest.contains(&format!("bytes = {}", source_bytes.len())),
         "{manifest}"
     );
     assert!(manifest.contains("generated_types = 0"), "{manifest}");
@@ -8529,6 +8555,14 @@ fn stable_test_input_fingerprint(paths: &[PathBuf]) -> String {
             update_test_fnv1a64(&mut hash, byte);
         }
         update_test_fnv1a64(&mut hash, 0);
+    }
+    format!("fnv1a64:{hash:016x}")
+}
+
+fn stable_test_source_fingerprint_bytes(bytes: &[u8]) -> String {
+    let mut hash = 0xcbf29ce484222325u64;
+    for byte in bytes {
+        update_test_fnv1a64(&mut hash, *byte);
     }
     format!("fnv1a64:{hash:016x}")
 }

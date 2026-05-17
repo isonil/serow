@@ -197,6 +197,7 @@ fn run_compile_rust(args: &[String]) -> i32 {
     };
     let paths = parsed.paths;
     let json_output = parsed.json_output;
+    let source_inputs = source_input_metadata(&paths);
     let input_fingerprint = source_input_fingerprint(&paths);
     let (program, parse_diagnostics) = parse_paths(&paths);
     let binary_entrypoint_shape = parsed
@@ -224,6 +225,7 @@ fn run_compile_rust(args: &[String]) -> i32 {
             &parsed.crate_name,
             rust,
             input_fingerprint.as_deref(),
+            source_inputs.as_deref().unwrap_or(&[]),
             binary_entrypoint.as_ref(),
         ) {
             Ok(files) => written_files = files,
@@ -238,6 +240,7 @@ fn run_compile_rust(args: &[String]) -> i32 {
                 &written_files,
                 &parsed.crate_name,
                 input_fingerprint.as_deref(),
+                source_inputs.as_deref().unwrap_or(&[]),
                 binary_entrypoint.as_ref()
             )
         );
@@ -323,6 +326,7 @@ fn write_rust_crate(
     crate_name: &str,
     rust: &GeneratedRustProgram,
     input_fingerprint: Option<&str>,
+    source_inputs: &[SourceInput],
     binary_entrypoint: Option<&BinaryEntrypoint>,
 ) -> Result<Vec<String>, Box<Diagnostic>> {
     let root = Path::new(out_dir);
@@ -330,8 +334,13 @@ fn write_rust_crate(
     write_backend_file(&src_dir, fs::create_dir_all(&src_dir).map(|_| ()), out_dir)?;
     let cargo_toml = root.join("Cargo.toml");
     let lib_rs = src_dir.join("lib.rs");
-    let cargo_source =
-        render_generated_cargo_toml(crate_name, rust, input_fingerprint, binary_entrypoint);
+    let cargo_source = render_generated_cargo_toml(
+        crate_name,
+        rust,
+        input_fingerprint,
+        source_inputs,
+        binary_entrypoint,
+    );
     write_backend_file(&cargo_toml, fs::write(&cargo_toml, cargo_source), out_dir)?;
     write_backend_file(&lib_rs, fs::write(&lib_rs, &rust.source), out_dir)?;
     let mut written_files = vec![
@@ -372,6 +381,7 @@ fn render_generated_cargo_toml(
     crate_name: &str,
     rust: &GeneratedRustProgram,
     input_fingerprint: Option<&str>,
+    source_inputs: &[SourceInput],
     binary_entrypoint: Option<&BinaryEntrypoint>,
 ) -> String {
     let mut source = format!(
@@ -422,6 +432,15 @@ fn render_generated_cargo_toml(
             entrypoint.line
         ));
     }
+    for input in source_inputs {
+        source.push_str("\n[[package.metadata.serow.inputs]]\n");
+        source.push_str(&format!(
+            "path = {}\nfingerprint = {}\nbytes = {}\n",
+            toml_string_literal(&input.path),
+            toml_string_literal(&input.fingerprint),
+            input.bytes
+        ));
+    }
     for type_decl in &rust.types {
         source.push_str("\n[[package.metadata.serow.types]]\n");
         source.push_str(&format!(
@@ -465,6 +484,26 @@ fn render_generated_cargo_toml(
     source
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct SourceInput {
+    path: String,
+    fingerprint: String,
+    bytes: usize,
+}
+
+fn source_input_metadata(paths: &[String]) -> Option<Vec<SourceInput>> {
+    let mut inputs = Vec::new();
+    for path in discover_sources(paths) {
+        let bytes = fs::read(&path).ok()?;
+        inputs.push(SourceInput {
+            path: path.to_string_lossy().to_string(),
+            fingerprint: source_bytes_fingerprint(&bytes),
+            bytes: bytes.len(),
+        });
+    }
+    Some(inputs)
+}
+
 fn source_input_fingerprint(paths: &[String]) -> Option<String> {
     let mut hash = 0xcbf29ce484222325u64;
     let sources = discover_sources(paths);
@@ -481,6 +520,14 @@ fn source_input_fingerprint(paths: &[String]) -> Option<String> {
         update_fnv1a64(&mut hash, 0);
     }
     Some(format!("fnv1a64:{hash:016x}"))
+}
+
+fn source_bytes_fingerprint(bytes: &[u8]) -> String {
+    let mut hash = 0xcbf29ce484222325u64;
+    for byte in bytes {
+        update_fnv1a64(&mut hash, *byte);
+    }
+    format!("fnv1a64:{hash:016x}")
 }
 
 fn update_fnv1a64(hash: &mut u64, byte: u8) {
@@ -2219,6 +2266,7 @@ fn rust_summary_json(
     written_files: &[String],
     crate_name: &str,
     input_fingerprint: Option<&str>,
+    source_inputs: &[SourceInput],
     binary_entrypoint: Option<&BinaryEntrypoint>,
 ) -> String {
     format!(
@@ -2248,7 +2296,7 @@ fn rust_summary_json(
         summary
             .rust
             .as_ref()
-            .map(|rust| rust_program_json(rust, input_fingerprint))
+            .map(|rust| rust_program_json(rust, input_fingerprint, source_inputs))
             .unwrap_or_else(|| "null".to_string()),
         summary.ir_summary.check_summary.functions,
         summary
@@ -2295,7 +2343,11 @@ fn binary_entrypoint_json(entrypoint: &BinaryEntrypoint) -> String {
     )
 }
 
-fn rust_program_json(rust: &GeneratedRustProgram, input_fingerprint: Option<&str>) -> String {
+fn rust_program_json(
+    rust: &GeneratedRustProgram,
+    input_fingerprint: Option<&str>,
+    source_inputs: &[SourceInput],
+) -> String {
     let functions = rust
         .functions
         .iter()
@@ -2351,12 +2403,25 @@ fn rust_program_json(rust: &GeneratedRustProgram, input_fingerprint: Option<&str
         })
         .collect::<Vec<_>>()
         .join(", ");
+    let inputs = source_inputs
+        .iter()
+        .map(|input| {
+            format!(
+                "{{\"bytes\": {}, \"fingerprint\": {}, \"path\": {}}}",
+                input.bytes,
+                json_string(&input.fingerprint),
+                json_string(&input.path)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
     format!(
         concat!(
             "{{",
             "\"backend\": {}, ",
             "\"functions\": [{}], ",
             "\"input_fingerprint\": {}, ",
+            "\"inputs\": [{}], ",
             "\"ir_version\": {}, ",
             "\"source\": {}, ",
             "\"source_fingerprint\": {}, ",
@@ -2367,6 +2432,7 @@ fn rust_program_json(rust: &GeneratedRustProgram, input_fingerprint: Option<&str
         json_string(&rust.backend),
         functions,
         json_string(input_fingerprint.unwrap_or("unknown")),
+        inputs,
         json_string(&rust.ir_version),
         json_string(&rust.source),
         json_string(&rust.source_fingerprint),
@@ -3007,7 +3073,7 @@ const CORE_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "compile rust",
         "serow compile rust [paths...] [--out-dir <dir>] [--emit-bin] [--crate-name <name>] [--json]",
-        "Emit deterministic Rust source, or a generated Rust crate with optional binary entrypoint, configurable package name, Serow type/source metadata, and generated evidence tests for the supported checked IR subset.",
+        "Emit deterministic Rust source, or a generated Rust crate with optional binary entrypoint, configurable package name, Serow input/type/source metadata, and generated evidence tests for the supported checked IR subset.",
     ),
     (
         "fmt",
@@ -3060,7 +3126,7 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "compile rust",
         "serow compile rust [paths...] [--out-dir <dir>] [--emit-bin] [--crate-name <name>] [--json]",
-        "Emit deterministic Rust source, or a generated Rust crate with optional binary entrypoint, configurable package name, Serow type/source metadata, and generated evidence tests for the supported checked IR subset.",
+        "Emit deterministic Rust source, or a generated Rust crate with optional binary entrypoint, configurable package name, Serow input/type/source metadata, and generated evidence tests for the supported checked IR subset.",
     ),
     (
         "fmt",
@@ -3288,7 +3354,7 @@ fn agent_json() -> String {
         str_array_json(&[
             "Properties are sampled, not proven; replay uses deterministic seeds for built-in and bounded declared-record samples.",
             "Intent search is deterministic token ranking, not semantic embeddings.",
-            "Rust backend emission supports pure Int/Bool/Text/Unit functions, declared records, and terminal io intrinsics, emits runtime asserts for Serow requires and ensures clauses, emits Rust tests for pure Serow examples and deterministic sampled properties, moves final record update bases when postconditions do not need the original value, and records Serow input fingerprints plus type, source, binary entrypoint, and evidence metadata in generated Cargo manifests.",
+            "Rust backend emission supports pure Int/Bool/Text/Unit functions, declared records, and terminal io intrinsics, emits runtime asserts for Serow requires and ensures clauses, emits Rust tests for pure Serow examples and deterministic sampled properties, moves final record update bases when postconditions do not need the original value, and records aggregate/per-source Serow input fingerprints plus type, source, binary entrypoint, and evidence metadata in generated Cargo manifests.",
             "Expression support is intentionally small and formatting does not preserve comments.",
             "JSON output is hand-written until external dependencies are accepted."
         ])
@@ -3504,7 +3570,7 @@ fn print_agent_bootstrap() {
     println!("  Rust backend emits runtime asserts for Serow requires and ensures clauses");
     println!("  Rust backend emits Rust tests for pure Serow examples and sampled properties");
     println!(
-        "  Rust backend records type, function, binary entrypoint, and evidence metadata in Cargo manifests"
+        "  Rust backend records source input, type, function, binary entrypoint, and evidence metadata in Cargo manifests"
     );
     println!("  expression support is small and formatting does not preserve comments");
 }

@@ -2,6 +2,11 @@
 
 ## 2026-05-17
 
+- Chose generated Rust source-input metadata as the next backend traceability slice because generated artifacts carried an aggregate Serow input fingerprint but did not expose the deterministic source input list that produced it.
+- Extended `compile rust --json` output with `rust.inputs` rows containing each discovered Serow source path, byte count, and per-file FNV-1a fingerprint while preserving the existing aggregate input fingerprint algorithm.
+- Extended generated Rust crate manifests with deterministic `[[package.metadata.serow.inputs]]` rows containing the same path/fingerprint/byte-count metadata.
+- Updated README, agent bootstrap text, `serow.project`, and Progress docs to advertise aggregate and per-source Serow input metadata for generated Rust artifacts.
+- Verified with `bin/serow query intent "record Serow source input paths and per-file fingerprints in generated Rust backend artifacts" --json`, `bin/serow query symbol "source input fingerprint" --json`, `bin/serow query symbol "compile rust" --json`, `cargo fmt --check`, `cargo test compile_rust_out_dir_writes_crate_layout -- --nocapture`, `bin/serow compile rust examples/math.serow --json`, `bin/serow agent --json`, `cargo clippy -- -D warnings`, `cargo test`, `python3 -m unittest discover -s tests`, `bin/serow fmt --check --json`, `bin/serow check --json`, `bin/serow certify --json`, `bin/serow certify --profile unattended --json`, `bin/serow compile rust examples/math.serow --out-dir /tmp/serow-input-metadata-check --crate-name serow_input_metadata_check --json`, generated-crate `cargo test`, `bin/serow plan --json`, and `git diff --check`.
 - Chose generated Rust input traceability as the next backend metadata slice because generated crates recorded the generated `src/lib.rs` fingerprint but not the exact Serow source inputs used to produce the artifact.
 - Added a deterministic FNV-1a input fingerprint over discovered `.serow` source paths and bytes, exposed it in `compile rust --json`, and recorded it as `package.metadata.serow.input_fingerprint` in generated Cargo manifests.
 - Updated README, agent bootstrap known limits, `serow.project`, and Progress docs to advertise Serow input fingerprint metadata.

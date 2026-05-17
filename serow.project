@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "0.4.78-rust-bootstrap",
+  "version": "0.4.79-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -143,6 +143,7 @@
     "rust_backend_crate_tests": true,
     "rust_backend_crate_metadata": true,
     "rust_backend_input_fingerprint": true,
+    "rust_backend_input_metadata": true,
     "rust_backend_generated_source_fingerprint": true,
     "rust_backend_crate_type_metadata": true,
     "rust_backend_crate_source_metadata": true,
