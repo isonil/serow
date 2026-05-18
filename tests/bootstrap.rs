@@ -2695,6 +2695,7 @@ fn agent_commands_json_includes_full_command_catalog() {
     assert!(stdout.contains("serow patch qualify-call"), "{stdout}");
     assert!(stdout.contains("serow patch remove-function"), "{stdout}");
     assert!(stdout.contains("serow patch remove-type"), "{stdout}");
+    assert!(stdout.contains("serow patch rename-module"), "{stdout}");
     assert!(stdout.contains("serow query callees"), "{stdout}");
     assert!(stdout.contains("serow query symbols"), "{stdout}");
     assert!(stdout.contains("serow replay property"), "{stdout}");
@@ -5441,6 +5442,130 @@ pub fn keep(x: Int) -> Int
     assert!(
         missing_stdout.contains("PatchTargetNotFound"),
         "{missing_stdout}"
+    );
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn patch_rename_module_rewrites_qualified_references() {
+    let dir = unique_temp_dir("serow-patch-rename-module");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("modules.serow");
+    fs::write(
+        &source,
+        r#"module core.math
+
+type Counter = { value: Int }
+
+pub fn inc(x: Int) -> Int
+  intent "Return one more than x."
+  version v1
+  contract
+    ensures result == x + 1
+  examples
+    inc(1) == 2
+  properties
+    forall x: Int:
+      inc(x) == x + 1
+  effects pure
+  impl
+    x + 1
+
+module app.main
+
+use core.math
+
+pub fn bump(x: Int) -> Int
+  intent "Increment x through a qualified helper."
+  version v1
+  contract
+    ensures result == x + 1
+  examples
+    @core.math.inc.v1(1) == 2
+  properties
+    forall x: Int:
+      core.math.inc.v1(x) == bump(x)
+  effects pure
+  impl
+    core.math.inc(x)
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "rename-module",
+            source.to_str().expect("utf8 path"),
+            "core.math",
+            "core.arithmetic",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch rename-module");
+
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"changed\": 1"), "{stdout}");
+    let updated = fs::read_to_string(&source).expect("read updated fixture");
+    assert!(updated.contains("module core.arithmetic"), "{updated}");
+    assert!(updated.contains("use core.arithmetic"), "{updated}");
+    assert!(
+        updated.contains("type Counter = { value: Int }"),
+        "{updated}"
+    );
+    assert!(
+        updated.contains("@core.arithmetic.inc.v1(1) == 2"),
+        "{updated}"
+    );
+    assert!(
+        updated.contains("core.arithmetic.inc.v1(x) == bump(x)"),
+        "{updated}"
+    );
+    assert!(updated.contains("core.arithmetic.inc(x)"), "{updated}");
+    assert!(!updated.contains("core.math"), "{updated}");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    assert!(
+        program
+            .types
+            .iter()
+            .any(|type_decl| type_decl.symbol() == "@core.arithmetic.Counter"),
+        "{:#?}",
+        program.types
+    );
+    assert!(
+        program
+            .functions
+            .iter()
+            .any(|function| function.symbol() == "@core.arithmetic.inc.v1"),
+        "{:#?}",
+        program.functions
+    );
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(summary.ok(), "{:#?}", summary.diagnostics);
+
+    let duplicate = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "rename-module",
+            source.to_str().expect("utf8 path"),
+            "core.arithmetic",
+            "app.main",
+            "--json",
+        ])
+        .output()
+        .expect("run rejected serow patch rename-module");
+    assert!(!duplicate.status.success(), "{duplicate:#?}");
+    let duplicate_stdout = String::from_utf8(duplicate.stdout).expect("stdout is utf8");
+    assert!(
+        duplicate_stdout.contains("PatchConflict"),
+        "{duplicate_stdout}"
+    );
+    assert!(
+        duplicate_stdout.contains("Module `app.main` already exists"),
+        "{duplicate_stdout}"
     );
 
     let _ = fs::remove_dir_all(dir);
@@ -8276,7 +8401,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("\"project_version\": \"0.4.90-rust-bootstrap\""),
+        stdout.contains("\"project_version\": \"0.4.91-rust-bootstrap\""),
         "{stdout}"
     );
     let source_bytes = fs::read("examples/math.serow").expect("read math source");
@@ -8323,7 +8448,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{manifest}"
     );
     assert!(
-        manifest.contains("project_version = \"0.4.90-rust-bootstrap\""),
+        manifest.contains("project_version = \"0.4.91-rust-bootstrap\""),
         "{manifest}"
     );
     assert!(
@@ -8405,7 +8530,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{metadata}"
     );
     assert!(
-        metadata.contains("\"project_version\": \"0.4.90-rust-bootstrap\""),
+        metadata.contains("\"project_version\": \"0.4.91-rust-bootstrap\""),
         "{metadata}"
     );
     assert!(
@@ -8469,7 +8594,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{readme}"
     );
     assert!(
-        readme.contains("- Serow project version: `0.4.90-rust-bootstrap`"),
+        readme.contains("- Serow project version: `0.4.91-rust-bootstrap`"),
         "{readme}"
     );
     assert!(

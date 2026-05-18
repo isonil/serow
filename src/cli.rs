@@ -14,9 +14,9 @@ use crate::parser::{discover_sources, parse_paths};
 use crate::patch::{
     PatchSummary, add_contract, add_example, add_function, add_migration, add_property, add_type,
     add_use, fill_hole, qualify_call, remove_contract, remove_example, remove_function,
-    remove_migration, remove_property, remove_type, remove_use, rename_function, set_contract,
-    set_effects, set_example, set_impl, set_intent, set_migration, set_property, set_signature,
-    set_version,
+    remove_migration, remove_property, remove_type, remove_use, rename_function, rename_module,
+    set_contract, set_effects, set_example, set_impl, set_intent, set_migration, set_property,
+    set_signature, set_version,
 };
 use crate::plan::{
     CapabilityAnalysis, CapabilityChange, ChangePlan, EvidenceCoverage, EvidenceDelta,
@@ -1211,6 +1211,7 @@ fn run_patch(args: &[String]) -> i32 {
         "remove-type" => run_patch_remove_type(&args[1..]),
         "remove-use" => run_patch_remove_use(&args[1..]),
         "rename-function" => run_patch_rename_function(&args[1..]),
+        "rename-module" => run_patch_rename_module(&args[1..]),
         "set-contract" => run_patch_set_contract(&args[1..]),
         "set-effects" => run_patch_set_effects(&args[1..]),
         "set-example" => run_patch_set_example(&args[1..]),
@@ -1490,6 +1491,21 @@ fn run_patch_rename_function(args: &[String]) -> i32 {
         return 2;
     };
     let summary = rename_function(path, target, new_name);
+    if json_output {
+        println!("{}", patch_json(&summary));
+    } else {
+        print_patch_summary(&summary);
+    }
+    i32::from(!summary.ok())
+}
+
+fn run_patch_rename_module(args: &[String]) -> i32 {
+    let (args, json_output) = split_flag(args, "--json");
+    let [path, module, new_module] = args.as_slice() else {
+        print_patch_usage();
+        return 2;
+    };
+    let summary = rename_module(path, module, new_module);
     if json_output {
         println!("{}", patch_json(&summary));
     } else {
@@ -3766,6 +3782,11 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
         "Rename a public function and rewrite resolved call references in the patched source.",
     ),
     (
+        "patch rename-module",
+        "serow patch rename-module <path> <module> <new-module> [--json]",
+        "Rename a module and rewrite in-file module dependencies plus qualified call references.",
+    ),
+    (
         "patch set-contract",
         "serow patch set-contract <path> <symbol-or-name> <requires|ensures> [index] <expression> [--json]",
         "Set or replace a missing, single, or indexed contract clause through the structured patch interface.",
@@ -4233,6 +4254,7 @@ fn print_usage() {
     eprintln!("  serow patch remove-type <path> <module> <type-name> [--json]");
     eprintln!("  serow patch remove-use <path> <module> <dependency> [--json]");
     eprintln!("  serow patch rename-function <path> <symbol-or-name> <new-name> [--json]");
+    eprintln!("  serow patch rename-module <path> <module> <new-module> [--json]");
     eprintln!(
         "  serow patch set-contract <path> <symbol-or-name> <requires|ensures> [index] <expression> [--json]"
     );
@@ -4299,6 +4321,7 @@ fn print_patch_usage() {
     eprintln!("  serow patch remove-type <path> <module> <type-name> [--json]");
     eprintln!("  serow patch remove-use <path> <module> <dependency> [--json]");
     eprintln!("  serow patch rename-function <path> <symbol-or-name> <new-name> [--json]");
+    eprintln!("  serow patch rename-module <path> <module> <new-module> [--json]");
     eprintln!(
         "  serow patch set-contract <path> <symbol-or-name> <requires|ensures> [index] <expression> [--json]"
     );

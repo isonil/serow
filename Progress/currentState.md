@@ -154,6 +154,7 @@ Selection policy for generic implementation prompts:
   - `bin/serow patch remove-type <path> <module> <type-name> [--json]`
   - `bin/serow patch remove-use <path> <module> <dependency> [--json]`
   - `bin/serow patch rename-function <path> <symbol-or-name> <new-name> [--json]`
+  - `bin/serow patch rename-module <path> <module> <new-module> [--json]`
   - `bin/serow patch set-contract <path> <symbol-or-name> <requires|ensures> [index] <expression> [--json]`
   - `bin/serow patch set-effects <path> <symbol-or-name> <effects> [--json]`
   - `bin/serow patch set-example <path> <symbol-or-name> [index] <expression> [--json]`
@@ -188,6 +189,7 @@ Selection policy for generic implementation prompts:
 - `patch set-signature` replaces a function's argument list and return type while preserving the existing function name; use `patch rename-function` for name changes.
 - `patch set-version` now supports dependent-aware public version bumps when parsed call sites do not pin the old canonical symbol, and rejects pinned `module.name.vN(...)` or `@module.name.vN(...)` callers with `VersionPinnedDependent`.
 - `patch rename-function` renames a public function and rewrites resolved call references in the patched source, using exact `@module.name.vN(...)` references when the new bare name would be ambiguous.
+- `patch rename-module` renames one module, rewrites record/function ownership, in-file `use` declarations, and in-file exact or module-qualified call references that resolve to the renamed module while leaving cross-file impact to the normal check/plan/certify gates.
 - `patch qualify-call` rewrites bare calls inside one caller function to an exact selected callee symbol so ambiguous call sites can be made deliberate through the structured patch interface.
 - `replay property` reports unsupported sampled property generator types with the same indexed `patch remove-property` structured repair action used by checker diagnostics.
 - Structured JSON diagnostic repair actions:

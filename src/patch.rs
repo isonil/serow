@@ -181,6 +181,108 @@ pub fn remove_use(path: &str, module: &str, dependency: &str) -> PatchSummary {
     summary
 }
 
+pub fn rename_module(path: &str, module: &str, new_module: &str) -> PatchSummary {
+    let mut summary = PatchSummary::default();
+    let module = module.trim();
+    let new_module = new_module.trim();
+    if !is_valid_module(module) {
+        summary.diagnostics.push(Diagnostic::error(
+            "InvalidPatchTarget",
+            format!("Invalid module name `{module}`."),
+            Some(path.to_string()),
+        ));
+        return summary;
+    }
+    if !is_valid_module(new_module) {
+        summary.diagnostics.push(Diagnostic::error(
+            "InvalidPatchTarget",
+            format!("Invalid new module name `{new_module}`."),
+            Some(path.to_string()),
+        ));
+        return summary;
+    }
+    if module == new_module {
+        return summary;
+    }
+
+    let (mut program, parse_diagnostics) = parse_paths(&[path.to_string()]);
+    let has_parse_errors = has_errors(&parse_diagnostics);
+    summary.diagnostics.extend(parse_diagnostics);
+    if has_parse_errors {
+        return summary;
+    }
+
+    let Some(module_index) = program
+        .modules
+        .iter()
+        .position(|candidate| candidate.name == module)
+    else {
+        summary.diagnostics.push(Diagnostic::error(
+            "PatchTargetNotFound",
+            format!("Module `{module}` was not found."),
+            Some(path.to_string()),
+        ));
+        return summary;
+    };
+
+    if let Some(existing) = program
+        .modules
+        .iter()
+        .find(|candidate| candidate.name == new_module)
+    {
+        summary.diagnostics.push(
+            Diagnostic::error(
+                "PatchConflict",
+                format!("Module `{new_module}` already exists."),
+                Some(existing.source_path.clone()),
+            )
+            .with_repair(
+                "Choose a new module name that is not already declared in this patch input.",
+            ),
+        );
+        return summary;
+    }
+
+    let original_program = program.clone();
+    program.modules[module_index].name = new_module.to_string();
+    for dependency in &mut program.modules[module_index].dependencies {
+        if dependency.module == module {
+            dependency.module = new_module.to_string();
+        }
+    }
+    for type_decl in &mut program.modules[module_index].types {
+        type_decl.module = new_module.to_string();
+    }
+    for function in &mut program.modules[module_index].functions {
+        function.module = new_module.to_string();
+    }
+    for module_row in &mut program.modules {
+        for dependency in &mut module_row.dependencies {
+            if dependency.module == module {
+                dependency.module = new_module.to_string();
+            }
+        }
+        for function in &mut module_row.functions {
+            rewrite_module_call_references(function, &original_program, module, new_module);
+        }
+    }
+    rebuild_function_index(&mut program);
+    rebuild_type_index(&mut program);
+
+    let formatted = format_program(&program);
+    match fs::write(path, formatted) {
+        Ok(()) => {
+            summary.changed = 1;
+        }
+        Err(error) => summary.diagnostics.push(Diagnostic::error(
+            "WriteError",
+            format!("Could not write `{path}`: {error}"),
+            Some(path.to_string()),
+        )),
+    }
+    summary
+}
+
 pub fn add_type(path: &str, module: &str, declaration: &str) -> PatchSummary {
     let mut summary = PatchSummary::default();
     if !is_valid_module(module) {
@@ -1638,6 +1740,136 @@ fn rebuild_function_index(program: &mut Program) {
         .iter()
         .flat_map(|module| module.functions.iter().cloned())
         .collect();
+}
+
+fn rebuild_type_index(program: &mut Program) {
+    program.types = program
+        .modules
+        .iter()
+        .flat_map(|module| module.types.iter().cloned())
+        .collect();
+}
+
+fn rewrite_module_call_references(
+    function: &mut Function,
+    original_program: &Program,
+    old_module: &str,
+    new_module: &str,
+) {
+    if let Some(implementation) = &mut function.implementation {
+        *implementation = rewrite_expression_module_call_references(
+            implementation,
+            original_program,
+            old_module,
+            new_module,
+        );
+    }
+    for requirement in &mut function.requires {
+        *requirement = rewrite_expression_module_call_references(
+            requirement,
+            original_program,
+            old_module,
+            new_module,
+        );
+    }
+    for contract in &mut function.contracts {
+        *contract = rewrite_expression_module_call_references(
+            contract,
+            original_program,
+            old_module,
+            new_module,
+        );
+    }
+    for example in &mut function.examples {
+        *example = rewrite_expression_module_call_references(
+            example,
+            original_program,
+            old_module,
+            new_module,
+        );
+    }
+    for property in &mut function.properties {
+        if property.trim().starts_with("forall ") && property.trim().ends_with(':') {
+            continue;
+        }
+        *property = rewrite_expression_module_call_references(
+            property,
+            original_program,
+            old_module,
+            new_module,
+        );
+    }
+}
+
+fn rewrite_expression_module_call_references(
+    expression: &str,
+    original_program: &Program,
+    old_module: &str,
+    new_module: &str,
+) -> String {
+    let mut rewritten = String::new();
+    let mut index = 0;
+    while index < expression.len() {
+        let rest = &expression[index..];
+        if rest.starts_with('"') {
+            let end = string_literal_end(expression, index);
+            rewritten.push_str(&expression[index..end]);
+            index = end;
+            continue;
+        }
+        let Some(end) = identifier_end(expression, index) else {
+            let char = rest
+                .chars()
+                .next()
+                .expect("index is inside expression bounds");
+            rewritten.push(char);
+            index += char.len_utf8();
+            continue;
+        };
+        let reference_text = &expression[index..end];
+        let next_non_space = expression[end..]
+            .char_indices()
+            .find(|(_, char)| !char.is_whitespace())
+            .map(|(offset, char)| (end + offset, char));
+        let replacement = if next_non_space.is_some_and(|(_, char)| char == '(') {
+            module_call_replacement(reference_text, original_program, old_module, new_module)
+        } else {
+            None
+        };
+        if let Some(replacement) = replacement {
+            rewritten.push_str(&replacement);
+        } else {
+            rewritten.push_str(reference_text);
+        }
+        index = end;
+    }
+    rewritten
+}
+
+fn module_call_replacement(
+    reference_text: &str,
+    original_program: &Program,
+    old_module: &str,
+    new_module: &str,
+) -> Option<String> {
+    let callee = resolve_function(reference_text, &original_program.functions).ok()?;
+    if callee.module != old_module {
+        return None;
+    }
+    let reference = crate::eval::CallReference::parse(reference_text);
+    if reference.raw.starts_with('@') {
+        return Some(format!(
+            "@{}.{}.{}",
+            new_module,
+            callee.name,
+            callee.version()
+        ));
+    }
+    match (&reference.module, &reference.version) {
+        (Some(_), Some(version)) => Some(format!("{new_module}.{}.{}", callee.name, version)),
+        (Some(_), None) => Some(format!("{new_module}.{}", callee.name)),
+        _ => None,
+    }
 }
 
 fn rewrite_function_call_references(
