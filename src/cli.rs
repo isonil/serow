@@ -12,10 +12,10 @@ use crate::ledger::{
 use crate::model::Function;
 use crate::parser::{discover_sources, parse_paths};
 use crate::patch::{
-    PatchSummary, add_contract, add_example, add_function, add_migration, add_property, add_use,
-    fill_hole, qualify_call, remove_contract, remove_example, remove_migration, remove_property,
-    remove_use, rename_function, set_contract, set_effects, set_example, set_impl, set_intent,
-    set_migration, set_property, set_signature, set_version,
+    PatchSummary, add_contract, add_example, add_function, add_migration, add_property, add_type,
+    add_use, fill_hole, qualify_call, remove_contract, remove_example, remove_migration,
+    remove_property, remove_use, rename_function, set_contract, set_effects, set_example, set_impl,
+    set_intent, set_migration, set_property, set_signature, set_version,
 };
 use crate::plan::{
     CapabilityAnalysis, CapabilityChange, ChangePlan, EvidenceCoverage, EvidenceDelta,
@@ -1198,6 +1198,7 @@ fn run_patch(args: &[String]) -> i32 {
         "add-function" => run_patch_add_function(&args[1..]),
         "add-migration" => run_patch_add_migration(&args[1..]),
         "add-property" => run_patch_add_property(&args[1..]),
+        "add-type" => run_patch_add_type(&args[1..]),
         "add-use" => run_patch_add_use(&args[1..]),
         "fill-hole" => run_patch_fill_hole(&args[1..]),
         "qualify-call" => run_patch_qualify_call(&args[1..]),
@@ -1290,6 +1291,21 @@ fn run_patch_add_property(args: &[String]) -> i32 {
         return 2;
     };
     let summary = add_property(path, target, forall, expression);
+    if json_output {
+        println!("{}", patch_json(&summary));
+    } else {
+        print_patch_summary(&summary);
+    }
+    i32::from(!summary.ok())
+}
+
+fn run_patch_add_type(args: &[String]) -> i32 {
+    let (args, json_output) = split_flag(args, "--json");
+    let [path, module, declaration] = args.as_slice() else {
+        print_patch_usage();
+        return 2;
+    };
+    let summary = add_type(path, module, declaration);
     if json_output {
         println!("{}", patch_json(&summary));
     } else {
@@ -3657,6 +3673,11 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
         "Add one sampled forall property to an existing function.",
     ),
     (
+        "patch add-type",
+        "serow patch add-type <path> <module> <type-declaration> [--json]",
+        "Add one record type declaration through the structured patch interface.",
+    ),
+    (
         "patch add-use",
         "serow patch add-use <path> <module> <dependency> [--json]",
         "Add a module use declaration through the structured patch interface.",
@@ -4153,6 +4174,7 @@ fn print_usage() {
     eprintln!(
         "  serow patch add-property <path> <symbol-or-name> <forall-header> <expression> [--json]"
     );
+    eprintln!("  serow patch add-type <path> <module> <type-declaration> [--json]");
     eprintln!("  serow patch add-use <path> <module> <dependency> [--json]");
     eprintln!("  serow patch fill-hole <path> <symbol-or-name> <expression> [--json]");
     eprintln!(
@@ -4216,6 +4238,7 @@ fn print_patch_usage() {
     eprintln!(
         "  serow patch add-property <path> <symbol-or-name> <forall-header> <expression> [--json]"
     );
+    eprintln!("  serow patch add-type <path> <module> <type-declaration> [--json]");
     eprintln!("  serow patch add-use <path> <module> <dependency> [--json]");
     eprintln!("  serow patch fill-hole <path> <symbol-or-name> <expression> [--json]");
     eprintln!(

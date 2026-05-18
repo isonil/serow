@@ -142,6 +142,7 @@ Selection policy for generic implementation prompts:
   - `bin/serow patch add-example <path> <symbol-or-name> <expression> [--json]`
   - `bin/serow patch add-migration <path> <symbol-or-name> <kind> <note> [--json]`
   - `bin/serow patch add-property <path> <symbol-or-name> <forall-header> <expression> [--json]`
+  - `bin/serow patch add-type <path> <module> <type-declaration> [--json]`
   - `bin/serow patch add-use <path> <module> <dependency> [--json]`
   - `bin/serow patch fill-hole <path> <symbol-or-name> <expression> [--json]`
   - `bin/serow patch qualify-call <path> <caller-symbol-or-name> <bare-call-name> <callee-symbol-or-name> [--json]`
@@ -161,6 +162,7 @@ Selection policy for generic implementation prompts:
   - `bin/serow patch set-signature <path> <symbol-or-name> <signature> [--json]`
   - `bin/serow patch set-version <path> <symbol-or-name> <version> [--json]`
 - Structured evidence patches reject ambiguous bare targets and preserve canonical formatting.
+- `patch add-type` inserts one record declaration into an existing module, accepts declarations with or without the `type` prefix, and rejects duplicate type names or duplicate fields before rewriting canonically.
 - `patch set-contract` creates a missing `requires` or `ensures` clause, replaces a single existing clause, or replaces a specific clause when passed a 1-based index.
 - `patch set-example` and `patch set-property` create missing executable evidence, replace a single existing item, or replace a specific item when passed a 1-based index.
 - Duplicate public evidence diagnostics include structured repair actions pointing at indexed `patch remove-contract`, `patch remove-example`, and `patch remove-property` commands for the repeated item.
@@ -238,6 +240,27 @@ bin/serow agent --json
 bin/serow query intent "complete public skeleton through structured patches" --json
 bin/serow query symbol add --json
 bin/serow certify
+```
+
+Additional verification after adding structured record type insertion:
+
+```sh
+bin/serow query intent "add a record type declaration through a structured patch command" --json
+bin/serow query symbol "add-type" --json
+cargo fmt --check
+cargo test patch_add_type_inserts_record_declaration -- --nocapture
+bin/serow agent commands --json
+cargo clippy -- -D warnings
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check --json
+cargo test compile_rust_out_dir_writes_crate_layout -- --nocapture
+cargo test
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+bin/serow agent --json
+git diff --check
 ```
 
 Additional verification after adding `patch set-version` and unattended repair actions:

@@ -5151,6 +5151,84 @@ pub fn id(x: Int) -> Int
 }
 
 #[test]
+fn patch_add_type_inserts_record_declaration() {
+    let dir = unique_temp_dir("serow-patch-add-type");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("record_type.serow");
+    fs::write(
+        &source,
+        r#"module app.main
+
+pub fn starting_player() -> Player
+  intent "Return the starting player state."
+  version v1
+  contract
+    ensures result.hp == 10
+  examples
+    starting_player().gold == 0
+  properties
+    forall flag: Bool:
+      if flag then starting_player().hp == 10 else starting_player().gold == 0
+  effects pure
+  impl
+    Player { hp: 10, gold: 0 }
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "add-type",
+            source.to_str().expect("utf8 path"),
+            "app.main",
+            "Player = { hp: Int, gold: Int }",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch add-type");
+
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"changed\": 1"), "{stdout}");
+    let updated = fs::read_to_string(&source).expect("read updated fixture");
+    assert!(
+        updated.contains(
+            "module app.main\n\ntype Player = { hp: Int, gold: Int }\n\npub fn starting_player"
+        ),
+        "{updated}"
+    );
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(summary.ok(), "{:#?}", summary.diagnostics);
+
+    let duplicate = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "add-type",
+            source.to_str().expect("utf8 path"),
+            "app.main",
+            "type Player = { hp: Int }",
+            "--json",
+        ])
+        .output()
+        .expect("run rejected serow patch add-type");
+    assert!(!duplicate.status.success(), "{duplicate:#?}");
+    let duplicate_stdout = String::from_utf8(duplicate.stdout).expect("stdout is utf8");
+    assert!(
+        duplicate_stdout.contains("PatchConflict"),
+        "{duplicate_stdout}"
+    );
+    assert!(
+        duplicate_stdout.contains("Type declaration `Player` already exists"),
+        "{duplicate_stdout}"
+    );
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn patch_add_function_inserts_safe_public_skeleton() {
     let dir = unique_temp_dir("serow-patch-add-function");
     fs::create_dir_all(&dir).expect("create temp dir");
@@ -8038,7 +8116,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("\"project_version\": \"0.4.87-rust-bootstrap\""),
+        stdout.contains("\"project_version\": \"0.4.88-rust-bootstrap\""),
         "{stdout}"
     );
     let source_bytes = fs::read("examples/math.serow").expect("read math source");
@@ -8085,7 +8163,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{manifest}"
     );
     assert!(
-        manifest.contains("project_version = \"0.4.87-rust-bootstrap\""),
+        manifest.contains("project_version = \"0.4.88-rust-bootstrap\""),
         "{manifest}"
     );
     assert!(
@@ -8167,7 +8245,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{metadata}"
     );
     assert!(
-        metadata.contains("\"project_version\": \"0.4.87-rust-bootstrap\""),
+        metadata.contains("\"project_version\": \"0.4.88-rust-bootstrap\""),
         "{metadata}"
     );
     assert!(
@@ -8231,7 +8309,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{readme}"
     );
     assert!(
-        readme.contains("- Serow project version: `0.4.87-rust-bootstrap`"),
+        readme.contains("- Serow project version: `0.4.88-rust-bootstrap`"),
         "{readme}"
     );
     assert!(

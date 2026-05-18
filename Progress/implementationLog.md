@@ -2,6 +2,11 @@
 
 ## 2026-05-18
 
+- Chose structured record type insertion as the next agent-safe language-core slice because record declarations are now part of the checked language and Rust backend, but agents still had no narrow patch command for adding them without raw text edits.
+- Added `bin/serow patch add-type <path> <module> <type-declaration> [--json]`, accepting declarations with or without the `type` prefix, rejecting duplicate type names and duplicate fields, and rewriting through canonical formatting.
+- Bumped `serow.project` to `0.4.88-rust-bootstrap` and updated README, agent command discovery, language notes, roadmap, and current state for structured record type insertion.
+- Verified with `bin/serow query intent "add a record type declaration through a structured patch command" --json`, `bin/serow query symbol "add-type" --json`, `cargo fmt --check`, `cargo test patch_add_type_inserts_record_declaration -- --nocapture`, `bin/serow agent commands --json`, `cargo clippy -- -D warnings`, `python3 -m unittest discover -s tests`, `bin/serow fmt --check --json`, `bin/serow check --json`, `cargo test compile_rust_out_dir_writes_crate_layout -- --nocapture`, `cargo test`, `bin/serow certify --json`, `bin/serow certify --profile unattended --json`, `bin/serow plan --json`, `bin/serow agent --json`, and `git diff --check`.
+
 - Chose explicit recursive-record sample diagnostics as the next cross-phase correctness slice because record sampling and Rust backend layout rejection both knew recursive records were unsupported, but sampled-property diagnostics only exposed a generic unsupported type.
 - Added reason-carrying sampleability analysis for property bindings, preserving existing `unsupported_types` output while adding `unsupported_reasons` and `recursive_record_cycles` in checker diagnostics, property replay diagnostics, and `serow plan` property coverage hints.
 - Bumped `serow.project` to `0.4.87-rust-bootstrap` and updated README, agent diagnostic text, language notes, roadmap, and current state for explicit non-executable sample reasons.

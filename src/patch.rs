@@ -4,7 +4,9 @@ use crate::diagnostic::{Diagnostic, has_errors};
 use crate::eval::{called_functions, resolve_function};
 use crate::formatter::format_program;
 use crate::ledger::exact_intent_key;
-use crate::model::{Function, MigrationRecord, ModuleDependency, Param, Program};
+use crate::model::{
+    Function, MigrationRecord, ModuleDependency, Param, Program, RecordField, TypeDecl,
+};
 
 const MIGRATION_KINDS: &[&str] = &[
     "public-behavior-change",
@@ -164,6 +166,94 @@ pub fn remove_use(path: &str, module: &str, dependency: &str) -> PatchSummary {
     program.modules[module_index]
         .dependencies
         .remove(dependency_index);
+
+    let formatted = format_program(&program);
+    match fs::write(path, formatted) {
+        Ok(()) => {
+            summary.changed = 1;
+        }
+        Err(error) => summary.diagnostics.push(Diagnostic::error(
+            "WriteError",
+            format!("Could not write `{path}`: {error}"),
+            Some(path.to_string()),
+        )),
+    }
+    summary
+}
+
+pub fn add_type(path: &str, module: &str, declaration: &str) -> PatchSummary {
+    let mut summary = PatchSummary::default();
+    if !is_valid_module(module) {
+        summary.diagnostics.push(Diagnostic::error(
+            "InvalidPatchTarget",
+            format!("Invalid module name `{module}`."),
+            Some(path.to_string()),
+        ));
+        return summary;
+    }
+    let Some((name, fields)) = parse_type_declaration(declaration) else {
+        summary.diagnostics.push(
+            Diagnostic::error(
+                "InvalidPatchTarget",
+                format!("Invalid type declaration `{declaration}`."),
+                Some(path.to_string()),
+            )
+            .with_repair("Use a record declaration like `Player = { hp: Int, gold: Int }`."),
+        );
+        return summary;
+    };
+
+    let (mut program, parse_diagnostics) = parse_paths(&[path.to_string()]);
+    let has_parse_errors = has_errors(&parse_diagnostics);
+    summary.diagnostics.extend(parse_diagnostics);
+    if has_parse_errors {
+        return summary;
+    }
+
+    let Some(module_index) = program
+        .modules
+        .iter()
+        .position(|candidate| candidate.name == module)
+    else {
+        summary.diagnostics.push(Diagnostic::error(
+            "PatchTargetNotFound",
+            format!("Module `{module}` was not found."),
+            Some(path.to_string()),
+        ));
+        return summary;
+    };
+
+    if let Some(existing) = program
+        .types
+        .iter()
+        .find(|candidate| candidate.name == name)
+    {
+        summary.diagnostics.push(
+            Diagnostic::error(
+                "PatchConflict",
+                format!("Type declaration `{name}` already exists."),
+                Some(existing.target()),
+            )
+            .with_data("type", existing.symbol())
+            .with_repair("Choose a different type name or reuse the existing declaration."),
+        );
+        return summary;
+    }
+
+    let line = program.modules[module_index]
+        .types
+        .last()
+        .map(|type_decl| type_decl.line + 1)
+        .unwrap_or(1);
+    let type_decl = TypeDecl {
+        name,
+        module: module.to_string(),
+        source_path: path.to_string(),
+        line,
+        fields,
+    };
+    program.modules[module_index].types.push(type_decl.clone());
+    program.types.push(type_decl);
 
     let formatted = format_program(&program);
     match fs::write(path, formatted) {
@@ -1910,6 +2000,44 @@ fn parse_signature(signature: &str) -> Option<(String, Vec<Param>, String)> {
     }
     let params = parse_params(&left[open + 1..close])?;
     Some((name.to_string(), params, return_type.to_string()))
+}
+
+fn parse_type_declaration(declaration: &str) -> Option<(String, Vec<RecordField>)> {
+    let declaration = declaration
+        .trim()
+        .strip_prefix("type ")
+        .unwrap_or(declaration.trim());
+    let (name, body) = declaration.split_once('=')?;
+    let name = name.trim();
+    if !is_valid_ident(name) {
+        return None;
+    }
+    let fields_text = body
+        .trim()
+        .strip_prefix('{')
+        .and_then(|value| value.strip_suffix('}'))?;
+    let mut fields = Vec::new();
+    let mut field_names = Vec::<String>::new();
+    if fields_text.trim().is_empty() {
+        return Some((name.to_string(), fields));
+    }
+    for raw_field in fields_text.split(',') {
+        let (field_name, type_name) = raw_field.trim().split_once(':')?;
+        let field_name = field_name.trim();
+        let type_name = type_name.trim();
+        if !is_valid_ident(field_name)
+            || type_name.is_empty()
+            || field_names.iter().any(|existing| existing == field_name)
+        {
+            return None;
+        }
+        field_names.push(field_name.to_string());
+        fields.push(RecordField {
+            name: field_name.to_string(),
+            type_name: type_name.to_string(),
+        });
+    }
+    Some((name.to_string(), fields))
 }
 
 fn parse_params(text: &str) -> Option<Vec<Param>> {
