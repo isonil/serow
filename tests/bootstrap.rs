@@ -2697,6 +2697,7 @@ fn agent_commands_json_includes_full_command_catalog() {
     assert!(stdout.contains("serow patch remove-function"), "{stdout}");
     assert!(stdout.contains("serow patch remove-type"), "{stdout}");
     assert!(stdout.contains("serow patch rename-module"), "{stdout}");
+    assert!(stdout.contains("serow patch set-use"), "{stdout}");
     assert!(stdout.contains("serow query callees"), "{stdout}");
     assert!(stdout.contains("serow query symbols"), "{stdout}");
     assert!(stdout.contains("serow replay property"), "{stdout}");
@@ -5252,6 +5253,93 @@ pub fn id(x: Int) -> Int
         missing_stdout.contains("does not declare `use core.math`"),
         "{missing_stdout}"
     );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn patch_set_use_replaces_existing_dependency() {
+    let dir = unique_temp_dir("serow-patch-set-use");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("set_use.serow");
+    fs::write(
+        &source,
+        r#"module core.old
+
+module core.new
+
+module core.keep
+
+module app.main
+
+use core.old
+use core.keep
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-use",
+            source.to_str().expect("utf8 path"),
+            "app.main",
+            "core.old",
+            "core.new",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch set-use");
+
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"changed\": 1"), "{stdout}");
+    let updated = fs::read_to_string(&source).expect("read updated fixture");
+    assert!(updated.contains("use core.new"), "{updated}");
+    assert!(updated.contains("use core.keep"), "{updated}");
+    assert!(!updated.contains("use core.old"), "{updated}");
+
+    let conflict = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-use",
+            source.to_str().expect("utf8 path"),
+            "app.main",
+            "core.new",
+            "core.keep",
+            "--json",
+        ])
+        .output()
+        .expect("run rejected serow patch set-use");
+    assert!(!conflict.status.success(), "{conflict:#?}");
+    let conflict_stdout = String::from_utf8(conflict.stdout).expect("stdout is utf8");
+    assert!(
+        conflict_stdout.contains("PatchConflict"),
+        "{conflict_stdout}"
+    );
+    assert!(
+        conflict_stdout.contains("already declares `use core.keep`"),
+        "{conflict_stdout}"
+    );
+
+    let missing = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-use",
+            source.to_str().expect("utf8 path"),
+            "app.main",
+            "core.missing",
+            "core.missing",
+            "--json",
+        ])
+        .output()
+        .expect("run missing same-dependency serow patch set-use");
+    assert!(!missing.status.success(), "{missing:#?}");
+    let missing_stdout = String::from_utf8(missing.stdout).expect("stdout is utf8");
+    assert!(
+        missing_stdout.contains("does not declare `use core.missing`"),
+        "{missing_stdout}"
+    );
+
     let _ = fs::remove_dir_all(dir);
 }
 
@@ -8503,7 +8591,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("\"project_version\": \"0.4.92-rust-bootstrap\""),
+        stdout.contains("\"project_version\": \"0.4.93-rust-bootstrap\""),
         "{stdout}"
     );
     let source_bytes = fs::read("examples/math.serow").expect("read math source");
@@ -8550,7 +8638,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{manifest}"
     );
     assert!(
-        manifest.contains("project_version = \"0.4.92-rust-bootstrap\""),
+        manifest.contains("project_version = \"0.4.93-rust-bootstrap\""),
         "{manifest}"
     );
     assert!(
@@ -8632,7 +8720,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{metadata}"
     );
     assert!(
-        metadata.contains("\"project_version\": \"0.4.92-rust-bootstrap\""),
+        metadata.contains("\"project_version\": \"0.4.93-rust-bootstrap\""),
         "{metadata}"
     );
     assert!(
@@ -8696,7 +8784,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{readme}"
     );
     assert!(
-        readme.contains("- Serow project version: `0.4.92-rust-bootstrap`"),
+        readme.contains("- Serow project version: `0.4.93-rust-bootstrap`"),
         "{readme}"
     );
     assert!(

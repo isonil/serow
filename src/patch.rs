@@ -241,6 +241,121 @@ pub fn remove_use(path: &str, module: &str, dependency: &str) -> PatchSummary {
     summary
 }
 
+pub fn set_use(
+    path: &str,
+    module: &str,
+    old_dependency: &str,
+    new_dependency: &str,
+) -> PatchSummary {
+    let mut summary = PatchSummary::default();
+    if !is_valid_module(module) {
+        summary.diagnostics.push(Diagnostic::error(
+            "InvalidPatchTarget",
+            format!("Invalid module name `{module}`."),
+            Some(path.to_string()),
+        ));
+        return summary;
+    }
+    if !is_valid_module(old_dependency) {
+        summary.diagnostics.push(Diagnostic::error(
+            "InvalidPatchTarget",
+            format!("Invalid old dependency module name `{old_dependency}`."),
+            Some(path.to_string()),
+        ));
+        return summary;
+    }
+    if !is_valid_module(new_dependency) {
+        summary.diagnostics.push(Diagnostic::error(
+            "InvalidPatchTarget",
+            format!("Invalid new dependency module name `{new_dependency}`."),
+            Some(path.to_string()),
+        ));
+        return summary;
+    }
+    let (mut program, parse_diagnostics) = parse_paths(&[path.to_string()]);
+    let has_parse_errors = has_errors(&parse_diagnostics);
+    summary.diagnostics.extend(parse_diagnostics);
+    if has_parse_errors {
+        return summary;
+    }
+
+    let Some(module_index) = program
+        .modules
+        .iter()
+        .position(|candidate| candidate.name == module)
+    else {
+        summary.diagnostics.push(Diagnostic::error(
+            "PatchTargetNotFound",
+            format!("Module `{module}` was not found."),
+            Some(path.to_string()),
+        ));
+        return summary;
+    };
+
+    let Some(dependency_index) = program.modules[module_index]
+        .dependencies
+        .iter()
+        .position(|existing| existing.module == old_dependency)
+    else {
+        summary.diagnostics.push(
+            Diagnostic::error(
+                "PatchConflict",
+                format!("Module `{module}` does not declare `use {old_dependency}`."),
+                Some(path.to_string()),
+            )
+            .with_data(
+                "dependencies",
+                program.modules[module_index]
+                    .dependencies
+                    .iter()
+                    .map(|existing| existing.module.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            )
+            .with_repair("Replace only an existing module dependency declaration."),
+        );
+        return summary;
+    };
+
+    if old_dependency == new_dependency {
+        return summary;
+    }
+
+    if program.modules[module_index]
+        .dependencies
+        .iter()
+        .any(|existing| existing.module == new_dependency)
+    {
+        summary.diagnostics.push(
+            Diagnostic::error(
+                "PatchConflict",
+                format!("Module `{module}` already declares `use {new_dependency}`."),
+                Some(path.to_string()),
+            )
+            .with_repair(
+                "Choose a dependency that is not already declared, or remove the old dependency.",
+            ),
+        );
+        return summary;
+    }
+
+    program.modules[module_index].dependencies[dependency_index].module =
+        new_dependency.to_string();
+
+    let formatted = format_program(&program);
+    match fs::write(path, formatted) {
+        Ok(()) => {
+            summary.changed = 1;
+        }
+        Err(error) => summary.diagnostics.push(Diagnostic::error(
+            "WriteError",
+            format!("Could not write `{path}`: {error}"),
+            Some(path.to_string()),
+        )),
+    }
+    summary
+}
+
 pub fn rename_module(path: &str, module: &str, new_module: &str) -> PatchSummary {
     let mut summary = PatchSummary::default();
     let module = module.trim();

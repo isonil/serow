@@ -2,6 +2,11 @@
 
 ## 2026-05-18
 
+- Chose structured module dependency replacement as the next agent-safe language-core slice because agents could add or remove dependency declarations, but replacing a stale dependency with the intended module still required two commands or raw text editing.
+- Added `bin/serow patch set-use <path> <module> <old-dependency> <new-dependency> [--json]`, validating module names, rejecting unknown module targets, missing old dependencies, and duplicate new dependencies, treating same-dependency replacements as no-ops, and rewriting through canonical formatting.
+- Bumped `serow.project` to `0.4.93-rust-bootstrap` and updated README, agent command discovery, language notes, roadmap/current state metadata, and backend provenance regression expectations for structured module dependency replacement.
+- Verified with `bin/serow query intent "replace or update a module dependency through a structured patch command" --json`, `bin/serow query symbol set-use --json`, `cargo test patch_set_use_replaces_existing_dependency -- --nocapture`, and `cargo test agent_commands_json_includes_full_command_catalog -- --nocapture`; full verification is recorded in the final run for this change.
+
 - Chose structured module insertion as the next agent-safe language-core slice because agents could safely add functions and types only after a module declaration already existed, but creating the empty module target itself still required raw text editing.
 - Added `bin/serow patch add-module <path> <module> [--json]`, validating module names and `.serow` source paths, creating a new source file when needed, appending empty module declarations to existing parsed sources, treating already-present modules as an idempotent no-op, and rewriting through canonical formatting.
 - Bumped `serow.project` to `0.4.92-rust-bootstrap` and updated README, agent command discovery, language notes, roadmap/current state metadata, and backend provenance regression expectations for structured module insertion.

@@ -120,6 +120,7 @@ bin/serow patch set-intent examples/math.serow @core.math.add.v1 "Return the sum
 bin/serow patch set-migration examples/math.serow @core.math.add.v1 implementation-change 1 "Document why this implementation change preserves behavior."
 bin/serow patch set-property examples/math.serow @core.math.add.v1 1 "forall x: Int, y: Int:" "add(x, y) == add(y, x)"
 bin/serow patch set-signature examples/math.serow @core.math.add.v1 "add(x: Int, y: Int) -> Int"
+bin/serow patch set-use examples/math.serow app.main core.math core.arithmetic
 bin/serow patch set-version examples/math.serow @core.math.add.v1 v1
 ```
 
@@ -156,6 +157,8 @@ bin/serow patch set-version examples/math.serow @core.math.add.v1 v1
 `patch remove-migration` removes one indexed migration acknowledgement of a specific kind. This is useful for clearing stale acknowledgements after a change is reworked.
 
 `patch remove-use` removes an existing module dependency declaration through the structured patch interface and rewrites the file canonically.
+
+`patch set-use` replaces one existing module dependency declaration through the structured patch interface. It validates all module names, rejects unknown modules or missing old dependencies, and refuses to create duplicate `use` declarations.
 
 `patch set-intent` sets or replaces a function intent through the structured patch interface. It rejects empty intents, ambiguous bare targets, and exact normalized duplicate public intents.
 

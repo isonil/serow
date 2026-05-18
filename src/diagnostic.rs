@@ -180,6 +180,7 @@ fn repair_action_issue(action: &RepairAction) -> Option<String> {
                 "set-migration",
                 "set-property",
                 "set-signature",
+                "set-use",
                 "set-version",
             ],
         ),
