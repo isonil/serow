@@ -611,9 +611,24 @@ fn render_generated_cargo_toml(
             "version = \"0.1.0\"\n",
             "edition = \"2021\"\n",
             "publish = false\n",
+            "autobins = false\n",
+            "autoexamples = false\n",
+            "autotests = false\n",
+            "autobenches = false\n",
             "\n",
             "[lib]\n",
             "path = \"src/lib.rs\"\n",
+        ),
+        toml_string_literal(crate_name)
+    );
+    if binary_entrypoint.is_some() {
+        source.push_str(&format!(
+            "\n[[bin]]\nname = {}\npath = \"src/main.rs\"\n",
+            toml_string_literal(crate_name)
+        ));
+    }
+    source.push_str(&format!(
+        concat!(
             "\n",
             "[package.metadata.serow]\n",
             "backend = {}\n",
@@ -625,7 +640,6 @@ fn render_generated_cargo_toml(
             "generated_functions = {}\n",
             "generated_tests = {}\n",
         ),
-        toml_string_literal(crate_name),
         toml_string_literal(&rust.backend),
         toml_string_literal(&rust.ir_version),
         toml_string_literal(project_version.unwrap_or("unknown")),
@@ -634,7 +648,7 @@ fn render_generated_cargo_toml(
         rust.types.len(),
         rust.functions.len(),
         rust.tests.len()
-    );
+    ));
     if let Some(entrypoint) = binary_entrypoint {
         source.push_str(&format!(
             concat!(
@@ -775,7 +789,7 @@ fn render_generated_readme_md(
         "\n",
         "## Artifacts\n",
         "\n",
-        "- `Cargo.toml` records machine-readable Cargo package metadata.\n",
+        "- `Cargo.toml` records machine-readable Cargo package metadata and disables Cargo automatic target discovery.\n",
         "- `serow-metadata.json` mirrors backend metadata for tools that should not parse TOML.\n",
         "- `src/lib.rs` contains the generated Rust implementation and pure evidence tests.\n",
     ));
@@ -3547,7 +3561,7 @@ const CORE_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "compile rust",
         "serow compile rust [paths...] [--out-dir <dir>] [--check-out-dir] [--emit-bin] [--crate-name <name>] [--json]",
-        "Emit deterministic Rust source, write a generated Rust crate, or verify an existing generated crate with optional binary entrypoint, stale optional artifact detection, configurable package name, Cargo/README/JSON provenance metadata, and generated evidence tests for the supported checked IR subset.",
+        "Emit deterministic Rust source, write a generated Rust crate with explicit Cargo targets, or verify an existing generated crate with optional binary entrypoint, stale optional artifact detection, configurable package name, Cargo/README/JSON provenance metadata, and generated evidence tests for the supported checked IR subset.",
     ),
     (
         "fmt",
@@ -3600,7 +3614,7 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "compile rust",
         "serow compile rust [paths...] [--out-dir <dir>] [--check-out-dir] [--emit-bin] [--crate-name <name>] [--json]",
-        "Emit deterministic Rust source, write a generated Rust crate, or verify an existing generated crate with optional binary entrypoint, stale optional artifact detection, configurable package name, Cargo/README/JSON provenance metadata, and generated evidence tests for the supported checked IR subset.",
+        "Emit deterministic Rust source, write a generated Rust crate with explicit Cargo targets, or verify an existing generated crate with optional binary entrypoint, stale optional artifact detection, configurable package name, Cargo/README/JSON provenance metadata, and generated evidence tests for the supported checked IR subset.",
     ),
     (
         "fmt",
@@ -3828,7 +3842,7 @@ fn agent_json() -> String {
         str_array_json(&[
             "Properties are sampled, not proven; replay uses deterministic seeds for built-in and bounded declared-record samples.",
             "Intent search is deterministic token ranking, not semantic embeddings.",
-            "Rust backend emission supports pure Int/Bool/Text/Unit functions, non-recursive declared records, and terminal io intrinsics, emits runtime asserts for Serow requires and ensures clauses, emits Rust tests for pure Serow examples and deterministic sampled properties, moves final record update bases when postconditions do not need the original value, rejects recursive record layouts with explicit diagnostics, records the Serow project version, aggregate/per-source Serow input fingerprints, plus type, source, binary entrypoint, and exact evidence-line metadata in generated Cargo manifests, README files, and serow-metadata.json sidecars, removes stale generated main.rs files when returning to library-only output, and can check generated crate artifacts for drift or unexpected optional artifacts.",
+            "Rust backend emission supports pure Int/Bool/Text/Unit functions, non-recursive declared records, and terminal io intrinsics, emits runtime asserts for Serow requires and ensures clauses, emits Rust tests for pure Serow examples and deterministic sampled properties, moves final record update bases when postconditions do not need the original value, rejects recursive record layouts with explicit diagnostics, records the Serow project version, aggregate/per-source Serow input fingerprints, plus type, source, binary entrypoint, and exact evidence-line metadata in generated Cargo manifests, README files, and serow-metadata.json sidecars, disables automatic Cargo target discovery in generated manifests, removes stale generated main.rs files when returning to library-only output, and can check generated crate artifacts for drift or unexpected optional artifacts.",
             "Expression support is intentionally small and formatting does not preserve comments.",
             "JSON output is hand-written until external dependencies are accepted."
         ])
@@ -4053,7 +4067,7 @@ fn print_agent_bootstrap() {
     println!("  Rust backend emits runtime asserts for Serow requires and ensures clauses");
     println!("  Rust backend emits Rust tests for pure Serow examples and sampled properties");
     println!(
-        "  Rust backend records project version, source input, type, function, binary entrypoint, and evidence metadata in Cargo manifests, README files, and serow-metadata.json sidecars"
+        "  Rust backend records project version, source input, type, function, binary entrypoint, and evidence metadata in Cargo manifests, README files, and serow-metadata.json sidecars, with automatic Cargo target discovery disabled"
     );
     println!(
         "  Rust backend removes stale generated binary entrypoints from library-only output and reports unexpected optional artifacts in check mode"

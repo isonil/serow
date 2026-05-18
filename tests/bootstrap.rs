@@ -7934,7 +7934,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("\"project_version\": \"0.4.85-rust-bootstrap\""),
+        stdout.contains("\"project_version\": \"0.4.86-rust-bootstrap\""),
         "{stdout}"
     );
     let source_bytes = fs::read("examples/math.serow").expect("read math source");
@@ -7966,6 +7966,11 @@ fn compile_rust_out_dir_writes_crate_layout() {
         manifest.contains("name = \"serow_math_generated\""),
         "{manifest}"
     );
+    assert!(manifest.contains("autobins = false"), "{manifest}");
+    assert!(manifest.contains("autoexamples = false"), "{manifest}");
+    assert!(manifest.contains("autotests = false"), "{manifest}");
+    assert!(manifest.contains("autobenches = false"), "{manifest}");
+    assert!(!manifest.contains("[[bin]]"), "{manifest}");
     assert!(manifest.contains("[package.metadata.serow]"), "{manifest}");
     assert!(
         manifest.contains("backend = \"serow.rust.v0\""),
@@ -7976,7 +7981,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{manifest}"
     );
     assert!(
-        manifest.contains("project_version = \"0.4.85-rust-bootstrap\""),
+        manifest.contains("project_version = \"0.4.86-rust-bootstrap\""),
         "{manifest}"
     );
     assert!(
@@ -8058,7 +8063,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{metadata}"
     );
     assert!(
-        metadata.contains("\"project_version\": \"0.4.85-rust-bootstrap\""),
+        metadata.contains("\"project_version\": \"0.4.86-rust-bootstrap\""),
         "{metadata}"
     );
     assert!(
@@ -8122,7 +8127,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{readme}"
     );
     assert!(
-        readme.contains("- Serow project version: `0.4.85-rust-bootstrap`"),
+        readme.contains("- Serow project version: `0.4.86-rust-bootstrap`"),
         "{readme}"
     );
     assert!(
@@ -8139,6 +8144,10 @@ fn compile_rust_out_dir_writes_crate_layout() {
     );
     assert!(
         readme.contains("- `serow-metadata.json` mirrors backend metadata"),
+        "{readme}"
+    );
+    assert!(
+        readme.contains("Cargo.toml` records machine-readable Cargo package metadata and disables Cargo automatic target discovery"),
         "{readme}"
     );
 
@@ -8251,6 +8260,24 @@ fn compile_rust_out_dir_writes_crate_layout() {
         String::from_utf8_lossy(&cargo_test_output.stdout),
         String::from_utf8_lossy(&cargo_test_output.stderr)
     );
+    let stray_bin_dir = out_dir.join("src").join("bin");
+    fs::create_dir_all(&stray_bin_dir).expect("create stray bin dir");
+    fs::write(
+        stray_bin_dir.join("stray.rs"),
+        "compile_error!(\"automatic Cargo bin discovery should be disabled\");\n",
+    )
+    .expect("write stray bin target");
+    let stray_target_output = Command::new("cargo")
+        .args(["test", "--manifest-path"])
+        .arg(&cargo_toml)
+        .output()
+        .expect("cargo test generated crate with stray bin source");
+    assert!(
+        stray_target_output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&stray_target_output.stdout),
+        String::from_utf8_lossy(&stray_target_output.stderr)
+    );
     let _ = fs::remove_dir_all(dir);
 }
 
@@ -8313,6 +8340,14 @@ pub fn main() -> Text
     assert!(metadata_json.exists(), "{metadata_json:?}");
     assert!(main_rs.exists(), "{main_rs:?}");
     let manifest = fs::read_to_string(&cargo_toml).expect("read generated manifest");
+    assert!(manifest.contains("autobins = false"), "{manifest}");
+    assert!(manifest.contains("autoexamples = false"), "{manifest}");
+    assert!(manifest.contains("autotests = false"), "{manifest}");
+    assert!(manifest.contains("autobenches = false"), "{manifest}");
+    assert!(
+        manifest.contains("[[bin]]\nname = \"serow_generated_app\"\npath = \"src/main.rs\""),
+        "{manifest}"
+    );
     assert!(
         manifest.contains("binary_entrypoint_symbol = \"@app.entry.main.v1\""),
         "{manifest}"
