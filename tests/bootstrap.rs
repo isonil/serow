@@ -9,7 +9,7 @@ use serow::diagnostic::{Diagnostic, RepairAction, validate_repair_actions};
 use serow::formatter::format_paths;
 use serow::ledger::{query_intent, query_symbol, query_type};
 use serow::parser::parse_paths;
-use serow::project::parse_architecture;
+use serow::project::{parse_architecture, parse_project_version};
 
 #[test]
 fn sample_program_checks() {
@@ -6820,8 +6820,9 @@ pub fn bad(x: Text) -> Text
 
 #[test]
 fn project_architecture_parser_reads_module_policies() {
-    let architecture = parse_architecture(
-        r#"{
+    let project = r#"{
+  "language": "Serow",
+  "version": "0.4.81-rust-bootstrap",
   "architecture": {
     "modules": {
       "app.main": {
@@ -6830,8 +6831,13 @@ fn project_architecture_parser_reads_module_policies() {
       }
     }
   }
-}"#,
+}"#;
+
+    assert_eq!(
+        parse_project_version(project).as_deref(),
+        Some("0.4.81-rust-bootstrap")
     );
+    let architecture = parse_architecture(project);
 
     let policy = architecture.policy_for("app.main").expect("policy");
     assert_eq!(policy.may_depend_on, ["core.math", "core.text"]);
@@ -7799,6 +7805,10 @@ fn compile_rust_out_dir_writes_crate_layout() {
         stdout.contains(&format!("\"input_fingerprint\": \"{input_fingerprint}\"")),
         "{stdout}"
     );
+    assert!(
+        stdout.contains("\"project_version\": \"0.4.81-rust-bootstrap\""),
+        "{stdout}"
+    );
     let source_bytes = fs::read("examples/math.serow").expect("read math source");
     let source_fingerprint = stable_test_source_fingerprint_bytes(&source_bytes);
     assert!(
@@ -7832,6 +7842,10 @@ fn compile_rust_out_dir_writes_crate_layout() {
     );
     assert!(
         manifest.contains("ir_version = \"serow.ir.v0\""),
+        "{manifest}"
+    );
+    assert!(
+        manifest.contains("project_version = \"0.4.81-rust-bootstrap\""),
         "{manifest}"
     );
     assert!(
@@ -7910,6 +7924,10 @@ fn compile_rust_out_dir_writes_crate_layout() {
     );
     assert!(
         metadata.contains("\"crate_name\": \"serow_math_generated\""),
+        "{metadata}"
+    );
+    assert!(
+        metadata.contains("\"project_version\": \"0.4.81-rust-bootstrap\""),
         "{metadata}"
     );
     assert!(

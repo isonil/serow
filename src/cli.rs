@@ -28,6 +28,7 @@ use crate::plan::{
     unattended_stale_migration_diagnostics, unattended_unchecked_impact_diagnostics,
     unattended_uncovered_impact_evidence_diagnostics,
 };
+use crate::project::load_project_version;
 use crate::replay::{PropertyReplaySummary, replay_property};
 use crate::rust_backend::{
     GeneratedRustProgram, GeneratedRustTest, RustBackendSummary, generate_checked_rust,
@@ -201,6 +202,7 @@ fn run_compile_rust(args: &[String]) -> i32 {
     let json_output = parsed.json_output;
     let source_inputs = source_input_metadata(&paths);
     let input_fingerprint = source_input_fingerprint(&paths);
+    let project_version = load_project_version();
     let (program, parse_diagnostics) = parse_paths(&paths);
     let binary_entrypoint_shape = parsed
         .emit_bin
@@ -229,6 +231,7 @@ fn run_compile_rust(args: &[String]) -> i32 {
             rust,
             input_fingerprint.as_deref(),
             source_inputs.as_deref().unwrap_or(&[]),
+            project_version.as_deref(),
             binary_entrypoint.as_ref(),
         );
         if parsed.check_out_dir {
@@ -250,9 +253,12 @@ fn run_compile_rust(args: &[String]) -> i32 {
                 &summary,
                 &written_files,
                 &checked_files,
-                &parsed.crate_name,
-                input_fingerprint.as_deref(),
-                source_inputs.as_deref().unwrap_or(&[]),
+                RustOutputMetadata {
+                    crate_name: &parsed.crate_name,
+                    input_fingerprint: input_fingerprint.as_deref(),
+                    source_inputs: source_inputs.as_deref().unwrap_or(&[]),
+                    project_version: project_version.as_deref(),
+                },
                 binary_entrypoint.as_ref()
             )
         );
@@ -367,6 +373,7 @@ impl RustCrateArtifact {
         rust: &GeneratedRustProgram,
         input_fingerprint: Option<&str>,
         source_inputs: &[SourceInput],
+        project_version: Option<&str>,
         binary_entrypoint: Option<&BinaryEntrypoint>,
     ) -> Self {
         let root = Path::new(out_dir);
@@ -379,6 +386,7 @@ impl RustCrateArtifact {
                     rust,
                     input_fingerprint,
                     source_inputs,
+                    project_version,
                     binary_entrypoint,
                 ),
             },
@@ -389,6 +397,7 @@ impl RustCrateArtifact {
                     rust,
                     input_fingerprint,
                     source_inputs,
+                    project_version,
                     binary_entrypoint,
                 ),
             },
@@ -578,6 +587,7 @@ fn render_generated_cargo_toml(
     rust: &GeneratedRustProgram,
     input_fingerprint: Option<&str>,
     source_inputs: &[SourceInput],
+    project_version: Option<&str>,
     binary_entrypoint: Option<&BinaryEntrypoint>,
 ) -> String {
     let mut source = format!(
@@ -597,6 +607,7 @@ fn render_generated_cargo_toml(
             "[package.metadata.serow]\n",
             "backend = {}\n",
             "ir_version = {}\n",
+            "project_version = {}\n",
             "input_fingerprint = {}\n",
             "source_fingerprint = {}\n",
             "generated_types = {}\n",
@@ -606,6 +617,7 @@ fn render_generated_cargo_toml(
         toml_string_literal(crate_name),
         toml_string_literal(&rust.backend),
         toml_string_literal(&rust.ir_version),
+        toml_string_literal(project_version.unwrap_or("unknown")),
         toml_string_literal(input_fingerprint.unwrap_or("unknown")),
         toml_string_literal(&rust.source_fingerprint),
         rust.types.len(),
@@ -685,6 +697,7 @@ fn render_generated_metadata_json(
     rust: &GeneratedRustProgram,
     input_fingerprint: Option<&str>,
     source_inputs: &[SourceInput],
+    project_version: Option<&str>,
     binary_entrypoint: Option<&BinaryEntrypoint>,
 ) -> String {
     let inputs = source_inputs
@@ -743,6 +756,7 @@ fn render_generated_metadata_json(
             "  \"input_fingerprint\": {},\n",
             "  \"inputs\": [\n{}\n  ],\n",
             "  \"ir_version\": {},\n",
+            "  \"project_version\": {},\n",
             "  \"schema\": \"serow.rust.metadata.v0\",\n",
             "  \"source_fingerprint\": {},\n",
             "  \"types\": [\n{}\n  ],\n",
@@ -761,6 +775,7 @@ fn render_generated_metadata_json(
         json_string(input_fingerprint.unwrap_or("unknown")),
         inputs,
         json_string(&rust.ir_version),
+        json_string(project_version.unwrap_or("unknown")),
         json_string(&rust.source_fingerprint),
         types,
         functions,
@@ -793,6 +808,14 @@ struct SourceInput {
     path: String,
     fingerprint: String,
     bytes: usize,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct RustOutputMetadata<'a> {
+    crate_name: &'a str,
+    input_fingerprint: Option<&'a str>,
+    source_inputs: &'a [SourceInput],
+    project_version: Option<&'a str>,
 }
 
 fn source_input_metadata(paths: &[String]) -> Option<Vec<SourceInput>> {
@@ -2618,9 +2641,7 @@ fn rust_summary_json(
     summary: &RustBackendSummary,
     written_files: &[String],
     checked_files: &[String],
-    crate_name: &str,
-    input_fingerprint: Option<&str>,
-    source_inputs: &[SourceInput],
+    metadata: RustOutputMetadata<'_>,
     binary_entrypoint: Option<&BinaryEntrypoint>,
 ) -> String {
     format!(
@@ -2646,13 +2667,13 @@ fn rust_summary_json(
             .map(binary_entrypoint_json)
             .unwrap_or_else(|| "null".to_string()),
         string_array_json(checked_files),
-        json_string(crate_name),
+        json_string(metadata.crate_name),
         diagnostics_array_json(&summary.diagnostics),
         summary.ok(),
         summary
             .rust
             .as_ref()
-            .map(|rust| rust_program_json(rust, input_fingerprint, source_inputs))
+            .map(|rust| rust_program_json(rust, metadata))
             .unwrap_or_else(|| "null".to_string()),
         summary.ir_summary.check_summary.functions,
         summary
@@ -2699,11 +2720,7 @@ fn binary_entrypoint_json(entrypoint: &BinaryEntrypoint) -> String {
     )
 }
 
-fn rust_program_json(
-    rust: &GeneratedRustProgram,
-    input_fingerprint: Option<&str>,
-    source_inputs: &[SourceInput],
-) -> String {
+fn rust_program_json(rust: &GeneratedRustProgram, metadata: RustOutputMetadata<'_>) -> String {
     let functions = rust
         .functions
         .iter()
@@ -2759,7 +2776,8 @@ fn rust_program_json(
         })
         .collect::<Vec<_>>()
         .join(", ");
-    let inputs = source_inputs
+    let inputs = metadata
+        .source_inputs
         .iter()
         .map(|input| {
             format!(
@@ -2779,6 +2797,7 @@ fn rust_program_json(
             "\"input_fingerprint\": {}, ",
             "\"inputs\": [{}], ",
             "\"ir_version\": {}, ",
+            "\"project_version\": {}, ",
             "\"source\": {}, ",
             "\"source_fingerprint\": {}, ",
             "\"tests\": [{}], ",
@@ -2787,9 +2806,10 @@ fn rust_program_json(
         ),
         json_string(&rust.backend),
         functions,
-        json_string(input_fingerprint.unwrap_or("unknown")),
+        json_string(metadata.input_fingerprint.unwrap_or("unknown")),
         inputs,
         json_string(&rust.ir_version),
+        json_string(metadata.project_version.unwrap_or("unknown")),
         json_string(&rust.source),
         json_string(&rust.source_fingerprint),
         tests,
@@ -3710,7 +3730,7 @@ fn agent_json() -> String {
         str_array_json(&[
             "Properties are sampled, not proven; replay uses deterministic seeds for built-in and bounded declared-record samples.",
             "Intent search is deterministic token ranking, not semantic embeddings.",
-            "Rust backend emission supports pure Int/Bool/Text/Unit functions, declared records, and terminal io intrinsics, emits runtime asserts for Serow requires and ensures clauses, emits Rust tests for pure Serow examples and deterministic sampled properties, moves final record update bases when postconditions do not need the original value, records aggregate/per-source Serow input fingerprints plus type, source, binary entrypoint, and evidence metadata in generated Cargo manifests and serow-metadata.json sidecars, removes stale generated main.rs files when returning to library-only output, and can check generated crate artifacts for drift or unexpected optional artifacts.",
+            "Rust backend emission supports pure Int/Bool/Text/Unit functions, declared records, and terminal io intrinsics, emits runtime asserts for Serow requires and ensures clauses, emits Rust tests for pure Serow examples and deterministic sampled properties, moves final record update bases when postconditions do not need the original value, records the Serow project version, aggregate/per-source Serow input fingerprints, plus type, source, binary entrypoint, and evidence metadata in generated Cargo manifests and serow-metadata.json sidecars, removes stale generated main.rs files when returning to library-only output, and can check generated crate artifacts for drift or unexpected optional artifacts.",
             "Expression support is intentionally small and formatting does not preserve comments.",
             "JSON output is hand-written until external dependencies are accepted."
         ])
@@ -3926,7 +3946,7 @@ fn print_agent_bootstrap() {
     println!("  Rust backend emits runtime asserts for Serow requires and ensures clauses");
     println!("  Rust backend emits Rust tests for pure Serow examples and sampled properties");
     println!(
-        "  Rust backend records source input, type, function, binary entrypoint, and evidence metadata in Cargo manifests and serow-metadata.json sidecars"
+        "  Rust backend records project version, source input, type, function, binary entrypoint, and evidence metadata in Cargo manifests and serow-metadata.json sidecars"
     );
     println!(
         "  Rust backend removes stale generated binary entrypoints from library-only output and reports unexpected optional artifacts in check mode"

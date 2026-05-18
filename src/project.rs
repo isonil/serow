@@ -23,6 +23,19 @@ pub fn load_architecture() -> Architecture {
         .unwrap_or_default()
 }
 
+pub fn load_project_version() -> Option<String> {
+    fs::read_to_string("serow.project")
+        .ok()
+        .and_then(|source| parse_project_version(&source))
+}
+
+pub fn parse_project_version(source: &str) -> Option<String> {
+    let version_key = source.find("\"version\"")?;
+    let colon_offset = source[version_key..].find(':')?;
+    let value_start = version_key + colon_offset + 1;
+    read_string(source, value_start).map(|(value, _)| value)
+}
+
 pub fn parse_architecture(source: &str) -> Architecture {
     let Some(modules_key) = source.find("\"modules\"") else {
         return Architecture::default();
