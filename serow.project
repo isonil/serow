@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "0.4.83-rust-bootstrap",
+  "version": "0.4.84-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -158,6 +158,7 @@
     "rust_backend_binary_entrypoint": true,
     "rust_backend_binary_entrypoint_metadata": true,
     "rust_backend_json_metadata_sidecar": true,
+    "rust_backend_generated_readme": true,
     "rust_backend_artifact_drift_check": true,
     "rust_backend_unexpected_artifact_check": true,
     "rust_backend_recursive_record_rejection": true
