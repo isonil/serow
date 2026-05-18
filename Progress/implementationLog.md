@@ -2,6 +2,11 @@
 
 ## 2026-05-18
 
+- Chose Rust backend recursive-record rejection as the next backend correctness slice because record sampling already documented recursive cycles as unsupported, while the Rust backend could otherwise emit invalid by-value recursive structs.
+- Added `RustBackendRecursiveRecordType` diagnostics that detect direct or indirect declared-record layout cycles before rendering generated Rust structs, including the detected cycle in diagnostic data.
+- Updated backend regression coverage and docs/project metadata for explicit recursive-record layout rejection.
+- Verified with `bin/serow query intent "reject recursive record types in generated Rust backend" --json`, `bin/serow query symbol "RustBackendRecursiveRecordType" --json`, `cargo fmt --check`, `cargo test compile_rust_rejects_recursive_record_layouts -- --nocapture`, `cargo test compile_rust_out_dir_writes_crate_layout -- --nocapture`, `bin/serow check --json`, `bin/serow agent --json`, `bin/serow compile rust examples/math.serow --json`, `cargo clippy -- -D warnings`, `python3 -m unittest discover -s tests`, `bin/serow fmt --check --json`, `bin/serow certify --json`, `cargo test`, `bin/serow certify --profile unattended --json`, `bin/serow plan --json`, and `git diff --check`.
+
 - Chose generated Rust project-version provenance as the next backend traceability slice because generated crates already recorded backend id, IR version, and source fingerprints but not the Serow project manifest version that produced those artifacts.
 - Added a dependency-free `serow.project` version reader and threaded the version into `compile rust --json`, generated `Cargo.toml` `package.metadata.serow`, and generated `serow-metadata.json`.
 - Updated backend regression coverage and docs to assert and advertise deterministic project-version metadata in generated Rust artifacts.

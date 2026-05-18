@@ -6822,7 +6822,7 @@ pub fn bad(x: Text) -> Text
 fn project_architecture_parser_reads_module_policies() {
     let project = r#"{
   "language": "Serow",
-  "version": "0.4.81-rust-bootstrap",
+  "version": "0.4.82-rust-bootstrap",
   "architecture": {
     "modules": {
       "app.main": {
@@ -6835,7 +6835,7 @@ fn project_architecture_parser_reads_module_policies() {
 
     assert_eq!(
         parse_project_version(project).as_deref(),
-        Some("0.4.81-rust-bootstrap")
+        Some("0.4.82-rust-bootstrap")
     );
     let architecture = parse_architecture(project);
 
@@ -7776,6 +7776,48 @@ pub fn swap_pair() -> Pair
 }
 
 #[test]
+fn compile_rust_rejects_recursive_record_layouts() {
+    let dir = unique_temp_dir("serow-compile-rust-recursive-record");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("recursive_record.serow");
+    fs::write(
+        &source,
+        r#"module test.records
+
+type Node = { next: Node }
+
+pub fn one() -> Int
+  intent "Return one while a recursive record type exists."
+  version v1
+  contract
+    ensures result == 1
+  examples
+    one() == 1
+  properties
+    forall x: Int:
+      one() == 1
+  effects pure
+  impl
+    1
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["compile", "rust", &source.to_string_lossy(), "--json"])
+        .output()
+        .expect("run compile rust with recursive record");
+    assert!(!output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("\"code\": \"RustBackendRecursiveRecordType\""),
+        "{stdout}"
+    );
+    assert!(stdout.contains("\"cycle\": \"Node -> Node\""), "{stdout}");
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn compile_rust_out_dir_writes_crate_layout() {
     let dir = unique_temp_dir("serow-compile-rust-out-dir");
     fs::create_dir_all(&dir).expect("create temp dir");
@@ -7806,7 +7848,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("\"project_version\": \"0.4.81-rust-bootstrap\""),
+        stdout.contains("\"project_version\": \"0.4.82-rust-bootstrap\""),
         "{stdout}"
     );
     let source_bytes = fs::read("examples/math.serow").expect("read math source");
@@ -7845,7 +7887,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{manifest}"
     );
     assert!(
-        manifest.contains("project_version = \"0.4.81-rust-bootstrap\""),
+        manifest.contains("project_version = \"0.4.82-rust-bootstrap\""),
         "{manifest}"
     );
     assert!(
@@ -7927,7 +7969,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{metadata}"
     );
     assert!(
-        metadata.contains("\"project_version\": \"0.4.81-rust-bootstrap\""),
+        metadata.contains("\"project_version\": \"0.4.82-rust-bootstrap\""),
         "{metadata}"
     );
     assert!(

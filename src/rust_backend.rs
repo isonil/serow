@@ -106,6 +106,22 @@ fn generate_rust_program(ir: &IrProgram) -> Result<GeneratedRustProgram, Vec<Dia
     let mut allocated_test_names = HashMap::<String, usize>::new();
 
     for type_decl in &ir.types {
+        if let Some(cycle) = record_layout_cycle(&type_decl.name, &ir.types) {
+            diagnostics.push(
+                Diagnostic::error(
+                    "RustBackendRecursiveRecordType",
+                    format!(
+                        "Rust backend cannot emit `{}` because recursive record layouts are unsupported: {}.",
+                        type_decl.symbol(),
+                        cycle.join(" -> ")
+                    ),
+                    Some(type_decl.symbol()),
+                )
+                .with_data("type", type_decl.name.clone())
+                .with_data("cycle", cycle.join(" -> ")),
+            );
+            continue;
+        }
         let Some(rust_name) = type_names.get(&type_decl.name).cloned() else {
             diagnostics.push(Diagnostic::error(
                 "RustBackendNameError",
@@ -1457,6 +1473,36 @@ fn record_type<'a>(type_name: &str, types: &'a [TypeDecl]) -> Result<&'a TypeDec
         .iter()
         .find(|type_decl| type_decl.name == type_name)
         .ok_or_else(|| format!("Unknown record type `{type_name}`."))
+}
+
+fn record_layout_cycle(type_name: &str, types: &[TypeDecl]) -> Option<Vec<String>> {
+    let mut stack = Vec::new();
+    record_layout_cycle_from(type_name, types, &mut stack)
+}
+
+fn record_layout_cycle_from(
+    type_name: &str,
+    types: &[TypeDecl],
+    stack: &mut Vec<String>,
+) -> Option<Vec<String>> {
+    if let Some(index) = stack.iter().position(|name| name == type_name) {
+        let mut cycle = stack[index..].to_vec();
+        cycle.push(type_name.to_string());
+        return Some(cycle);
+    }
+    let type_decl = types.iter().find(|declared| declared.name == type_name)?;
+    stack.push(type_name.to_string());
+    for field in &type_decl.fields {
+        if types
+            .iter()
+            .any(|declared| declared.name == field.type_name)
+            && let Some(cycle) = record_layout_cycle_from(&field.type_name, types, stack)
+        {
+            return Some(cycle);
+        }
+    }
+    stack.pop();
+    None
 }
 
 fn rust_string_literal(value: &str) -> String {

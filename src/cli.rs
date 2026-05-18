@@ -3730,7 +3730,7 @@ fn agent_json() -> String {
         str_array_json(&[
             "Properties are sampled, not proven; replay uses deterministic seeds for built-in and bounded declared-record samples.",
             "Intent search is deterministic token ranking, not semantic embeddings.",
-            "Rust backend emission supports pure Int/Bool/Text/Unit functions, declared records, and terminal io intrinsics, emits runtime asserts for Serow requires and ensures clauses, emits Rust tests for pure Serow examples and deterministic sampled properties, moves final record update bases when postconditions do not need the original value, records the Serow project version, aggregate/per-source Serow input fingerprints, plus type, source, binary entrypoint, and evidence metadata in generated Cargo manifests and serow-metadata.json sidecars, removes stale generated main.rs files when returning to library-only output, and can check generated crate artifacts for drift or unexpected optional artifacts.",
+            "Rust backend emission supports pure Int/Bool/Text/Unit functions, non-recursive declared records, and terminal io intrinsics, emits runtime asserts for Serow requires and ensures clauses, emits Rust tests for pure Serow examples and deterministic sampled properties, moves final record update bases when postconditions do not need the original value, rejects recursive record layouts with explicit diagnostics, records the Serow project version, aggregate/per-source Serow input fingerprints, plus type, source, binary entrypoint, and evidence metadata in generated Cargo manifests and serow-metadata.json sidecars, removes stale generated main.rs files when returning to library-only output, and can check generated crate artifacts for drift or unexpected optional artifacts.",
             "Expression support is intentionally small and formatting does not preserve comments.",
             "JSON output is hand-written until external dependencies are accepted."
         ])
@@ -3938,8 +3938,9 @@ fn print_agent_bootstrap() {
     println!("  properties are sampled, not proven; declared-record samples are bounded");
     println!("  intent search is token-ranked, not semantic embeddings");
     println!(
-        "  Rust backend emission supports pure Int/Bool/Text/Unit functions, declared records, terminal io intrinsics, and ownership-aware final record updates"
+        "  Rust backend emission supports pure Int/Bool/Text/Unit functions, non-recursive declared records, terminal io intrinsics, and ownership-aware final record updates"
     );
+    println!("  Rust backend rejects recursive record layouts with explicit diagnostics");
     println!(
         "  Rust binary emission requires pub fn main() -> Text | Int | Bool | Unit | declared record"
     );
