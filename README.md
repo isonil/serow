@@ -104,6 +104,7 @@ bin/serow patch fill-hole examples/math.serow @core.math.double.v1 "x * 2"
 bin/serow patch qualify-call examples/math.serow @core.math.double.v1 add @core.math.add.v1
 bin/serow patch remove-contract examples/math.serow @core.math.add.v1 ensures 2
 bin/serow patch remove-example examples/math.serow @core.math.add.v1 2
+bin/serow patch remove-function examples/math.serow @core.math.double.v1
 bin/serow patch remove-migration examples/math.serow @core.math.add.v1 implementation-change 1
 bin/serow patch remove-property examples/math.serow @core.math.add.v1 2
 bin/serow patch remove-type examples/math.serow core.math Point
@@ -127,6 +128,8 @@ bin/serow patch set-version examples/math.serow @core.math.add.v1 v1
 `patch add-type` inserts one record type declaration into an existing module. It accepts a single quoted declaration with or without the `type` prefix, rejects duplicate type names and duplicate fields before writing, and rewrites the file canonically.
 
 `patch remove-type` removes one existing record type declaration from a module through the structured patch interface and rewrites the file canonically. Removing a type that is still referenced is allowed as a source edit, and `serow check` reports the resulting type errors.
+
+`patch remove-function` removes one existing public function through the structured patch interface while preserving ambiguous-target protection. Removing a function that is still referenced is allowed as a source edit, and `serow check`, `serow plan`, and unattended certification report the resulting unknown-call or public-symbol-removal issues.
 
 `patch rename-function` changes a public function name and rewrites resolved call references in the patched source. When the new bare name would be ambiguous, rewritten call sites use the exact `@module.name.vN(...)` form.
 

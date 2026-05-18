@@ -477,6 +477,51 @@ pub fn add_function(path: &str, module: &str, signature: &str, intent: &str) -> 
     summary
 }
 
+pub fn remove_function(path: &str, target: &str) -> PatchSummary {
+    let mut summary = PatchSummary::default();
+    let (mut program, parse_diagnostics) = parse_paths(&[path.to_string()]);
+    let has_parse_errors = has_errors(&parse_diagnostics);
+    summary.diagnostics.extend(parse_diagnostics);
+    if has_parse_errors {
+        return summary;
+    }
+
+    let symbol = match resolve_patch_target(&program, target, path) {
+        Ok(symbol) => symbol,
+        Err(diagnostic) => {
+            summary.diagnostics.push(*diagnostic);
+            return summary;
+        }
+    };
+
+    let Some((module_index, function_index)) = find_module_function(&program, &symbol) else {
+        summary.diagnostics.push(Diagnostic::error(
+            "PatchTargetNotFound",
+            format!("Function `{target}` was not found."),
+            Some(path.to_string()),
+        ));
+        return summary;
+    };
+
+    program.modules[module_index]
+        .functions
+        .remove(function_index);
+    rebuild_function_index(&mut program);
+
+    let formatted = format_program(&program);
+    match fs::write(path, formatted) {
+        Ok(()) => {
+            summary.changed = 1;
+        }
+        Err(error) => summary.diagnostics.push(Diagnostic::error(
+            "WriteError",
+            format!("Could not write `{path}`: {error}"),
+            Some(path.to_string()),
+        )),
+    }
+    summary
+}
+
 #[derive(Clone, Copy, Debug)]
 enum DuplicateIntentOperation {
     AddFunction,

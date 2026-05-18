@@ -148,6 +148,7 @@ Selection policy for generic implementation prompts:
   - `bin/serow patch qualify-call <path> <caller-symbol-or-name> <bare-call-name> <callee-symbol-or-name> [--json]`
   - `bin/serow patch remove-contract <path> <symbol-or-name> <requires|ensures> <index> [--json]`
   - `bin/serow patch remove-example <path> <symbol-or-name> <index> [--json]`
+  - `bin/serow patch remove-function <path> <symbol-or-name> [--json]`
   - `bin/serow patch remove-migration <path> <symbol-or-name> <kind> <index> [--json]`
   - `bin/serow patch remove-property <path> <symbol-or-name> <index> [--json]`
   - `bin/serow patch remove-type <path> <module> <type-name> [--json]`
@@ -165,6 +166,7 @@ Selection policy for generic implementation prompts:
 - Structured evidence patches reject ambiguous bare targets and preserve canonical formatting.
 - `patch add-type` inserts one record declaration into an existing module, accepts declarations with or without the `type` prefix, and rejects duplicate type names or duplicate fields before rewriting canonically.
 - `patch remove-type` removes an existing record declaration from a module through the structured patch interface and preserves canonical formatting.
+- `patch remove-function` removes an existing public function through the structured patch interface while preserving ambiguous-target protection and canonical formatting.
 - `patch set-contract` creates a missing `requires` or `ensures` clause, replaces a single existing clause, or replaces a specific clause when passed a 1-based index.
 - `patch set-example` and `patch set-property` create missing executable evidence, replace a single existing item, or replace a specific item when passed a 1-based index.
 - Duplicate public evidence diagnostics include structured repair actions pointing at indexed `patch remove-contract`, `patch remove-example`, and `patch remove-property` commands for the repeated item.
