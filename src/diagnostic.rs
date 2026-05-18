@@ -172,6 +172,7 @@ fn repair_action_issue(action: &RepairAction) -> Option<String> {
                 "remove-use",
                 "rename-function",
                 "rename-module",
+                "rename-type",
                 "set-contract",
                 "set-effects",
                 "set-example",

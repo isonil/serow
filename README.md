@@ -112,6 +112,7 @@ bin/serow patch remove-type examples/math.serow core.math Point
 bin/serow patch remove-use examples/math.serow app.main core.math
 bin/serow patch rename-function examples/math.serow @core.math.add.v1 sum
 bin/serow patch rename-module examples/math.serow core.math core.arithmetic
+bin/serow patch rename-type examples/math.serow core.math Point Position
 bin/serow patch set-contract examples/math.serow @core.math.add.v1 ensures "result == x + y"
 bin/serow patch set-effects examples/math.serow @core.math.add.v1 pure
 bin/serow patch set-example examples/math.serow @core.math.add.v1 1 "add(2, 3) == 5"
@@ -139,6 +140,8 @@ bin/serow patch set-version examples/math.serow @core.math.add.v1 v1
 `patch rename-function` changes a public function name and rewrites resolved call references in the patched source. When the new bare name would be ambiguous, rewritten call sites use the exact `@module.name.vN(...)` form.
 
 `patch rename-module` changes one module name, updates record and function symbol ownership in that module, rewrites in-file `use` declarations that point at the old module, and rewrites in-file exact or module-qualified call references that resolve to the renamed module. Cross-file fallout remains visible through `serow check`, `serow plan`, and unattended certification.
+
+`patch rename-type` changes one record type name in a module and rewrites in-file type references in record fields, public signatures, record construction expressions, typed holes, and sampled property headers. Cross-file fallout remains visible through `serow check`, `serow plan`, and unattended certification.
 
 `patch qualify-call` rewrites bare calls inside one caller function to an exact callee symbol. It is intended for making an ambiguous `name(...)` call deliberate after using `query symbol` to inspect candidates.
 

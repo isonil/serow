@@ -2697,6 +2697,7 @@ fn agent_commands_json_includes_full_command_catalog() {
     assert!(stdout.contains("serow patch remove-function"), "{stdout}");
     assert!(stdout.contains("serow patch remove-type"), "{stdout}");
     assert!(stdout.contains("serow patch rename-module"), "{stdout}");
+    assert!(stdout.contains("serow patch rename-type"), "{stdout}");
     assert!(stdout.contains("serow patch set-use"), "{stdout}");
     assert!(stdout.contains("serow query callees"), "{stdout}");
     assert!(stdout.contains("serow query symbols"), "{stdout}");
@@ -5492,6 +5493,120 @@ pub fn score(x: Int) -> Int
     assert!(
         missing_stdout.contains("does not declare type `Player`"),
         "{missing_stdout}"
+    );
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn patch_rename_type_rewrites_record_type_references() {
+    let dir = unique_temp_dir("serow-patch-rename-type");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("record_type.serow");
+    fs::write(
+        &source,
+        r#"module app.main
+
+type Player = { hp: Int, gold: Int }
+type Party = { leader: Player }
+
+pub fn new_player() -> Player
+  intent "Return the starting player state."
+  version v1
+  contract
+    ensures result.hp == 10
+  examples
+    new_player().gold == 0
+  properties
+    forall flag: Bool:
+      if flag then new_player().hp == 10 else new_player().gold == 0
+  effects pure
+  impl
+    Player { hp: 10, gold: 0 }
+
+pub fn leader_hp(party: Party) -> Int
+  intent "Return party leader hit points."
+  version v1
+  contract
+    ensures result == party.leader.hp
+  examples
+    leader_hp(Party { leader: Player { hp: 10, gold: 0 } }) == 10
+  properties
+    forall party: Party:
+      leader_hp(party) == party.leader.hp
+  effects pure
+  impl
+    party.leader.hp
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "rename-type",
+            source.to_str().expect("utf8 path"),
+            "app.main",
+            "Player",
+            "Hero",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch rename-type");
+
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"changed\": 1"), "{stdout}");
+    let updated = fs::read_to_string(&source).expect("read updated fixture");
+    assert!(
+        updated.contains("type Hero = { hp: Int, gold: Int }"),
+        "{updated}"
+    );
+    assert!(
+        updated.contains("type Party = { leader: Hero }"),
+        "{updated}"
+    );
+    assert!(updated.contains("pub fn new_player() -> Hero"), "{updated}");
+    assert!(updated.contains("Hero { hp: 10, gold: 0 }"), "{updated}");
+    assert!(
+        updated.contains("leader_hp(Party { leader: Hero { hp: 10, gold: 0 } }) == 10"),
+        "{updated}"
+    );
+    assert!(!updated.contains("Player"), "{updated}");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    assert!(
+        program
+            .types
+            .iter()
+            .any(|type_decl| type_decl.symbol() == "@app.main.Hero"),
+        "{:#?}",
+        program.types
+    );
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(summary.ok(), "{:#?}", summary.diagnostics);
+
+    let duplicate = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "rename-type",
+            source.to_str().expect("utf8 path"),
+            "app.main",
+            "Hero",
+            "Party",
+            "--json",
+        ])
+        .output()
+        .expect("run rejected serow patch rename-type");
+    assert!(!duplicate.status.success(), "{duplicate:#?}");
+    let duplicate_stdout = String::from_utf8(duplicate.stdout).expect("stdout is utf8");
+    assert!(
+        duplicate_stdout.contains("PatchConflict"),
+        "{duplicate_stdout}"
+    );
+    assert!(
+        duplicate_stdout.contains("Type declaration `Party` already exists"),
+        "{duplicate_stdout}"
     );
 
     let _ = fs::remove_dir_all(dir);
@@ -8591,7 +8706,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("\"project_version\": \"0.4.93-rust-bootstrap\""),
+        stdout.contains("\"project_version\": \"0.4.94-rust-bootstrap\""),
         "{stdout}"
     );
     let source_bytes = fs::read("examples/math.serow").expect("read math source");
@@ -8638,7 +8753,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{manifest}"
     );
     assert!(
-        manifest.contains("project_version = \"0.4.93-rust-bootstrap\""),
+        manifest.contains("project_version = \"0.4.94-rust-bootstrap\""),
         "{manifest}"
     );
     assert!(
@@ -8720,7 +8835,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{metadata}"
     );
     assert!(
-        metadata.contains("\"project_version\": \"0.4.93-rust-bootstrap\""),
+        metadata.contains("\"project_version\": \"0.4.94-rust-bootstrap\""),
         "{metadata}"
     );
     assert!(
@@ -8784,7 +8899,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{readme}"
     );
     assert!(
-        readme.contains("- Serow project version: `0.4.93-rust-bootstrap`"),
+        readme.contains("- Serow project version: `0.4.94-rust-bootstrap`"),
         "{readme}"
     );
     assert!(

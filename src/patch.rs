@@ -630,6 +630,130 @@ pub fn remove_type(path: &str, module: &str, name: &str) -> PatchSummary {
     summary
 }
 
+pub fn rename_type(path: &str, module: &str, name: &str, new_name: &str) -> PatchSummary {
+    let mut summary = PatchSummary::default();
+    let name = name.trim();
+    let new_name = new_name.trim();
+    if !is_valid_module(module) {
+        summary.diagnostics.push(Diagnostic::error(
+            "InvalidPatchTarget",
+            format!("Invalid module name `{module}`."),
+            Some(path.to_string()),
+        ));
+        return summary;
+    }
+    if !is_valid_ident(name) {
+        summary.diagnostics.push(Diagnostic::error(
+            "InvalidPatchTarget",
+            format!("Invalid type name `{name}`."),
+            Some(path.to_string()),
+        ));
+        return summary;
+    }
+    if !is_valid_ident(new_name) {
+        summary.diagnostics.push(
+            Diagnostic::error(
+                "InvalidPatchTarget",
+                format!("Invalid new type name `{new_name}`."),
+                Some(path.to_string()),
+            )
+            .with_repair("Use an identifier like `PlayerState`."),
+        );
+        return summary;
+    }
+    if name == new_name {
+        return summary;
+    }
+
+    let (mut program, parse_diagnostics) = parse_paths(&[path.to_string()]);
+    let has_parse_errors = has_errors(&parse_diagnostics);
+    summary.diagnostics.extend(parse_diagnostics);
+    if has_parse_errors {
+        return summary;
+    }
+
+    let Some(module_index) = program
+        .modules
+        .iter()
+        .position(|candidate| candidate.name == module)
+    else {
+        summary.diagnostics.push(Diagnostic::error(
+            "PatchTargetNotFound",
+            format!("Module `{module}` was not found."),
+            Some(path.to_string()),
+        ));
+        return summary;
+    };
+
+    let Some(type_index) = program.modules[module_index]
+        .types
+        .iter()
+        .position(|existing| existing.name == name)
+    else {
+        summary.diagnostics.push(
+            Diagnostic::error(
+                "PatchConflict",
+                format!("Module `{module}` does not declare type `{name}`."),
+                Some(path.to_string()),
+            )
+            .with_data(
+                "types",
+                program.modules[module_index]
+                    .types
+                    .iter()
+                    .map(|existing| existing.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            )
+            .with_repair("Rename only an existing record type declaration."),
+        );
+        return summary;
+    };
+
+    if let Some(existing) = program
+        .types
+        .iter()
+        .find(|candidate| candidate.name == new_name)
+    {
+        summary.diagnostics.push(
+            Diagnostic::error(
+                "PatchConflict",
+                format!("Type declaration `{new_name}` already exists."),
+                Some(existing.target()),
+            )
+            .with_data("type", existing.symbol())
+            .with_repair(
+                "Choose a new type name that is not already declared in this patch input.",
+            ),
+        );
+        return summary;
+    }
+
+    program.modules[module_index].types[type_index].name = new_name.to_string();
+    for module_row in &mut program.modules {
+        for type_decl in &mut module_row.types {
+            rewrite_record_field_type_names(&mut type_decl.fields, name, new_name);
+        }
+        for function in &mut module_row.functions {
+            rewrite_function_type_references(function, name, new_name);
+        }
+    }
+    rebuild_type_index(&mut program);
+
+    let formatted = format_program(&program);
+    match fs::write(path, formatted) {
+        Ok(()) => {
+            summary.changed = 1;
+        }
+        Err(error) => summary.diagnostics.push(Diagnostic::error(
+            "WriteError",
+            format!("Could not write `{path}`: {error}"),
+            Some(path.to_string()),
+        )),
+    }
+    summary
+}
+
 pub fn add_function(path: &str, module: &str, signature: &str, intent: &str) -> PatchSummary {
     let mut summary = PatchSummary::default();
     if !is_valid_module(module) {
@@ -1923,6 +2047,140 @@ fn rebuild_type_index(program: &mut Program) {
         .iter()
         .flat_map(|module| module.types.iter().cloned())
         .collect();
+}
+
+fn rewrite_record_field_type_names(fields: &mut [RecordField], old_name: &str, new_name: &str) {
+    for field in fields {
+        if field.type_name == old_name {
+            field.type_name = new_name.to_string();
+        }
+    }
+}
+
+fn rewrite_function_type_references(function: &mut Function, old_name: &str, new_name: &str) {
+    for param in &mut function.params {
+        if param.type_name == old_name {
+            param.type_name = new_name.to_string();
+        }
+    }
+    if function.return_type == old_name {
+        function.return_type = new_name.to_string();
+    }
+    if let Some(implementation) = &mut function.implementation {
+        *implementation = rewrite_expression_type_references(implementation, old_name, new_name);
+    }
+    for requirement in &mut function.requires {
+        *requirement = rewrite_expression_type_references(requirement, old_name, new_name);
+    }
+    for contract in &mut function.contracts {
+        *contract = rewrite_expression_type_references(contract, old_name, new_name);
+    }
+    for example in &mut function.examples {
+        *example = rewrite_expression_type_references(example, old_name, new_name);
+    }
+    for property in &mut function.properties {
+        if property.trim().starts_with("forall ") && property.trim().ends_with(':') {
+            *property = rewrite_forall_type_references(property, old_name, new_name);
+        } else {
+            *property = rewrite_expression_type_references(property, old_name, new_name);
+        }
+    }
+}
+
+fn rewrite_forall_type_references(line: &str, old_name: &str, new_name: &str) -> String {
+    let trimmed = line.trim();
+    let Some(inner) = trimmed
+        .strip_prefix("forall ")
+        .and_then(|value| value.strip_suffix(':'))
+    else {
+        return line.to_string();
+    };
+    let mut bindings = Vec::new();
+    for raw_binding in inner.split(',') {
+        let Some((name, type_name)) = raw_binding.trim().split_once(':') else {
+            return line.to_string();
+        };
+        let rewritten_type = if type_name.trim() == old_name {
+            new_name
+        } else {
+            type_name.trim()
+        };
+        bindings.push(format!("{}: {}", name.trim(), rewritten_type));
+    }
+    format!("forall {}:", bindings.join(", "))
+}
+
+fn rewrite_expression_type_references(expression: &str, old_name: &str, new_name: &str) -> String {
+    let mut rewritten = String::new();
+    let mut index = 0;
+    while index < expression.len() {
+        let rest = &expression[index..];
+        if rest.starts_with('"') {
+            let end = string_literal_end(expression, index);
+            rewritten.push_str(&expression[index..end]);
+            index = end;
+            continue;
+        }
+        let Some(end) = identifier_end(expression, index) else {
+            let char = rest
+                .chars()
+                .next()
+                .expect("index is inside expression bounds");
+            rewritten.push(char);
+            index += char.len_utf8();
+            continue;
+        };
+        let reference_text = &expression[index..end];
+        if reference_text == old_name && is_type_expression_reference(expression, index, end) {
+            rewritten.push_str(new_name);
+        } else {
+            rewritten.push_str(reference_text);
+        }
+        index = end;
+    }
+    rewritten
+}
+
+fn is_type_expression_reference(expression: &str, start: usize, end: usize) -> bool {
+    let next_non_space = expression[end..]
+        .char_indices()
+        .find(|(_, char)| !char.is_whitespace())
+        .map(|(offset, char)| (end + offset, char));
+    if next_non_space.is_some_and(|(_, char)| char == '{') {
+        return true;
+    }
+    if next_non_space.is_none_or(|(_, char)| char != ')') {
+        return false;
+    }
+    let Some((open_paren, _)) = previous_non_space(expression, start) else {
+        return false;
+    };
+    if !expression[open_paren..].starts_with('(') {
+        return false;
+    }
+    let Some((hole_start, hole_end)) = previous_identifier(expression, open_paren) else {
+        return false;
+    };
+    &expression[hole_start..hole_end] == "HOLE"
+}
+
+fn previous_non_space(expression: &str, before: usize) -> Option<(usize, char)> {
+    expression[..before]
+        .char_indices()
+        .rev()
+        .find(|(_, char)| !char.is_whitespace())
+}
+
+fn previous_identifier(expression: &str, before: usize) -> Option<(usize, usize)> {
+    let mut end = None;
+    for (offset, char) in expression[..before].char_indices().rev() {
+        if char.is_ascii_alphanumeric() || char == '_' {
+            end.get_or_insert(offset + char.len_utf8());
+            continue;
+        }
+        return end.map(|end| (offset + char.len_utf8(), end));
+    }
+    end.map(|end| (0, end))
 }
 
 fn rewrite_module_call_references(

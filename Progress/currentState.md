@@ -156,6 +156,7 @@ Selection policy for generic implementation prompts:
   - `bin/serow patch remove-use <path> <module> <dependency> [--json]`
   - `bin/serow patch rename-function <path> <symbol-or-name> <new-name> [--json]`
   - `bin/serow patch rename-module <path> <module> <new-module> [--json]`
+  - `bin/serow patch rename-type <path> <module> <type-name> <new-type-name> [--json]`
   - `bin/serow patch set-contract <path> <symbol-or-name> <requires|ensures> [index] <expression> [--json]`
   - `bin/serow patch set-effects <path> <symbol-or-name> <effects> [--json]`
   - `bin/serow patch set-example <path> <symbol-or-name> [index] <expression> [--json]`
@@ -190,6 +191,7 @@ Selection policy for generic implementation prompts:
 - `patch remove-use` removes an existing module dependency declaration from a module through the structured patch interface and preserves canonical formatting.
 - `patch set-use` replaces one existing module dependency declaration through the structured patch interface, rejects missing old dependencies and duplicate new dependencies, and preserves canonical formatting.
 - Declared `ArchitectureViolation` diagnostics for forbidden `use` dependencies include structured `patch remove-use` repair actions.
+- `patch rename-type` renames one record type declaration in a module, rewrites in-file type references in record fields, public signatures, record construction expressions, typed holes, and sampled property headers, and rejects duplicate new type names before rewriting canonically.
 - `patch set-signature` replaces a function's argument list and return type while preserving the existing function name; use `patch rename-function` for name changes.
 - `patch set-version` now supports dependent-aware public version bumps when parsed call sites do not pin the old canonical symbol, and rejects pinned `module.name.vN(...)` or `@module.name.vN(...)` callers with `VersionPinnedDependent`.
 - `patch rename-function` renames a public function and rewrites resolved call references in the patched source, using exact `@module.name.vN(...)` references when the new bare name would be ambiguous.
@@ -1900,7 +1902,7 @@ git diff --check
 - Expression support is intentionally small: literals, variables, direct or qualified calls, arithmetic, comparisons, booleans, and one-line `if ... then ... else ...`.
 - Properties are sampled, not proven; built-in samples are fixed small sets for `Int`, `Bool`, `Text`, singleton `Unit`, and bounded declared-record values. Failed or erroring sampled properties report replay data, include simpler shrunk same-outcome bindings when available, and can be rerun one sample at a time with `bin/serow replay property`. Non-executable property diagnostics include unsupported-sample reasons, including recursive record sample cycles when present.
 - Effects checking is intentionally conservative direct-call capability subset validation; it warns on unused declared capabilities only when resolved non-self direct callees establish a required capability set, and it does not yet model effect polymorphism or external effect primitives beyond the compiler-owned terminal I/O intrinsics.
-- Structured patch coverage is intentionally narrow: module `use` insertion/removal/replacement, record type insertion/removal, public function skeleton insertion, public function rename with in-file resolved call rewrites, bare-call qualification to exact symbols, evidence insertion, indexed evidence removal, migration acknowledgement insertion/replacement/removal, indexed contract/example/property replacement, duplicate-intent-guarded intent replacement, effect declaration replacement, missing or existing implementation expression setting, version declaration and pinned-call-aware version bumps, and typed-hole filling are implemented.
+- Structured patch coverage is intentionally narrow: module `use` insertion/removal/replacement, record type insertion/removal/rename with in-file type-reference rewrites, public function skeleton insertion, public function rename with in-file resolved call rewrites, bare-call qualification to exact symbols, evidence insertion, indexed evidence removal, migration acknowledgement insertion/replacement/removal, indexed contract/example/property replacement, duplicate-intent-guarded intent replacement, effect declaration replacement, missing or existing implementation expression setting, version declaration and pinned-call-aware version bumps, and typed-hole filling are implemented.
 - Evidence patching can append or replace individual contract/example/property items, but dependent impact and evidence policy are still enforced by `serow plan` and unattended certification rather than by the patch command itself.
 - Formatting parses and re-emits the bootstrap projection; comments are not preserved yet.
 - The hand-written JSON output should eventually be replaced with `serde_json` once external dependencies are allowed/desired.

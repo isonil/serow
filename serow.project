@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "0.4.93-rust-bootstrap",
+  "version": "0.4.94-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -38,6 +38,7 @@
     "patch_remove_use": "bin/serow patch remove-use <path> <module> <dependency>",
     "patch_rename_function": "bin/serow patch rename-function <path> <symbol-or-name> <new-name>",
     "patch_rename_module": "bin/serow patch rename-module <path> <module> <new-module>",
+    "patch_rename_type": "bin/serow patch rename-type <path> <module> <type-name> <new-type-name>",
     "patch_set_contract": "bin/serow patch set-contract <path> <symbol-or-name> <requires|ensures> [index] <expression>",
     "patch_set_effects": "bin/serow patch set-effects <path> <symbol-or-name> <effects>",
     "patch_set_example": "bin/serow patch set-example <path> <symbol-or-name> [index] <expression>",
