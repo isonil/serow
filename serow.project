@@ -154,7 +154,8 @@
     "rust_backend_binary_entrypoint": true,
     "rust_backend_binary_entrypoint_metadata": true,
     "rust_backend_json_metadata_sidecar": true,
-    "rust_backend_artifact_drift_check": true
+    "rust_backend_artifact_drift_check": true,
+    "rust_backend_unexpected_artifact_check": true
   },
   "source_roots": [
     "examples"

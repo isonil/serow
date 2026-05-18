@@ -1,5 +1,13 @@
 # Implementation Log
 
+## 2026-05-18
+
+- Chose Rust generated-crate optional artifact hygiene as the next backend traceability slice because a library-only regeneration after a previous `--emit-bin` run could leave a stale `src/main.rs`, and Cargo would still discover that stale binary target even though the current Serow backend output no longer included it.
+- Extended the generated Rust crate artifact model with expected-absent generated files. Library-only `compile rust --out-dir` now removes stale Serow-generated `src/main.rs` files, refuses to remove non-Serow unexpected files, and `--check-out-dir` reports `RustBackendUnexpectedArtifact` when optional generated artifacts are present but not expected.
+- Updated backend regression coverage for unexpected `src/main.rs` diagnostics and stale generated binary-entrypoint cleanup when a binary crate is regenerated as a library-only crate.
+- Updated README, agent bootstrap text, `serow.project`, and Progress docs to advertise stale optional generated-artifact detection and cleanup.
+- Verified with `bin/serow query intent "detect stale generated Rust binary main artifact when checking generated crate layout" --json`, `bin/serow query symbol "check-out-dir" --json`, `bin/serow query symbol "main.rs" --json`, `bin/serow query symbol "RustBackendUnexpectedArtifact" --json`, `cargo test compile_rust_out_dir_writes_crate_layout -- --nocapture`, `cargo test compile_rust_emit_bin_writes_runnable_crate -- --nocapture`, `cargo fmt --check`, `bin/serow fmt --check --json`, `bin/serow check --json`, `bin/serow agent --json`, `cargo clippy -- -D warnings`, `cargo test`, `python3 -m unittest discover -s tests`, `bin/serow certify --json`, `bin/serow certify --profile unattended --json`, `bin/serow plan --json`, `bin/serow compile rust examples/math.serow --out-dir /tmp/serow-unexpected-artifact-smoke --crate-name serow_unexpected_artifact_smoke --json`, `bin/serow compile rust examples/math.serow --out-dir /tmp/serow-unexpected-artifact-smoke --crate-name serow_unexpected_artifact_smoke --check-out-dir --json`, generated-crate `cargo test`, and `git diff --check`.
+
 ## 2026-05-17
 
 - Chose generated Rust crate artifact drift checking as the next backend traceability slice because emitted crates carried rich provenance but agents still had to overwrite files or manually compare artifacts to know whether a generated crate matched current Serow sources.
