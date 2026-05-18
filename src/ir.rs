@@ -24,6 +24,7 @@ pub struct IrFunction {
     pub requires: Vec<IrExpr>,
     pub ensures: Vec<IrExpr>,
     pub examples: Vec<IrExpr>,
+    pub example_lines: Vec<usize>,
     pub properties: Vec<IrProperty>,
     pub body: IrExpr,
 }
@@ -31,6 +32,7 @@ pub struct IrFunction {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct IrProperty {
     pub index: usize,
+    pub line: usize,
     pub variables: Vec<Param>,
     pub expression: IrExpr,
 }
@@ -238,9 +240,19 @@ pub fn lower_checked_program(program: &Program, parse_diagnostics: Vec<Diagnosti
         }
 
         let mut examples = Vec::new();
+        let mut example_lines = Vec::new();
         for (index, example) in function.examples.iter().enumerate() {
             match lower_expression_with_variables(example, Vec::new(), &program.functions) {
-                Ok(example) => examples.push(example),
+                Ok(example) => {
+                    examples.push(example);
+                    example_lines.push(
+                        function
+                            .example_lines
+                            .get(index)
+                            .copied()
+                            .unwrap_or(function.line),
+                    );
+                }
                 Err(error) => {
                     failed = true;
                     diagnostics.push(
@@ -264,7 +276,11 @@ pub fn lower_checked_program(program: &Program, parse_diagnostics: Vec<Diagnosti
         }
 
         let mut properties = Vec::new();
-        for property in property_blocks(&function.properties) {
+        for property in property_blocks(
+            &function.properties,
+            &function.property_lines,
+            function.line,
+        ) {
             match lower_expression_with_variables(
                 &property.expression,
                 property
@@ -276,6 +292,7 @@ pub fn lower_checked_program(program: &Program, parse_diagnostics: Vec<Diagnosti
             ) {
                 Ok(expression) => properties.push(IrProperty {
                     index: property.index,
+                    line: property.line,
                     variables: property.variables,
                     expression,
                 }),
@@ -315,6 +332,7 @@ pub fn lower_checked_program(program: &Program, parse_diagnostics: Vec<Diagnosti
                 requires,
                 ensures,
                 examples,
+                example_lines,
                 properties,
                 body,
             }),
@@ -347,11 +365,16 @@ pub fn lower_checked_program(program: &Program, parse_diagnostics: Vec<Diagnosti
 
 struct PropertyBlock {
     index: usize,
+    line: usize,
     variables: Vec<Param>,
     expression: String,
 }
 
-fn property_blocks(lines: &[String]) -> Vec<PropertyBlock> {
+fn property_blocks(
+    lines: &[String],
+    line_numbers: &[usize],
+    fallback_line: usize,
+) -> Vec<PropertyBlock> {
     let mut blocks = Vec::new();
     let mut index = 0;
     let mut property_index = 1;
@@ -374,6 +397,7 @@ fn property_blocks(lines: &[String]) -> Vec<PropertyBlock> {
         if let Some(expression) = lines.get(index + 1) {
             blocks.push(PropertyBlock {
                 index: property_index,
+                line: line_numbers.get(index).copied().unwrap_or(fallback_line),
                 variables,
                 expression: expression.trim().to_string(),
             });

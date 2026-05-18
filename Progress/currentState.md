@@ -113,6 +113,7 @@ Selection policy for generic implementation prompts:
   - runs the normal checker first and refuses to emit IR when checker errors are present
   - emits `serow.ir.v0` JSON for checked public implementations in the bootstrap expression subset
   - includes type declaration source path and line provenance plus public symbol identity, function source path and line provenance, signature, effects, parameters, return type, lowered `requires` preconditions, lowered `ensures` postconditions, lowered executable examples, lowered sampled properties, expression tree, and canonical resolved call targets
+  - carries executable example source lines and sampled-property source lines through IR so backend evidence metadata can point at the evidence itself
   - lowers record construction, field access, record copy-update, local `let` bindings, local assignments, checked while loops, and ordered sequences in the public expression tree
 - Phase 3 Rust backend:
   - `bin/serow compile rust [paths...] [--out-dir <dir>] [--check-out-dir] [--emit-bin] [--crate-name <name>] [--json]`
@@ -130,7 +131,7 @@ Selection policy for generic implementation prompts:
   - avoids whole-record clones for direct field reads from local record variables, lowers same-variable record state updates such as `set state = state with { hp: state.hp - 1 }` to in-place Rust field assignments after evaluating update values, and moves final-position record update bases into returned records when generated postcondition checks do not need the original value
   - renders local `let` bindings, local assignments, checked while loops, and ordered sequences as Rust blocks
   - lowers checked terminal `io` intrinsics to Rust `println!` and stdin line reading
-  - emits generated Rust `#[test]` functions for checked pure Serow examples and deterministic sampled-property bindings, and reports source-location-aware symbol/evidence-to-test mappings in JSON mode
+  - emits generated Rust `#[test]` functions for checked pure Serow examples and deterministic sampled-property bindings, and reports source-location-aware symbol/evidence-to-test mappings in JSON mode using the exact example or property line
   - maps Serow `Text` to owned Rust `String` values in generated source
   - rejects effects outside the current `pure`/terminal-`io` backend slice with explicit backend diagnostics instead of generating partial code
 - Structured patch commands:

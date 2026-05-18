@@ -482,7 +482,11 @@ fn render_function_tests(
             property_index: None,
             sample_index: None,
             source_path: function.source_path.clone(),
-            line: function.line,
+            line: function
+                .example_lines
+                .get(index)
+                .copied()
+                .unwrap_or(function.line),
             rust_name: test_name,
         });
     }
@@ -566,7 +570,7 @@ fn render_function_tests(
                 property_index: Some(property.index),
                 sample_index: Some(sample_index),
                 source_path: function.source_path.clone(),
-                line: function.line,
+                line: property.line,
                 rust_name: test_name,
             });
         }

@@ -2,6 +2,11 @@
 
 ## 2026-05-18
 
+- Chose exact generated Rust evidence-line provenance as the next backend traceability slice because generated evidence-test mappings carried source paths but still pointed at the enclosing function header line instead of the example/property source line.
+- Added parser-level evidence line tracking for examples and sampled properties, carried those lines through `serow.ir.v0`, and updated Rust backend JSON/Cargo/sidecar metadata to report generated test rows at the exact evidence line.
+- Updated backend/IR regression coverage and docs/project metadata for evidence-line provenance.
+- Verified with `bin/serow query intent "record exact source lines for generated Rust evidence test metadata" --json`, `bin/serow query symbol "GeneratedRustTest" --json`, `bin/serow query symbol "IrProperty" --json`, `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test compile_ir_json_reports_portable_ir -- --nocapture`, `cargo test compile_rust -- --nocapture`, `cargo test`, `python3 -m unittest discover -s tests`, `bin/serow fmt --check --json`, `bin/serow check --json`, `bin/serow certify --json`, `bin/serow certify --profile unattended --json`, `bin/serow plan --json`, `bin/serow compile ir examples/math.serow --json`, `bin/serow compile rust examples/math.serow --json`, `bin/serow agent --json`, and `git diff --check`.
+
 - Chose portable IR type provenance as the next backend traceability slice because IR function rows and generated Rust type metadata carried source locations, while `compile ir --json` type rows still omitted the source path and line.
 - Added `source_path` and `line` fields to emitted `serow.ir.v0` type declaration rows, with regression coverage for record IR output.
 - Updated README, language notes, `serow.project`, and current progress state to document source-location-aware type rows in portable IR.

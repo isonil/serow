@@ -2452,6 +2452,7 @@ fn ir_function_json(function: &IrFunction) -> String {
             "\"effects\": {}, ",
             "\"ensures\": {}, ",
             "\"examples\": {}, ",
+            "\"example_lines\": {}, ",
             "\"module\": {}, ",
             "\"name\": {}, ",
             "\"params\": {}, ",
@@ -2468,6 +2469,7 @@ fn ir_function_json(function: &IrFunction) -> String {
         string_array_json(&function.effects),
         ir_exprs_json(&function.ensures),
         ir_exprs_json(&function.examples),
+        usize_array_json(&function.example_lines),
         json_string(&function.module),
         json_string(&function.name),
         params_json(&function.params),
@@ -2501,9 +2503,10 @@ fn ir_properties_json(properties: &[crate::ir::IrProperty]) -> String {
         .iter()
         .map(|property| {
             format!(
-                "{{\"expression\": {}, \"index\": {}, \"variables\": {}}}",
+                "{{\"expression\": {}, \"index\": {}, \"line\": {}, \"variables\": {}}}",
                 ir_expr_json(&property.expression),
                 property.index,
+                property.line,
                 params_json(&property.variables)
             )
         })
@@ -3732,7 +3735,7 @@ fn agent_json() -> String {
         str_array_json(&[
             "Properties are sampled, not proven; replay uses deterministic seeds for built-in and bounded declared-record samples.",
             "Intent search is deterministic token ranking, not semantic embeddings.",
-            "Rust backend emission supports pure Int/Bool/Text/Unit functions, non-recursive declared records, and terminal io intrinsics, emits runtime asserts for Serow requires and ensures clauses, emits Rust tests for pure Serow examples and deterministic sampled properties, moves final record update bases when postconditions do not need the original value, rejects recursive record layouts with explicit diagnostics, records the Serow project version, aggregate/per-source Serow input fingerprints, plus type, source, binary entrypoint, and evidence metadata in generated Cargo manifests and serow-metadata.json sidecars, removes stale generated main.rs files when returning to library-only output, and can check generated crate artifacts for drift or unexpected optional artifacts.",
+            "Rust backend emission supports pure Int/Bool/Text/Unit functions, non-recursive declared records, and terminal io intrinsics, emits runtime asserts for Serow requires and ensures clauses, emits Rust tests for pure Serow examples and deterministic sampled properties, moves final record update bases when postconditions do not need the original value, rejects recursive record layouts with explicit diagnostics, records the Serow project version, aggregate/per-source Serow input fingerprints, plus type, source, binary entrypoint, and exact evidence-line metadata in generated Cargo manifests and serow-metadata.json sidecars, removes stale generated main.rs files when returning to library-only output, and can check generated crate artifacts for drift or unexpected optional artifacts.",
             "Expression support is intentionally small and formatting does not preserve comments.",
             "JSON output is hand-written until external dependencies are accepted."
         ])
@@ -3853,6 +3856,14 @@ fn string_array_json(values: &[String]) -> String {
     let values = values
         .iter()
         .map(|value| json_string(value))
+        .collect::<Vec<_>>();
+    format!("[{}]", values.join(", "))
+}
+
+fn usize_array_json(values: &[usize]) -> String {
+    let values = values
+        .iter()
+        .map(|value| value.to_string())
         .collect::<Vec<_>>();
     format!("[{}]", values.join(", "))
 }

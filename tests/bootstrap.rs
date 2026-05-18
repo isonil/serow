@@ -7012,7 +7012,9 @@ fn compile_ir_json_reports_portable_ir() {
     assert!(stdout.contains("\"requires\": ["), "{stdout}");
     assert!(stdout.contains("\"ensures\": ["), "{stdout}");
     assert!(stdout.contains("\"examples\": ["), "{stdout}");
+    assert!(stdout.contains("\"example_lines\": [9, 10]"), "{stdout}");
     assert!(stdout.contains("\"properties\": ["), "{stdout}");
+    assert!(stdout.contains("\"index\": 1, \"line\": 12"), "{stdout}");
     assert!(stdout.contains("\"op\": \"not_eq\""), "{stdout}");
     assert!(stdout.contains("\"lowered_functions\": 3"), "{stdout}");
 }
@@ -7354,7 +7356,7 @@ fn compile_rust_json_emits_supported_backend_source() {
     assert!(stdout.contains("\"kind\": \"example\""), "{stdout}");
     assert!(
         stdout.contains(
-            "\"rust_name\": \"serow_test_core_math_add_v1_example_1\", \"source_path\": \"examples/math.serow\""
+            "\"example_index\": 1, \"kind\": \"example\", \"line\": 9, \"rust_name\": \"serow_test_core_math_add_v1_example_1\", \"source_path\": \"examples/math.serow\""
         ),
         "{stdout}"
     );
@@ -7371,7 +7373,7 @@ fn compile_rust_json_emits_supported_backend_source() {
     assert!(stdout.contains("\"sample_index\": 1"), "{stdout}");
     assert!(
         stdout.contains(
-            "\"rust_name\": \"serow_test_core_math_add_v1_property_1_sample_1\", \"sample_index\": 1, \"source_path\": \"examples/math.serow\""
+            "\"kind\": \"property\", \"line\": 12, \"property_index\": 1, \"rust_name\": \"serow_test_core_math_add_v1_property_1_sample_1\", \"sample_index\": 1, \"source_path\": \"examples/math.serow\""
         ),
         "{stdout}"
     );
@@ -7935,7 +7937,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
     );
     assert!(
         manifest.contains(
-            "rust_name = \"serow_test_core_math_add_v1_example_1\"\nsource_path = \"examples/math.serow\"\nline = 3"
+            "rust_name = \"serow_test_core_math_add_v1_example_1\"\nsource_path = \"examples/math.serow\"\nline = 9"
         ),
         "{manifest}"
     );
@@ -7953,7 +7955,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         manifest.contains("source_path = \"examples/math.serow\""),
         "{manifest}"
     );
-    assert!(manifest.contains("line = 3"), "{manifest}");
+    assert!(manifest.contains("line = 9"), "{manifest}");
     assert!(manifest.contains("kind = \"property\""), "{manifest}");
     assert!(manifest.contains("property_index = 1"), "{manifest}");
     assert!(manifest.contains("sample_index = 1"), "{manifest}");
@@ -8005,7 +8007,8 @@ fn compile_rust_out_dir_writes_crate_layout() {
     assert!(
         metadata.contains("\"rust_name\": \"serow_test_core_math_add_v1_property_1_sample_1\"")
             && metadata.contains("\"property_index\": 1")
-            && metadata.contains("\"sample_index\": 1"),
+            && metadata.contains("\"sample_index\": 1")
+            && metadata.contains("\"line\": 12"),
         "{metadata}"
     );
     assert!(

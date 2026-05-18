@@ -330,7 +330,9 @@ fn parse_function(
         requires: Vec::new(),
         contracts: Vec::new(),
         examples: Vec::new(),
+        example_lines: Vec::new(),
         properties: Vec::new(),
+        property_lines: Vec::new(),
         migrations: Vec::new(),
         effects: Vec::new(),
         implementation: None,
@@ -443,8 +445,14 @@ fn parse_function(
                         );
                     }
                 }
-                "examples" => function.examples.push(content.trim().to_string()),
-                "properties" => function.properties.push(content.to_string()),
+                "examples" => {
+                    function.examples.push(content.trim().to_string());
+                    function.example_lines.push(line_number);
+                }
+                "properties" => {
+                    function.properties.push(content.to_string());
+                    function.property_lines.push(line_number);
+                }
                 "migration" => {
                     if let Some((kind, note)) = parse_migration_record(content.trim()) {
                         if MIGRATION_KINDS.iter().any(|allowed| allowed == &kind) {
