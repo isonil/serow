@@ -2,6 +2,11 @@
 
 ## 2026-05-18
 
+- Chose portable IR type provenance as the next backend traceability slice because IR function rows and generated Rust type metadata carried source locations, while `compile ir --json` type rows still omitted the source path and line.
+- Added `source_path` and `line` fields to emitted `serow.ir.v0` type declaration rows, with regression coverage for record IR output.
+- Updated README, language notes, `serow.project`, and current progress state to document source-location-aware type rows in portable IR.
+- Verified with `bin/serow query intent "record source file and line provenance for type declarations in portable IR" --json`, `bin/serow query symbol "type_decl_json" --json`, `bin/serow query symbol "compile ir" --json`, `cargo fmt --check`, `cargo test compile_ir_lowers_record_expressions -- --nocapture`, `bin/serow compile ir examples/text_game.serow --json`, `bin/serow fmt --check --json`, `bin/serow check --json`, `python3 -m unittest discover -s tests`, `git diff --check`, `cargo clippy -- -D warnings`, `cargo test`, `bin/serow certify --json`, `bin/serow certify --profile unattended --json`, `bin/serow plan --json`, and `bin/serow agent --json`.
+
 - Chose Rust backend recursive-record rejection as the next backend correctness slice because record sampling already documented recursive cycles as unsupported, while the Rust backend could otherwise emit invalid by-value recursive structs.
 - Added `RustBackendRecursiveRecordType` diagnostics that detect direct or indirect declared-record layout cycles before rendering generated Rust structs, including the detected cycle in diagnostic data.
 - Updated backend regression coverage and docs/project metadata for explicit recursive-record layout rejection.

@@ -7286,6 +7286,14 @@ pub fn award(player: Player, amount: Int) -> Player
     assert!(stdout.contains("\"kind\": \"field_access\""), "{stdout}");
     assert!(stdout.contains("\"kind\": \"record_update\""), "{stdout}");
     assert!(stdout.contains("\"types\": ["), "{stdout}");
+    assert!(stdout.contains("\"line\": 3"), "{stdout}");
+    assert!(
+        stdout.contains(&format!(
+            "\"source_path\": \"{}\"",
+            source.to_string_lossy()
+        )),
+        "{stdout}"
+    );
     let _ = fs::remove_dir_all(dir);
 }
 
@@ -7848,7 +7856,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("\"project_version\": \"0.4.82-rust-bootstrap\""),
+        stdout.contains("\"project_version\": \"0.4.83-rust-bootstrap\""),
         "{stdout}"
     );
     let source_bytes = fs::read("examples/math.serow").expect("read math source");
@@ -7887,7 +7895,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{manifest}"
     );
     assert!(
-        manifest.contains("project_version = \"0.4.82-rust-bootstrap\""),
+        manifest.contains("project_version = \"0.4.83-rust-bootstrap\""),
         "{manifest}"
     );
     assert!(
@@ -7969,7 +7977,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{metadata}"
     );
     assert!(
-        metadata.contains("\"project_version\": \"0.4.82-rust-bootstrap\""),
+        metadata.contains("\"project_version\": \"0.4.83-rust-bootstrap\""),
         "{metadata}"
     );
     assert!(

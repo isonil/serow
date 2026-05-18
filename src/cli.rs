@@ -2434,10 +2434,12 @@ fn type_decl_json(type_decl: &crate::model::TypeDecl) -> String {
         .collect::<Vec<_>>()
         .join(", ");
     format!(
-        "{{\"fields\": [{}], \"module\": {}, \"name\": {}, \"symbol\": {}}}",
+        "{{\"fields\": [{}], \"line\": {}, \"module\": {}, \"name\": {}, \"source_path\": {}, \"symbol\": {}}}",
         fields,
+        type_decl.line,
         json_string(&type_decl.module),
         json_string(&type_decl.name),
+        json_string(&type_decl.source_path),
         json_string(&type_decl.symbol())
     )
 }
