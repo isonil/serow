@@ -16,7 +16,7 @@ use crate::patch::{
     add_type, add_use, fill_hole, qualify_call, remove_contract, remove_example, remove_function,
     remove_migration, remove_property, remove_type, remove_use, rename_function, rename_module,
     rename_type, set_contract, set_effects, set_example, set_impl, set_intent, set_migration,
-    set_property, set_signature, set_use, set_version,
+    set_property, set_signature, set_type, set_use, set_version,
 };
 use crate::plan::{
     CapabilityAnalysis, CapabilityChange, ChangePlan, EvidenceCoverage, EvidenceDelta,
@@ -1222,6 +1222,7 @@ fn run_patch(args: &[String]) -> i32 {
         "set-migration" => run_patch_set_migration(&args[1..]),
         "set-property" => run_patch_set_property(&args[1..]),
         "set-signature" => run_patch_set_signature(&args[1..]),
+        "set-type" => run_patch_set_type(&args[1..]),
         "set-use" => run_patch_set_use(&args[1..]),
         "set-version" => run_patch_set_version(&args[1..]),
         _ => {
@@ -1509,6 +1510,21 @@ fn run_patch_remove_property(args: &[String]) -> i32 {
         return 2;
     };
     let summary = remove_property(path, target, index);
+    if json_output {
+        println!("{}", patch_json(&summary));
+    } else {
+        print_patch_summary(&summary);
+    }
+    i32::from(!summary.ok())
+}
+
+fn run_patch_set_type(args: &[String]) -> i32 {
+    let (args, json_output) = split_flag(args, "--json");
+    let [path, module, name, declaration] = args.as_slice() else {
+        print_patch_usage();
+        return 2;
+    };
+    let summary = set_type(path, module, name, declaration);
     if json_output {
         println!("{}", patch_json(&summary));
     } else {
@@ -3885,6 +3901,11 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
         "Replace a function's argument list and return type without renaming it.",
     ),
     (
+        "patch set-type",
+        "serow patch set-type <path> <module> <type-name> <type-declaration> [--json]",
+        "Replace one existing record type declaration's fields through the structured patch interface.",
+    ),
+    (
         "patch set-use",
         "serow patch set-use <path> <module> <old-dependency> <new-dependency> [--json]",
         "Replace one existing module use declaration through the structured patch interface.",
@@ -4332,6 +4353,7 @@ fn print_usage() {
         "  serow patch set-property <path> <symbol-or-name> [index] <forall-header> <expression> [--json]"
     );
     eprintln!("  serow patch set-signature <path> <symbol-or-name> <signature> [--json]");
+    eprintln!("  serow patch set-type <path> <module> <type-name> <type-declaration> [--json]");
     eprintln!("  serow patch set-use <path> <module> <old-dependency> <new-dependency> [--json]");
     eprintln!("  serow patch set-version <path> <symbol-or-name> <version> [--json]");
     eprintln!("  serow plan [paths...] [--json]");
@@ -4402,6 +4424,7 @@ fn print_patch_usage() {
         "  serow patch set-property <path> <symbol-or-name> [index] <forall-header> <expression> [--json]"
     );
     eprintln!("  serow patch set-signature <path> <symbol-or-name> <signature> [--json]");
+    eprintln!("  serow patch set-type <path> <module> <type-name> <type-declaration> [--json]");
     eprintln!("  serow patch set-use <path> <module> <old-dependency> <new-dependency> [--json]");
     eprintln!("  serow patch set-version <path> <symbol-or-name> <version> [--json]");
 }

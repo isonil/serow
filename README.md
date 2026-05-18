@@ -121,6 +121,7 @@ bin/serow patch set-intent examples/math.serow @core.math.add.v1 "Return the sum
 bin/serow patch set-migration examples/math.serow @core.math.add.v1 implementation-change 1 "Document why this implementation change preserves behavior."
 bin/serow patch set-property examples/math.serow @core.math.add.v1 1 "forall x: Int, y: Int:" "add(x, y) == add(y, x)"
 bin/serow patch set-signature examples/math.serow @core.math.add.v1 "add(x: Int, y: Int) -> Int"
+bin/serow patch set-type examples/math.serow core.math Point "Point = { x: Int, y: Int }"
 bin/serow patch set-use examples/math.serow app.main core.math core.arithmetic
 bin/serow patch set-version examples/math.serow @core.math.add.v1 v1
 ```
@@ -132,6 +133,8 @@ bin/serow patch set-version examples/math.serow @core.math.add.v1 v1
 `patch add-module` adds an empty module declaration to an existing or new `.serow` source file and rewrites the file canonically. Re-running it for a module already present in the patch input is a no-op.
 
 `patch add-type` inserts one record type declaration into an existing module. It accepts a single quoted declaration with or without the `type` prefix, rejects duplicate type names and duplicate fields before writing, and rewrites the file canonically.
+
+`patch set-type` replaces the fields of one existing record type declaration. The replacement declaration must keep the same type name; use `patch rename-type` for renames. Field-level fallout remains visible through `serow check`, `serow plan`, and unattended certification.
 
 `patch remove-type` removes one existing record type declaration from a module through the structured patch interface and rewrites the file canonically. Removing a type that is still referenced is allowed as a source edit, and `serow check` reports the resulting type errors.
 

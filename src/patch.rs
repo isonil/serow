@@ -630,6 +630,119 @@ pub fn remove_type(path: &str, module: &str, name: &str) -> PatchSummary {
     summary
 }
 
+pub fn set_type(path: &str, module: &str, name: &str, declaration: &str) -> PatchSummary {
+    let mut summary = PatchSummary::default();
+    if !is_valid_module(module) {
+        summary.diagnostics.push(Diagnostic::error(
+            "InvalidPatchTarget",
+            format!("Invalid module name `{module}`."),
+            Some(path.to_string()),
+        ));
+        return summary;
+    }
+    if !is_valid_ident(name) {
+        summary.diagnostics.push(Diagnostic::error(
+            "InvalidPatchTarget",
+            format!("Invalid type name `{name}`."),
+            Some(path.to_string()),
+        ));
+        return summary;
+    }
+    let Some((declared_name, fields)) = parse_type_declaration(declaration) else {
+        summary.diagnostics.push(
+            Diagnostic::error(
+                "InvalidPatchTarget",
+                format!("Invalid type declaration `{declaration}`."),
+                Some(path.to_string()),
+            )
+            .with_repair("Use a record declaration like `Player = { hp: Int, gold: Int }`."),
+        );
+        return summary;
+    };
+    if declared_name != name {
+        summary.diagnostics.push(
+            Diagnostic::error(
+                "PatchConflict",
+                format!(
+                    "Replacement declaration names `{declared_name}` but target type is `{name}`."
+                ),
+                Some(path.to_string()),
+            )
+            .with_data("target_type", name.to_string())
+            .with_data("replacement_type", declared_name)
+            .with_repair(
+                "Use `patch rename-type` for renames, or keep the replacement type name unchanged.",
+            ),
+        );
+        return summary;
+    }
+
+    let (mut program, parse_diagnostics) = parse_paths(&[path.to_string()]);
+    let has_parse_errors = has_errors(&parse_diagnostics);
+    summary.diagnostics.extend(parse_diagnostics);
+    if has_parse_errors {
+        return summary;
+    }
+
+    let Some(module_index) = program
+        .modules
+        .iter()
+        .position(|candidate| candidate.name == module)
+    else {
+        summary.diagnostics.push(Diagnostic::error(
+            "PatchTargetNotFound",
+            format!("Module `{module}` was not found."),
+            Some(path.to_string()),
+        ));
+        return summary;
+    };
+
+    let Some(type_index) = program.modules[module_index]
+        .types
+        .iter()
+        .position(|existing| existing.name == name)
+    else {
+        summary.diagnostics.push(
+            Diagnostic::error(
+                "PatchConflict",
+                format!("Module `{module}` does not declare type `{name}`."),
+                Some(path.to_string()),
+            )
+            .with_data(
+                "types",
+                program.modules[module_index]
+                    .types
+                    .iter()
+                    .map(|existing| existing.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            )
+            .with_repair("Set only an existing record type declaration."),
+        );
+        return summary;
+    };
+
+    if program.modules[module_index].types[type_index].fields == fields {
+        return summary;
+    }
+
+    program.modules[module_index].types[type_index].fields = fields;
+    rebuild_type_index(&mut program);
+
+    let formatted = format_program(&program);
+    match fs::write(path, formatted) {
+        Ok(()) => {
+            summary.changed = 1;
+        }
+        Err(error) => summary.diagnostics.push(Diagnostic::error(
+            "WriteError",
+            format!("Could not write `{path}`: {error}"),
+            Some(path.to_string()),
+        )),
+    }
+    summary
+}
+
 pub fn rename_type(path: &str, module: &str, name: &str, new_name: &str) -> PatchSummary {
     let mut summary = PatchSummary::default();
     let name = name.trim();

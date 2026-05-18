@@ -5499,6 +5499,108 @@ pub fn score(x: Int) -> Int
 }
 
 #[test]
+fn patch_set_type_replaces_record_fields() {
+    let dir = unique_temp_dir("serow-patch-set-type");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("record_type.serow");
+    fs::write(
+        &source,
+        r#"module app.main
+
+type Player = { hp: Int }
+
+pub fn score(x: Int) -> Int
+  intent "Return the unchanged score."
+  version v1
+  contract
+    ensures result == x
+  examples
+    score(1) == 1
+  properties
+    forall x: Int:
+      score(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-type",
+            source.to_str().expect("utf8 path"),
+            "app.main",
+            "Player",
+            "Player = { hp: Int, gold: Int }",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch set-type");
+
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"changed\": 1"), "{stdout}");
+    let updated = fs::read_to_string(&source).expect("read updated fixture");
+    assert!(
+        updated.contains("type Player = { hp: Int, gold: Int }"),
+        "{updated}"
+    );
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let player = program
+        .types
+        .iter()
+        .find(|type_decl| type_decl.symbol() == "@app.main.Player")
+        .expect("player type");
+    assert_eq!(player.fields.len(), 2, "{player:#?}");
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(summary.ok(), "{:#?}", summary.diagnostics);
+
+    let renamed = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-type",
+            source.to_str().expect("utf8 path"),
+            "app.main",
+            "Player",
+            "Hero = { hp: Int }",
+            "--json",
+        ])
+        .output()
+        .expect("run rejected renamed serow patch set-type");
+    assert!(!renamed.status.success(), "{renamed:#?}");
+    let renamed_stdout = String::from_utf8(renamed.stdout).expect("stdout is utf8");
+    assert!(renamed_stdout.contains("PatchConflict"), "{renamed_stdout}");
+    assert!(
+        renamed_stdout.contains("Use `patch rename-type` for renames"),
+        "{renamed_stdout}"
+    );
+
+    let invalid = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-type",
+            source.to_str().expect("utf8 path"),
+            "app.main",
+            "Player",
+            "Player = { hp: Int, hp: Int }",
+            "--json",
+        ])
+        .output()
+        .expect("run rejected invalid serow patch set-type");
+    assert!(!invalid.status.success(), "{invalid:#?}");
+    let invalid_stdout = String::from_utf8(invalid.stdout).expect("stdout is utf8");
+    assert!(
+        invalid_stdout.contains("InvalidPatchTarget"),
+        "{invalid_stdout}"
+    );
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn patch_rename_type_rewrites_record_type_references() {
     let dir = unique_temp_dir("serow-patch-rename-type");
     fs::create_dir_all(&dir).expect("create temp dir");
@@ -8706,7 +8808,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("\"project_version\": \"0.4.94-rust-bootstrap\""),
+        stdout.contains("\"project_version\": \"0.4.95-rust-bootstrap\""),
         "{stdout}"
     );
     let source_bytes = fs::read("examples/math.serow").expect("read math source");
@@ -8753,7 +8855,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{manifest}"
     );
     assert!(
-        manifest.contains("project_version = \"0.4.94-rust-bootstrap\""),
+        manifest.contains("project_version = \"0.4.95-rust-bootstrap\""),
         "{manifest}"
     );
     assert!(
@@ -8835,7 +8937,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{metadata}"
     );
     assert!(
-        metadata.contains("\"project_version\": \"0.4.94-rust-bootstrap\""),
+        metadata.contains("\"project_version\": \"0.4.95-rust-bootstrap\""),
         "{metadata}"
     );
     assert!(
@@ -8899,7 +9001,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{readme}"
     );
     assert!(
-        readme.contains("- Serow project version: `0.4.94-rust-bootstrap`"),
+        readme.contains("- Serow project version: `0.4.95-rust-bootstrap`"),
         "{readme}"
     );
     assert!(
