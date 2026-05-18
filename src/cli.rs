@@ -12,8 +12,8 @@ use crate::ledger::{
 use crate::model::Function;
 use crate::parser::{discover_sources, parse_paths};
 use crate::patch::{
-    PatchSummary, add_contract, add_example, add_function, add_migration, add_property, add_type,
-    add_use, fill_hole, qualify_call, remove_contract, remove_example, remove_function,
+    PatchSummary, add_contract, add_example, add_function, add_migration, add_module, add_property,
+    add_type, add_use, fill_hole, qualify_call, remove_contract, remove_example, remove_function,
     remove_migration, remove_property, remove_type, remove_use, rename_function, rename_module,
     set_contract, set_effects, set_example, set_impl, set_intent, set_migration, set_property,
     set_signature, set_version,
@@ -1198,6 +1198,7 @@ fn run_patch(args: &[String]) -> i32 {
         "add-example" => run_patch_add_example(&args[1..]),
         "add-function" => run_patch_add_function(&args[1..]),
         "add-migration" => run_patch_add_migration(&args[1..]),
+        "add-module" => run_patch_add_module(&args[1..]),
         "add-property" => run_patch_add_property(&args[1..]),
         "add-type" => run_patch_add_type(&args[1..]),
         "add-use" => run_patch_add_use(&args[1..]),
@@ -1280,6 +1281,21 @@ fn run_patch_add_migration(args: &[String]) -> i32 {
         return 2;
     };
     let summary = add_migration(path, target, kind, note);
+    if json_output {
+        println!("{}", patch_json(&summary));
+    } else {
+        print_patch_summary(&summary);
+    }
+    i32::from(!summary.ok())
+}
+
+fn run_patch_add_module(args: &[String]) -> i32 {
+    let (args, json_output) = split_flag(args, "--json");
+    let [path, module] = args.as_slice() else {
+        print_patch_usage();
+        return 2;
+    };
+    let summary = add_module(path, module);
     if json_output {
         println!("{}", patch_json(&summary));
     } else {
@@ -3717,6 +3733,11 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
         "Add one explicit migration acknowledgement to an existing function.",
     ),
     (
+        "patch add-module",
+        "serow patch add-module <path> <module> [--json]",
+        "Add an empty module declaration through the structured patch interface.",
+    ),
+    (
         "patch add-property",
         "serow patch add-property <path> <symbol-or-name> <forall-header> <expression> [--json]",
         "Add one sampled forall property to an existing function.",
@@ -4235,6 +4256,7 @@ fn print_usage() {
     eprintln!("  serow patch add-example <path> <symbol-or-name> <expression> [--json]");
     eprintln!("  serow patch add-function <path> <module> <signature> <intent> [--json]");
     eprintln!("  serow patch add-migration <path> <symbol-or-name> <kind> <note> [--json]");
+    eprintln!("  serow patch add-module <path> <module> [--json]");
     eprintln!(
         "  serow patch add-property <path> <symbol-or-name> <forall-header> <expression> [--json]"
     );
@@ -4302,6 +4324,7 @@ fn print_patch_usage() {
     eprintln!("  serow patch add-example <path> <symbol-or-name> <expression> [--json]");
     eprintln!("  serow patch add-function <path> <module> <signature> <intent> [--json]");
     eprintln!("  serow patch add-migration <path> <symbol-or-name> <kind> <note> [--json]");
+    eprintln!("  serow patch add-module <path> <module> [--json]");
     eprintln!(
         "  serow patch add-property <path> <symbol-or-name> <forall-header> <expression> [--json]"
     );

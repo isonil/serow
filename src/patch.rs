@@ -5,7 +5,7 @@ use crate::eval::{called_functions, resolve_function};
 use crate::formatter::format_program;
 use crate::ledger::exact_intent_key;
 use crate::model::{
-    Function, MigrationRecord, ModuleDependency, Param, Program, RecordField, TypeDecl,
+    Function, MigrationRecord, Module, ModuleDependency, Param, Program, RecordField, TypeDecl,
 };
 
 const MIGRATION_KINDS: &[&str] = &[
@@ -27,6 +27,66 @@ impl PatchSummary {
     pub fn ok(&self) -> bool {
         !has_errors(&self.diagnostics)
     }
+}
+
+pub fn add_module(path: &str, module: &str) -> PatchSummary {
+    let mut summary = PatchSummary::default();
+    let module = module.trim();
+    if !is_valid_module(module) {
+        summary.diagnostics.push(Diagnostic::error(
+            "InvalidPatchTarget",
+            format!("Invalid module name `{module}`."),
+            Some(path.to_string()),
+        ));
+        return summary;
+    }
+    if !path.ends_with(".serow") {
+        summary.diagnostics.push(
+            Diagnostic::error(
+                "InvalidPatchTarget",
+                format!("Patch path `{path}` must end in `.serow`."),
+                Some(path.to_string()),
+            )
+            .with_repair("Choose a Serow source path such as `examples/new_module.serow`."),
+        );
+        return summary;
+    }
+
+    let (mut program, parse_diagnostics) = parse_paths(&[path.to_string()]);
+    let has_parse_errors = has_errors(&parse_diagnostics);
+    summary.diagnostics.extend(parse_diagnostics);
+    if has_parse_errors {
+        return summary;
+    }
+
+    if program
+        .modules
+        .iter()
+        .any(|candidate| candidate.name == module)
+    {
+        return summary;
+    }
+
+    program.modules.push(Module {
+        name: module.to_string(),
+        source_path: path.to_string(),
+        dependencies: Vec::new(),
+        types: Vec::new(),
+        functions: Vec::new(),
+    });
+
+    let formatted = format_program(&program);
+    match fs::write(path, formatted) {
+        Ok(()) => {
+            summary.changed = 1;
+        }
+        Err(error) => summary.diagnostics.push(Diagnostic::error(
+            "WriteError",
+            format!("Could not write `{path}`: {error}"),
+            Some(path.to_string()),
+        )),
+    }
+    summary
 }
 
 pub fn add_use(path: &str, module: &str, dependency: &str) -> PatchSummary {

@@ -138,6 +138,7 @@ Selection policy for generic implementation prompts:
   - rejects effects outside the current `pure`/terminal-`io` backend slice with explicit backend diagnostics instead of generating partial code
 - Structured patch commands:
   - `bin/serow patch add-function <path> <module> <signature> <intent> [--json]`
+  - `bin/serow patch add-module <path> <module> [--json]`
   - `bin/serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]`
   - `bin/serow patch add-example <path> <symbol-or-name> <expression> [--json]`
   - `bin/serow patch add-migration <path> <symbol-or-name> <kind> <note> [--json]`
@@ -165,6 +166,7 @@ Selection policy for generic implementation prompts:
   - `bin/serow patch set-signature <path> <symbol-or-name> <signature> [--json]`
   - `bin/serow patch set-version <path> <symbol-or-name> <version> [--json]`
 - Structured evidence patches reject ambiguous bare targets and preserve canonical formatting.
+- `patch add-module` inserts an empty module declaration into an existing or new `.serow` source file through the structured patch interface, validates module names and Serow source paths, and is idempotent when the module is already present in the patch input.
 - `patch add-type` inserts one record declaration into an existing module, accepts declarations with or without the `type` prefix, and rejects duplicate type names or duplicate fields before rewriting canonically.
 - `patch remove-type` removes an existing record declaration from a module through the structured patch interface and preserves canonical formatting.
 - `patch remove-function` removes an existing public function through the structured patch interface while preserving ambiguous-target protection and canonical formatting.
@@ -266,6 +268,29 @@ bin/serow certify --json
 bin/serow certify --profile unattended --json
 bin/serow plan --json
 bin/serow agent --json
+git diff --check
+```
+
+Additional verification after adding structured module insertion:
+
+```sh
+bin/serow query intent "add a module declaration through a structured patch command" --json
+bin/serow query symbol add-module --json
+cargo fmt --check
+cargo clippy -- -D warnings
+python3 -m unittest discover -s tests
+cargo test patch_add_module_creates_or_appends_empty_module -- --nocapture
+cargo test agent_commands_json_includes_full_command_catalog -- --nocapture
+bin/serow agent commands --json
+cargo test compile_rust_out_dir_writes_crate_layout -- --nocapture
+cargo test
+bin/serow fmt --check --json
+bin/serow check --json
+bin/serow certify --json
+bin/serow certify --profile unattended --json
+bin/serow plan --json
+bin/serow agent --json
+bin/serow compile rust examples/math.serow --json
 git diff --check
 ```
 

@@ -62,6 +62,7 @@ This phase exists to make Serow more useful to AI implementers before production
   - move checker, formatter, ledger, and patch commands toward a shared AST model with stable node identities
   - design a small portable IR only after identity and evidence semantics are stable
 - Expand structured patch coverage:
+  - add empty modules as structured patch targets before functions or types exist _(Started: `patch add-module` creates or appends an empty module declaration in a `.serow` source file.)_
   - add missing public sections from a skeleton
   - insert a new public function skeleton from an intent and signature _(Started: `patch add-function` creates an explicit-version pure skeleton with a typed hole and no invented evidence.)_
   - declare explicit source-level versions through structured patches _(Started: `patch set-version` makes an existing function's public version explicit and rejects duplicate canonical symbols.)_

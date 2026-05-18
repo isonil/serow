@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "0.4.91-rust-bootstrap",
+  "version": "0.4.92-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -23,6 +23,7 @@
     "patch_add_example": "bin/serow patch add-example <path> <symbol-or-name> <expression>",
     "patch_add_function": "bin/serow patch add-function <path> <module> <signature> <intent>",
     "patch_add_migration": "bin/serow patch add-migration <path> <symbol-or-name> <kind> <note>",
+    "patch_add_module": "bin/serow patch add-module <path> <module>",
     "patch_add_property": "bin/serow patch add-property <path> <symbol-or-name> <forall-header> <expression>",
     "patch_add_type": "bin/serow patch add-type <path> <module> <type-declaration>",
     "patch_add_use": "bin/serow patch add-use <path> <module> <dependency>",

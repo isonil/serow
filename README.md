@@ -97,6 +97,7 @@ bin/serow patch add-contract examples/math.serow @core.math.add.v1 ensures "resu
 bin/serow patch add-example examples/math.serow @core.math.add.v1 "add(2, 3) == 5"
 bin/serow patch add-function examples/math.serow core.math "double(x: Int) -> Int" "Return two times x."
 bin/serow patch add-migration examples/math.serow @core.math.add.v1 implementation-change "Document why this implementation change preserves behavior."
+bin/serow patch add-module examples/new_module.serow app.main
 bin/serow patch add-property examples/math.serow @core.math.add.v1 "forall x: Int, y: Int:" "add(x, y) == add(y, x)"
 bin/serow patch add-type examples/math.serow core.math "Point = { x: Int, y: Int }"
 bin/serow patch add-use examples/math.serow app.main core.math
@@ -125,6 +126,8 @@ bin/serow patch set-version examples/math.serow @core.math.add.v1 v1
 `patch set-version` can also bump an existing public symbol to a new `vN` when the parsed patch input has no call sites pinned to the old canonical version. If a caller uses `module.name.v1(...)` or `@module.name.v1(...)`, the patch fails with a `VersionPinnedDependent` diagnostic so the caller is handled deliberately.
 
 `patch add-function` and `patch set-intent` reject exact normalized duplicate public intents before writing, returning a `PossibleDuplicate` diagnostic with a `query intent` repair action.
+
+`patch add-module` adds an empty module declaration to an existing or new `.serow` source file and rewrites the file canonically. Re-running it for a module already present in the patch input is a no-op.
 
 `patch add-type` inserts one record type declaration into an existing module. It accepts a single quoted declaration with or without the `type` prefix, rejects duplicate type names and duplicate fields before writing, and rewrites the file canonically.
 

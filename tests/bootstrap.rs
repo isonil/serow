@@ -2693,6 +2693,7 @@ fn agent_commands_json_includes_full_command_catalog() {
         "{stdout}"
     );
     assert!(stdout.contains("serow patch qualify-call"), "{stdout}");
+    assert!(stdout.contains("serow patch add-module"), "{stdout}");
     assert!(stdout.contains("serow patch remove-function"), "{stdout}");
     assert!(stdout.contains("serow patch remove-type"), "{stdout}");
     assert!(stdout.contains("serow patch rename-module"), "{stdout}");
@@ -4997,6 +4998,107 @@ pub fn bump(x: Int) -> Int
         stdout.contains("without executable evidence covering the changed call edge"),
         "{stdout}"
     );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn patch_add_module_creates_or_appends_empty_module() {
+    let dir = unique_temp_dir("serow-patch-add-module");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("new_module.serow");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "add-module",
+            source.to_str().expect("utf8 path"),
+            "app.main",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch add-module");
+
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"changed\": 1"), "{stdout}");
+    let created = fs::read_to_string(&source).expect("read created fixture");
+    assert_eq!(created, "module app.main\n\n");
+
+    let duplicate = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "add-module",
+            source.to_str().expect("utf8 path"),
+            "app.main",
+            "--json",
+        ])
+        .output()
+        .expect("run idempotent serow patch add-module");
+    assert!(duplicate.status.success(), "{duplicate:#?}");
+    let duplicate_stdout = String::from_utf8(duplicate.stdout).expect("stdout is utf8");
+    assert!(
+        duplicate_stdout.contains("\"changed\": 0"),
+        "{duplicate_stdout}"
+    );
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "add-module",
+            source.to_str().expect("utf8 path"),
+            "core.math",
+            "--json",
+        ])
+        .output()
+        .expect("run appending serow patch add-module");
+
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"changed\": 1"), "{stdout}");
+    let updated = fs::read_to_string(&source).expect("read updated fixture");
+    assert_eq!(updated, "module app.main\n\n\nmodule core.math\n\n");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    assert!(parse_diagnostics.is_empty(), "{parse_diagnostics:#?}");
+    assert!(
+        program
+            .modules
+            .iter()
+            .any(|module| module.name == "app.main"),
+        "{:#?}",
+        program.modules
+    );
+    assert!(
+        program
+            .modules
+            .iter()
+            .any(|module| module.name == "core.math"),
+        "{:#?}",
+        program.modules
+    );
+
+    let invalid_path = dir.join("not_serow.txt");
+    let invalid = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "add-module",
+            invalid_path.to_str().expect("utf8 path"),
+            "app.other",
+            "--json",
+        ])
+        .output()
+        .expect("run rejected serow patch add-module");
+    assert!(!invalid.status.success(), "{invalid:#?}");
+    let invalid_stdout = String::from_utf8(invalid.stdout).expect("stdout is utf8");
+    assert!(
+        invalid_stdout.contains("InvalidPatchTarget"),
+        "{invalid_stdout}"
+    );
+    assert!(
+        invalid_stdout.contains("must end in `.serow`"),
+        "{invalid_stdout}"
+    );
+
     let _ = fs::remove_dir_all(dir);
 }
 
@@ -8401,7 +8503,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("\"project_version\": \"0.4.91-rust-bootstrap\""),
+        stdout.contains("\"project_version\": \"0.4.92-rust-bootstrap\""),
         "{stdout}"
     );
     let source_bytes = fs::read("examples/math.serow").expect("read math source");
@@ -8448,7 +8550,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{manifest}"
     );
     assert!(
-        manifest.contains("project_version = \"0.4.91-rust-bootstrap\""),
+        manifest.contains("project_version = \"0.4.92-rust-bootstrap\""),
         "{manifest}"
     );
     assert!(
@@ -8530,7 +8632,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{metadata}"
     );
     assert!(
-        metadata.contains("\"project_version\": \"0.4.91-rust-bootstrap\""),
+        metadata.contains("\"project_version\": \"0.4.92-rust-bootstrap\""),
         "{metadata}"
     );
     assert!(
@@ -8594,7 +8696,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{readme}"
     );
     assert!(
-        readme.contains("- Serow project version: `0.4.91-rust-bootstrap`"),
+        readme.contains("- Serow project version: `0.4.92-rust-bootstrap`"),
         "{readme}"
     );
     assert!(
