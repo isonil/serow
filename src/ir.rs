@@ -408,7 +408,7 @@ fn property_blocks(
     blocks
 }
 
-fn lower_expression(
+pub(crate) fn lower_expression(
     expression: &str,
     function: &Function,
     functions: &[Function],

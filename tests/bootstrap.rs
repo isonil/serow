@@ -3537,6 +3537,82 @@ pub fn inc(x: Int) -> Int
 }
 
 #[test]
+fn plan_uses_ir_normalization_for_implementation_changes() {
+    let dir = unique_temp_dir("serow-plan-ir-implementation-normalization");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("plan.serow");
+    fs::write(
+        &source,
+        r#"module core.math
+
+pub fn inc(x: Int) -> Int
+  intent "Increment x."
+  version v1
+  contract
+    ensures result == x + 1
+  examples
+    inc(1) == 2
+  properties
+    forall x: Int:
+      inc(x) == x + 1
+  effects pure
+  impl
+    x + 1
+"#,
+    )
+    .expect("write fixture");
+
+    git(&dir, &["init"]);
+    git(&dir, &["add", "plan.serow"]);
+    git(&dir, &["commit", "-m", "baseline"]);
+
+    fs::write(
+        &source,
+        r#"module core.math
+
+pub fn inc(x: Int) -> Int
+  intent "Increment x."
+  version v1
+  contract
+    ensures result == x + 1
+  examples
+    inc(1) == 2
+  properties
+    forall x: Int:
+      inc(x) == x + 1
+  effects pure
+  impl
+    (x + 1)
+"#,
+    )
+    .expect("change implementation fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args(["plan", "--json"])
+        .output()
+        .expect("run serow plan");
+
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(
+        stdout.contains("\"implementation_change\": null"),
+        "{stdout}"
+    );
+    assert!(
+        !stdout.contains("\"label\": \"public_implementation_changed\""),
+        "{stdout}"
+    );
+    assert!(
+        !stdout.contains(
+            "Changed public symbols modify implementations without adding executable evidence compared with HEAD"
+        ),
+        "{stdout}"
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn implementation_change_added_evidence_must_call_changed_function() {
     let dir = unique_temp_dir("serow-implementation-evidence-coverage");
     fs::create_dir_all(&dir).expect("create temp dir");
@@ -7858,7 +7934,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("\"project_version\": \"0.4.84-rust-bootstrap\""),
+        stdout.contains("\"project_version\": \"0.4.85-rust-bootstrap\""),
         "{stdout}"
     );
     let source_bytes = fs::read("examples/math.serow").expect("read math source");
@@ -7900,7 +7976,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{manifest}"
     );
     assert!(
-        manifest.contains("project_version = \"0.4.84-rust-bootstrap\""),
+        manifest.contains("project_version = \"0.4.85-rust-bootstrap\""),
         "{manifest}"
     );
     assert!(
@@ -7982,7 +8058,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{metadata}"
     );
     assert!(
-        metadata.contains("\"project_version\": \"0.4.84-rust-bootstrap\""),
+        metadata.contains("\"project_version\": \"0.4.85-rust-bootstrap\""),
         "{metadata}"
     );
     assert!(
@@ -8046,7 +8122,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{readme}"
     );
     assert!(
-        readme.contains("- Serow project version: `0.4.84-rust-bootstrap`"),
+        readme.contains("- Serow project version: `0.4.85-rust-bootstrap`"),
         "{readme}"
     );
     assert!(

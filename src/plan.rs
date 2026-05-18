@@ -5,6 +5,7 @@ use std::process::Command;
 use crate::checker::{CheckSummary, check_program};
 use crate::diagnostic::{Diagnostic, Severity};
 use crate::eval::{Evaluator, Token, Value, called_functions, resolve_function, tokenize};
+use crate::ir::lower_expression;
 use crate::ledger::{CallSite, ImpactDependent, intent_terms, query_impact};
 use crate::model::{Function, MigrationRecord};
 use crate::parser::{discover_sources, parse_paths, parse_source};
@@ -903,7 +904,7 @@ fn changed_symbol(
         .map(|baseline_function| evidence_weakening(baseline_function, function))
         .unwrap_or_default();
     let implementation_change = baseline_function
-        .and_then(|baseline_function| implementation_change(baseline_function, function));
+        .and_then(|baseline_function| implementation_change(baseline_function, function, program));
     let implementation_evidence = implementation_change.as_ref().and_then(|_| {
         baseline_function.map(|baseline_function| {
             implementation_evidence_coverage(baseline_function, function, program)
@@ -1709,14 +1710,40 @@ fn arithmetic_operations(expression: &str) -> ArithmeticOperations {
     operations
 }
 
-fn implementation_change(before: &Function, after: &Function) -> Option<ImplementationChange> {
-    let before = normalized_implementation(before.implementation.as_deref());
-    let after = normalized_implementation(after.implementation.as_deref());
-    if before == after {
+fn implementation_change(
+    before: &Function,
+    after: &Function,
+    program: &crate::model::Program,
+) -> Option<ImplementationChange> {
+    let before_text = normalized_implementation(before.implementation.as_deref());
+    let after_text = normalized_implementation(after.implementation.as_deref());
+    if before_text == after_text {
+        return None;
+    }
+
+    if let (Some(before_key), Some(after_key)) = (
+        normalized_implementation_ir_key(before_text.as_str(), before, program),
+        normalized_implementation_ir_key(after_text.as_str(), after, program),
+    ) && before_key == after_key
+    {
         None
     } else {
-        Some(ImplementationChange { before, after })
+        Some(ImplementationChange {
+            before: before_text,
+            after: after_text,
+        })
     }
+}
+
+fn normalized_implementation_ir_key(
+    implementation: &str,
+    function: &Function,
+    program: &crate::model::Program,
+) -> Option<String> {
+    let comparison_program = program_with_baseline_function(program, function);
+    lower_expression(implementation, function, &comparison_program.functions)
+        .ok()
+        .map(|expression| format!("{expression:?}"))
 }
 
 fn executable_evidence_strengthened(delta: Option<&EvidenceDelta>) -> bool {

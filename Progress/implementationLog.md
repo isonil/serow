@@ -2,6 +2,12 @@
 
 ## 2026-05-18
 
+- Chose IR-normalized implementation change detection as the next unattended-safety slice because `serow plan` used normalized text for implementation deltas, which could treat non-behavioral expression formatting such as redundant parentheses as a public implementation change.
+- Updated plan implementation-change comparison to lower the before and after implementations through the checked expression IR when possible, while preserving existing before/after implementation text in plan JSON and falling back to text comparison if lowering is unavailable.
+- Added regression coverage proving a tracked implementation changed from `x + 1` to `(x + 1)` no longer emits `implementation_change` or the public implementation semantic-change label.
+- Bumped `serow.project` to `0.4.85-rust-bootstrap` and updated README, language notes, and current progress state for IR-normalized plan comparison.
+- Verified with `bin/serow query intent "normalize implementation change detection through IR" --json`, `bin/serow query symbol "implementation_change" --json`, `cargo fmt --check`, `cargo test plan_uses_ir_normalization_for_implementation_changes -- --nocapture`, `cargo test plan_json_reports_implementation_change_against_head -- --nocapture`, `cargo test compile_rust_out_dir_writes_crate_layout -- --nocapture`, `cargo clippy -- -D warnings`, `cargo test`, `python3 -m unittest discover -s tests`, `bin/serow fmt --check --json`, `bin/serow check --json`, `bin/serow certify --json`, `bin/serow certify --profile unattended --json`, and `bin/serow plan --json`.
+
 - Chose generated Rust crate README provenance as the next backend package-layout slice because generated crates exposed machine-readable Cargo and JSON metadata, while humans inspecting the crate directory still lacked a deterministic source-of-truth and provenance summary.
 - Added deterministic `README.md` emission for `compile rust --out-dir` artifacts, including backend/IR/project/input fingerprints, generated counts, source inputs, artifact roles, and binary entrypoint metadata when present; `--check-out-dir` now validates the README alongside `Cargo.toml`, `serow-metadata.json`, and generated Rust sources.
 - Bumped `serow.project` to `0.4.84-rust-bootstrap` and updated README, agent bootstrap text, language notes, current state, and backend regression coverage for generated README artifacts.
