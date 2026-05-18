@@ -1769,6 +1769,110 @@ pub fn heal(player: Player) -> Player
 }
 
 #[test]
+fn recursive_record_property_samples_report_cycle_reason() {
+    let dir = unique_temp_dir("serow-recursive-record-property-samples");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("recursive_record_property.serow");
+    fs::write(
+        &source,
+        r#"module test.property
+
+type Node = { next: Node }
+
+pub fn one() -> Int
+  version v1
+  intent "Return one while a recursive record property binding exists."
+  contract
+    ensures result == 1
+  examples
+    one() == 1
+  properties
+    forall node: Node:
+      one() == 1
+  effects pure
+  impl
+    1
+"#,
+    )
+    .expect("write fixture");
+
+    let source_arg = source.to_string_lossy().to_string();
+    let (program, parse_diagnostics) = parse_paths(&[source_arg.clone()]);
+    let summary = check_program(&program, parse_diagnostics);
+    let diagnostic = summary
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "PropertyNotExecutable")
+        .expect("recursive record property diagnostic");
+    assert!(
+        diagnostic
+            .data
+            .iter()
+            .any(|(key, value)| key == "unsupported_types" && value == "Node"),
+        "{:#?}",
+        diagnostic
+    );
+    assert!(
+        diagnostic.data.iter().any(|(key, value)| {
+            key == "unsupported_reasons"
+                && value == "Node: recursive record sample cycle: Node -> Node"
+        }),
+        "{:#?}",
+        diagnostic
+    );
+    assert!(
+        diagnostic
+            .data
+            .iter()
+            .any(|(key, value)| key == "recursive_record_cycles" && value == "Node -> Node"),
+        "{:#?}",
+        diagnostic
+    );
+
+    let replay = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "replay",
+            "property",
+            "@test.property.one.v1#property:1#sample:1",
+            &source_arg,
+            "--json",
+        ])
+        .output()
+        .expect("run property replay");
+    assert!(!replay.status.success(), "{replay:#?}");
+    let replay_stdout = String::from_utf8(replay.stdout).expect("stdout is utf8");
+    assert!(
+        replay_stdout.contains("\"recursive_record_cycles\": \"Node -> Node\""),
+        "{replay_stdout}"
+    );
+    assert!(
+        replay_stdout.contains(
+            "\"unsupported_reasons\": \"Node: recursive record sample cycle: Node -> Node\""
+        ),
+        "{replay_stdout}"
+    );
+
+    let plan = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["plan", &source_arg, "--json"])
+        .output()
+        .expect("run plan");
+    assert!(plan.status.success(), "{plan:#?}");
+    let plan_stdout = String::from_utf8(plan.stdout).expect("stdout is utf8");
+    assert!(
+        plan_stdout.contains("\"recursive_record_cycles\": [\"Node -> Node\"]"),
+        "{plan_stdout}"
+    );
+    assert!(
+        plan_stdout.contains(
+            "\"unsupported_reasons\": [\"Node: recursive record sample cycle: Node -> Node\"]"
+        ),
+        "{plan_stdout}"
+    );
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn property_replay_unsupported_type_has_indexed_repair_action() {
     let dir = unique_temp_dir("serow-replay-unsupported-property-type");
     fs::create_dir_all(&dir).expect("create temp dir");
@@ -7934,7 +8038,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("\"project_version\": \"0.4.86-rust-bootstrap\""),
+        stdout.contains("\"project_version\": \"0.4.87-rust-bootstrap\""),
         "{stdout}"
     );
     let source_bytes = fs::read("examples/math.serow").expect("read math source");
@@ -7981,7 +8085,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{manifest}"
     );
     assert!(
-        manifest.contains("project_version = \"0.4.86-rust-bootstrap\""),
+        manifest.contains("project_version = \"0.4.87-rust-bootstrap\""),
         "{manifest}"
     );
     assert!(
@@ -8063,7 +8167,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{metadata}"
     );
     assert!(
-        metadata.contains("\"project_version\": \"0.4.86-rust-bootstrap\""),
+        metadata.contains("\"project_version\": \"0.4.87-rust-bootstrap\""),
         "{metadata}"
     );
     assert!(
@@ -8127,7 +8231,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{readme}"
     );
     assert!(
-        readme.contains("- Serow project version: `0.4.86-rust-bootstrap`"),
+        readme.contains("- Serow project version: `0.4.87-rust-bootstrap`"),
         "{readme}"
     );
     assert!(

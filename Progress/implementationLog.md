@@ -2,6 +2,11 @@
 
 ## 2026-05-18
 
+- Chose explicit recursive-record sample diagnostics as the next cross-phase correctness slice because record sampling and Rust backend layout rejection both knew recursive records were unsupported, but sampled-property diagnostics only exposed a generic unsupported type.
+- Added reason-carrying sampleability analysis for property bindings, preserving existing `unsupported_types` output while adding `unsupported_reasons` and `recursive_record_cycles` in checker diagnostics, property replay diagnostics, and `serow plan` property coverage hints.
+- Bumped `serow.project` to `0.4.87-rust-bootstrap` and updated README, agent diagnostic text, language notes, roadmap, and current state for explicit non-executable sample reasons.
+- Verified with `bin/serow query intent "report recursive record sample cycles in sampled property diagnostics" --json`, `bin/serow query symbol "PropertyNotExecutable" --json`, `bin/serow query symbol "samples_for_type" --json`, `cargo check`, `cargo test recursive_record_property_samples_report_cycle_reason -- --nocapture`, `cargo fmt --check`, `cargo clippy -- -D warnings`, `python3 -m unittest discover -s tests`, `bin/serow fmt --check --json`, `cargo test`, `bin/serow check --json`, `bin/serow certify --json`, `bin/serow certify --profile unattended --json`, `bin/serow plan --json`, `bin/serow agent --json`, `bin/serow agent diagnostics --json`, and `git diff --check`.
+
 - Chose generated Rust Cargo target discovery hygiene as the next backend package-layout slice because generated crates already detected stale optional `src/main.rs` artifacts, but Cargo could still auto-discover stray source files as unintended targets.
 - Updated generated `Cargo.toml` files to disable Cargo automatic target discovery (`autobins`, `autoexamples`, `autotests`, and `autobenches`) and to emit an explicit `[[bin]]` target only when `compile rust --emit-bin` writes `src/main.rs`.
 - Bumped `serow.project` to `0.4.86-rust-bootstrap` and updated README, agent bootstrap text, language notes, roadmap, current progress state, and backend regression coverage for explicit generated Cargo targets.

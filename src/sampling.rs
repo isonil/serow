@@ -4,16 +4,58 @@ use crate::eval::{Evaluator, Value};
 use crate::model::{Function, TypeDecl};
 
 pub(crate) fn samples_for_type(type_name: &str, types: &[TypeDecl]) -> Option<Vec<Value>> {
-    samples_for_type_inner(type_name, types, &mut Vec::new())
+    samples_for_type_result(type_name, types, &mut Vec::new()).ok()
 }
 
-fn samples_for_type_inner(
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum SampleUnsupportedReason {
+    UnknownType,
+    RecursiveRecordCycle(Vec<String>),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct SampleUnsupported {
+    pub(crate) type_name: String,
+    pub(crate) reason: SampleUnsupportedReason,
+}
+
+impl SampleUnsupported {
+    pub(crate) fn reason_text(&self) -> String {
+        match &self.reason {
+            SampleUnsupportedReason::UnknownType => "unknown type".to_string(),
+            SampleUnsupportedReason::RecursiveRecordCycle(cycle) => {
+                format!("recursive record sample cycle: {}", cycle.join(" -> "))
+            }
+        }
+    }
+
+    pub(crate) fn cycle_text(&self) -> Option<String> {
+        match &self.reason {
+            SampleUnsupportedReason::RecursiveRecordCycle(cycle) => Some(cycle.join(" -> ")),
+            SampleUnsupportedReason::UnknownType => None,
+        }
+    }
+}
+
+pub(crate) fn sample_unsupported_for_type(
+    type_name: &str,
+    types: &[TypeDecl],
+) -> Option<SampleUnsupported> {
+    samples_for_type_result(type_name, types, &mut Vec::new())
+        .err()
+        .map(|reason| SampleUnsupported {
+            type_name: type_name.to_string(),
+            reason,
+        })
+}
+
+fn samples_for_type_result(
     type_name: &str,
     types: &[TypeDecl],
     active_records: &mut Vec<String>,
-) -> Option<Vec<Value>> {
+) -> Result<Vec<Value>, SampleUnsupportedReason> {
     match type_name {
-        "Int" => Some(vec![
+        "Int" => Ok(vec![
             Value::Int(-2),
             Value::Int(-1),
             Value::Int(0),
@@ -22,15 +64,15 @@ fn samples_for_type_inner(
             Value::Int(-10),
             Value::Int(10),
         ]),
-        "Bool" => Some(vec![Value::Bool(false), Value::Bool(true)]),
-        "Text" => Some(vec![
+        "Bool" => Ok(vec![Value::Bool(false), Value::Bool(true)]),
+        "Text" => Ok(vec![
             Value::Text(String::new()),
             Value::Text("a".to_string()),
             Value::Text("Serow".to_string()),
             Value::Text("with space".to_string()),
             Value::Text("123".to_string()),
         ]),
-        "Unit" => Some(vec![Value::Unit]),
+        "Unit" => Ok(vec![Value::Unit]),
         _ => record_samples_for_type(type_name, types, active_records),
     }
 }
@@ -39,19 +81,30 @@ fn record_samples_for_type(
     type_name: &str,
     types: &[TypeDecl],
     active_records: &mut Vec<String>,
-) -> Option<Vec<Value>> {
-    if active_records.iter().any(|active| active == type_name) {
-        return None;
+) -> Result<Vec<Value>, SampleUnsupportedReason> {
+    if let Some(position) = active_records.iter().position(|active| active == type_name) {
+        let mut cycle = active_records[position..].to_vec();
+        cycle.push(type_name.to_string());
+        return Err(SampleUnsupportedReason::RecursiveRecordCycle(cycle));
     }
-    let type_decl = types.iter().find(|declared| declared.name == type_name)?;
+    let type_decl = types
+        .iter()
+        .find(|declared| declared.name == type_name)
+        .ok_or(SampleUnsupportedReason::UnknownType)?;
     active_records.push(type_name.to_string());
 
     let mut field_samples = Vec::<(String, Vec<Value>)>::new();
     for field in &type_decl.fields {
-        let samples = samples_for_type_inner(&field.type_name, types, active_records)?;
+        let samples = match samples_for_type_result(&field.type_name, types, active_records) {
+            Ok(samples) => samples,
+            Err(reason) => {
+                active_records.pop();
+                return Err(reason);
+            }
+        };
         if samples.is_empty() {
             active_records.pop();
-            return None;
+            return Err(SampleUnsupportedReason::UnknownType);
         }
         field_samples.push((field.name.clone(), samples));
     }
@@ -79,7 +132,7 @@ fn record_samples_for_type(
             }
         }
     }
-    Some(records)
+    Ok(records)
 }
 
 pub(crate) fn cartesian_product(sample_sets: &[Vec<Value>]) -> Vec<Vec<Value>> {

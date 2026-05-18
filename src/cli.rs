@@ -2333,13 +2333,19 @@ fn print_plan(plan: &ChangePlan) {
                 } else {
                     hint.unsupported_types.join(", ")
                 };
+                let unsupported_reasons = if hint.unsupported_reasons.is_empty() {
+                    "none".to_string()
+                } else {
+                    hint.unsupported_reasons.join("; ")
+                };
                 println!(
-                    "    property {}: {} samples, direct_call={}, vacuous={}, unsupported_types={}",
+                    "    property {}: {} samples, direct_call={}, vacuous={}, unsupported_types={}, unsupported_reasons={}",
                     hint.property_index,
                     hint.sample_count,
                     hint.direct_call,
                     hint.vacuous,
-                    unsupported
+                    unsupported,
+                    unsupported_reasons
                 );
             }
         }
@@ -3232,7 +3238,9 @@ fn property_coverage_json(hints: &[PropertyCoverageHint]) -> String {
                     "\"direct_call\": {}, ",
                     "\"expression\": {}, ",
                     "\"property_index\": {}, ",
+                    "\"recursive_record_cycles\": {}, ",
                     "\"sample_count\": {}, ",
+                    "\"unsupported_reasons\": {}, ",
                     "\"unsupported_types\": {}, ",
                     "\"vacuous\": {}, ",
                     "\"variables\": {}",
@@ -3241,7 +3249,9 @@ fn property_coverage_json(hints: &[PropertyCoverageHint]) -> String {
                 hint.direct_call,
                 json_string(&hint.expression),
                 hint.property_index,
+                string_array_json(&hint.recursive_record_cycles),
                 hint.sample_count,
+                string_array_json(&hint.unsupported_reasons),
                 string_array_json(&hint.unsupported_types),
                 hint.vacuous,
                 string_array_json(&hint.variables)
@@ -3840,7 +3850,7 @@ fn agent_json() -> String {
             "bin/serow plan --json"
         ]),
         str_array_json(&[
-            "Properties are sampled, not proven; replay uses deterministic seeds for built-in and bounded declared-record samples.",
+            "Properties are sampled, not proven; replay uses deterministic seeds for built-in and bounded declared-record samples, and non-executable property diagnostics include unsupported-sample reasons such as recursive record cycles.",
             "Intent search is deterministic token ranking, not semantic embeddings.",
             "Rust backend emission supports pure Int/Bool/Text/Unit functions, non-recursive declared records, and terminal io intrinsics, emits runtime asserts for Serow requires and ensures clauses, emits Rust tests for pure Serow examples and deterministic sampled properties, moves final record update bases when postconditions do not need the original value, rejects recursive record layouts with explicit diagnostics, records the Serow project version, aggregate/per-source Serow input fingerprints, plus type, source, binary entrypoint, and exact evidence-line metadata in generated Cargo manifests, README files, and serow-metadata.json sidecars, disables automatic Cargo target discovery in generated manifests, removes stale generated main.rs files when returning to library-only output, and can check generated crate artifacts for drift or unexpected optional artifacts.",
             "Expression support is intentionally small and formatting does not preserve comments.",
@@ -3875,8 +3885,8 @@ fn agent_diagnostics_json() -> String {
     concat!(
         "{\n",
         "  \"ok\": true,\n",
-        "  \"diagnostic_json\": {\"repairs\": \"legacy human-readable repair strings\", \"repair_actions\": \"machine-readable command actions when available\", \"missing_sections\": \"MissingRequiredSection diagnostics include safe set-effects/set-impl patch command actions when those non-evidence sections are absent\", \"typed_holes\": \"TypedHole diagnostics include symbol, signature, hole_type, expected_type, obligations data, and a query type command action for the declared signature shape\", \"unknown_function_type_errors\": \"TypeError diagnostics for unknown function calls include the missing function name and a query symbol command action\", \"architecture\": \"MissingModuleDependency and declared ArchitectureViolation diagnostics include add-use or remove-use patch command actions when the repair is exact\", \"ambiguous_calls\": \"AmbiguousUnqualifiedCall diagnostics include candidate symbols and a query symbol command action\", \"intent_reuse\": \"PossibleDuplicate and NearDuplicateIntent include shared_terms, new_only_terms, and candidate_only_terms data\", \"duplicate_evidence\": \"Duplicate evidence diagnostics include indexed remove-evidence patch command actions\", \"duplicate_migrations\": \"DuplicateMigration includes indexed remove-migration patch command actions\", \"low_signal_examples\": \"ShallowExample includes indexed remove-example patch command actions\", \"low_signal_properties\": \"VacuousProperty, ShallowProperty, and PropertyNotExecutable include indexed remove-property patch command actions\", \"property_replay\": \"PropertyFailed and PropertyEvaluationError include property_index, sample_index, sample_seed, bindings, and a replay command action; replayed PropertyNotExecutable diagnostics include indexed remove-property repair actions\", \"property_shrinking\": \"PropertyFailed and PropertyEvaluationError include shrunk_sample_index, shrunk_sample_seed, and shrunk_bindings when a simpler failing or erroring sampled binding is found\"},\n",
-        "  \"plan_json\": {\"semantic_changes\": \"changed symbols include deterministic labels with acknowledgement state and details for public deltas\", \"removed_symbols\": \"changed tracked files include removed public canonical symbols and same-name replacement candidates\", \"property_coverage\": \"changed symbols include sampled-property sample counts, direct-call flags, vacuous flags, and unsupported generator types after built-in and bounded declared-record sampling\", \"intent_implementation_risks\": \"changed symbols include advisory lexical arithmetic intent/implementation mismatch risks\", \"stale_migrations\": \"changed symbols include indexed migration acknowledgements that no current unattended gate requires\"}\n",
+        "  \"diagnostic_json\": {\"repairs\": \"legacy human-readable repair strings\", \"repair_actions\": \"machine-readable command actions when available\", \"missing_sections\": \"MissingRequiredSection diagnostics include safe set-effects/set-impl patch command actions when those non-evidence sections are absent\", \"typed_holes\": \"TypedHole diagnostics include symbol, signature, hole_type, expected_type, obligations data, and a query type command action for the declared signature shape\", \"unknown_function_type_errors\": \"TypeError diagnostics for unknown function calls include the missing function name and a query symbol command action\", \"architecture\": \"MissingModuleDependency and declared ArchitectureViolation diagnostics include add-use or remove-use patch command actions when the repair is exact\", \"ambiguous_calls\": \"AmbiguousUnqualifiedCall diagnostics include candidate symbols and a query symbol command action\", \"intent_reuse\": \"PossibleDuplicate and NearDuplicateIntent include shared_terms, new_only_terms, and candidate_only_terms data\", \"duplicate_evidence\": \"Duplicate evidence diagnostics include indexed remove-evidence patch command actions\", \"duplicate_migrations\": \"DuplicateMigration includes indexed remove-migration patch command actions\", \"low_signal_examples\": \"ShallowExample includes indexed remove-example patch command actions\", \"low_signal_properties\": \"VacuousProperty, ShallowProperty, and PropertyNotExecutable include indexed remove-property patch command actions plus unsupported_reasons when sampling fails\", \"property_replay\": \"PropertyFailed and PropertyEvaluationError include property_index, sample_index, sample_seed, bindings, and a replay command action; replayed PropertyNotExecutable diagnostics include unsupported_reasons and indexed remove-property repair actions\", \"property_shrinking\": \"PropertyFailed and PropertyEvaluationError include shrunk_sample_index, shrunk_sample_seed, and shrunk_bindings when a simpler failing or erroring sampled binding is found\"},\n",
+        "  \"plan_json\": {\"semantic_changes\": \"changed symbols include deterministic labels with acknowledgement state and details for public deltas\", \"removed_symbols\": \"changed tracked files include removed public canonical symbols and same-name replacement candidates\", \"property_coverage\": \"changed symbols include sampled-property sample counts, direct-call flags, vacuous flags, unsupported generator types, unsupported reasons, and recursive record sample cycles after built-in and bounded declared-record sampling\", \"intent_implementation_risks\": \"changed symbols include advisory lexical arithmetic intent/implementation mismatch risks\", \"stale_migrations\": \"changed symbols include indexed migration acknowledgements that no current unattended gate requires\"}\n",
         "}"
     )
     .to_string()
@@ -4055,7 +4065,9 @@ fn print_agent_bootstrap() {
     println!("  bin/serow certify --profile unattended --json");
     println!("  bin/serow plan --json");
     println!("known limits:");
-    println!("  properties are sampled, not proven; declared-record samples are bounded");
+    println!(
+        "  properties are sampled, not proven; declared-record samples are bounded and recursive sample cycles are reported explicitly"
+    );
     println!("  intent search is token-ranked, not semantic embeddings");
     println!(
         "  Rust backend emission supports pure Int/Bool/Text/Unit functions, non-recursive declared records, terminal io intrinsics, and ownership-aware final record updates"
@@ -4101,11 +4113,11 @@ fn print_agent_diagnostics() {
         "  failed or erroring sampled properties report sample_seed, bindings, optional shrunk bindings, and a replay command action"
     );
     println!(
-        "  replayed non-executable sampled properties include indexed remove-property actions"
+        "  replayed non-executable sampled properties include indexed remove-property actions and unsupported-sample reasons"
     );
     println!("  typed holes report symbol, expected type, and implementation obligations");
     println!(
-        "  property samples cover boundary and representative Int, Bool, Text, Unit, and bounded declared-record values"
+        "  property samples cover boundary and representative Int, Bool, Text, Unit, and bounded declared-record values; recursive record sample cycles are reported explicitly"
     );
     println!("  unattended certification validates structured repair action commands");
     println!("plan json:");
@@ -4114,7 +4126,7 @@ fn print_agent_diagnostics() {
         "  removed_symbols report removed public canonical symbols and replacement candidates"
     );
     println!(
-        "  property_coverage reports sample counts, direct-call flags, vacuous flags, and unsupported generator types"
+        "  property_coverage reports sample counts, direct-call flags, vacuous flags, unsupported generator types, unsupported reasons, and recursive record sample cycles"
     );
     println!("  intent_implementation_risks report advisory arithmetic mismatch risks");
     println!(

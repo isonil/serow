@@ -9,7 +9,7 @@ use crate::ir::lower_expression;
 use crate::ledger::{CallSite, ImpactDependent, intent_terms, query_impact};
 use crate::model::{Function, MigrationRecord};
 use crate::parser::{discover_sources, parse_paths, parse_source};
-use crate::sampling::{cartesian_product, samples_for_type};
+use crate::sampling::{cartesian_product, sample_unsupported_for_type, samples_for_type};
 
 #[derive(Clone, Debug)]
 pub struct ChangePlan {
@@ -159,6 +159,8 @@ pub struct PropertyCoverageHint {
     pub direct_call: bool,
     pub vacuous: bool,
     pub unsupported_types: Vec<String>,
+    pub unsupported_reasons: Vec<String>,
+    pub recursive_record_cycles: Vec<String>,
 }
 
 pub fn plan_paths(paths: &[String]) -> ChangePlan {
@@ -1942,14 +1944,29 @@ fn property_coverage_hints(
                 .iter()
                 .map(|(name, type_name)| format!("{name}: {type_name}"))
                 .collect::<Vec<_>>();
-            let mut unsupported_types = block
+            let unsupported = block
                 .variables
                 .iter()
-                .filter(|(_, type_name)| samples_for_type(type_name, &program.types).is_none())
-                .map(|(_, type_name)| type_name.clone())
+                .filter_map(|(_, type_name)| sample_unsupported_for_type(type_name, &program.types))
+                .collect::<Vec<_>>();
+            let mut unsupported_types = unsupported
+                .iter()
+                .map(|issue| issue.type_name.clone())
                 .collect::<Vec<_>>();
             unsupported_types.sort();
             unsupported_types.dedup();
+            let mut unsupported_reasons = unsupported
+                .iter()
+                .map(|issue| format!("{}: {}", issue.type_name, issue.reason_text()))
+                .collect::<Vec<_>>();
+            unsupported_reasons.sort();
+            unsupported_reasons.dedup();
+            let mut recursive_record_cycles = unsupported
+                .iter()
+                .filter_map(|issue| issue.cycle_text())
+                .collect::<Vec<_>>();
+            recursive_record_cycles.sort();
+            recursive_record_cycles.dedup();
             let sample_count = if unsupported_types.is_empty() {
                 block
                     .variables
@@ -1971,6 +1988,8 @@ fn property_coverage_hints(
                 direct_call,
                 vacuous: block.variables.is_empty(),
                 unsupported_types,
+                unsupported_reasons,
+                recursive_record_cycles,
             })
         })
         .collect()

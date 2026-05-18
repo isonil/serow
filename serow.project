@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "0.4.86-rust-bootstrap",
+  "version": "0.4.87-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -94,6 +94,7 @@
     "property_failure_shrinking": true,
     "expanded_property_sample_values": true,
     "declared_record_property_sample_values": true,
+    "property_sampling_reports_recursive_record_cycles": true,
     "qualified_function_references": true,
     "ambiguous_call_diagnostics_have_symbol_lookup_repair_actions": true,
     "unknown_function_type_errors_have_symbol_lookup_repair_actions": true,
