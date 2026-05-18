@@ -225,6 +225,8 @@ JSON diagnostics include stable core fields such as `severity`, `code`, `message
 
 `bin/serow patch add-type <path> <module> <type-declaration> [--json]` inserts one record type declaration into an existing module. The declaration argument may include the `type` prefix or just the right-hand declaration shape, such as `Player = { hp: Int, gold: Int }`. The command rejects invalid module names, unknown module targets, duplicate type names, and duplicate field names before rewriting the file through canonical formatting.
 
+`bin/serow patch remove-type <path> <module> <type-name> [--json]` removes one existing record type declaration from a module in one source file. It validates module and type names, rejects unknown modules or missing type declarations, and rewrites the file through canonical formatting. Removing a referenced type can still surface checker diagnostics for the affected functions.
+
 `bin/serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]` appends one contract clause to an existing function. `bin/serow patch add-example <path> <symbol-or-name> <expression> [--json]` appends one executable example. `bin/serow patch add-property <path> <symbol-or-name> <forall-header> <expression> [--json]` appends one sampled property as a `forall` header plus body expression. These commands reject ambiguous bare targets and preserve idempotence for existing identical evidence.
 
 `bin/serow patch add-migration <path> <symbol-or-name> <kind> <note> [--json]` appends one migration acknowledgement. It accepts the supported migration kinds described above, rejects empty notes, rejects ambiguous bare targets, and preserves idempotence for an existing identical record.

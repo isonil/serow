@@ -150,6 +150,7 @@ Selection policy for generic implementation prompts:
   - `bin/serow patch remove-example <path> <symbol-or-name> <index> [--json]`
   - `bin/serow patch remove-migration <path> <symbol-or-name> <kind> <index> [--json]`
   - `bin/serow patch remove-property <path> <symbol-or-name> <index> [--json]`
+  - `bin/serow patch remove-type <path> <module> <type-name> [--json]`
   - `bin/serow patch remove-use <path> <module> <dependency> [--json]`
   - `bin/serow patch rename-function <path> <symbol-or-name> <new-name> [--json]`
   - `bin/serow patch set-contract <path> <symbol-or-name> <requires|ensures> [index] <expression> [--json]`
@@ -163,6 +164,7 @@ Selection policy for generic implementation prompts:
   - `bin/serow patch set-version <path> <symbol-or-name> <version> [--json]`
 - Structured evidence patches reject ambiguous bare targets and preserve canonical formatting.
 - `patch add-type` inserts one record declaration into an existing module, accepts declarations with or without the `type` prefix, and rejects duplicate type names or duplicate fields before rewriting canonically.
+- `patch remove-type` removes an existing record declaration from a module through the structured patch interface and preserves canonical formatting.
 - `patch set-contract` creates a missing `requires` or `ensures` clause, replaces a single existing clause, or replaces a specific clause when passed a 1-based index.
 - `patch set-example` and `patch set-property` create missing executable evidence, replace a single existing item, or replace a specific item when passed a 1-based index.
 - Duplicate public evidence diagnostics include structured repair actions pointing at indexed `patch remove-contract`, `patch remove-example`, and `patch remove-property` commands for the repeated item.
@@ -1845,7 +1847,7 @@ python3 -m json.tool /tmp/serow-metadata-sidecar-check/serow-metadata.json
 - Expression support is intentionally small: literals, variables, direct or qualified calls, arithmetic, comparisons, booleans, and one-line `if ... then ... else ...`.
 - Properties are sampled, not proven; built-in samples are fixed small sets for `Int`, `Bool`, `Text`, singleton `Unit`, and bounded declared-record values. Failed or erroring sampled properties report replay data, include simpler shrunk same-outcome bindings when available, and can be rerun one sample at a time with `bin/serow replay property`. Non-executable property diagnostics include unsupported-sample reasons, including recursive record sample cycles when present.
 - Effects checking is intentionally conservative direct-call capability subset validation; it warns on unused declared capabilities only when resolved non-self direct callees establish a required capability set, and it does not yet model effect polymorphism or external effect primitives beyond the compiler-owned terminal I/O intrinsics.
-- Structured patch coverage is intentionally narrow: module `use` insertion, public function skeleton insertion, public function rename with in-file resolved call rewrites, bare-call qualification to exact symbols, evidence insertion, indexed evidence removal, migration acknowledgement insertion/replacement/removal, indexed contract/example/property replacement, duplicate-intent-guarded intent replacement, effect declaration replacement, missing or existing implementation expression setting, version declaration and pinned-call-aware version bumps, and typed-hole filling are implemented.
+- Structured patch coverage is intentionally narrow: module `use` insertion, record type insertion/removal, public function skeleton insertion, public function rename with in-file resolved call rewrites, bare-call qualification to exact symbols, evidence insertion, indexed evidence removal, migration acknowledgement insertion/replacement/removal, indexed contract/example/property replacement, duplicate-intent-guarded intent replacement, effect declaration replacement, missing or existing implementation expression setting, version declaration and pinned-call-aware version bumps, and typed-hole filling are implemented.
 - Evidence patching can append or replace individual contract/example/property items, but dependent impact and evidence policy are still enforced by `serow plan` and unattended certification rather than by the patch command itself.
 - Formatting parses and re-emits the bootstrap projection; comments are not preserved yet.
 - The hand-written JSON output should eventually be replaced with `serde_json` once external dependencies are allowed/desired.

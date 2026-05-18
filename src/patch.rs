@@ -269,6 +269,90 @@ pub fn add_type(path: &str, module: &str, declaration: &str) -> PatchSummary {
     summary
 }
 
+pub fn remove_type(path: &str, module: &str, name: &str) -> PatchSummary {
+    let mut summary = PatchSummary::default();
+    if !is_valid_module(module) {
+        summary.diagnostics.push(Diagnostic::error(
+            "InvalidPatchTarget",
+            format!("Invalid module name `{module}`."),
+            Some(path.to_string()),
+        ));
+        return summary;
+    }
+    if !is_valid_ident(name) {
+        summary.diagnostics.push(Diagnostic::error(
+            "InvalidPatchTarget",
+            format!("Invalid type name `{name}`."),
+            Some(path.to_string()),
+        ));
+        return summary;
+    }
+
+    let (mut program, parse_diagnostics) = parse_paths(&[path.to_string()]);
+    let has_parse_errors = has_errors(&parse_diagnostics);
+    summary.diagnostics.extend(parse_diagnostics);
+    if has_parse_errors {
+        return summary;
+    }
+
+    let Some(module_index) = program
+        .modules
+        .iter()
+        .position(|candidate| candidate.name == module)
+    else {
+        summary.diagnostics.push(Diagnostic::error(
+            "PatchTargetNotFound",
+            format!("Module `{module}` was not found."),
+            Some(path.to_string()),
+        ));
+        return summary;
+    };
+
+    let Some(type_index) = program.modules[module_index]
+        .types
+        .iter()
+        .position(|existing| existing.name == name)
+    else {
+        summary.diagnostics.push(
+            Diagnostic::error(
+                "PatchConflict",
+                format!("Module `{module}` does not declare type `{name}`."),
+                Some(path.to_string()),
+            )
+            .with_data(
+                "types",
+                program.modules[module_index]
+                    .types
+                    .iter()
+                    .map(|existing| existing.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            )
+            .with_repair("Remove only an existing record type declaration."),
+        );
+        return summary;
+    };
+
+    let removed_symbol = program.modules[module_index].types[type_index].symbol();
+    program.modules[module_index].types.remove(type_index);
+    program
+        .types
+        .retain(|existing| existing.symbol() != removed_symbol);
+
+    let formatted = format_program(&program);
+    match fs::write(path, formatted) {
+        Ok(()) => {
+            summary.changed = 1;
+        }
+        Err(error) => summary.diagnostics.push(Diagnostic::error(
+            "WriteError",
+            format!("Could not write `{path}`: {error}"),
+            Some(path.to_string()),
+        )),
+    }
+    summary
+}
+
 pub fn add_function(path: &str, module: &str, signature: &str, intent: &str) -> PatchSummary {
     let mut summary = PatchSummary::default();
     if !is_valid_module(module) {

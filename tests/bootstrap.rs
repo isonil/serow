@@ -2693,6 +2693,7 @@ fn agent_commands_json_includes_full_command_catalog() {
         "{stdout}"
     );
     assert!(stdout.contains("serow patch qualify-call"), "{stdout}");
+    assert!(stdout.contains("serow patch remove-type"), "{stdout}");
     assert!(stdout.contains("serow query callees"), "{stdout}");
     assert!(stdout.contains("serow query symbols"), "{stdout}");
     assert!(stdout.contains("serow replay property"), "{stdout}");
@@ -5223,6 +5224,82 @@ pub fn starting_player() -> Player
     assert!(
         duplicate_stdout.contains("Type declaration `Player` already exists"),
         "{duplicate_stdout}"
+    );
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn patch_remove_type_removes_record_declaration() {
+    let dir = unique_temp_dir("serow-patch-remove-type");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("record_type.serow");
+    fs::write(
+        &source,
+        r#"module app.main
+
+type Player = { hp: Int, gold: Int }
+
+pub fn score(x: Int) -> Int
+  intent "Return the unchanged score."
+  version v1
+  contract
+    ensures result == x
+  examples
+    score(1) == 1
+  properties
+    forall x: Int:
+      score(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "remove-type",
+            source.to_str().expect("utf8 path"),
+            "app.main",
+            "Player",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch remove-type");
+
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"changed\": 1"), "{stdout}");
+    let updated = fs::read_to_string(&source).expect("read updated fixture");
+    assert!(!updated.contains("type Player"), "{updated}");
+    assert!(
+        updated.contains("module app.main\n\npub fn score"),
+        "{updated}"
+    );
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(summary.ok(), "{:#?}", summary.diagnostics);
+
+    let missing = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "remove-type",
+            source.to_str().expect("utf8 path"),
+            "app.main",
+            "Player",
+            "--json",
+        ])
+        .output()
+        .expect("run rejected serow patch remove-type");
+    assert!(!missing.status.success(), "{missing:#?}");
+    let missing_stdout = String::from_utf8(missing.stdout).expect("stdout is utf8");
+    assert!(missing_stdout.contains("PatchConflict"), "{missing_stdout}");
+    assert!(
+        missing_stdout.contains("does not declare type `Player`"),
+        "{missing_stdout}"
     );
 
     let _ = fs::remove_dir_all(dir);
@@ -8116,7 +8193,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("\"project_version\": \"0.4.88-rust-bootstrap\""),
+        stdout.contains("\"project_version\": \"0.4.89-rust-bootstrap\""),
         "{stdout}"
     );
     let source_bytes = fs::read("examples/math.serow").expect("read math source");
@@ -8163,7 +8240,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{manifest}"
     );
     assert!(
-        manifest.contains("project_version = \"0.4.88-rust-bootstrap\""),
+        manifest.contains("project_version = \"0.4.89-rust-bootstrap\""),
         "{manifest}"
     );
     assert!(
@@ -8245,7 +8322,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{metadata}"
     );
     assert!(
-        metadata.contains("\"project_version\": \"0.4.88-rust-bootstrap\""),
+        metadata.contains("\"project_version\": \"0.4.89-rust-bootstrap\""),
         "{metadata}"
     );
     assert!(
@@ -8309,7 +8386,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{readme}"
     );
     assert!(
-        readme.contains("- Serow project version: `0.4.88-rust-bootstrap`"),
+        readme.contains("- Serow project version: `0.4.89-rust-bootstrap`"),
         "{readme}"
     );
     assert!(

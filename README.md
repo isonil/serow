@@ -106,6 +106,7 @@ bin/serow patch remove-contract examples/math.serow @core.math.add.v1 ensures 2
 bin/serow patch remove-example examples/math.serow @core.math.add.v1 2
 bin/serow patch remove-migration examples/math.serow @core.math.add.v1 implementation-change 1
 bin/serow patch remove-property examples/math.serow @core.math.add.v1 2
+bin/serow patch remove-type examples/math.serow core.math Point
 bin/serow patch remove-use examples/math.serow app.main core.math
 bin/serow patch rename-function examples/math.serow @core.math.add.v1 sum
 bin/serow patch set-contract examples/math.serow @core.math.add.v1 ensures "result == x + y"
@@ -124,6 +125,8 @@ bin/serow patch set-version examples/math.serow @core.math.add.v1 v1
 `patch add-function` and `patch set-intent` reject exact normalized duplicate public intents before writing, returning a `PossibleDuplicate` diagnostic with a `query intent` repair action.
 
 `patch add-type` inserts one record type declaration into an existing module. It accepts a single quoted declaration with or without the `type` prefix, rejects duplicate type names and duplicate fields before writing, and rewrites the file canonically.
+
+`patch remove-type` removes one existing record type declaration from a module through the structured patch interface and rewrites the file canonically. Removing a type that is still referenced is allowed as a source edit, and `serow check` reports the resulting type errors.
 
 `patch rename-function` changes a public function name and rewrites resolved call references in the patched source. When the new bare name would be ambiguous, rewritten call sites use the exact `@module.name.vN(...)` form.
 
