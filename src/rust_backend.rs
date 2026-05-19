@@ -862,24 +862,40 @@ fn render_expr(
             Ok(rendered(format!("({operator}{})", expr.code), type_name))
         }
         IrExpr::Binary { op, left, right } => {
-            let left = render_expr(
-                left,
+            let context = RenderContext {
                 variables,
                 variable_types,
                 rust_names,
                 type_names,
                 types,
                 signatures,
-            )?;
-            let right = render_expr(
-                right,
-                variables,
-                variable_types,
-                rust_names,
-                type_names,
-                types,
-                signatures,
-            )?;
+            };
+            let left = if is_comparison_operator(op) {
+                render_comparison_operand(left, context)?
+            } else {
+                render_expr(
+                    left,
+                    variables,
+                    variable_types,
+                    rust_names,
+                    type_names,
+                    types,
+                    signatures,
+                )?
+            };
+            let right = if is_comparison_operator(op) {
+                render_comparison_operand(right, context)?
+            } else {
+                render_expr(
+                    right,
+                    variables,
+                    variable_types,
+                    rust_names,
+                    type_names,
+                    types,
+                    signatures,
+                )?
+            };
             let operator = match op {
                 IrBinaryOp::Add => "+",
                 IrBinaryOp::Sub => "-",
@@ -1122,6 +1138,97 @@ fn render_expr(
             })
         }
     }
+}
+
+fn render_comparison_operand(
+    expr: &IrExpr,
+    context: RenderContext<'_>,
+) -> Result<RenderedExpr, String> {
+    match expr {
+        IrExpr::Text(value) => Ok(rendered(rust_string_literal(value), "Text")),
+        IrExpr::Var(name) => {
+            let variable = context
+                .variables
+                .get(name)
+                .ok_or_else(|| format!("Unknown lowered variable `{name}`."))?;
+            let type_name = context
+                .variable_types
+                .get(name)
+                .ok_or_else(|| format!("Unknown lowered variable type for `{name}`."))?;
+            Ok(RenderedExpr {
+                code: variable.clone(),
+                type_name: type_name.clone(),
+            })
+        }
+        IrExpr::FieldAccess { base, field } => {
+            if let IrExpr::Var(base_name) = base.as_ref() {
+                let variable = context
+                    .variables
+                    .get(base_name)
+                    .ok_or_else(|| format!("Unknown lowered variable `{base_name}`."))?;
+                let base_type = context
+                    .variable_types
+                    .get(base_name)
+                    .ok_or_else(|| format!("Unknown lowered variable type for `{base_name}`."))?;
+                let type_decl = record_type(base_type, context.types)?;
+                let field_type = type_decl
+                    .fields
+                    .iter()
+                    .find(|declared| declared.name == *field)
+                    .map(|field| field.type_name.clone())
+                    .ok_or_else(|| format!("Record `{base_type}` has no field `{field}`."))?;
+                return Ok(RenderedExpr {
+                    code: format!("{variable}.{}", rust_field_identifier(field)),
+                    type_name: field_type,
+                });
+            }
+            let base = render_expr(
+                base,
+                context.variables,
+                context.variable_types,
+                context.rust_names,
+                context.type_names,
+                context.types,
+                context.signatures,
+            )?;
+            let type_decl = record_type(&base.type_name, context.types)?;
+            let field_type = type_decl
+                .fields
+                .iter()
+                .find(|declared| declared.name == *field)
+                .map(|field| field.type_name.clone())
+                .ok_or_else(|| format!("Record `{}` has no field `{field}`.", base.type_name))?;
+            Ok(RenderedExpr {
+                code: format!(
+                    "({}).{}",
+                    strip_outer_parens(&base.code),
+                    rust_field_identifier(field)
+                ),
+                type_name: field_type,
+            })
+        }
+        _ => render_expr(
+            expr,
+            context.variables,
+            context.variable_types,
+            context.rust_names,
+            context.type_names,
+            context.types,
+            context.signatures,
+        ),
+    }
+}
+
+fn is_comparison_operator(op: &IrBinaryOp) -> bool {
+    matches!(
+        op,
+        IrBinaryOp::Eq
+            | IrBinaryOp::NotEq
+            | IrBinaryOp::Lt
+            | IrBinaryOp::LtEq
+            | IrBinaryOp::Gt
+            | IrBinaryOp::GtEq
+    )
 }
 
 fn render_in_place_record_update_assignment(

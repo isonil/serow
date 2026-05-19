@@ -8382,10 +8382,7 @@ pub fn greet(name: Text) -> Text
         stdout.contains("pub fn serow_test_rust_same_text_v1(serow_x: String) -> bool"),
         "{stdout}"
     );
-    assert!(
-        stdout.contains("serow_x.clone() == serow_x.clone()"),
-        "{stdout}"
-    );
+    assert!(stdout.contains("serow_x == serow_x"), "{stdout}");
     assert!(
         stdout.contains(
             "assert!(serow_result == true, \\\"Serow postcondition failed for @test.rust.same_text.v1 ensures #1\\\")"
@@ -8402,7 +8399,7 @@ pub fn greet(name: Text) -> Text
     );
     assert!(
         stdout.contains(
-            "assert!(serow_result.clone() == format!(\\\"{}{}\\\", String::from(\\\"hi, \\\"), serow_name.clone()), \\\"Serow postcondition failed for @test.rust.greet.v1 ensures #1\\\")"
+            "assert!(serow_result == format!(\\\"{}{}\\\", String::from(\\\"hi, \\\"), serow_name.clone()), \\\"Serow postcondition failed for @test.rust.greet.v1 ensures #1\\\")"
         ),
         "{stdout}"
     );
