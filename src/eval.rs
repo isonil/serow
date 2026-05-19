@@ -54,6 +54,10 @@ pub enum Value {
         type_name: String,
         fields: BTreeMap<String, Value>,
     },
+    Enum {
+        type_name: String,
+        variant: String,
+    },
     Unit,
 }
 
@@ -71,6 +75,7 @@ impl std::fmt::Display for Value {
                     .join(", ");
                 write!(formatter, "{type_name} {{ {fields} }}")
             }
+            Value::Enum { variant, .. } => write!(formatter, "{variant}"),
             Value::Unit => write!(formatter, "unit"),
         }
     }
@@ -767,6 +772,21 @@ impl<'a> ExprParser<'a> {
                     }
                     return self.parse_record_construct(&name);
                 }
+                if parts.len() == 1 {
+                    let variable = self.variables.get(&parts[0]).cloned();
+                    let variant = resolve_enum_variant(&parts[0], &self.evaluator.types)?;
+                    return match (variable, variant) {
+                        (Some(_), Some((type_name, variant))) => Err(format!(
+                            "Name `{}` is ambiguous between a local variable and enum variant `{type_name}.{variant}`.",
+                            parts[0]
+                        )),
+                        (Some(value), None) => Ok(value),
+                        (None, Some((type_name, variant))) => {
+                            Ok(Value::Enum { type_name, variant })
+                        }
+                        (None, None) => Err(format!("Unknown variable `{}`.", parts[0])),
+                    };
+                }
                 let mut value = self
                     .variables
                     .get(&parts[0])
@@ -981,6 +1001,14 @@ fn same_value_type(left: &Value, right: &Value) -> bool {
                 type_name: right, ..
             },
         ) => left == right,
+        (
+            Value::Enum {
+                type_name: left, ..
+            },
+            Value::Enum {
+                type_name: right, ..
+            },
+        ) => left == right,
         _ => false,
     }
 }
@@ -991,6 +1019,7 @@ fn value_type_name(value: &Value) -> String {
         Value::Bool(_) => "Bool".to_string(),
         Value::Text(_) => "Text".to_string(),
         Value::Record { type_name, .. } => type_name.clone(),
+        Value::Enum { type_name, .. } => type_name.clone(),
         Value::Unit => "Unit".to_string(),
     }
 }
@@ -998,8 +1027,35 @@ fn value_type_name(value: &Value) -> String {
 fn record_type<'a>(type_name: &str, types: &'a [TypeDecl]) -> Result<&'a TypeDecl, String> {
     types
         .iter()
-        .find(|type_decl| type_decl.name == type_name)
+        .find(|type_decl| type_decl.name == type_name && type_decl.is_record())
         .ok_or_else(|| format!("Unknown record type `{type_name}`."))
+}
+
+fn resolve_enum_variant(
+    variant: &str,
+    types: &[TypeDecl],
+) -> Result<Option<(String, String)>, String> {
+    let matches = types
+        .iter()
+        .filter(|type_decl| type_decl.is_enum())
+        .filter(|type_decl| {
+            type_decl
+                .variants
+                .iter()
+                .any(|declared| declared == variant)
+        })
+        .collect::<Vec<_>>();
+    match matches.as_slice() {
+        [] => Ok(None),
+        [type_decl] => Ok(Some((type_decl.name.clone(), variant.to_string()))),
+        many => Err(format!(
+            "Enum variant `{variant}` is ambiguous across enum types: {}.",
+            many.iter()
+                .map(|type_decl| type_decl.name.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )),
+    }
 }
 
 fn record_field(value: Value, field: &str) -> Result<Value, String> {

@@ -169,7 +169,7 @@ pub fn parse_source(source_path: &str, source: &str) -> (Program, Vec<Diagnostic
                 Some(format!("{}:{}", source_path, index + 1)),
             )
             .with_repair(
-                "Use `module <name>`, `use <module>`, `type Name = { field: Type }`, or `pub fn name(args) -> Type`.",
+                "Use `module <name>`, `use <module>`, `type Name = { field: Type }`, `type Name = Variant | Other`, or `pub fn name(args) -> Type`.",
             ),
         );
         index += 1;
@@ -240,16 +240,22 @@ fn parse_type_decl(
         )));
     }
     let body = body.trim();
+    if !body.starts_with('{') {
+        return parse_enum_decl(path, module, line, name, body);
+    }
+
     let Some(fields_text) = body
         .strip_prefix('{')
         .and_then(|value| value.strip_suffix('}'))
     else {
         return Some(Err(Diagnostic::error(
             "ParseError",
-            format!("Type `{name}` must be a record literal shape."),
+            format!("Type `{name}` must be a record literal shape or enum variant list."),
             Some(format!("{path}:{line}")),
         )
-        .with_repair("Use `type Name = { field: Type, other: Type }`.")));
+        .with_repair(
+            "Use `type Name = { field: Type, other: Type }` or `type Name = A | B`.",
+        )));
     };
 
     let mut fields = Vec::new();
@@ -285,6 +291,47 @@ fn parse_type_decl(
         source_path: path.to_string(),
         line,
         fields,
+        variants: Vec::new(),
+    }))
+}
+
+fn parse_enum_decl(
+    path: &str,
+    module: &str,
+    line: usize,
+    name: &str,
+    body: &str,
+) -> Option<Result<TypeDecl, Diagnostic>> {
+    if body.is_empty() {
+        return Some(Err(Diagnostic::error(
+            "ParseError",
+            format!("Enum type `{name}` must declare at least one variant."),
+            Some(format!("{path}:{line}")),
+        )
+        .with_repair("Use `type Name = Variant | Other`.")));
+    }
+    let mut variants = Vec::new();
+    for raw_variant in body.split('|') {
+        let variant = raw_variant.trim();
+        if !is_valid_ident(variant) {
+            return Some(Err(Diagnostic::error(
+                "ParseError",
+                format!("Invalid enum variant name `{variant}`."),
+                Some(format!("{path}:{line}")),
+            )
+            .with_repair(
+                "Use simple nullary variant names, for example `Hall | Cave`.",
+            )));
+        }
+        variants.push(variant.to_string());
+    }
+    Some(Ok(TypeDecl {
+        name: name.to_string(),
+        module: module.to_string(),
+        source_path: path.to_string(),
+        line,
+        fields: Vec::new(),
+        variants,
     }))
 }
 

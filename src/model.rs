@@ -17,6 +17,7 @@ pub struct TypeDecl {
     pub source_path: String,
     pub line: usize,
     pub fields: Vec<RecordField>,
+    pub variants: Vec<String>,
 }
 
 impl TypeDecl {
@@ -26,6 +27,14 @@ impl TypeDecl {
 
     pub fn target(&self) -> String {
         format!("{}:{}:{}", self.source_path, self.line, self.name)
+    }
+
+    pub fn is_record(&self) -> bool {
+        self.variants.is_empty()
+    }
+
+    pub fn is_enum(&self) -> bool {
+        !self.variants.is_empty()
     }
 }
 

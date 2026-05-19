@@ -73,24 +73,35 @@ fn samples_for_type_result(
             Value::Text("123".to_string()),
         ]),
         "Unit" => Ok(vec![Value::Unit]),
-        _ => record_samples_for_type(type_name, types, active_records),
+        _ => declared_samples_for_type(type_name, types, active_records),
     }
 }
 
-fn record_samples_for_type(
+fn declared_samples_for_type(
     type_name: &str,
     types: &[TypeDecl],
     active_records: &mut Vec<String>,
 ) -> Result<Vec<Value>, SampleUnsupportedReason> {
+    let type_decl = types
+        .iter()
+        .find(|declared| declared.name == type_name)
+        .ok_or(SampleUnsupportedReason::UnknownType)?;
+    if type_decl.is_enum() {
+        return Ok(type_decl
+            .variants
+            .iter()
+            .map(|variant| Value::Enum {
+                type_name: type_name.to_string(),
+                variant: variant.clone(),
+            })
+            .collect());
+    }
+
     if let Some(position) = active_records.iter().position(|active| active == type_name) {
         let mut cycle = active_records[position..].to_vec();
         cycle.push(type_name.to_string());
         return Err(SampleUnsupportedReason::RecursiveRecordCycle(cycle));
     }
-    let type_decl = types
-        .iter()
-        .find(|declared| declared.name == type_name)
-        .ok_or(SampleUnsupportedReason::UnknownType)?;
     active_records.push(type_name.to_string());
 
     let mut field_samples = Vec::<(String, Vec<Value>)>::new();
@@ -313,6 +324,7 @@ fn value_complexity(value: &Value) -> usize {
         Value::Bool(value) => usize::from(*value),
         Value::Text(value) => value.chars().count(),
         Value::Record { fields, .. } => fields.values().map(value_complexity).sum(),
+        Value::Enum { variant, .. } => variant.len(),
         Value::Unit => 0,
     }
 }

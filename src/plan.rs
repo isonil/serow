@@ -1743,9 +1743,14 @@ fn normalized_implementation_ir_key(
     program: &crate::model::Program,
 ) -> Option<String> {
     let comparison_program = program_with_baseline_function(program, function);
-    lower_expression(implementation, function, &comparison_program.functions)
-        .ok()
-        .map(|expression| format!("{expression:?}"))
+    lower_expression(
+        implementation,
+        function,
+        &comparison_program.functions,
+        &comparison_program.types,
+    )
+    .ok()
+    .map(|expression| format!("{expression:?}"))
 }
 
 fn executable_evidence_strengthened(delta: Option<&EvidenceDelta>) -> bool {

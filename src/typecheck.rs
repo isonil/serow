@@ -297,6 +297,19 @@ impl<'a> TypeParser<'a> {
                     }
                     return self.parse_record_construct(&name);
                 }
+                if parts.len() == 1 {
+                    let variable_type = self.variables.get(&parts[0]).cloned();
+                    let variant_type = self.resolve_enum_variant(&parts[0])?;
+                    return match (variable_type, variant_type) {
+                        (Some(_), Some(type_name)) => Err(format!(
+                            "Name `{}` is ambiguous between a local variable and enum variant `{type_name}.{}`.",
+                            parts[0], parts[0]
+                        )),
+                        (Some(type_name), None) => Ok(type_name),
+                        (None, Some(type_name)) => Ok(type_name),
+                        (None, None) => Err(format!("Unknown variable `{}`.", parts[0])),
+                    };
+                }
                 let mut type_name = self
                     .variables
                     .get(&parts[0])
@@ -440,8 +453,33 @@ impl<'a> TypeParser<'a> {
     fn record_type(&self, type_name: &str) -> Result<&TypeDecl, String> {
         self.types
             .iter()
-            .find(|type_decl| type_decl.name == type_name)
+            .find(|type_decl| type_decl.name == type_name && type_decl.is_record())
             .ok_or_else(|| format!("Unknown record type `{type_name}`."))
+    }
+
+    fn resolve_enum_variant(&self, variant: &str) -> Result<Option<String>, String> {
+        let matches = self
+            .types
+            .iter()
+            .filter(|type_decl| type_decl.is_enum())
+            .filter(|type_decl| {
+                type_decl
+                    .variants
+                    .iter()
+                    .any(|declared| declared == variant)
+            })
+            .collect::<Vec<_>>();
+        match matches.as_slice() {
+            [] => Ok(None),
+            [type_decl] => Ok(Some(type_decl.name.clone())),
+            many => Err(format!(
+                "Enum variant `{variant}` is ambiguous across enum types: {}.",
+                many.iter()
+                    .map(|type_decl| type_decl.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )),
+        }
     }
 
     fn expect_end(&self) -> Result<(), String> {

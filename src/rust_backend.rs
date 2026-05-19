@@ -106,7 +106,9 @@ fn generate_rust_program(ir: &IrProgram) -> Result<GeneratedRustProgram, Vec<Dia
     let mut allocated_test_names = HashMap::<String, usize>::new();
 
     for type_decl in &ir.types {
-        if let Some(cycle) = record_layout_cycle(&type_decl.name, &ir.types) {
+        if type_decl.is_record()
+            && let Some(cycle) = record_layout_cycle(&type_decl.name, &ir.types)
+        {
             diagnostics.push(
                 Diagnostic::error(
                     "RustBackendRecursiveRecordType",
@@ -268,6 +270,18 @@ fn render_type_decl(
     rust_name: &str,
     type_names: &HashMap<String, String>,
 ) -> Result<String, String> {
+    if type_decl.is_enum() {
+        let variants = type_decl
+            .variants
+            .iter()
+            .map(|variant| format!("    {},", rust_variant_identifier(variant)))
+            .collect::<Vec<_>>();
+        return Ok(format!(
+            "#[derive(Clone, Debug, PartialEq, Eq)]\npub enum {rust_name} {{\n{}\n}}",
+            variants.join("\n")
+        ));
+    }
+
     let mut fields = Vec::new();
     for field in &type_decl.fields {
         fields.push(format!(
@@ -622,6 +636,13 @@ fn render_expr(
             };
             Ok(RenderedExpr {
                 code,
+                type_name: type_name.clone(),
+            })
+        }
+        IrExpr::EnumVariant { type_name, variant } => {
+            let rust_type = rust_type(type_name, type_names)?;
+            Ok(RenderedExpr {
+                code: format!("{rust_type}::{}", rust_variant_identifier(variant)),
                 type_name: type_name.clone(),
             })
         }
@@ -1461,7 +1482,11 @@ fn ir_expr_references_var(expr: &IrExpr, name: &str) -> bool {
                     .any(|(_, value)| ir_expr_references_var(value, name))
         }
         IrExpr::FieldAccess { base, .. } => ir_expr_references_var(base, name),
-        IrExpr::Int(_) | IrExpr::Bool(_) | IrExpr::Text(_) | IrExpr::Unit => false,
+        IrExpr::Int(_)
+        | IrExpr::Bool(_)
+        | IrExpr::Text(_)
+        | IrExpr::Unit
+        | IrExpr::EnumVariant { .. } => false,
     }
 }
 
@@ -1506,7 +1531,12 @@ fn ir_expr_assigns_to(expr: &IrExpr, name: &str) -> bool {
                     .any(|(_, value)| ir_expr_assigns_to(value, name))
         }
         IrExpr::FieldAccess { base, .. } => ir_expr_assigns_to(base, name),
-        IrExpr::Int(_) | IrExpr::Bool(_) | IrExpr::Text(_) | IrExpr::Unit | IrExpr::Var(_) => false,
+        IrExpr::Int(_)
+        | IrExpr::Bool(_)
+        | IrExpr::Text(_)
+        | IrExpr::Unit
+        | IrExpr::Var(_)
+        | IrExpr::EnumVariant { .. } => false,
     }
 }
 
@@ -1582,7 +1612,7 @@ fn type_needs_clone(type_name: &str) -> bool {
 fn record_type<'a>(type_name: &str, types: &'a [TypeDecl]) -> Result<&'a TypeDecl, String> {
     types
         .iter()
-        .find(|type_decl| type_decl.name == type_name)
+        .find(|type_decl| type_decl.name == type_name && type_decl.is_record())
         .ok_or_else(|| format!("Unknown record type `{type_name}`."))
 }
 
@@ -1601,7 +1631,9 @@ fn record_layout_cycle_from(
         cycle.push(type_name.to_string());
         return Some(cycle);
     }
-    let type_decl = types.iter().find(|declared| declared.name == type_name)?;
+    let type_decl = types
+        .iter()
+        .find(|declared| declared.name == type_name && declared.is_record())?;
     stack.push(type_name.to_string());
     for field in &type_decl.fields {
         if types
@@ -1655,6 +1687,12 @@ fn render_sample_value(
             }
             Ok(format!("{rust_name} {{ {} }}", rendered_fields.join(", ")))
         }
+        Value::Enum { type_name, variant } => {
+            let rust_name = type_names
+                .get(type_name)
+                .ok_or_else(|| format!("No generated Rust type for enum sample `{type_name}`."))?;
+            Ok(format!("{rust_name}::{}", rust_variant_identifier(variant)))
+        }
         Value::Unit => Ok("()".to_string()),
     }
 }
@@ -1690,6 +1728,10 @@ fn allocate_rust_identifier(name: &str, allocated: &mut HashMap<String, usize>) 
 
 fn rust_field_identifier(name: &str) -> String {
     rust_identifier(name)
+}
+
+fn rust_variant_identifier(name: &str) -> String {
+    allocate_rust_type_identifier(name, &mut HashMap::new())
 }
 
 fn allocate_rust_type_identifier(name: &str, allocated: &mut HashMap<String, usize>) -> String {

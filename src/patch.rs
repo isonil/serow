@@ -528,6 +528,7 @@ pub fn add_type(path: &str, module: &str, declaration: &str) -> PatchSummary {
         source_path: path.to_string(),
         line,
         fields,
+        variants: Vec::new(),
     };
     program.modules[module_index].types.push(type_decl.clone());
     program.types.push(type_decl);

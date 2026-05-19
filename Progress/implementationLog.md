@@ -1,5 +1,14 @@
 # Implementation Log
 
+## 2026-05-20
+
+- Chose minimal enum/sum type declarations as the next language-core slice because records already flowed through parser, checker, evaluator, IR, sampled evidence, and Rust lowering, while text-game style domains still needed small closed sets such as rooms and commands.
+- Added `type Name = Variant | Other` parsing and formatting for nullary enum variants, extended `TypeDecl` with variant metadata, and kept record declarations on the existing `{ field: Type }` path.
+- Added enum variant construction by bare variant name, enum equality/inequality, enum values in records, executable examples/contracts/properties, deterministic enum property samples, IR `enum_variant` nodes, and Rust lowering to generated `enum`s deriving `Clone`, `Debug`, `PartialEq`, and `Eq`.
+- Added ambiguity diagnostics for duplicate variant names across enum types, variant/function name conflicts, and variant/in-scope variable conflicts. Payload variants and pattern matching remain future work.
+- Updated README, language notes, and current progress state, and added regression coverage for enum execution, sampling, IR JSON, generated Rust enum code, and ambiguity diagnostics.
+- Verified with `bin/serow query intent "enum sum type variant declaration construction equality Rust backend"`, `bin/serow query symbol "enum"`, `bin/serow query symbol "variant"`, `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`, `bin/serow fmt --check`, `bin/serow check`, and `bin/serow certify`.
+
 ## 2026-05-18
 
 - Chose structured record type replacement as the next agent-safe language-core slice because agents could add, remove, and rename record declarations, but changing a record's field shape still required raw text editing even though records now feed checker, IR, Rust structs, and property samples.

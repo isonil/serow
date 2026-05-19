@@ -89,16 +89,22 @@ pub fn format_program(program: &Program) -> String {
         for type_decl in &module.types {
             output.push_str("type ");
             output.push_str(&type_decl.name);
-            output.push_str(" = { ");
-            output.push_str(
-                &type_decl
-                    .fields
-                    .iter()
-                    .map(|field| format!("{}: {}", field.name, field.type_name))
-                    .collect::<Vec<_>>()
-                    .join(", "),
-            );
-            output.push_str(" }\n\n");
+            if type_decl.is_enum() {
+                output.push_str(" = ");
+                output.push_str(&type_decl.variants.join(" | "));
+                output.push_str("\n\n");
+            } else {
+                output.push_str(" = { ");
+                output.push_str(
+                    &type_decl
+                        .fields
+                        .iter()
+                        .map(|field| format!("{}: {}", field.name, field.type_name))
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                );
+                output.push_str(" }\n\n");
+            }
         }
         for (function_index, function) in module.functions.iter().enumerate() {
             if function_index > 0 {

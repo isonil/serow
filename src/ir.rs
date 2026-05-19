@@ -44,6 +44,10 @@ pub enum IrExpr {
     Text(String),
     Unit,
     Var(String),
+    EnumVariant {
+        type_name: String,
+        variant: String,
+    },
     Call {
         reference: String,
         target: String,
@@ -189,7 +193,7 @@ pub fn lower_checked_program(program: &Program, parse_diagnostics: Vec<Diagnosti
         let mut requires = Vec::new();
         let mut failed = false;
         for (index, requirement) in function.requires.iter().enumerate() {
-            match lower_expression(requirement, function, &program.functions) {
+            match lower_expression(requirement, function, &program.functions, &program.types) {
                 Ok(requirement) => requires.push(requirement),
                 Err(error) => {
                     failed = true;
@@ -215,7 +219,8 @@ pub fn lower_checked_program(program: &Program, parse_diagnostics: Vec<Diagnosti
 
         let mut ensures = Vec::new();
         for (index, contract) in function.contracts.iter().enumerate() {
-            match lower_contract_expression(contract, function, &program.functions) {
+            match lower_contract_expression(contract, function, &program.functions, &program.types)
+            {
                 Ok(contract) => ensures.push(contract),
                 Err(error) => {
                     failed = true;
@@ -242,7 +247,12 @@ pub fn lower_checked_program(program: &Program, parse_diagnostics: Vec<Diagnosti
         let mut examples = Vec::new();
         let mut example_lines = Vec::new();
         for (index, example) in function.examples.iter().enumerate() {
-            match lower_expression_with_variables(example, Vec::new(), &program.functions) {
+            match lower_expression_with_variables(
+                example,
+                Vec::new(),
+                &program.functions,
+                &program.types,
+            ) {
                 Ok(example) => {
                     examples.push(example);
                     example_lines.push(
@@ -289,6 +299,7 @@ pub fn lower_checked_program(program: &Program, parse_diagnostics: Vec<Diagnosti
                     .map(|param| param.name.clone())
                     .collect(),
                 &program.functions,
+                &program.types,
             ) {
                 Ok(expression) => properties.push(IrProperty {
                     index: property.index,
@@ -318,7 +329,7 @@ pub fn lower_checked_program(program: &Program, parse_diagnostics: Vec<Diagnosti
             continue;
         }
 
-        match lower_expression(implementation, function, &program.functions) {
+        match lower_expression(implementation, function, &program.functions, &program.types) {
             Ok(body) => functions.push(IrFunction {
                 symbol: function.symbol(),
                 module: function.module.clone(),
@@ -412,19 +423,21 @@ pub(crate) fn lower_expression(
     expression: &str,
     function: &Function,
     functions: &[Function],
+    types: &[TypeDecl],
 ) -> Result<IrExpr, String> {
     let variables = function
         .params
         .iter()
         .map(|param| param.name.clone())
         .collect::<Vec<_>>();
-    lower_expression_with_variables(expression, variables, functions)
+    lower_expression_with_variables(expression, variables, functions, types)
 }
 
 fn lower_contract_expression(
     expression: &str,
     function: &Function,
     functions: &[Function],
+    types: &[TypeDecl],
 ) -> Result<IrExpr, String> {
     let mut variables = function
         .params
@@ -432,16 +445,17 @@ fn lower_contract_expression(
         .map(|param| param.name.clone())
         .collect::<Vec<_>>();
     variables.push("result".to_string());
-    lower_expression_with_variables(expression, variables, functions)
+    lower_expression_with_variables(expression, variables, functions, types)
 }
 
 fn lower_expression_with_variables(
     expression: &str,
     variables: Vec<String>,
     functions: &[Function],
+    types: &[TypeDecl],
 ) -> Result<IrExpr, String> {
     let tokens = tokenize(expression)?;
-    let mut parser = IrParser::new(tokens, variables, functions);
+    let mut parser = IrParser::new(tokens, variables, functions, types);
     let expr = parser.parse_expression()?;
     parser.expect_end()?;
     Ok(expr)
@@ -453,16 +467,23 @@ struct IrParser<'a> {
     variables: Vec<String>,
     assignable: Vec<String>,
     functions: &'a [Function],
+    types: &'a [TypeDecl],
 }
 
 impl<'a> IrParser<'a> {
-    fn new(tokens: Vec<Token>, variables: Vec<String>, functions: &'a [Function]) -> Self {
+    fn new(
+        tokens: Vec<Token>,
+        variables: Vec<String>,
+        functions: &'a [Function],
+        types: &'a [TypeDecl],
+    ) -> Self {
         Self {
             tokens,
             index: 0,
             variables,
             assignable: Vec::new(),
             functions,
+            types,
         }
     }
 
@@ -710,6 +731,8 @@ impl<'a> IrParser<'a> {
                         };
                     }
                     Ok(expr)
+                } else if parts.len() == 1 {
+                    self.resolve_enum_variant(&parts[0])
                 } else {
                     Err(format!("Unknown variable `{}`.", parts[0]))
                 }
@@ -790,6 +813,34 @@ impl<'a> IrParser<'a> {
             base: Box::new(base),
             fields,
         })
+    }
+
+    fn resolve_enum_variant(&self, variant: &str) -> Result<IrExpr, String> {
+        let matches = self
+            .types
+            .iter()
+            .filter(|type_decl| type_decl.is_enum())
+            .filter(|type_decl| {
+                type_decl
+                    .variants
+                    .iter()
+                    .any(|declared| declared == variant)
+            })
+            .collect::<Vec<_>>();
+        match matches.as_slice() {
+            [type_decl] => Ok(IrExpr::EnumVariant {
+                type_name: type_decl.name.clone(),
+                variant: variant.to_string(),
+            }),
+            [] => Err(format!("Unknown variable `{variant}`.")),
+            many => Err(format!(
+                "Enum variant `{variant}` is ambiguous across enum types: {}.",
+                many.iter()
+                    .map(|type_decl| type_decl.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )),
+        }
     }
 
     fn expect_end(&self) -> Result<(), String> {

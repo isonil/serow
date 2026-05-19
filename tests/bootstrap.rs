@@ -1769,6 +1769,203 @@ pub fn heal(player: Player) -> Player
 }
 
 #[test]
+fn enum_variants_are_executable_sampled_and_lowered() {
+    let dir = unique_temp_dir("serow-enums");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("enums.serow");
+    fs::write(
+        &source,
+        r#"module test.enums
+
+type Room = Hall | Cave
+
+type Command = North | South | Take | Drink | Fight | Quit | Look | Unknown
+
+type State = { room: Room, command: Command }
+
+pub fn start_room() -> Room
+  version v1
+  intent "Return the starting room."
+  contract
+    ensures result == Hall
+  examples
+    start_room() == Hall
+  properties
+    forall flag: Bool:
+      start_room() == Hall or flag == flag
+  effects pure
+  impl
+    Hall
+
+pub fn is_hall(room: Room) -> Bool
+  version v1
+  intent "Return whether a room is the hall."
+  contract
+    ensures result == (room == Hall)
+  examples
+    is_hall(Hall) == true
+    is_hall(Cave) == false
+  properties
+    forall room: Room:
+      is_hall(room) == (room == Hall)
+  effects pure
+  impl
+    room == Hall
+
+pub fn state(command: Command) -> State
+  version v1
+  intent "Return a state that stores an enum command."
+  contract
+    ensures result.room == Hall
+    ensures result.command == command
+  examples
+    state(North).room == Hall
+    state(Unknown).command == Unknown
+  properties
+    forall command: Command:
+      state(command).command == command
+  effects pure
+  impl
+    State { room: Hall, command: command }
+"#,
+    )
+    .expect("write fixture");
+
+    let source_arg = source.to_string_lossy().to_string();
+    let (program, parse_diagnostics) = parse_paths(&[source_arg.clone()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(summary.ok(), "{:#?}", summary.diagnostics);
+    assert_eq!(summary.properties, 3);
+
+    let replay = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "replay",
+            "property",
+            "@test.enums.is_hall.v1#property:1#sample:2",
+            &source_arg,
+            "--json",
+        ])
+        .output()
+        .expect("run enum property replay");
+    assert!(replay.status.success(), "{replay:#?}");
+    let replay_stdout = String::from_utf8(replay.stdout).expect("stdout is utf8");
+    assert!(replay_stdout.contains("room=Cave"), "{replay_stdout}");
+
+    let ir = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["compile", "ir", &source_arg, "--json"])
+        .output()
+        .expect("run compile ir enums");
+    assert!(ir.status.success(), "{ir:#?}");
+    let ir_stdout = String::from_utf8_lossy(&ir.stdout);
+    assert!(ir_stdout.contains("\"kind\": \"enum\""), "{ir_stdout}");
+    assert!(
+        ir_stdout.contains("\"kind\": \"enum_variant\""),
+        "{ir_stdout}"
+    );
+    assert!(ir_stdout.contains("\"variant\": \"Hall\""), "{ir_stdout}");
+
+    let rust = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["compile", "rust", &source_arg])
+        .output()
+        .expect("run compile rust enums");
+    assert!(rust.status.success(), "{rust:#?}");
+    let generated_source = String::from_utf8(rust.stdout.clone()).expect("generated rust is utf8");
+    assert!(
+        generated_source.contains("pub enum SerowTestEnumsRoom"),
+        "{generated_source}"
+    );
+    assert!(generated_source.contains("Hall,"), "{generated_source}");
+    assert!(
+        generated_source.contains("SerowTestEnumsRoom::Hall"),
+        "{generated_source}"
+    );
+    let generated = dir.join("generated.rs");
+    fs::write(&generated, &rust.stdout).expect("write generated rust");
+    let generated_tests = dir.join("generated_tests");
+    let rustc_test_output = Command::new("rustc")
+        .arg("--test")
+        .arg(&generated)
+        .arg("-o")
+        .arg(&generated_tests)
+        .output()
+        .expect("compile generated rust tests");
+    assert!(
+        rustc_test_output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&rustc_test_output.stdout),
+        String::from_utf8_lossy(&rustc_test_output.stderr)
+    );
+    let run_tests_output = Command::new(&generated_tests)
+        .output()
+        .expect("run generated rust tests");
+    assert!(
+        run_tests_output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&run_tests_output.stdout),
+        String::from_utf8_lossy(&run_tests_output.stderr)
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn enum_variant_ambiguity_is_reported() {
+    let dir = unique_temp_dir("serow-enum-ambiguity");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("ambiguous.serow");
+    fs::write(
+        &source,
+        r#"module test.enums
+
+type Room = Hall | Cave
+
+type Place = Hall | Den
+
+type Command = Look | Quit
+
+fn Look() -> Command
+  effects pure
+  impl
+    Look
+
+fn bad_variable(Look: Command) -> Command
+  effects pure
+  impl
+    Look
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "AmbiguousEnumVariant"
+                && diagnostic.message.contains("Hall")),
+        "{:#?}",
+        summary.diagnostics
+    );
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "EnumVariantNameConflict"
+                && diagnostic.message.contains("Look")),
+        "{:#?}",
+        summary.diagnostics
+    );
+    assert!(
+        summary.diagnostics.iter().any(|diagnostic| diagnostic.code
+            == "EnumVariantVariableConflict"
+            && diagnostic.message.contains("Look")),
+        "{:#?}",
+        summary.diagnostics
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn recursive_record_property_samples_report_cycle_reason() {
     let dir = unique_temp_dir("serow-recursive-record-property-samples");
     fs::create_dir_all(&dir).expect("create temp dir");

@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::diagnostic::{Diagnostic, Severity};
-use crate::eval::{Evaluator, Value, called_functions, resolve_function};
+use crate::eval::{Evaluator, Token, Value, called_functions, resolve_function, tokenize};
 use crate::intrinsics::is_intrinsic_symbol;
 use crate::ledger::{exact_intent_key, intent_terms, query_intent};
 use crate::model::{Function, Program};
@@ -52,6 +52,7 @@ pub fn check_program(program: &Program, parse_diagnostics: Vec<Diagnostic>) -> C
     check_module_dependencies(program, &mut summary);
     check_type_declarations(program, &mut summary);
     check_duplicate_symbols(program, &mut summary);
+    check_enum_variant_ambiguity(program, &mut summary);
     check_ambiguous_unqualified_calls(program, &mut summary);
     check_duplicate_intents(program, &mut summary);
     for function in &program.functions {
@@ -113,7 +114,125 @@ fn check_type_declarations(program: &Program, summary: &mut CheckSummary) {
                 ));
             }
         }
+
+        let mut variants = HashSet::<String>::new();
+        for variant in &type_decl.variants {
+            if !variants.insert(variant.clone()) {
+                summary.diagnostics.push(Diagnostic::error(
+                    "DuplicateEnumVariant",
+                    format!(
+                        "Type `{}` declares duplicate enum variant `{variant}`.",
+                        type_decl.name
+                    ),
+                    Some(type_decl.target()),
+                ));
+            }
+        }
     }
+}
+
+fn check_enum_variant_ambiguity(program: &Program, summary: &mut CheckSummary) {
+    let mut variants = HashMap::<String, Vec<&crate::model::TypeDecl>>::new();
+    for type_decl in &program.types {
+        for variant in &type_decl.variants {
+            variants.entry(variant.clone()).or_default().push(type_decl);
+        }
+    }
+
+    for (variant, owners) in &variants {
+        if owners.len() > 1 {
+            summary.diagnostics.push(
+                Diagnostic::error(
+                    "AmbiguousEnumVariant",
+                    format!("Enum variant `{variant}` is declared by multiple enum types."),
+                    Some(owners[1].target()),
+                )
+                .with_data(
+                    "types",
+                    owners
+                        .iter()
+                        .map(|type_decl| type_decl.symbol())
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                )
+                .with_repair("Keep variant names globally unique in this bootstrap slice."),
+            );
+        }
+        for function in &program.functions {
+            if function.name == *variant {
+                summary.diagnostics.push(
+                    Diagnostic::error(
+                        "EnumVariantNameConflict",
+                        format!("Enum variant `{variant}` conflicts with function `{variant}`."),
+                        Some(function.target()),
+                    )
+                    .with_data("function", function.symbol())
+                    .with_data(
+                        "enum_types",
+                        owners
+                            .iter()
+                            .map(|type_decl| type_decl.symbol())
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                    )
+                    .with_repair("Rename the variant or the function."),
+                );
+            }
+        }
+    }
+
+    for function in &program.functions {
+        let variant_names = variants.keys().cloned().collect::<HashSet<_>>();
+        for param in &function.params {
+            if variant_names.contains(&param.name) {
+                summary.diagnostics.push(variant_variable_conflict(
+                    function,
+                    &param.name,
+                    "parameter",
+                ));
+            }
+        }
+        for property in property_blocks(&function.properties) {
+            for (name, _) in property.variables {
+                if variant_names.contains(&name) {
+                    summary.diagnostics.push(variant_variable_conflict(
+                        function,
+                        &name,
+                        "property variable",
+                    ));
+                }
+            }
+        }
+        for (context, expression) in function_expressions(function) {
+            let Ok(tokens) = tokenize(&expression) else {
+                continue;
+            };
+            for index in 0..tokens.len().saturating_sub(1) {
+                if tokens[index] == Token::Let
+                    && let Token::Ident(name) = &tokens[index + 1]
+                    && variant_names.contains(name)
+                {
+                    summary.diagnostics.push(
+                        variant_variable_conflict(function, name, "local variable")
+                            .with_data("context", context)
+                            .with_data("expression", &expression),
+                    );
+                }
+            }
+        }
+    }
+}
+
+fn variant_variable_conflict(function: &Function, name: &str, kind: &str) -> Diagnostic {
+    Diagnostic::error(
+        "EnumVariantVariableConflict",
+        format!("Enum variant `{name}` conflicts with a {kind} named `{name}`."),
+        Some(function.target()),
+    )
+    .with_data("function", function.symbol())
+    .with_data("name", name)
+    .with_data("variable_kind", kind)
+    .with_repair("Rename the variable or the enum variant.")
 }
 
 pub fn enforce_unattended_profile(program: &Program, summary: &mut CheckSummary) {

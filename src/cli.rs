@@ -2675,14 +2675,27 @@ fn type_decl_json(type_decl: &crate::model::TypeDecl) -> String {
         })
         .collect::<Vec<_>>()
         .join(", ");
+    let variants = type_decl
+        .variants
+        .iter()
+        .map(|variant| json_string(variant))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let kind = if type_decl.is_enum() {
+        "enum"
+    } else {
+        "record"
+    };
     format!(
-        "{{\"fields\": [{}], \"line\": {}, \"module\": {}, \"name\": {}, \"source_path\": {}, \"symbol\": {}}}",
+        "{{\"fields\": [{}], \"kind\": {}, \"line\": {}, \"module\": {}, \"name\": {}, \"source_path\": {}, \"symbol\": {}, \"variants\": [{}]}}",
         fields,
+        json_string(kind),
         type_decl.line,
         json_string(&type_decl.module),
         json_string(&type_decl.name),
         json_string(&type_decl.source_path),
-        json_string(&type_decl.symbol())
+        json_string(&type_decl.symbol()),
+        variants
     )
 }
 
@@ -2763,6 +2776,11 @@ fn ir_expr_json(expr: &IrExpr) -> String {
         IrExpr::Text(value) => format!("{{\"kind\": \"text\", \"value\": {}}}", json_string(value)),
         IrExpr::Unit => "{\"kind\": \"unit\"}".to_string(),
         IrExpr::Var(name) => format!("{{\"kind\": \"var\", \"name\": {}}}", json_string(name)),
+        IrExpr::EnumVariant { type_name, variant } => format!(
+            "{{\"kind\": \"enum_variant\", \"type\": {}, \"variant\": {}}}",
+            json_string(type_name),
+            json_string(variant)
+        ),
         IrExpr::Call {
             reference,
             target,
