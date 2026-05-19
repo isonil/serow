@@ -1003,6 +1003,68 @@ fn render_expr(
                 type_name: then_expr.type_name,
             })
         }
+        IrExpr::Match { expr, branches } => {
+            let matched = render_expr(
+                expr,
+                variables,
+                variable_types,
+                rust_names,
+                type_names,
+                types,
+                signatures,
+            )?;
+            let type_decl = enum_type(&matched.type_name, types)?;
+            let rust_type = rust_type(&matched.type_name, type_names)?;
+            let mut rendered_branches = Vec::new();
+            let mut branch_type = None::<String>;
+            for (variant, branch_expr) in branches {
+                if !type_decl
+                    .variants
+                    .iter()
+                    .any(|declared| declared == variant)
+                {
+                    return Err(format!(
+                        "Enum `{}` has no variant `{variant}`.",
+                        matched.type_name
+                    ));
+                }
+                let rendered_branch = render_expr(
+                    branch_expr,
+                    variables,
+                    variable_types,
+                    rust_names,
+                    type_names,
+                    types,
+                    signatures,
+                )?;
+                if let Some(expected) = &branch_type {
+                    if &rendered_branch.type_name != expected {
+                        return Err(format!(
+                            "Lowered match branches have mismatched types {} and {}.",
+                            expected, rendered_branch.type_name
+                        ));
+                    }
+                } else {
+                    branch_type = Some(rendered_branch.type_name.clone());
+                }
+                rendered_branches.push(format!(
+                    "{rust_type}::{} => {}",
+                    rust_variant_identifier(variant),
+                    strip_outer_parens(&rendered_branch.code)
+                ));
+            }
+            let Some(type_name) = branch_type else {
+                return Err("Lowered match expression has no branches.".to_string());
+            };
+            Ok(RenderedExpr {
+                code: format!(
+                    "match {} {{ {} }}",
+                    strip_outer_parens(&matched.code),
+                    rendered_branches.join(", ")
+                ),
+                type_name,
+            })
+        }
         IrExpr::Let { name, value, body } => {
             let value = render_expr(
                 value,
@@ -1453,6 +1515,12 @@ fn ir_expr_references_var(expr: &IrExpr, name: &str) -> bool {
                 || ir_expr_references_var(then_expr, name)
                 || ir_expr_references_var(else_expr, name)
         }
+        IrExpr::Match { expr, branches } => {
+            ir_expr_references_var(expr, name)
+                || branches
+                    .iter()
+                    .any(|(_, branch)| ir_expr_references_var(branch, name))
+        }
         IrExpr::Let {
             name: let_name,
             value,
@@ -1505,6 +1573,12 @@ fn ir_expr_assigns_to(expr: &IrExpr, name: &str) -> bool {
             ir_expr_assigns_to(condition, name)
                 || ir_expr_assigns_to(then_expr, name)
                 || ir_expr_assigns_to(else_expr, name)
+        }
+        IrExpr::Match { expr, branches } => {
+            ir_expr_assigns_to(expr, name)
+                || branches
+                    .iter()
+                    .any(|(_, branch)| ir_expr_assigns_to(branch, name))
         }
         IrExpr::Let {
             name: let_name,
@@ -1614,6 +1688,13 @@ fn record_type<'a>(type_name: &str, types: &'a [TypeDecl]) -> Result<&'a TypeDec
         .iter()
         .find(|type_decl| type_decl.name == type_name && type_decl.is_record())
         .ok_or_else(|| format!("Unknown record type `{type_name}`."))
+}
+
+fn enum_type<'a>(type_name: &str, types: &'a [TypeDecl]) -> Result<&'a TypeDecl, String> {
+    types
+        .iter()
+        .find(|type_decl| type_decl.name == type_name && type_decl.is_enum())
+        .ok_or_else(|| format!("match expression expected enum, got {type_name}."))
 }
 
 fn record_layout_cycle(type_name: &str, types: &[TypeDecl]) -> Option<Vec<String>> {

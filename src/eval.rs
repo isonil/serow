@@ -183,6 +183,7 @@ pub(crate) enum Token {
     If,
     Then,
     Else,
+    Match,
     Let,
     Set,
     While,
@@ -202,6 +203,7 @@ pub(crate) enum Token {
     LtEq,
     Gt,
     GtEq,
+    Arrow,
     Assign,
     Semicolon,
     LParen,
@@ -291,6 +293,7 @@ pub(crate) fn tokenize(expression: &str) -> Result<Vec<Token>, String> {
                 "if" => Token::If,
                 "then" => Token::Then,
                 "else" => Token::Else,
+                "match" => Token::Match,
                 "let" => Token::Let,
                 "set" => Token::Set,
                 "while" => Token::While,
@@ -306,6 +309,10 @@ pub(crate) fn tokenize(expression: &str) -> Result<Vec<Token>, String> {
         }
         let token = match char {
             '+' => Token::Plus,
+            '-' if chars.get(index + 1) == Some(&'>') => {
+                index += 1;
+                Token::Arrow
+            }
             '-' => Token::Minus,
             '*' => Token::Star,
             '%' => Token::Percent,
@@ -346,6 +353,50 @@ pub(crate) fn tokenize(expression: &str) -> Result<Vec<Token>, String> {
         index += 1;
     }
     Ok(tokens)
+}
+
+pub(crate) fn find_match_body_start(tokens: &[Token], start: usize) -> Result<usize, String> {
+    let mut paren_depth = 0usize;
+    for (offset, token) in tokens[start..].iter().enumerate() {
+        let index = start + offset;
+        match token {
+            Token::LParen => paren_depth += 1,
+            Token::RParen => {
+                paren_depth = paren_depth
+                    .checked_sub(1)
+                    .ok_or_else(|| "Unexpected `)` before match body.".to_string())?;
+            }
+            Token::LBrace if paren_depth == 0 => return Ok(index),
+            _ => {}
+        }
+    }
+    Err("Expected `{` after match expression.".to_string())
+}
+
+pub(crate) fn find_match_branch_end(tokens: &[Token], start: usize) -> Result<usize, String> {
+    let mut paren_depth = 0usize;
+    let mut brace_depth = 0usize;
+    for (offset, token) in tokens[start..].iter().enumerate() {
+        let index = start + offset;
+        match token {
+            Token::LParen => paren_depth += 1,
+            Token::RParen => {
+                paren_depth = paren_depth
+                    .checked_sub(1)
+                    .ok_or_else(|| "Unexpected `)` in match branch.".to_string())?;
+            }
+            Token::LBrace => brace_depth += 1,
+            Token::RBrace if brace_depth == 0 && paren_depth == 0 => return Ok(index),
+            Token::RBrace => {
+                brace_depth = brace_depth
+                    .checked_sub(1)
+                    .ok_or_else(|| "Unexpected `}` in match branch.".to_string())?;
+            }
+            Token::Comma if brace_depth == 0 && paren_depth == 0 => return Ok(index),
+            _ => {}
+        }
+    }
+    Err("Expected `,` or `}` after match branch expression.".to_string())
 }
 
 pub fn called_functions(expression: &str) -> Result<Vec<CallReference>, String> {
@@ -604,6 +655,68 @@ impl<'a> ExprParser<'a> {
         self.parse_or()
     }
 
+    fn parse_match(&mut self) -> Result<Value, String> {
+        let body_start = find_match_body_start(&self.tokens, self.index)?;
+        let matched_tokens = self.tokens[self.index..body_start].to_vec();
+        let mut matched_parser = ExprParser {
+            tokens: matched_tokens,
+            index: 0,
+            variables: self.variables.clone(),
+            assignable: self.assignable.clone(),
+            evaluator: self.evaluator,
+        };
+        let matched = matched_parser.parse_expression()?;
+        matched_parser.expect_end()?;
+        self.variables = matched_parser.variables;
+        self.index = body_start;
+        self.expect(&Token::LBrace)?;
+
+        let (type_name, selected_variant) = match matched {
+            Value::Enum { type_name, variant } => (type_name, variant),
+            value => return Err(format!("match expression must be an enum, got {value}.")),
+        };
+
+        let mut selected = None;
+        let mut branch_count = 0usize;
+        if self.consume(&Token::RBrace) {
+            return Err(format!("match on enum `{type_name}` has no branches."));
+        }
+        loop {
+            branch_count += 1;
+            let branch_variant = self.expect_ident()?;
+            self.expect(&Token::Arrow)?;
+            let branch_start = self.index;
+            let branch_end = find_match_branch_end(&self.tokens, branch_start)?;
+            if branch_variant == selected_variant {
+                let branch_tokens = self.tokens[branch_start..branch_end].to_vec();
+                let mut branch_parser = ExprParser {
+                    tokens: branch_tokens,
+                    index: 0,
+                    variables: self.variables.clone(),
+                    assignable: self.assignable.clone(),
+                    evaluator: self.evaluator,
+                };
+                let value = branch_parser.parse_expression()?;
+                branch_parser.expect_end()?;
+                self.variables = branch_parser.variables;
+                selected = Some(value);
+            }
+            self.index = branch_end;
+            if self.consume(&Token::RBrace) {
+                break;
+            }
+            self.expect(&Token::Comma)?;
+            if self.consume(&Token::RBrace) {
+                break;
+            }
+        }
+        selected.ok_or_else(|| {
+            format!(
+                "match on enum `{type_name}` did not cover variant `{selected_variant}` across {branch_count} branches."
+            )
+        })
+    }
+
     fn parse_or(&mut self) -> Result<Value, String> {
         let mut left = self.parse_and()?;
         while self.consume(&Token::Or) {
@@ -746,6 +859,10 @@ impl<'a> ExprParser<'a> {
             Token::False => {
                 self.index += 1;
                 Ok(Value::Bool(false))
+            }
+            Token::Match => {
+                self.index += 1;
+                self.parse_match()
             }
             Token::Ident(name) => {
                 self.index += 1;

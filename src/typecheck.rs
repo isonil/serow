@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::eval::{Token, resolve_function, tokenize};
+use crate::eval::{Token, find_match_body_start, resolve_function, tokenize};
 use crate::model::{Function, TypeDecl};
 
 pub(crate) fn infer_expression_type(
@@ -118,6 +118,79 @@ impl<'a> TypeParser<'a> {
             return Ok(true_type);
         }
         self.parse_or()
+    }
+
+    fn parse_match(&mut self) -> Result<String, String> {
+        let body_start = find_match_body_start(&self.tokens, self.index)?;
+        let matched_tokens = self.tokens[self.index..body_start].to_vec();
+        let mut matched_parser = TypeParser {
+            tokens: matched_tokens,
+            index: 0,
+            variables: self.variables.clone(),
+            assignable: self.assignable.clone(),
+            functions: self.functions,
+            types: self.types,
+        };
+        let matched_type = matched_parser.parse_expression()?;
+        matched_parser.expect_end()?;
+        self.index = body_start;
+        self.expect(&Token::LBrace)?;
+
+        let type_decl = self.enum_type(&matched_type)?.clone();
+        let mut seen = Vec::<String>::new();
+        let mut branch_type = None::<String>;
+        if self.consume(&Token::RBrace) {
+            return Err(format!("match on enum `{matched_type}` has no branches."));
+        }
+        loop {
+            let variant = self.expect_ident()?;
+            if seen.iter().any(|seen| seen == &variant) {
+                return Err(format!(
+                    "match on enum `{matched_type}` repeats variant `{variant}`."
+                ));
+            }
+            if !type_decl
+                .variants
+                .iter()
+                .any(|declared| declared == &variant)
+            {
+                return Err(format!(
+                    "match on enum `{matched_type}` has unknown variant `{variant}`."
+                ));
+            }
+            self.expect(&Token::Arrow)?;
+            let actual = self.parse_expression()?;
+            if let Some(expected) = &branch_type {
+                require_type(
+                    &actual,
+                    expected,
+                    &format!("match branch `{variant}` result"),
+                )?;
+            } else {
+                branch_type = Some(actual);
+            }
+            seen.push(variant);
+            if self.consume(&Token::RBrace) {
+                break;
+            }
+            self.expect(&Token::Comma)?;
+            if self.consume(&Token::RBrace) {
+                break;
+            }
+        }
+        let missing = type_decl
+            .variants
+            .iter()
+            .filter(|variant| !seen.iter().any(|seen| seen == *variant))
+            .cloned()
+            .collect::<Vec<_>>();
+        if !missing.is_empty() {
+            return Err(format!(
+                "match on enum `{matched_type}` is missing variants: {}.",
+                missing.join(", ")
+            ));
+        }
+        branch_type.ok_or_else(|| format!("match on enum `{matched_type}` has no branches."))
     }
 
     fn parse_or(&mut self) -> Result<String, String> {
@@ -281,6 +354,10 @@ impl<'a> TypeParser<'a> {
             Token::True | Token::False => {
                 self.index += 1;
                 Ok("Bool".to_string())
+            }
+            Token::Match => {
+                self.index += 1;
+                self.parse_match()
             }
             Token::Ident(name) => {
                 self.index += 1;
@@ -455,6 +532,13 @@ impl<'a> TypeParser<'a> {
             .iter()
             .find(|type_decl| type_decl.name == type_name && type_decl.is_record())
             .ok_or_else(|| format!("Unknown record type `{type_name}`."))
+    }
+
+    fn enum_type(&self, type_name: &str) -> Result<&TypeDecl, String> {
+        self.types
+            .iter()
+            .find(|type_decl| type_decl.name == type_name && type_decl.is_enum())
+            .ok_or_else(|| format!("match expression expected enum, got {type_name}."))
     }
 
     fn resolve_enum_variant(&self, variant: &str) -> Result<Option<String>, String> {

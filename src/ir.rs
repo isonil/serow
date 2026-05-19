@@ -1,6 +1,6 @@
 use crate::checker::{CheckSummary, check_program};
 use crate::diagnostic::{Diagnostic, has_errors};
-use crate::eval::{Token, resolve_function, tokenize};
+use crate::eval::{Token, find_match_body_start, resolve_function, tokenize};
 use crate::model::{Function, Param, Program, TypeDecl};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -78,6 +78,10 @@ pub enum IrExpr {
         condition: Box<IrExpr>,
         then_expr: Box<IrExpr>,
         else_expr: Box<IrExpr>,
+    },
+    Match {
+        expr: Box<IrExpr>,
+        branches: Vec<(String, IrExpr)>,
     },
     Let {
         name: String,
@@ -570,6 +574,45 @@ impl<'a> IrParser<'a> {
         self.parse_or()
     }
 
+    fn parse_match(&mut self) -> Result<IrExpr, String> {
+        let body_start = find_match_body_start(&self.tokens, self.index)?;
+        let matched_tokens = self.tokens[self.index..body_start].to_vec();
+        let mut matched_parser = IrParser {
+            tokens: matched_tokens,
+            index: 0,
+            variables: self.variables.clone(),
+            assignable: self.assignable.clone(),
+            functions: self.functions,
+            types: self.types,
+        };
+        let expr = matched_parser.parse_expression()?;
+        matched_parser.expect_end()?;
+        self.index = body_start;
+        self.expect(&Token::LBrace)?;
+
+        let mut branches = Vec::new();
+        if self.consume(&Token::RBrace) {
+            return Err("match expression has no branches.".to_string());
+        }
+        loop {
+            let variant = self.expect_ident()?;
+            self.expect(&Token::Arrow)?;
+            let branch_expr = self.parse_expression()?;
+            branches.push((variant, branch_expr));
+            if self.consume(&Token::RBrace) {
+                break;
+            }
+            self.expect(&Token::Comma)?;
+            if self.consume(&Token::RBrace) {
+                break;
+            }
+        }
+        Ok(IrExpr::Match {
+            expr: Box::new(expr),
+            branches,
+        })
+    }
+
     fn parse_or(&mut self) -> Result<IrExpr, String> {
         let mut left = self.parse_and()?;
         while self.consume(&Token::Or) {
@@ -706,6 +749,10 @@ impl<'a> IrParser<'a> {
             Token::False => {
                 self.index += 1;
                 Ok(IrExpr::Bool(false))
+            }
+            Token::Match => {
+                self.index += 1;
+                self.parse_match()
             }
             Token::Ident(name) => {
                 self.index += 1;

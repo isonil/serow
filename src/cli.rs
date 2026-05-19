@@ -2834,6 +2834,17 @@ fn ir_expr_json(expr: &IrExpr) -> String {
             ir_expr_json(else_expr),
             ir_expr_json(then_expr)
         ),
+        IrExpr::Match { expr, branches } => format!(
+            concat!(
+                "{{",
+                "\"branches\": {}, ",
+                "\"expr\": {}, ",
+                "\"kind\": \"match\"",
+                "}}"
+            ),
+            ir_match_branches_json(branches),
+            ir_expr_json(expr)
+        ),
         IrExpr::Let { name, value, body } => format!(
             concat!(
                 "{{",
@@ -2885,6 +2896,20 @@ fn ir_expr_json(expr: &IrExpr) -> String {
 
 fn ir_exprs_json(exprs: &[IrExpr]) -> String {
     let rows = exprs.iter().map(ir_expr_json).collect::<Vec<_>>();
+    format!("[{}]", rows.join(", "))
+}
+
+fn ir_match_branches_json(branches: &[(String, IrExpr)]) -> String {
+    let rows = branches
+        .iter()
+        .map(|(variant, expr)| {
+            format!(
+                "{{\"expr\": {}, \"variant\": {}}}",
+                ir_expr_json(expr),
+                json_string(variant)
+            )
+        })
+        .collect::<Vec<_>>();
     format!("[{}]", rows.join(", "))
 }
 

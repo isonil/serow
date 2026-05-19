@@ -664,3 +664,12 @@
 - Added explicit diagnostics for invalid binary entrypoints: `RustBinaryMissingEntrypoint`, `RustBinaryEntrypointArity`, `RustBinaryUnsupportedEntrypointReturn`, `RustBinaryAmbiguousEntrypoint`, and `RustBinaryEntrypointNotGenerated`.
 - Updated generated crate metadata with optional binary entrypoint rows, refreshed CLI/agent command usage, README/backend docs, `serow.project`, and Progress notes.
 - Verified with `bin/serow query intent "runnable Rust binary entrypoint compile rust emit binary crate main function"`, `bin/serow query symbol "main"`, `cargo fmt --check`, `cargo test compile_rust_emit_bin -- --nocapture`, `cargo test compile_rust -- --nocapture`, `bin/serow compile rust examples/math.serow --out-dir /private/tmp/serow-no-main-bin --emit-bin --json`, `cargo clippy -- -D warnings`, `cargo test`, `bin/serow check`, and `bin/serow certify`.
+
+## 2026-05-20
+
+- Added the first enum branching expression: `match value { Variant -> expr, Other -> expr }`.
+- The checker now requires the matched expression to be an enum, requires every enum variant to be covered, rejects duplicate and unknown branch variants, and requires all branch expressions to return the same type.
+- The evaluator executes only the selected branch after evaluating the matched enum expression.
+- Extended `serow.ir.v0` with a `match` expression node and updated JSON output.
+- Updated the Rust backend to emit exhaustive Rust `match` expressions over generated enum types.
+- Added regression coverage for successful exhaustive matching, missing cases, duplicate cases, unknown variants, non-enum matched expressions, branch type mismatch, IR JSON, generated Rust source, and compiled generated Rust tests.

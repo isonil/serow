@@ -1908,6 +1908,181 @@ pub fn state(command: Command) -> State
 }
 
 #[test]
+fn enum_match_is_executable_lowered_and_emitted_to_rust() {
+    let dir = unique_temp_dir("serow-enum-match");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("match.serow");
+    fs::write(
+        &source,
+        r#"module test.matching
+
+type Direction = North | South
+
+pub fn delta(direction: Direction) -> Int
+  version v1
+  intent "Return the signed step for a direction."
+  contract
+    ensures result == match direction { North -> 1, South -> -1 }
+  examples
+    delta(North) == 1
+    delta(South) == -1
+  properties
+    forall direction: Direction:
+      delta(direction) == match direction { North -> 1, South -> -1 }
+  effects pure
+  impl
+    match direction { North -> 1, South -> -1 }
+"#,
+    )
+    .expect("write fixture");
+
+    let source_arg = source.to_string_lossy().to_string();
+    let (program, parse_diagnostics) = parse_paths(&[source_arg.clone()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(summary.ok(), "{:#?}", summary.diagnostics);
+
+    let ir = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["compile", "ir", &source_arg, "--json"])
+        .output()
+        .expect("run compile ir match");
+    assert!(ir.status.success(), "{ir:#?}");
+    let ir_stdout = String::from_utf8_lossy(&ir.stdout);
+    assert!(ir_stdout.contains("\"kind\": \"match\""), "{ir_stdout}");
+    assert!(ir_stdout.contains("\"variant\": \"North\""), "{ir_stdout}");
+
+    let rust = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["compile", "rust", &source_arg])
+        .output()
+        .expect("run compile rust match");
+    assert!(rust.status.success(), "{rust:#?}");
+    let generated_source = String::from_utf8(rust.stdout.clone()).expect("generated rust is utf8");
+    assert!(
+        generated_source.contains("match serow_direction.clone()"),
+        "{generated_source}"
+    );
+    assert!(
+        generated_source.contains("SerowTestMatchingDirection::North => 1"),
+        "{generated_source}"
+    );
+    assert!(
+        generated_source.contains("SerowTestMatchingDirection::South => -1"),
+        "{generated_source}"
+    );
+
+    let generated = dir.join("generated.rs");
+    fs::write(&generated, &rust.stdout).expect("write generated rust");
+    let generated_tests = dir.join("generated_tests");
+    let rustc_test_output = Command::new("rustc")
+        .arg("--test")
+        .arg(&generated)
+        .arg("-o")
+        .arg(&generated_tests)
+        .output()
+        .expect("compile generated rust tests");
+    assert!(
+        rustc_test_output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&rustc_test_output.stdout),
+        String::from_utf8_lossy(&rustc_test_output.stderr)
+    );
+    let run_tests_output = Command::new(&generated_tests)
+        .output()
+        .expect("run generated rust tests");
+    assert!(
+        run_tests_output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&run_tests_output.stdout),
+        String::from_utf8_lossy(&run_tests_output.stderr)
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn enum_match_type_errors_are_reported() {
+    let dir = unique_temp_dir("serow-enum-match-errors");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("bad_match.serow");
+    fs::write(
+        &source,
+        r#"module test.matching
+
+type Color = Red | Blue
+
+fn missing(color: Color) -> Int
+  effects pure
+  impl
+    match color { Red -> 1 }
+
+fn duplicate(color: Color) -> Int
+  effects pure
+  impl
+    match color { Red -> 1, Red -> 2, Blue -> 3 }
+
+fn unknown(color: Color) -> Int
+  effects pure
+  impl
+    match color { Red -> 1, Green -> 2, Blue -> 3 }
+
+fn wrong_type(x: Int) -> Int
+  effects pure
+  impl
+    match x { Red -> 1, Blue -> 2 }
+
+fn mismatch(color: Color) -> Int
+  effects pure
+  impl
+    match color { Red -> 1, Blue -> true }
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    let messages = summary
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "TypeError")
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>();
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains("match on enum `Color` is missing variants: Blue")),
+        "{:#?}",
+        summary.diagnostics
+    );
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains("match on enum `Color` repeats variant `Red`")),
+        "{:#?}",
+        summary.diagnostics
+    );
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains("match on enum `Color` has unknown variant `Green`")),
+        "{:#?}",
+        summary.diagnostics
+    );
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains("match expression expected enum, got Int")),
+        "{:#?}",
+        summary.diagnostics
+    );
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains("match branch `Blue` result expected Int, got Bool")),
+        "{:#?}",
+        summary.diagnostics
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn enum_variant_ambiguity_is_reported() {
     let dir = unique_temp_dir("serow-enum-ambiguity");
     fs::create_dir_all(&dir).expect("create temp dir");
