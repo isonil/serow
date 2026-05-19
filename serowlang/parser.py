@@ -12,6 +12,9 @@ FUNCTION_RE = re.compile(
 )
 MODULE_RE = re.compile(r"^module\s+(?P<name>[A-Za-z_][A-Za-z0-9_.]*)\s*$")
 TYPE_RE = re.compile(
+    r"^type\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?P<body>.+)\s*$"
+)
+RECORD_TYPE_RE = re.compile(
     r"^type\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*\{(?P<fields>.*)\}\s*$"
 )
 INTENT_RE = re.compile(r'^intent\s+"(?P<intent>.*)"\s*$')
@@ -132,8 +135,11 @@ def _find_function_end(lines: List[str], start: int) -> int:
 
 def _parse_type_decl(path: str, module: str, line: int, header: re.Match):
     diagnostics: List[Diagnostic] = []
+    record_match = RECORD_TYPE_RE.match(header.group(0))
+    if not record_match:
+        return _parse_enum_decl(path, module, line, header)
     fields = []
-    fields_text = header.group("fields").strip()
+    fields_text = record_match.group("fields").strip()
     if fields_text:
         for raw_field in fields_text.split(","):
             if ":" not in raw_field:
@@ -166,6 +172,37 @@ def _parse_type_decl(path: str, module: str, line: int, header: re.Match):
             source_path=path,
             line=line,
             fields=fields,
+            variants=[],
+        ),
+        diagnostics,
+    )
+
+
+def _parse_enum_decl(path: str, module: str, line: int, header: re.Match):
+    diagnostics: List[Diagnostic] = []
+    variants = []
+    for raw_variant in header.group("body").split("|"):
+        variant = raw_variant.strip()
+        if not re.match(r"^[A-Z][A-Za-z0-9_]*$", variant):
+            diagnostics.append(
+                Diagnostic(
+                    severity="error",
+                    code="ParseError",
+                    message=f"Invalid enum variant name `{variant}`.",
+                    target=f"{path}:{line}",
+                    repairs=["Use `type Name = Variant | Other`."],
+                )
+            )
+            continue
+        variants.append(variant)
+    return (
+        TypeDecl(
+            name=header.group("name"),
+            module=module,
+            source_path=path,
+            line=line,
+            fields=[],
+            variants=variants,
         ),
         diagnostics,
     )

@@ -25,9 +25,9 @@ fn sample_program_checks() {
             .collect::<Vec<_>>()
     );
     assert_eq!(summary.functions, 18);
-    assert_eq!(summary.examples, 42);
+    assert_eq!(summary.examples, 44);
     assert_eq!(summary.properties, 18);
-    assert_eq!(summary.contracts, 47);
+    assert_eq!(summary.contracts, 105);
 }
 
 #[test]
@@ -2794,11 +2794,39 @@ pub fn id(x: Int) -> Int
         "{stdout}"
     );
 
-    let sample = Command::new(env!("CARGO_BIN_EXE_serow"))
-        .args(["certify", "--profile", "unattended", "--json"])
+    let explicit_source = dir.join("explicit_version.serow");
+    fs::write(
+        &explicit_source,
+        r#"module test.explicit
+
+pub fn id(x: Int) -> Int
+  intent "Return x with an explicit version."
+  version v1
+  contract
+    ensures result == x
+  examples
+    id(1) == 1
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write explicit version fixture");
+
+    let explicit = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "certify",
+            explicit_source.to_str().expect("utf8 path"),
+            "--profile",
+            "unattended",
+            "--json",
+        ])
         .output()
-        .expect("run unattended certify on examples");
-    assert!(sample.status.success(), "{sample:#?}");
+        .expect("run unattended certify on explicit version fixture");
+    assert!(explicit.status.success(), "{explicit:#?}");
 
     let _ = fs::remove_dir_all(dir);
 }
@@ -9900,8 +9928,16 @@ fn compile_rust_rpg_json_emits_seeded_helpers_and_terminal_loop() {
         stdout.contains("pub struct SerowCoreRpgRpgState"),
         "{stdout}"
     );
+    assert!(stdout.contains("pub enum SerowCoreRpgRoom"), "{stdout}");
+    assert!(stdout.contains("pub enum SerowCoreRpgCommand"), "{stdout}");
     assert!(
-        stdout.contains("pub fn serow_core_rpg_command_kind_v1(serow_command: String) -> i64"),
+        stdout.contains("pub serow_room: SerowCoreRpgRoom"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains(
+            "pub fn serow_core_rpg_parse_command_v1(serow_command: String) -> SerowCoreRpgCommand"
+        ),
         "{stdout}"
     );
     assert!(
@@ -9913,7 +9949,7 @@ fn compile_rust_rpg_json_emits_seeded_helpers_and_terminal_loop() {
         "{stdout}"
     );
     assert!(stdout.contains("\"generated_functions\": 9"), "{stdout}");
-    assert!(stdout.contains("\"generated_tests\": 63"), "{stdout}");
+    assert!(stdout.contains("\"generated_tests\": 65"), "{stdout}");
     assert!(
         stdout.contains("serow_test_core_rpg_next_random_v1_example_1"),
         "{stdout}"
@@ -9955,7 +9991,7 @@ fn compile_rust_rpg_emit_bin_runs_generated_crate_tests_and_scripted_win() {
         "{manifest}"
     );
     assert!(manifest.contains("generated_functions = 9"), "{manifest}");
-    assert!(manifest.contains("generated_tests = 63"), "{manifest}");
+    assert!(manifest.contains("generated_tests = 65"), "{manifest}");
 
     let cargo_test_output = Command::new("cargo")
         .args(["test", "--manifest-path"])

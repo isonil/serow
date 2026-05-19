@@ -1,9 +1,9 @@
 import ast as pyast
 import re
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Optional
 
-from .model import Function, Param
+from .model import Function, Param, TypeDecl
 
 
 class EvaluationError(Exception):
@@ -17,8 +17,9 @@ class CallResult:
 
 
 class Evaluator:
-    def __init__(self, functions: List[Function]):
+    def __init__(self, functions: List[Function], types: Optional[List[TypeDecl]] = None):
         self.functions = list(functions)
+        self.enum_variants = _enum_variants(types or [])
         self.call_depth = 0
 
     def call(self, name: str, args: List[Any]) -> CallResult:
@@ -60,7 +61,7 @@ class Evaluator:
             parsed = pyast.parse(translated, mode="eval")
         except SyntaxError as exc:
             raise EvaluationError(f"Invalid expression `{expression}`: {exc.msg}") from exc
-        return SafeExpressionEvaluator(variables, self._call_function).visit(parsed.body)
+        return SafeExpressionEvaluator(variables, self._call_function, self.enum_variants).visit(parsed.body)
 
     def _call_function(self, name: str, args: List[Any]) -> Any:
         return self.call(_decode_call_name(name), args).value
@@ -168,9 +169,15 @@ def resolve_function(reference_text: str, functions: List[Function]) -> Function
 
 
 class SafeExpressionEvaluator(pyast.NodeVisitor):
-    def __init__(self, variables: Dict[str, Any], call_function: Callable[[str, List[Any]], Any]):
+    def __init__(
+        self,
+        variables: Dict[str, Any],
+        call_function: Callable[[str, List[Any]], Any],
+        enum_variants: Dict[str, Any],
+    ):
         self.variables = variables
         self.call_function = call_function
+        self.enum_variants = enum_variants
 
     def visit_Constant(self, node: pyast.Constant) -> Any:
         if node.value is None or isinstance(node.value, (int, bool, str)):
@@ -180,6 +187,8 @@ class SafeExpressionEvaluator(pyast.NodeVisitor):
     def visit_Name(self, node: pyast.Name) -> Any:
         if node.id in self.variables:
             return self.variables[node.id]
+        if node.id in self.enum_variants:
+            return self.enum_variants[node.id]
         raise EvaluationError(f"Unknown variable `{node.id}`.")
 
     def visit_UnaryOp(self, node: pyast.UnaryOp) -> Any:
@@ -294,6 +303,14 @@ def _record_value(type_name: str, fields: Dict[str, Any]) -> Dict[str, Any]:
     value = {"__type": type_name}
     value.update(fields)
     return value
+
+
+def _enum_variants(types: List[TypeDecl]) -> Dict[str, Any]:
+    variants: Dict[str, Any] = {}
+    for type_decl in types:
+        for variant in type_decl.variants:
+            variants[variant] = {"__enum": type_decl.name, "variant": variant}
+    return variants
 
 
 def _record_update(base: Any, fields: Dict[str, Any]) -> Dict[str, Any]:

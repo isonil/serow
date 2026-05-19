@@ -27,6 +27,7 @@ class TypeDecl:
     source_path: str
     line: int
     fields: List[RecordField]
+    variants: List[str] = field(default_factory=list)
 
 
 @dataclass

@@ -47,7 +47,7 @@ class CheckSummary:
 
 def check_program(program: Program, parse_diagnostics: List[Diagnostic]) -> CheckSummary:
     summary = CheckSummary(functions=len(program.functions), diagnostics=list(parse_diagnostics))
-    evaluator = Evaluator(program.functions)
+    evaluator = Evaluator(program.functions, program.types)
     _check_duplicate_symbols(program, summary)
     _check_ambiguous_unqualified_calls(program, summary)
     _check_duplicate_intents(program, summary)

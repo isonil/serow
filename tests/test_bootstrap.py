@@ -13,7 +13,7 @@ class BootstrapTests(unittest.TestCase):
         summary = check_program(program, parse_diagnostics)
         self.assertTrue(summary.ok, [diagnostic.to_dict() for diagnostic in summary.diagnostics])
         self.assertEqual(summary.functions, 18)
-        self.assertEqual(summary.examples, 42)
+        self.assertEqual(summary.examples, 44)
         self.assertEqual(summary.properties, 18)
 
     def test_failed_example_is_reported(self):

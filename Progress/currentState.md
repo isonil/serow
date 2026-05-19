@@ -186,6 +186,7 @@ Selection policy for generic implementation prompts:
 - Vacuous, shallow, and non-executable sampled-property diagnostics include structured repair actions pointing at indexed `patch remove-property` commands for the low-signal item.
 - `MissingRequiredSection` diagnostics include conservative structured repair actions for absent non-evidence sections: `patch set-effects ... pure` and `patch set-impl ... HOLE(Type)`.
 - The Python reference bootstrap diagnostic model can serialize `repair_actions`, and mirrors the safe `MissingRequiredSection` `set-effects`/`set-impl` actions.
+- The Python reference bootstrap parses nullary enum declarations and evaluates bare enum variants enough to keep the current sample corpus executable.
 - The Python reference bootstrap also mirrors Rust's indexed evidence-removal repair actions for duplicate examples/contracts/properties, duplicate migrations, shallow executable examples, and low-signal vacuous, shallow, or non-executable sampled properties.
 - The Python reference bootstrap mirrors Rust's replay repair actions for sampled property failures and evaluation errors.
 - The Python reference bootstrap mirrors Rust's `patch set-effects` repair actions for effect capability under-declaration and unused wrapper capability diagnostics.
@@ -215,7 +216,7 @@ Selection policy for generic implementation prompts:
 - Empty module declarations are preserved in the parsed program so structured patches can target modules before functions exist.
 - `patch add-function` and `patch set-intent` reject exact normalized duplicate public intents before writing, returning a `PossibleDuplicate` diagnostic with a `query intent` repair action.
 - Sample program in `examples/math.serow`.
-- Deterministic terminal RPG demo in `examples/rpg.serow`, including seed-threaded pure randomness helpers, command parsing, room navigation, HP/gold/potion state, win/loss/end states, and a `pub fn main() -> Unit` entrypoint for the Rust binary backend.
+- Deterministic terminal RPG demo in `examples/rpg.serow`, including seed-threaded pure randomness helpers, enum-backed room and command state, HP/gold/potion state, win/loss/end states, and a `pub fn main() -> Unit` entrypoint for the Rust binary backend.
 - Rust unit/integration tests in `tests/bootstrap.rs`.
 - Earlier Python bootstrap remains in `serowlang/` as reference code.
 - Project license: Apache-2.0.
