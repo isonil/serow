@@ -18,6 +18,7 @@ RECORD_TYPE_RE = re.compile(
     r"^type\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*\{(?P<fields>.*)\}\s*$"
 )
 INTENT_RE = re.compile(r'^intent\s+"(?P<intent>.*)"\s*$')
+IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 BLOCK_SECTIONS = {"contract", "examples", "properties", "migration", "impl"}
@@ -154,13 +155,24 @@ def _parse_type_decl(path: str, module: str, line: int, header: re.Match):
                 )
                 continue
             name, type_name = [piece.strip() for piece in raw_field.split(":", 1)]
-            if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", name):
+            if not IDENT_RE.match(name):
                 diagnostics.append(
                     Diagnostic(
                         severity="error",
                         code="ParseError",
                         message=f"Invalid record field name `{name}`.",
                         target=f"{path}:{line}",
+                    )
+                )
+                continue
+            if not IDENT_RE.match(type_name):
+                diagnostics.append(
+                    Diagnostic(
+                        severity="error",
+                        code="ParseError",
+                        message=f"Invalid record field type `{type_name}`.",
+                        target=f"{path}:{line}",
+                        repairs=["Use `field: Type`."],
                     )
                 )
                 continue
@@ -220,6 +232,16 @@ def _parse_function(path: str, module: str, line: int, header: re.Match, block: 
         line=line,
     )
     diagnostics: List[Diagnostic] = list(param_diagnostics)
+    if not IDENT_RE.match(function.return_type):
+        diagnostics.append(
+            Diagnostic(
+                severity="error",
+                code="ParseError",
+                message=f"Invalid return type `{function.return_type}`.",
+                target=f"{path}:{line}",
+                repairs=["Use `fn name(args) -> Type`."],
+            )
+        )
     current_section = None
     seen_sections = set()
 
@@ -370,13 +392,24 @@ def _parse_params(text: str, path: str, line: int) -> Tuple[List[Param], List[Di
             )
             continue
         name, type_name = [piece.strip() for piece in part.split(":", 1)]
-        if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", name):
+        if not IDENT_RE.match(name):
             diagnostics.append(
                 Diagnostic(
                     severity="error",
                     code="ParseError",
                     message=f"Invalid parameter name `{name}`.",
                     target=f"{path}:{line}",
+                )
+            )
+            continue
+        if not IDENT_RE.match(type_name):
+            diagnostics.append(
+                Diagnostic(
+                    severity="error",
+                    code="ParseError",
+                    message=f"Invalid parameter type `{type_name}`.",
+                    target=f"{path}:{line}",
+                    repairs=["Use `name: Type`."],
                 )
             )
             continue

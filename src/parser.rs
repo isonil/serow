@@ -306,9 +306,18 @@ fn parse_type_decl(
                     Some(format!("{path}:{line}")),
                 )));
             }
+            let type_name = type_name.trim();
+            if !is_valid_type_name(type_name) {
+                return Some(Err(Diagnostic::error(
+                    "ParseError",
+                    format!("Invalid record field type `{type_name}`."),
+                    Some(format!("{path}:{line}")),
+                )
+                .with_repair("Use `field: Type`.")));
+            }
             fields.push(RecordField {
                 name: field_name.to_string(),
-                type_name: type_name.trim().to_string(),
+                type_name: type_name.to_string(),
             });
         }
     }
@@ -412,6 +421,16 @@ fn parse_function(
         effects: Vec::new(),
         implementation: None,
     };
+    if !is_valid_type_name(&function.return_type) {
+        diagnostics.push(
+            Diagnostic::error(
+                "ParseError",
+                format!("Invalid return type `{}`.", function.return_type),
+                Some(format!("{path}:{line}")),
+            )
+            .with_repair("Use `fn name(args) -> Type`."),
+        );
+    }
     let mut seen_sections: Vec<String> = Vec::new();
     let mut current_section: Option<String> = None;
 
@@ -621,6 +640,18 @@ fn parse_params(text: &str, path: &str, line: usize) -> (Vec<Param>, Vec<Diagnos
             ));
             continue;
         }
+        let type_name = type_name.trim();
+        if !is_valid_type_name(type_name) {
+            diagnostics.push(
+                Diagnostic::error(
+                    "ParseError",
+                    format!("Invalid parameter type `{type_name}`."),
+                    Some(format!("{path}:{line}")),
+                )
+                .with_repair("Use `name: Type`."),
+            );
+            continue;
+        }
         if params.iter().any(|param: &Param| param.name == name) {
             diagnostics.push(
                 Diagnostic::error(
@@ -634,7 +665,7 @@ fn parse_params(text: &str, path: &str, line: usize) -> (Vec<Param>, Vec<Diagnos
         }
         params.push(Param {
             name: name.to_string(),
-            type_name: type_name.trim().to_string(),
+            type_name: type_name.to_string(),
         });
     }
     (params, diagnostics)
@@ -752,6 +783,10 @@ fn is_valid_ident(name: &str) -> bool {
     };
     (first == '_' || first.is_ascii_alphabetic())
         && chars.all(|char| char == '_' || char.is_ascii_alphanumeric())
+}
+
+fn is_valid_type_name(name: &str) -> bool {
+    is_valid_ident(name)
 }
 
 fn is_valid_version(version: &str) -> bool {

@@ -92,6 +92,61 @@ pub fn choose(x: Int, x: Int) -> Int
 }
 
 #[test]
+fn malformed_type_names_are_rejected_during_parse() {
+    let dir = unique_temp_dir("serow-malformed-types");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("malformed_types.serow");
+    fs::write(
+        &source,
+        r#"module test.types
+
+type Box = { value: }
+
+pub fn keep(x: ) -> Int Int
+  intent "Keep a malformed shape visible to parser diagnostics."
+  contract
+    ensures true
+  examples
+    keep(1) == 1
+  properties
+    forall x: Int:
+      keep(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    assert!(
+        parse_diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "ParseError"
+                && diagnostic.message == "Invalid record field type ``."),
+        "{parse_diagnostics:#?}"
+    );
+    assert!(
+        parse_diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "ParseError"
+                && diagnostic.message == "Invalid parameter type ``."),
+        "{parse_diagnostics:#?}"
+    );
+    assert!(
+        parse_diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "ParseError"
+                && diagnostic.message == "Invalid return type `Int Int`."),
+        "{parse_diagnostics:#?}"
+    );
+
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(!summary.ok(), "{summary:#?}");
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn failed_example_is_reported() {
     let dir = unique_temp_dir("serow-bad-example");
     fs::create_dir_all(&dir).expect("create temp dir");

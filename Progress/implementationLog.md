@@ -2,6 +2,10 @@
 
 ## 2026-05-20
 
+- Chose parser type-shape hygiene as a small production-readiness cleanup because malformed field, parameter, and return type names could enter the model and surface later as vague unknown-type warnings instead of direct parse errors.
+- Added Rust parser validation for simple type identifiers in record fields, function parameters, and return types, mirrored the behavior in the temporary Python bootstrap, and added focused Rust/Python regressions for malformed type names.
+- Verification is recorded in the final run for this change.
+
 - Chose repository instruction accuracy as a low-risk production-readiness cleanup because `AGENTS.md` still claimed generated backends did not exist and limited property sampling to `Int`/`Bool`, while the project now has portable IR, Rust backend generation, text/unit/record/enum sampling, and explicit recursive-record sampling diagnostics.
 - Updated `AGENTS.md` to describe the current sampled-property domain and backend surface so future agent iterations do not avoid existing compiler functionality or follow stale constraints.
 - Verification is recorded in the final run for this change.

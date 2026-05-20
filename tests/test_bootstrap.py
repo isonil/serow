@@ -55,6 +55,37 @@ pub fn choose(x: Int, x: Int) -> Int
                 [diagnostic.to_dict() for diagnostic in summary.diagnostics],
             )
 
+    def test_malformed_type_names_are_rejected_during_parse(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "malformed_types.serow"
+            source.write_text(
+                """module test.types
+
+type Box = { value: }
+
+pub fn keep(x: ) -> Int Int
+  intent "Keep a malformed shape visible to parser diagnostics."
+  contract
+    ensures true
+  examples
+    keep(1) == 1
+  properties
+    forall x: Int:
+      keep(x) == x
+  effects pure
+  impl
+    x
+""",
+                encoding="utf-8",
+            )
+            program, parse_diagnostics = parse_files([str(source)])
+            messages = [diagnostic.message for diagnostic in parse_diagnostics]
+            self.assertIn("Invalid record field type ``.", messages)
+            self.assertIn("Invalid parameter type ``.", messages)
+            self.assertIn("Invalid return type `Int Int`.", messages)
+            summary = check_program(program, parse_diagnostics)
+            self.assertFalse(summary.ok, [diagnostic.to_dict() for diagnostic in summary.diagnostics])
+
     def test_duplicate_type_declarations_are_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "duplicate_types.serow"
