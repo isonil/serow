@@ -19,6 +19,13 @@ pub(crate) struct SampleUnsupported {
     pub(crate) reason: SampleUnsupportedReason,
 }
 
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub(crate) struct SampleUnsupportedSummary {
+    pub(crate) unsupported_types: Vec<String>,
+    pub(crate) unsupported_reasons: Vec<String>,
+    pub(crate) recursive_record_cycles: Vec<String>,
+}
+
 impl SampleUnsupported {
     pub(crate) fn reason_text(&self) -> String {
         match &self.reason {
@@ -34,6 +41,43 @@ impl SampleUnsupported {
             SampleUnsupportedReason::RecursiveRecordCycle(cycle) => Some(cycle.join(" -> ")),
             SampleUnsupportedReason::UnknownType => None,
         }
+    }
+}
+
+pub(crate) fn sample_unsupported_summary(
+    variables: &[(String, String)],
+    types: &[TypeDecl],
+) -> SampleUnsupportedSummary {
+    let unsupported = variables
+        .iter()
+        .filter_map(|(_, type_name)| sample_unsupported_for_type(type_name, types))
+        .collect::<Vec<_>>();
+
+    let mut unsupported_types = unsupported
+        .iter()
+        .map(|issue| issue.type_name.clone())
+        .collect::<Vec<_>>();
+    unsupported_types.sort();
+    unsupported_types.dedup();
+
+    let mut unsupported_reasons = unsupported
+        .iter()
+        .map(|issue| format!("{}: {}", issue.type_name, issue.reason_text()))
+        .collect::<Vec<_>>();
+    unsupported_reasons.sort();
+    unsupported_reasons.dedup();
+
+    let mut recursive_record_cycles = unsupported
+        .iter()
+        .filter_map(|issue| issue.cycle_text())
+        .collect::<Vec<_>>();
+    recursive_record_cycles.sort();
+    recursive_record_cycles.dedup();
+
+    SampleUnsupportedSummary {
+        unsupported_types,
+        unsupported_reasons,
+        recursive_record_cycles,
     }
 }
 

@@ -2,6 +2,10 @@
 
 ## 2026-05-20
 
+- Chose sampled-property diagnostic maintenance as a low-risk cleanup because checker, replay, and plan each hand-rolled the same unsupported-sample type/reason/cycle aggregation.
+- Centralized unsupported-sample summary construction in `src/sampling.rs` and reused it from checker diagnostics, property replay diagnostics, and plan property coverage hints so future sampling support changes only need one diagnostic aggregation path.
+- Verified with targeted unsupported-sample and recursive-record tests, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, `python3 -m unittest discover -s tests`, `bin/serow fmt --check --json`, `bin/serow check`, `bin/serow certify`, and `bin/serow certify --profile unattended`.
+
 - Chose parser type-shape hygiene as a small production-readiness cleanup because malformed field, parameter, and return type names could enter the model and surface later as vague unknown-type warnings instead of direct parse errors.
 - Added Rust parser validation for simple type identifiers in record fields, function parameters, and return types, mirrored the behavior in the temporary Python bootstrap, and added focused Rust/Python regressions for malformed type names.
 - Verification is recorded in the final run for this change.

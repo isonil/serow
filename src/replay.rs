@@ -5,7 +5,7 @@ use crate::eval::{Evaluator, Value};
 use crate::model::{Function, Program};
 use crate::sampling::{
     find_shrunk_property_evaluation_error, find_shrunk_property_failure, format_sample_bindings,
-    nth_cartesian_sample, sample_unsupported_for_type, samples_for_type,
+    nth_cartesian_sample, sample_unsupported_summary, samples_for_type,
 };
 
 #[derive(Clone, Debug)]
@@ -110,46 +110,32 @@ pub fn replay_property(program: &Program, sample_seed: &str) -> PropertyReplaySu
         .map(|(_, type_name)| samples_for_type(type_name, &program.types))
         .collect::<Vec<_>>();
     if sample_sets.iter().any(Option::is_none) {
-        let unsupported = property
-            .variables
-            .iter()
-            .filter_map(|(_, type_name)| sample_unsupported_for_type(type_name, &program.types))
-            .collect::<Vec<_>>();
-        let mut unsupported_types = unsupported
-            .iter()
-            .map(|issue| issue.type_name.clone())
-            .collect::<Vec<_>>();
-        unsupported_types.sort();
-        unsupported_types.dedup();
-        let mut unsupported_reasons = unsupported
-            .iter()
-            .map(|issue| format!("{}: {}", issue.type_name, issue.reason_text()))
-            .collect::<Vec<_>>();
-        unsupported_reasons.sort();
-        unsupported_reasons.dedup();
-        let mut recursive_cycles = unsupported
-            .iter()
-            .filter_map(|issue| issue.cycle_text())
-            .collect::<Vec<_>>();
-        recursive_cycles.sort();
-        recursive_cycles.dedup();
+        let unsupported = sample_unsupported_summary(&property.variables, &program.types);
         let mut diagnostic = Diagnostic::error(
             "PropertyNotExecutable",
             format!(
                 "Property index {} contains unsupported sampled type(s): {}.",
                 property.index,
-                unsupported_types.join(", ")
+                unsupported.unsupported_types.join(", ")
             ),
             Some(function.target()),
         )
         .with_data("function", function.symbol())
         .with_data("property_index", property.index.to_string())
         .with_data("property", property.expression)
-        .with_data("unsupported_types", unsupported_types.join(", "))
-        .with_data("unsupported_reasons", unsupported_reasons.join("; "));
-        if !recursive_cycles.is_empty() {
-            diagnostic =
-                diagnostic.with_data("recursive_record_cycles", recursive_cycles.join("; "));
+        .with_data(
+            "unsupported_types",
+            unsupported.unsupported_types.join(", "),
+        )
+        .with_data(
+            "unsupported_reasons",
+            unsupported.unsupported_reasons.join("; "),
+        );
+        if !unsupported.recursive_record_cycles.is_empty() {
+            diagnostic = diagnostic.with_data(
+                "recursive_record_cycles",
+                unsupported.recursive_record_cycles.join("; "),
+            );
         }
         return PropertyReplaySummary {
             diagnostics: vec![
