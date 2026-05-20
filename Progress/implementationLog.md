@@ -2,6 +2,11 @@
 
 ## 2026-05-20
 
+- Chose full symbol-list consistency as a small ledger cleanup because `query symbol` could find declared record/enum types but `query symbols` still listed only public functions.
+- Extended the ledger's full symbol listing, text output, and JSON output to include declared type symbols with record/enum shape metadata, and added focused CLI regression coverage.
+- Bumped `serow.project` to `0.4.98-rust-bootstrap` and documented the broader `query symbols` behavior.
+- Verification is recorded in the final run for this change.
+
 - Chose symbol-query coverage as a Serow tool-interface cleanup because `query symbol` could find public functions but not declared record/enum types or enum variants, even though agents are instructed to use it before adding potentially existing symbols.
 - Extended Rust symbol lookup and JSON/text output with type rows, including record fields, enum variants, and type kind metadata, while keeping intent and type-shape queries function-focused.
 - Verification is recorded in the final run for this change.

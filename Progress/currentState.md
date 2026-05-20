@@ -83,11 +83,11 @@ Selection policy for generic implementation prompts:
   - `bin/serow query intent "<description>"` with deterministic token-ranked matching
   - `bin/serow query symbol "<name>"` for public functions, declared record/enum types, and enum variant names
   - `bin/serow query type "<type-or-shape>"`
-  - `bin/serow query symbols`
+  - `bin/serow query symbols` for public function and declared type symbols
   - `bin/serow query callees "<symbol-or-name>"`
   - `bin/serow query dependents "<symbol-or-name>"`
   - `bin/serow query impact "<symbol-or-name>"` with direct and transitive dependent paths
-- Function symbol, intent, and type query JSON expose source-level version metadata separately from the canonical symbol string; type symbol query rows expose record/enum shape metadata.
+- Function symbol, full symbol-list, intent, and type query JSON expose source-level version metadata separately from the canonical symbol string; type symbol query rows expose record/enum shape metadata.
 - Agent bootstrap command:
   - `bin/serow agent`
   - `bin/serow agent --json`
@@ -1901,6 +1901,24 @@ bin/serow plan --json
 bin/serow agent --json
 bin/serow agent commands --json
 bin/serow compile rust examples/math.serow --json
+git diff --check
+```
+
+Additional verification after extending `query symbols` to declared types:
+
+```sh
+bin/serow query intent "list public symbols"
+bin/serow query symbol "symbols"
+cargo fmt --check
+cargo test symbols_query_lists_functions_and_types -- --nocapture
+bin/serow query symbols examples --json
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test
+python3 -m unittest discover -s tests
+bin/serow fmt --check --json
+bin/serow check
+bin/serow certify
+bin/serow certify --profile unattended
 git diff --check
 ```
 

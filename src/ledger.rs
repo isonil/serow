@@ -242,13 +242,21 @@ pub fn query_type(program: &Program, text: &str, limit: usize) -> Vec<QueryMatch
     matches
 }
 
-pub fn symbols(program: &Program) -> Vec<Function> {
-    let mut functions = queryable_functions(program)
+pub fn symbols(program: &Program) -> Vec<SymbolMatch> {
+    let mut symbols = queryable_functions(program)
         .into_iter()
         .cloned()
+        .map(|function| SymbolMatch::Function(Box::new(function)))
+        .chain(
+            program
+                .types
+                .iter()
+                .cloned()
+                .map(|type_decl| SymbolMatch::Type(Box::new(type_decl))),
+        )
         .collect::<Vec<_>>();
-    functions.sort_by_key(Function::symbol);
-    functions
+    symbols.sort_by_key(SymbolMatch::symbol);
+    symbols
 }
 
 fn queryable_functions(program: &Program) -> Vec<&Function> {

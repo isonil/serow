@@ -7,7 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serow::checker::check_program;
 use serow::diagnostic::{Diagnostic, RepairAction, validate_repair_actions};
 use serow::formatter::format_paths;
-use serow::ledger::{SymbolMatch, query_intent, query_symbol, query_type};
+use serow::ledger::{SymbolMatch, query_intent, query_symbol, query_type, symbols};
 use serow::parser::parse_paths;
 use serow::project::{parse_architecture, parse_project_version};
 
@@ -3025,6 +3025,56 @@ fn type_query_finds_functions_by_signature_shape() {
         stdout.contains("\"symbol\": \"@core.rpg.Room\""),
         "{stdout}"
     );
+    assert!(stdout.contains("\"type_kind\": \"enum\""), "{stdout}");
+}
+
+#[test]
+fn symbols_query_lists_functions_and_types() {
+    let (program, parse_diagnostics) = parse_paths(&["examples".to_string()]);
+    assert!(parse_diagnostics.is_empty());
+
+    let symbols = symbols(&program);
+    assert!(
+        symbols.iter().any(|query_match| matches!(
+            query_match,
+            SymbolMatch::Function(function) if function.symbol() == "@core.math.add.v1"
+        )),
+        "{symbols:#?}"
+    );
+    assert!(
+        symbols.iter().any(|query_match| matches!(
+            query_match,
+            SymbolMatch::Type(type_decl) if type_decl.symbol() == "@core.rpg.Room"
+        )),
+        "{symbols:#?}"
+    );
+
+    let text_cli = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["query", "symbols", "examples"])
+        .output()
+        .expect("run serow query symbols");
+    assert!(text_cli.status.success(), "{text_cli:#?}");
+    let stdout = String::from_utf8(text_cli.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("@core.math.add.v1"), "{stdout}");
+    assert!(stdout.contains("@core.rpg.Room"), "{stdout}");
+    assert!(stdout.contains("enum Hall | Cave"), "{stdout}");
+
+    let json_cli = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["query", "symbols", "examples", "--json"])
+        .output()
+        .expect("run serow query symbols json");
+    assert!(json_cli.status.success(), "{json_cli:#?}");
+    let stdout = String::from_utf8(json_cli.stdout).expect("stdout is utf8");
+    assert!(
+        stdout.contains("\"symbol\": \"@core.math.add.v1\""),
+        "{stdout}"
+    );
+    assert!(stdout.contains("\"kind\": \"function\""), "{stdout}");
+    assert!(
+        stdout.contains("\"symbol\": \"@core.rpg.Room\""),
+        "{stdout}"
+    );
+    assert!(stdout.contains("\"kind\": \"type\""), "{stdout}");
     assert!(stdout.contains("\"type_kind\": \"enum\""), "{stdout}");
 }
 
@@ -9914,7 +9964,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("\"project_version\": \"0.4.97-rust-bootstrap\""),
+        stdout.contains("\"project_version\": \"0.4.98-rust-bootstrap\""),
         "{stdout}"
     );
     let source_bytes = fs::read("examples/math.serow").expect("read math source");
@@ -9961,7 +10011,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{manifest}"
     );
     assert!(
-        manifest.contains("project_version = \"0.4.97-rust-bootstrap\""),
+        manifest.contains("project_version = \"0.4.98-rust-bootstrap\""),
         "{manifest}"
     );
     assert!(
@@ -10043,7 +10093,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{metadata}"
     );
     assert!(
-        metadata.contains("\"project_version\": \"0.4.97-rust-bootstrap\""),
+        metadata.contains("\"project_version\": \"0.4.98-rust-bootstrap\""),
         "{metadata}"
     );
     assert!(
@@ -10107,7 +10157,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{readme}"
     );
     assert!(
-        readme.contains("- Serow project version: `0.4.97-rust-bootstrap`"),
+        readme.contains("- Serow project version: `0.4.98-rust-bootstrap`"),
         "{readme}"
     );
     assert!(

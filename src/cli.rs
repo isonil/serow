@@ -1986,20 +1986,14 @@ fn run_symbols_query(args: &[String]) -> i32 {
     if emit_query_parse_errors("symbols", json_output, &parse_diagnostics) {
         return 1;
     }
-    let symbols = symbols(&program);
+    let rows = symbols(&program);
     if json_output {
-        println!("{}", symbols_json(&symbols));
-    } else if symbols.is_empty() {
+        println!("{}", symbols_json(&rows));
+    } else if rows.is_empty() {
         println!("no matches");
     } else {
-        for function in symbols {
-            println!("{}", function.symbol());
-            println!("  {}", function.signature());
-            if let Some(intent) = &function.intent {
-                println!("  intent: {intent}");
-            }
-            println!("  source: {}:{}", function.source_path, function.line);
-            println!("  version: {}", function.version());
+        for row in rows {
+            print_symbol_listing_row(&row);
         }
     }
     0
@@ -2473,33 +2467,58 @@ fn print_symbol_query_matches(matches: &[SymbolQueryMatch]) {
         return;
     }
     for row in matches {
-        match &row.symbol {
-            SymbolMatch::Function(function) => {
-                println!("{} score={:.3}", function.symbol(), row.score);
-                println!("  {}", function.signature());
-                if let Some(intent) = &function.intent {
-                    println!("  intent: {intent}");
-                }
-                println!("  source: {}:{}", function.source_path, function.line);
-                println!("  version: {}", function.version());
-            }
-            SymbolMatch::Type(type_decl) => {
-                println!("{} score={:.3}", type_decl.symbol(), row.score);
-                if type_decl.is_enum() {
-                    println!("  enum {}", type_decl.variants.join(" | "));
-                } else {
-                    let fields = type_decl
-                        .fields
-                        .iter()
-                        .map(|field| format!("{}: {}", field.name, field.type_name))
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    println!("  record {{ {fields} }}");
-                }
-                println!("  source: {}:{}", type_decl.source_path, type_decl.line);
-            }
+        print_scored_symbol_row(&row.symbol, row.score);
+    }
+}
+
+fn print_scored_symbol_row(symbol: &SymbolMatch, score: f64) {
+    match symbol {
+        SymbolMatch::Function(function) => {
+            println!("{} score={:.3}", function.symbol(), score);
+            print_function_symbol_body(function);
+        }
+        SymbolMatch::Type(type_decl) => {
+            println!("{} score={:.3}", type_decl.symbol(), score);
+            print_type_symbol_body(type_decl);
         }
     }
+}
+
+fn print_symbol_listing_row(symbol: &SymbolMatch) {
+    match symbol {
+        SymbolMatch::Function(function) => {
+            println!("{}", function.symbol());
+            print_function_symbol_body(function);
+        }
+        SymbolMatch::Type(type_decl) => {
+            println!("{}", type_decl.symbol());
+            print_type_symbol_body(type_decl);
+        }
+    }
+}
+
+fn print_function_symbol_body(function: &crate::model::Function) {
+    println!("  {}", function.signature());
+    if let Some(intent) = &function.intent {
+        println!("  intent: {intent}");
+    }
+    println!("  source: {}:{}", function.source_path, function.line);
+    println!("  version: {}", function.version());
+}
+
+fn print_type_symbol_body(type_decl: &crate::model::TypeDecl) {
+    if type_decl.is_enum() {
+        println!("  enum {}", type_decl.variants.join(" | "));
+    } else {
+        let fields = type_decl
+            .fields
+            .iter()
+            .map(|field| format!("{}: {}", field.name, field.type_name))
+            .collect::<Vec<_>>()
+            .join(", ");
+        println!("  record {{ {fields} }}");
+    }
+    println!("  source: {}:{}", type_decl.source_path, type_decl.line);
 }
 
 fn print_dependents(dependents: &[Dependent]) {
@@ -3761,21 +3780,52 @@ fn symbol_query_matches_json(matches: &[SymbolQueryMatch]) -> String {
     format!("{{\n  \"ok\": true,\n  \"results\": [\n    {rows}\n  ]\n}}")
 }
 
-fn symbols_json(functions: &[Function]) -> String {
-    let rows = functions
+fn symbols_json(symbols: &[SymbolMatch]) -> String {
+    let rows = symbols
         .iter()
-        .map(|function| {
-            format!(
-                "{{\n      \"effects\": {},\n      \"intent\": {},\n      \"module\": {},\n      \"name\": {},\n      \"signature\": {},\n      \"source\": {},\n      \"symbol\": {},\n      \"version\": {}\n    }}",
-                string_array_json(&function.effects),
-                option_string_json(function.intent.as_deref()),
-                json_string(&function.module),
-                json_string(&function.name),
-                json_string(&function.signature()),
-                json_string(&format!("{}:{}", function.source_path, function.line)),
-                json_string(&function.symbol()),
-                json_string(function.version()),
-            )
+        .map(|symbol| match symbol {
+            SymbolMatch::Function(function) => {
+                format!(
+                    "{{\n      \"effects\": {},\n      \"intent\": {},\n      \"kind\": \"function\",\n      \"module\": {},\n      \"name\": {},\n      \"signature\": {},\n      \"source\": {},\n      \"symbol\": {},\n      \"version\": {}\n    }}",
+                    string_array_json(&function.effects),
+                    option_string_json(function.intent.as_deref()),
+                    json_string(&function.module),
+                    json_string(&function.name),
+                    json_string(&function.signature()),
+                    json_string(&format!("{}:{}", function.source_path, function.line)),
+                    json_string(&function.symbol()),
+                    json_string(function.version()),
+                )
+            }
+            SymbolMatch::Type(type_decl) => {
+                let fields = type_decl
+                    .fields
+                    .iter()
+                    .map(|field| {
+                        format!(
+                            "{{\"name\": {}, \"type\": {}}}",
+                            json_string(&field.name),
+                            json_string(&field.type_name)
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let type_kind = if type_decl.is_enum() {
+                    "enum"
+                } else {
+                    "record"
+                };
+                format!(
+                    "{{\n      \"fields\": [{}],\n      \"kind\": \"type\",\n      \"module\": {},\n      \"name\": {},\n      \"source\": {},\n      \"symbol\": {},\n      \"type_kind\": {},\n      \"variants\": {}\n    }}",
+                    fields,
+                    json_string(&type_decl.module),
+                    json_string(&type_decl.name),
+                    json_string(&format!("{}:{}", type_decl.source_path, type_decl.line)),
+                    json_string(&type_decl.symbol()),
+                    json_string(type_kind),
+                    string_array_json(&type_decl.variants),
+                )
+            }
         })
         .collect::<Vec<_>>()
         .join(",\n    ");
@@ -3962,7 +4012,7 @@ const CORE_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "query symbol",
         "serow query symbol <text> [paths...] [--json]",
-        "Find public functions by symbol or signature text.",
+        "Find public functions, declared types, or enum variants by symbol/name text.",
     ),
     (
         "query type",
@@ -4185,7 +4235,7 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "query symbol",
         "serow query symbol <text> [paths...] [--json]",
-        "Find public functions by symbol or signature text.",
+        "Find public functions, declared types, or enum variants by symbol/name text.",
     ),
     (
         "query type",
@@ -4195,7 +4245,7 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "query symbols",
         "serow query symbols [paths...] [--json]",
-        "List all public symbols in the parsed source set.",
+        "List all public function and declared type symbols in the parsed source set.",
     ),
     (
         "replay property",
