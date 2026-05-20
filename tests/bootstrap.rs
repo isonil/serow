@@ -2758,6 +2758,31 @@ fn type_query_finds_functions_by_signature_shape() {
 }
 
 #[test]
+fn text_query_commands_reject_json_flag_without_query_text() {
+    for query_command in [
+        "callees",
+        "dependents",
+        "impact",
+        "intent",
+        "symbol",
+        "type",
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+            .args(["query", query_command, "--json"])
+            .output()
+            .expect("run serow query without required text");
+
+        assert!(!output.status.success(), "{output:#?}");
+        assert_eq!(output.status.code(), Some(2), "{output:#?}");
+        let stderr = String::from_utf8(output.stderr).expect("stderr is utf8");
+        assert!(
+            stderr.contains(&format!("serow query {query_command} ")),
+            "{stderr}"
+        );
+    }
+}
+
+#[test]
 fn source_declared_symbol_version_is_part_of_identity() {
     let dir = unique_temp_dir("serow-source-version");
     fs::create_dir_all(&dir).expect("create temp dir");

@@ -1827,24 +1827,20 @@ fn run_query(args: &[String]) -> i32 {
         print_query_usage();
         return 2;
     };
-    let Some(text_or_flag) = args.get(1) else {
-        if query_command == "symbols" {
-            return run_symbols_query(&args[1..]);
-        }
-        print_query_usage();
-        return 2;
-    };
 
     match query_command {
         "callees" => {
-            let (paths, json_output) = split_paths_and_json(&args[2..]);
-            let (program, parse_diagnostics) = parse_paths(&paths);
+            let Some(parsed) = parse_text_query_args(&args[1..]) else {
+                print_query_usage();
+                return 2;
+            };
+            let (program, parse_diagnostics) = parse_paths(&parsed.paths);
             if has_errors(&parse_diagnostics) {
                 println!("{}", diagnostics_json(false, &parse_diagnostics));
                 return 1;
             }
-            let callees = query_callees(&program, text_or_flag);
-            if json_output {
+            let callees = query_callees(&program, &parsed.text);
+            if parsed.json_output {
                 println!("{}", callees_json(&callees));
             } else {
                 print_callees(&callees);
@@ -1852,14 +1848,17 @@ fn run_query(args: &[String]) -> i32 {
             0
         }
         "dependents" => {
-            let (paths, json_output) = split_paths_and_json(&args[2..]);
-            let (program, parse_diagnostics) = parse_paths(&paths);
+            let Some(parsed) = parse_text_query_args(&args[1..]) else {
+                print_query_usage();
+                return 2;
+            };
+            let (program, parse_diagnostics) = parse_paths(&parsed.paths);
             if has_errors(&parse_diagnostics) {
                 println!("{}", diagnostics_json(false, &parse_diagnostics));
                 return 1;
             }
-            let dependents = query_dependents(&program, text_or_flag);
-            if json_output {
+            let dependents = query_dependents(&program, &parsed.text);
+            if parsed.json_output {
                 println!("{}", dependents_json(&dependents));
             } else {
                 print_dependents(&dependents);
@@ -1867,14 +1866,17 @@ fn run_query(args: &[String]) -> i32 {
             0
         }
         "impact" => {
-            let (paths, json_output) = split_paths_and_json(&args[2..]);
-            let (program, parse_diagnostics) = parse_paths(&paths);
+            let Some(parsed) = parse_text_query_args(&args[1..]) else {
+                print_query_usage();
+                return 2;
+            };
+            let (program, parse_diagnostics) = parse_paths(&parsed.paths);
             if has_errors(&parse_diagnostics) {
                 println!("{}", diagnostics_json(false, &parse_diagnostics));
                 return 1;
             }
-            let impact = query_impact(&program, text_or_flag);
-            if json_output {
+            let impact = query_impact(&program, &parsed.text);
+            if parsed.json_output {
                 println!("{}", impact_json(&impact));
             } else {
                 print_impact(&impact);
@@ -1882,14 +1884,17 @@ fn run_query(args: &[String]) -> i32 {
             0
         }
         "intent" => {
-            let (paths, json_output) = split_paths_and_json(&args[2..]);
-            let (program, parse_diagnostics) = parse_paths(&paths);
+            let Some(parsed) = parse_text_query_args(&args[1..]) else {
+                print_query_usage();
+                return 2;
+            };
+            let (program, parse_diagnostics) = parse_paths(&parsed.paths);
             if has_errors(&parse_diagnostics) {
                 println!("{}", diagnostics_json(false, &parse_diagnostics));
                 return 1;
             }
-            let matches = query_intent(&program, text_or_flag, 10);
-            if json_output {
+            let matches = query_intent(&program, &parsed.text, 10);
+            if parsed.json_output {
                 println!("{}", query_matches_json(&matches));
             } else {
                 print_query_matches(&matches);
@@ -1897,14 +1902,17 @@ fn run_query(args: &[String]) -> i32 {
             0
         }
         "symbol" => {
-            let (paths, json_output) = split_paths_and_json(&args[2..]);
-            let (program, parse_diagnostics) = parse_paths(&paths);
+            let Some(parsed) = parse_text_query_args(&args[1..]) else {
+                print_query_usage();
+                return 2;
+            };
+            let (program, parse_diagnostics) = parse_paths(&parsed.paths);
             if has_errors(&parse_diagnostics) {
                 println!("{}", diagnostics_json(false, &parse_diagnostics));
                 return 1;
             }
-            let matches = query_symbol(&program, text_or_flag, 20);
-            if json_output {
+            let matches = query_symbol(&program, &parsed.text, 20);
+            if parsed.json_output {
                 println!("{}", query_matches_json(&matches));
             } else {
                 print_query_matches(&matches);
@@ -1912,14 +1920,17 @@ fn run_query(args: &[String]) -> i32 {
             0
         }
         "type" => {
-            let (paths, json_output) = split_paths_and_json(&args[2..]);
-            let (program, parse_diagnostics) = parse_paths(&paths);
+            let Some(parsed) = parse_text_query_args(&args[1..]) else {
+                print_query_usage();
+                return 2;
+            };
+            let (program, parse_diagnostics) = parse_paths(&parsed.paths);
             if has_errors(&parse_diagnostics) {
                 println!("{}", diagnostics_json(false, &parse_diagnostics));
                 return 1;
             }
-            let matches = query_type(&program, text_or_flag, 20);
-            if json_output {
+            let matches = query_type(&program, &parsed.text, 20);
+            if parsed.json_output {
                 println!("{}", query_matches_json(&matches));
             } else {
                 print_query_matches(&matches);
@@ -1932,6 +1943,23 @@ fn run_query(args: &[String]) -> i32 {
             2
         }
     }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct TextQueryArgs {
+    text: String,
+    paths: Vec<String>,
+    json_output: bool,
+}
+
+fn parse_text_query_args(args: &[String]) -> Option<TextQueryArgs> {
+    let (args, json_output) = split_flag(args, "--json");
+    let text = args.first()?.clone();
+    Some(TextQueryArgs {
+        text,
+        paths: args[1..].to_vec(),
+        json_output,
+    })
 }
 
 fn run_symbols_query(args: &[String]) -> i32 {
