@@ -2,7 +2,7 @@ use std::fs;
 
 use crate::diagnostic::{Diagnostic, has_errors};
 use crate::model::{Function, Program};
-use crate::parser::{discover_sources, parse_paths};
+use crate::parser::{discover_sources_with_diagnostics, parse_paths};
 
 #[derive(Clone, Debug, Default)]
 pub struct FormatSummary {
@@ -19,7 +19,9 @@ impl FormatSummary {
 
 pub fn format_paths(paths: &[String], check: bool) -> FormatSummary {
     let mut summary = FormatSummary::default();
-    for source in discover_sources(paths) {
+    let (sources, source_diagnostics) = discover_sources_with_diagnostics(paths);
+    summary.diagnostics.extend(source_diagnostics);
+    for source in sources {
         summary.files += 1;
         let source_path = source.to_string_lossy().to_string();
         let current = match fs::read_to_string(&source) {

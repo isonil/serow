@@ -17,8 +17,8 @@ const MIGRATION_KINDS: &[&str] = &[
 
 pub fn parse_paths(paths: &[String]) -> (Program, Vec<Diagnostic>) {
     let mut program = Program::default();
-    let mut diagnostics = Vec::new();
-    for source in discover_sources(paths) {
+    let (sources, mut diagnostics) = discover_sources_with_diagnostics(paths);
+    for source in sources {
         let (parsed, mut file_diagnostics) = parse_file(&source);
         diagnostics.append(&mut file_diagnostics);
         for module in parsed.modules {
@@ -38,22 +38,50 @@ pub fn parse_paths(paths: &[String]) -> (Program, Vec<Diagnostic>) {
 }
 
 pub fn discover_sources(paths: &[String]) -> Vec<PathBuf> {
+    discover_sources_with_diagnostics(paths).0
+}
+
+pub fn discover_sources_with_diagnostics(paths: &[String]) -> (Vec<PathBuf>, Vec<Diagnostic>) {
     let roots = if paths.is_empty() {
         vec![PathBuf::from("examples")]
     } else {
         paths.iter().map(PathBuf::from).collect::<Vec<_>>()
     };
     let mut sources = Vec::new();
-    for root in roots {
+    let mut diagnostics = Vec::new();
+    for root in &roots {
         if root.is_file() && root.extension().is_some_and(|ext| ext == "serow") {
-            sources.push(root);
+            sources.push(root.clone());
         } else if root.is_dir() {
-            collect_serow_files(&root, &mut sources);
+            let before = sources.len();
+            collect_serow_files(root, &mut sources);
+            if !paths.is_empty() && sources.len() == before {
+                let source_path = root.to_string_lossy().to_string();
+                diagnostics.push(
+                    Diagnostic::error(
+                        "NoSerowSources",
+                        format!("No `.serow` source files found under `{source_path}`."),
+                        Some(source_path),
+                    )
+                    .with_repair("Pass a `.serow` file or a directory containing Serow sources."),
+                );
+            }
+        } else if !paths.is_empty() {
+            let source_path = root.to_string_lossy().to_string();
+            let message = if root.exists() {
+                format!("Input path `{source_path}` is not a `.serow` file or directory.")
+            } else {
+                format!("Input path `{source_path}` does not exist.")
+            };
+            diagnostics.push(
+                Diagnostic::error("SourceNotFound", message, Some(source_path))
+                    .with_repair("Pass an existing `.serow` file or source directory."),
+            );
         }
     }
     sources.sort();
     sources.dedup();
-    sources
+    (sources, diagnostics)
 }
 
 fn collect_serow_files(path: &Path, sources: &mut Vec<PathBuf>) {

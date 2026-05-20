@@ -1,4 +1,5 @@
 use std::fs;
+use std::path::Path;
 
 use crate::diagnostic::{Diagnostic, has_errors};
 use crate::eval::{called_functions, resolve_function};
@@ -52,7 +53,11 @@ pub fn add_module(path: &str, module: &str) -> PatchSummary {
         return summary;
     }
 
-    let (mut program, parse_diagnostics) = parse_paths(&[path.to_string()]);
+    let (mut program, parse_diagnostics) = if Path::new(path).exists() {
+        parse_paths(&[path.to_string()])
+    } else {
+        (Program::default(), Vec::new())
+    };
     let has_parse_errors = has_errors(&parse_diagnostics);
     summary.diagnostics.extend(parse_diagnostics);
     if has_parse_errors {

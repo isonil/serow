@@ -31,6 +31,22 @@ fn sample_program_checks() {
 }
 
 #[test]
+fn explicit_missing_source_path_is_reported() {
+    let dir = unique_temp_dir("serow-missing-source");
+    let source = dir.join("missing.serow");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["check", source.to_str().expect("utf8 path"), "--json"])
+        .output()
+        .expect("run serow check on missing source");
+
+    assert!(!output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("SourceNotFound"), "{stdout}");
+    assert!(stdout.contains("does not exist"), "{stdout}");
+}
+
+#[test]
 fn failed_example_is_reported() {
     let dir = unique_temp_dir("serow-bad-example");
     fs::create_dir_all(&dir).expect("create temp dir");
