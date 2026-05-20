@@ -32,20 +32,55 @@ MIGRATION_KINDS = {
 
 
 def discover_sources(paths: Iterable[str]) -> List[Path]:
-    roots = [Path(path) for path in paths] if paths else [Path("examples")]
+    return discover_sources_with_diagnostics(paths)[0]
+
+
+def discover_sources_with_diagnostics(paths: Iterable[str]) -> Tuple[List[Path], List[Diagnostic]]:
+    requested_paths = list(paths)
+    roots = [Path(path) for path in requested_paths] if requested_paths else [Path("examples")]
     sources: List[Path] = []
+    diagnostics: List[Diagnostic] = []
     for root in roots:
         if root.is_file() and root.suffix == ".serow":
             sources.append(root)
         elif root.is_dir():
+            before = len(sources)
             sources.extend(sorted(root.rglob("*.serow")))
-    return sorted(set(sources))
+            if requested_paths and len(sources) == before:
+                source_path = str(root)
+                diagnostics.append(
+                    Diagnostic(
+                        severity="error",
+                        code="NoSerowSources",
+                        message=f"No `.serow` source files found under `{source_path}`.",
+                        target=source_path,
+                        repairs=[
+                            "Pass a `.serow` file or a directory containing Serow sources."
+                        ],
+                    )
+                )
+        elif requested_paths:
+            source_path = str(root)
+            if root.exists():
+                message = f"Input path `{source_path}` is not a `.serow` file or directory."
+            else:
+                message = f"Input path `{source_path}` does not exist."
+            diagnostics.append(
+                Diagnostic(
+                    severity="error",
+                    code="SourceNotFound",
+                    message=message,
+                    target=source_path,
+                    repairs=["Pass an existing `.serow` file or source directory."],
+                )
+            )
+    return sorted(set(sources)), diagnostics
 
 
 def parse_files(paths: Iterable[str]) -> Tuple[Program, List[Diagnostic]]:
     program = Program()
-    diagnostics: List[Diagnostic] = []
-    for source in discover_sources(paths):
+    sources, diagnostics = discover_sources_with_diagnostics(paths)
+    for source in sources:
         parsed, file_diagnostics = parse_file(source)
         diagnostics.extend(file_diagnostics)
         for type_decl in parsed.types:

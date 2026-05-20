@@ -16,6 +16,31 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual(summary.examples, 44)
         self.assertEqual(summary.properties, 18)
 
+    def test_explicit_missing_source_path_is_reported(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "missing.serow"
+            program, parse_diagnostics = parse_files([str(source)])
+            self.assertEqual(program.functions, [])
+            diagnostic = next(
+                diagnostic
+                for diagnostic in parse_diagnostics
+                if diagnostic.code == "SourceNotFound"
+            )
+            self.assertEqual(diagnostic.target, str(source))
+            self.assertIn("does not exist", diagnostic.message)
+
+    def test_explicit_empty_source_directory_is_reported(self):
+        with tempfile.TemporaryDirectory() as directory:
+            program, parse_diagnostics = parse_files([directory])
+            self.assertEqual(program.functions, [])
+            diagnostic = next(
+                diagnostic
+                for diagnostic in parse_diagnostics
+                if diagnostic.code == "NoSerowSources"
+            )
+            self.assertEqual(diagnostic.target, directory)
+            self.assertIn("No `.serow` source files found", diagnostic.message)
+
     def test_duplicate_function_parameters_are_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "duplicate_params.serow"

@@ -782,3 +782,7 @@
 - Updated structured patch signature parsing so `patch add-function` and `patch set-signature` reject duplicate parameter names before writing.
 - Added regression coverage for source parsing/checking and patch-created signatures.
 - Verified with `bin/serow query intent "reject duplicate parameter names in function signatures"`, `bin/serow query symbol "parse_params"`, targeted duplicate-parameter tests, `bin/serow check`, `bin/serow certify`, `cargo test`, `cargo fmt -- --check`, and `cargo clippy --all-targets -- -D warnings`.
+- Chose Python reference parser path diagnostics as a low-risk cleanup because the Rust bootstrap reports explicit missing source paths and empty source directories, while the temporary Python bootstrap silently treated them as an empty program.
+- Added diagnostics-aware source discovery to `serowlang.parser`, preserving the existing `discover_sources` helper while routing `parse_files` through `SourceNotFound` and `NoSerowSources` diagnostics.
+- Added Python regressions for explicit missing `.serow` files and empty source directories.
+- Verified with `bin/serow query intent "report missing source paths during parsing"`, `bin/serow query symbol "SourceNotFound"`, `cargo fmt --check`, targeted Rust missing-source coverage, `python3 -m unittest discover -s tests`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, `bin/serow fmt --check --json`, `bin/serow check`, `bin/serow certify`, `bin/serow certify --profile unattended`, and `git diff --check`.
