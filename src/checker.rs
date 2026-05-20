@@ -1956,7 +1956,16 @@ fn call_reference_targets_function(call_reference: &str, function: &Function) ->
 fn find_matching_paren(text: &str, open_index: usize) -> Option<usize> {
     let mut depth = 0;
     let mut in_string = false;
+    let mut escaped = false;
     for (index, char) in text.char_indices().skip(open_index) {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        if in_string && char == '\\' {
+            escaped = true;
+            continue;
+        }
         if char == '"' {
             in_string = !in_string;
         } else if !in_string && char == '(' {
@@ -1989,9 +1998,14 @@ fn split_args(text: &str) -> Vec<String> {
     let mut depth = 0;
     let mut brace_depth = 0;
     let mut in_string = false;
+    let mut escaped = false;
     let mut current = String::new();
     for char in text.chars() {
-        if char == '"' {
+        if escaped {
+            escaped = false;
+        } else if in_string && char == '\\' {
+            escaped = true;
+        } else if char == '"' {
             in_string = !in_string;
         } else if !in_string && char == '(' {
             depth += 1;

@@ -183,6 +183,37 @@ pub fn add(x: Int, y: Int) -> Int
 }
 
 #[test]
+fn examples_handle_escaped_quotes_inside_string_arguments() {
+    let dir = unique_temp_dir("serow-example-escaped-string");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("escaped_string.serow");
+    fs::write(
+        &source,
+        r#"module test.escaped
+
+pub fn keep_text(text: Text, marker: Int) -> Text
+  intent "Return the text while accepting a marker."
+  contract
+    ensures result == text
+  examples
+    keep_text("\",)", 7) == "\",)"
+  properties
+    forall text: Text:
+      keep_text(text, 7) == text
+  effects pure
+  impl
+    text
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(summary.ok(), "{summary:#?}");
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn typed_hole_reports_structured_obligations() {
     let dir = unique_temp_dir("serow-typed-hole-obligations");
     fs::create_dir_all(&dir).expect("create temp dir");
