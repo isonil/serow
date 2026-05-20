@@ -8210,6 +8210,9 @@ pub fn bad(x: Text) -> Text
 fn project_architecture_parser_reads_module_policies() {
     let project = r#"{
   "language": "Serow",
+  "implementation": {
+    "version": "nested-bootstrap-detail"
+  },
   "version": "0.4.82-rust-bootstrap",
   "architecture": {
     "modules": {

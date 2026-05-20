@@ -30,10 +30,7 @@ pub fn load_project_version() -> Option<String> {
 }
 
 pub fn parse_project_version(source: &str) -> Option<String> {
-    let version_key = source.find("\"version\"")?;
-    let colon_offset = source[version_key..].find(':')?;
-    let value_start = version_key + colon_offset + 1;
-    read_string(source, value_start).map(|(value, _)| value)
+    top_level_string_value(source, "version")
 }
 
 pub fn parse_architecture(source: &str) -> Architecture {
@@ -161,6 +158,84 @@ fn find_matching(text: &str, open: usize, open_char: char, close_char: char) -> 
         }
     }
     None
+}
+
+fn top_level_string_value(source: &str, key: &str) -> Option<String> {
+    let root_open = source.find('{')?;
+    let root_close = find_matching(source, root_open, '{', '}')?;
+    let mut index = root_open + 1;
+    while index < root_close {
+        index = skip_ws(source, index);
+        if index >= root_close {
+            break;
+        }
+        if source[index..].starts_with(',') {
+            index += 1;
+            continue;
+        }
+        if !source[index..].starts_with('"') {
+            index += source[index..].chars().next()?.len_utf8();
+            continue;
+        }
+        let Some((candidate_key, key_end)) = read_string(source, index) else {
+            break;
+        };
+        index = skip_ws(source, key_end);
+        if !source[index..].starts_with(':') {
+            continue;
+        }
+        index = skip_ws(source, index + 1);
+        if candidate_key == key {
+            if !source[index..].starts_with('"') {
+                return None;
+            }
+            return read_string(source, index).map(|(value, _)| value);
+        }
+        index = skip_value(source, index, root_close);
+    }
+    None
+}
+
+fn skip_value(source: &str, start: usize, limit: usize) -> usize {
+    let mut index = start;
+    let mut stack = Vec::new();
+    let mut in_string = false;
+    let mut escaped = false;
+    while index < limit {
+        let Some(char) = source[index..].chars().next() else {
+            break;
+        };
+        if escaped {
+            escaped = false;
+            index += char.len_utf8();
+            continue;
+        }
+        if in_string && char == '\\' {
+            escaped = true;
+            index += char.len_utf8();
+            continue;
+        }
+        if char == '"' {
+            in_string = !in_string;
+            index += char.len_utf8();
+            continue;
+        }
+        if in_string {
+            index += char.len_utf8();
+            continue;
+        }
+        match char {
+            '{' => stack.push('}'),
+            '[' => stack.push(']'),
+            '}' | ']' if stack.last() == Some(&char) => {
+                stack.pop();
+            }
+            ',' if stack.is_empty() => return index + 1,
+            _ => {}
+        }
+        index += char.len_utf8();
+    }
+    index
 }
 
 fn skip_ws(text: &str, start: usize) -> usize {
