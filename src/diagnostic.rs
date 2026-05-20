@@ -82,18 +82,21 @@ impl Diagnostic {
 fn shell_command_text(command: &[String]) -> String {
     command
         .iter()
-        .map(|part| {
-            if part
-                .chars()
-                .all(|char| char.is_ascii_alphanumeric() || "-_./:@".contains(char))
-            {
-                part.clone()
-            } else {
-                format!("\"{}\"", part.replace('\\', "\\\\").replace('"', "\\\""))
-            }
-        })
+        .map(|part| shell_command_arg_text(part))
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+fn shell_command_arg_text(part: &str) -> String {
+    if !part.is_empty()
+        && part
+            .chars()
+            .all(|char| char.is_ascii_alphanumeric() || "-_./:@".contains(char))
+    {
+        part.to_string()
+    } else {
+        format!("'{}'", part.replace('\'', "'\\''"))
+    }
 }
 
 pub fn has_errors(diagnostics: &[Diagnostic]) -> bool {
@@ -215,5 +218,47 @@ fn validate_nested_command(action: &RepairAction, allowed: &[&str]) -> Option<St
             "unknown `{}` subcommand `{nested}`",
             action.command[1]
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Diagnostic, shell_command_arg_text};
+
+    #[test]
+    fn shell_command_arg_text_leaves_plain_tokens_unquoted() {
+        assert_eq!(shell_command_arg_text("bin/serow"), "bin/serow");
+        assert_eq!(
+            shell_command_arg_text("@core.math.add.v1"),
+            "@core.math.add.v1"
+        );
+        assert_eq!(shell_command_arg_text(""), "''");
+    }
+
+    #[test]
+    fn command_repairs_render_shell_safe_quoted_arguments() {
+        let diagnostic = Diagnostic::error("Synthetic", "message", None).with_command_repair(
+            "Apply synthetic patch",
+            vec![
+                "bin/serow".to_string(),
+                "patch".to_string(),
+                "set-intent".to_string(),
+                "examples/math.serow".to_string(),
+                "@core.math.add.v1".to_string(),
+                "Don't run $(date); add \"quotes\"".to_string(),
+            ],
+        );
+
+        assert_eq!(
+            diagnostic.repairs,
+            vec![
+                "Apply synthetic patch: `bin/serow patch set-intent examples/math.serow @core.math.add.v1 'Don'\\''t run $(date); add \"quotes\"'`."
+                    .to_string()
+            ]
+        );
+        assert_eq!(
+            diagnostic.repair_actions[0].command[5],
+            "Don't run $(date); add \"quotes\""
+        );
     }
 }
