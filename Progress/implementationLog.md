@@ -2,6 +2,10 @@
 
 ## 2026-05-20
 
+- Chose formatter repair-action precision as a small production-readiness fix because `fmt --check` diagnostics pointed at the drifted file but suggested `bin/serow fmt` without that path, which can format the default source set instead of the exact failing input.
+- Updated `FormatDrift` repair actions to include the drifted source path and tightened regression coverage to assert the exact command argv.
+- Verified with `bin/serow query intent "format Serow source files canonically"`, `bin/serow query symbol "fmt"`, `cargo fmt --check`, `cargo test formatter_check_reports_drift_without_writing -- --nocapture`, `cargo clippy --all-targets -- -D warnings`, `bin/serow fmt --check`, `bin/serow check`, `bin/serow certify`, `cargo test`, `python3 -m unittest discover -s tests`, `bin/serow certify --profile unattended`, and `git diff --check`.
+
 - Chose structured enum type insertion as the next agent-safe cleanup because nullary enum types are now first-class in parsing, checking, IR, and Rust backend output, but `patch add-type` still only accepted record declarations.
 - Extended `patch add-type` to accept `Name = Variant | Other` declarations with duplicate-variant rejection before writing, while keeping `patch set-type` scoped to record field replacement.
 - Bumped `serow.project` to `0.4.97-rust-bootstrap` and updated README, command discovery, roadmap, language notes, and current state for structured enum insertion.

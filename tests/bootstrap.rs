@@ -8454,9 +8454,10 @@ pub fn id(x: Int) -> Int
                 && diagnostic
                     .repair_actions
                     .iter()
-                    .any(|action| action.command.len() == 2
+                    .any(|action| action.command.len() == 3
                         && action.command[0] == "bin/serow"
-                        && action.command[1] == "fmt")),
+                        && action.command[1] == "fmt"
+                        && action.command[2] == source.to_string_lossy())),
         "{:#?}",
         summary.diagnostics
     );

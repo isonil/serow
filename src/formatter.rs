@@ -51,12 +51,16 @@ pub fn format_paths(paths: &[String], check: bool) -> FormatSummary {
                 Diagnostic::error(
                     "FormatDrift",
                     "Serow source is not in canonical format.",
-                    Some(source_path),
+                    Some(source_path.clone()),
                 )
                 .with_data("mode", "check")
                 .with_command_repair(
                     "Rewrite the file with canonical formatting",
-                    vec!["bin/serow".to_string(), "fmt".to_string()],
+                    vec![
+                        "bin/serow".to_string(),
+                        "fmt".to_string(),
+                        source_path.clone(),
+                    ],
                 ),
             );
         } else if let Err(error) = fs::write(&source, formatted) {
