@@ -1835,8 +1835,7 @@ fn run_query(args: &[String]) -> i32 {
                 return 2;
             };
             let (program, parse_diagnostics) = parse_paths(&parsed.paths);
-            if has_errors(&parse_diagnostics) {
-                println!("{}", diagnostics_json(false, &parse_diagnostics));
+            if emit_query_parse_errors("callees", parsed.json_output, &parse_diagnostics) {
                 return 1;
             }
             let callees = query_callees(&program, &parsed.text);
@@ -1853,8 +1852,7 @@ fn run_query(args: &[String]) -> i32 {
                 return 2;
             };
             let (program, parse_diagnostics) = parse_paths(&parsed.paths);
-            if has_errors(&parse_diagnostics) {
-                println!("{}", diagnostics_json(false, &parse_diagnostics));
+            if emit_query_parse_errors("dependents", parsed.json_output, &parse_diagnostics) {
                 return 1;
             }
             let dependents = query_dependents(&program, &parsed.text);
@@ -1871,8 +1869,7 @@ fn run_query(args: &[String]) -> i32 {
                 return 2;
             };
             let (program, parse_diagnostics) = parse_paths(&parsed.paths);
-            if has_errors(&parse_diagnostics) {
-                println!("{}", diagnostics_json(false, &parse_diagnostics));
+            if emit_query_parse_errors("impact", parsed.json_output, &parse_diagnostics) {
                 return 1;
             }
             let impact = query_impact(&program, &parsed.text);
@@ -1889,8 +1886,7 @@ fn run_query(args: &[String]) -> i32 {
                 return 2;
             };
             let (program, parse_diagnostics) = parse_paths(&parsed.paths);
-            if has_errors(&parse_diagnostics) {
-                println!("{}", diagnostics_json(false, &parse_diagnostics));
+            if emit_query_parse_errors("intent", parsed.json_output, &parse_diagnostics) {
                 return 1;
             }
             let matches = query_intent(&program, &parsed.text, 10);
@@ -1907,8 +1903,7 @@ fn run_query(args: &[String]) -> i32 {
                 return 2;
             };
             let (program, parse_diagnostics) = parse_paths(&parsed.paths);
-            if has_errors(&parse_diagnostics) {
-                println!("{}", diagnostics_json(false, &parse_diagnostics));
+            if emit_query_parse_errors("symbol", parsed.json_output, &parse_diagnostics) {
                 return 1;
             }
             let matches = query_symbol(&program, &parsed.text, 20);
@@ -1925,8 +1920,7 @@ fn run_query(args: &[String]) -> i32 {
                 return 2;
             };
             let (program, parse_diagnostics) = parse_paths(&parsed.paths);
-            if has_errors(&parse_diagnostics) {
-                println!("{}", diagnostics_json(false, &parse_diagnostics));
+            if emit_query_parse_errors("type", parsed.json_output, &parse_diagnostics) {
                 return 1;
             }
             let matches = query_type(&program, &parsed.text, 20);
@@ -1965,8 +1959,7 @@ fn parse_text_query_args(args: &[String]) -> Option<TextQueryArgs> {
 fn run_symbols_query(args: &[String]) -> i32 {
     let (paths, json_output) = split_paths_and_json(args);
     let (program, parse_diagnostics) = parse_paths(&paths);
-    if has_errors(&parse_diagnostics) {
-        println!("{}", diagnostics_json(false, &parse_diagnostics));
+    if emit_query_parse_errors("symbols", json_output, &parse_diagnostics) {
         return 1;
     }
     let symbols = symbols(&program);
@@ -1986,6 +1979,22 @@ fn run_symbols_query(args: &[String]) -> i32 {
         }
     }
     0
+}
+
+fn emit_query_parse_errors(
+    query_command: &str,
+    json_output: bool,
+    diagnostics: &[Diagnostic],
+) -> bool {
+    if !has_errors(diagnostics) {
+        return false;
+    }
+    if json_output {
+        println!("{}", diagnostics_json(false, diagnostics));
+    } else {
+        print_query_parse_errors(query_command, diagnostics);
+    }
+    true
 }
 
 fn split_paths_and_json(args: &[String]) -> (Vec<String>, bool) {
@@ -2336,6 +2345,30 @@ fn print_replay_parse_errors(diagnostics: &[Diagnostic]) {
             target,
             diagnostic.message
         );
+    }
+}
+
+fn print_query_parse_errors(query_command: &str, diagnostics: &[Diagnostic]) {
+    println!("serow query {query_command}: failed");
+    for diagnostic in diagnostics {
+        let target = diagnostic
+            .target
+            .as_ref()
+            .map(|target| format!(" {target}"))
+            .unwrap_or_default();
+        println!(
+            "{}: {}:{} {}",
+            diagnostic.severity.as_str(),
+            diagnostic.code,
+            target,
+            diagnostic.message
+        );
+        if !diagnostic.data.is_empty() {
+            println!("  data: {}", data_json(&diagnostic.data));
+        }
+        if !diagnostic.repairs.is_empty() {
+            println!("  repairs: {}", diagnostic.repairs.join(", "));
+        }
     }
 }
 

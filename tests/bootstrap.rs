@@ -2828,6 +2828,36 @@ fn text_query_commands_reject_json_flag_without_query_text() {
 }
 
 #[test]
+fn query_parse_errors_respect_json_flag() {
+    let dir = unique_temp_dir("serow-query-parse-errors");
+    let source = dir.join("missing.serow");
+    let source_path = source.to_str().expect("utf8 path");
+
+    let text_output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["query", "intent", "add", source_path])
+        .output()
+        .expect("run serow query intent with missing source");
+    assert!(!text_output.status.success(), "{text_output:#?}");
+    let stdout = String::from_utf8(text_output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("serow query intent: failed"), "{stdout}");
+    assert!(stdout.contains("SourceNotFound"), "{stdout}");
+    assert!(
+        !stdout.trim_start().starts_with('{'),
+        "text query diagnostics should not be JSON: {stdout}"
+    );
+
+    let json_output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["query", "intent", "add", source_path, "--json"])
+        .output()
+        .expect("run serow query intent with missing source as json");
+    assert!(!json_output.status.success(), "{json_output:#?}");
+    let stdout = String::from_utf8(json_output.stdout).expect("stdout is utf8");
+    assert!(stdout.trim_start().starts_with('{'), "{stdout}");
+    assert!(stdout.contains("\"ok\": false"), "{stdout}");
+    assert!(stdout.contains("SourceNotFound"), "{stdout}");
+}
+
+#[test]
 fn source_declared_symbol_version_is_part_of_identity() {
     let dir = unique_temp_dir("serow-source-version");
     fs::create_dir_all(&dir).expect("create temp dir");
