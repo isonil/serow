@@ -128,6 +128,31 @@ type Box = { value: Int, value: Text }
                 [diagnostic.to_dict() for diagnostic in summary.diagnostics],
             )
 
+    def test_unknown_record_field_type_is_warned(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "unknown_record_field_type.serow"
+            source.write_text(
+                """module test.types
+
+type Box = { value: Missing }
+""",
+                encoding="utf-8",
+            )
+            program, parse_diagnostics = parse_files([str(source)])
+            summary = check_program(program, parse_diagnostics)
+            self.assertTrue(
+                summary.ok,
+                [diagnostic.to_dict() for diagnostic in summary.diagnostics],
+            )
+            self.assertTrue(
+                any(
+                    diagnostic.code == "UnknownType"
+                    and "Field `value` on type `Box` uses type `Missing`" in diagnostic.message
+                    for diagnostic in summary.diagnostics
+                ),
+                [diagnostic.to_dict() for diagnostic in summary.diagnostics],
+            )
+
     def test_duplicate_enum_variants_are_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "duplicate_variants.serow"

@@ -2,6 +2,10 @@
 
 ## 2026-05-20
 
+- Chose Python reference checker parity as a low-risk cleanup because Rust already warns when record fields reference unknown types, while the temporary Python bootstrap only warned for function parameter and return types.
+- Added the Python `UnknownType` record-field warning and focused regression coverage so the reference checker keeps the same warning-level behavior for malformed record shapes.
+- Verification is recorded in the final run for this change.
+
 - Chose Python reference ledger parity as a low-risk cleanup because Rust `query symbol`/`query symbols` now include declared record/enum types and enum variant hits, while the temporary Python bootstrap still listed only functions.
 - Extended the Python reference type model, ledger queries, JSON/text CLI rendering, and regression coverage so declared types and variant-name matches have the same structured row shape as the Rust tool surface.
 - Verification is recorded in the final run for this change.

@@ -68,6 +68,7 @@ def check_program(program: Program, parse_diagnostics: List[Diagnostic]) -> Chec
 
 def _check_type_declarations(program: Program, summary: CheckSummary) -> None:
     seen_types: Dict[str, str] = {}
+    known_types = SUPPORTED_TYPES | {type_decl.name for type_decl in program.types}
     for type_decl in program.types:
         target = f"{type_decl.source_path}:{type_decl.line}:{type_decl.name}"
         if type_decl.name in seen_types:
@@ -99,6 +100,18 @@ def _check_type_declarations(program: Program, summary: CheckSummary) -> None:
                 )
             else:
                 seen_fields.add(field.name)
+            if field.type_name not in known_types:
+                summary.diagnostics.append(
+                    Diagnostic(
+                        severity="warning",
+                        code="UnknownType",
+                        message=(
+                            f"Field `{field.name}` on type `{type_decl.name}` uses type "
+                            f"`{field.type_name}`, which is not executable in the bootstrap checker."
+                        ),
+                        target=target,
+                    )
+                )
 
         seen_variants = set()
         for variant in type_decl.variants:
