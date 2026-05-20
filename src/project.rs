@@ -144,9 +144,9 @@ fn read_string(text: &str, start: usize) -> Option<(String, usize)> {
                 }
                 'u' => {
                     let hex_start = index + escaped.len_utf8();
-                    let code = read_hex_escape(text, hex_start)?;
-                    value.push(char::from_u32(code)?);
-                    index = hex_start + 4;
+                    let (char, escape_end) = read_unicode_escape(text, hex_start)?;
+                    value.push(char);
+                    index = escape_end;
                 }
                 _ => return None,
             }
@@ -167,6 +167,36 @@ fn read_hex_escape(text: &str, start: usize) -> Option<u32> {
         value = value * 16 + char::from(*byte).to_digit(16)?;
     }
     Some(value)
+}
+
+fn read_unicode_escape(text: &str, hex_start: usize) -> Option<(char, usize)> {
+    let code = read_hex_escape(text, hex_start)?;
+    let escape_end = hex_start + 4;
+    if is_high_surrogate(code) {
+        let low_escape_start = escape_end;
+        let hex_start = low_escape_start + 2;
+        if !text.get(low_escape_start..hex_start)?.starts_with("\\u") {
+            return None;
+        }
+        let low = read_hex_escape(text, hex_start)?;
+        if !is_low_surrogate(low) {
+            return None;
+        }
+        let scalar = 0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00);
+        return Some((char::from_u32(scalar)?, hex_start + 4));
+    }
+    if is_low_surrogate(code) {
+        return None;
+    }
+    Some((char::from_u32(code)?, escape_end))
+}
+
+fn is_high_surrogate(code: u32) -> bool {
+    (0xD800..=0xDBFF).contains(&code)
+}
+
+fn is_low_surrogate(code: u32) -> bool {
+    (0xDC00..=0xDFFF).contains(&code)
 }
 
 fn find_matching(text: &str, open: usize, open_char: char, close_char: char) -> Option<usize> {

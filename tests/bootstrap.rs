@@ -8526,11 +8526,11 @@ fn project_architecture_parser_reads_module_policies() {
 #[test]
 fn project_architecture_parser_decodes_json_string_escapes() {
     let project = r#"{
-  "vers\u0069on": "0.4.98-rust\u002dbootstrap",
+  "vers\u0069on": "0.4.\uD835\uDFD8-rust\u002dbootstrap",
   "architecture": {
     "modules": {
       "app.\u006dain": {
-        "may_depend_on": ["core.\u006dath", "core.text"]
+        "may_depend_on": ["core.\u006dath", "core.text", "unicode.\uD835\uDFD8"]
       }
     }
   }
@@ -8538,12 +8538,15 @@ fn project_architecture_parser_decodes_json_string_escapes() {
 
     assert_eq!(
         parse_project_version(project).as_deref(),
-        Some("0.4.98-rust-bootstrap")
+        Some("0.4.\u{1d7d8}-rust-bootstrap")
     );
     let architecture = parse_architecture(project);
 
     let policy = architecture.policy_for("app.main").expect("policy");
-    assert_eq!(policy.may_depend_on, ["core.math", "core.text"]);
+    assert_eq!(
+        policy.may_depend_on,
+        ["core.math", "core.text", "unicode.\u{1d7d8}"]
+    );
 }
 
 #[test]
