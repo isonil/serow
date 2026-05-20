@@ -3378,6 +3378,11 @@ fn agent_diagnostics_subcommand_prints_protocol_reference() {
     assert!(json_stdout.contains("\"diagnostic_json\""), "{json_stdout}");
     assert!(json_stdout.contains("\"plan_json\""), "{json_stdout}");
     assert!(json_stdout.contains("repair_actions"), "{json_stdout}");
+    assert!(
+        json_stdout.contains("remove-example, remove-contract, or remove-property"),
+        "{json_stdout}"
+    );
+    assert!(!json_stdout.contains("remove-evidence"), "{json_stdout}");
     assert!(json_stdout.contains("semantic_changes"), "{json_stdout}");
 
     let text_output = Command::new(env!("CARGO_BIN_EXE_serow"))

@@ -2,6 +2,10 @@
 
 ## 2026-05-20
 
+- Chose agent diagnostic protocol wording as a low-risk cleanup because `agent diagnostics --json` described duplicate evidence repair actions with a nonexistent `remove-evidence` patch command even though the actual structured actions are `remove-example`, `remove-contract`, and `remove-property`.
+- Corrected the machine-readable protocol text and added a regression assertion so command discovery does not drift back to the nonexistent command name.
+- Verification is recorded in the final run for this change.
+
 - Chose sampled-property diagnostic maintenance as a low-risk cleanup because checker, replay, and plan each hand-rolled the same unsupported-sample type/reason/cycle aggregation.
 - Centralized unsupported-sample summary construction in `src/sampling.rs` and reused it from checker diagnostics, property replay diagnostics, and plan property coverage hints so future sampling support changes only need one diagnostic aggregation path.
 - Verified with targeted unsupported-sample and recursive-record tests, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, `python3 -m unittest discover -s tests`, `bin/serow fmt --check --json`, `bin/serow check`, `bin/serow certify`, and `bin/serow certify --profile unattended`.
