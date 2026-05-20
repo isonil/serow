@@ -315,7 +315,7 @@ pub fn bad(x: Int) -> Int
     .expect("write fixture");
 
     let source_path = source.to_string_lossy().to_string();
-    let (program, parse_diagnostics) = parse_paths(&[source_path.clone()]);
+    let (program, parse_diagnostics) = parse_paths(std::slice::from_ref(&source_path));
     let summary = check_program(&program, parse_diagnostics);
     let diagnostic = summary
         .diagnostics
@@ -1689,7 +1689,7 @@ pub fn heal(player: Player) -> Player
     .expect("write fixture");
 
     let source_arg = source.to_string_lossy().to_string();
-    let (program, parse_diagnostics) = parse_paths(&[source_arg.clone()]);
+    let (program, parse_diagnostics) = parse_paths(std::slice::from_ref(&source_arg));
     let summary = check_program(&program, parse_diagnostics);
     assert!(summary.ok(), "{:#?}", summary.diagnostics);
     assert_eq!(summary.properties, 1);
@@ -1832,7 +1832,7 @@ pub fn state(command: Command) -> State
     .expect("write fixture");
 
     let source_arg = source.to_string_lossy().to_string();
-    let (program, parse_diagnostics) = parse_paths(&[source_arg.clone()]);
+    let (program, parse_diagnostics) = parse_paths(std::slice::from_ref(&source_arg));
     let summary = check_program(&program, parse_diagnostics);
     assert!(summary.ok(), "{:#?}", summary.diagnostics);
     assert_eq!(summary.properties, 3);
@@ -1937,7 +1937,7 @@ pub fn delta(direction: Direction) -> Int
     .expect("write fixture");
 
     let source_arg = source.to_string_lossy().to_string();
-    let (program, parse_diagnostics) = parse_paths(&[source_arg.clone()]);
+    let (program, parse_diagnostics) = parse_paths(std::slice::from_ref(&source_arg));
     let summary = check_program(&program, parse_diagnostics);
     assert!(summary.ok(), "{:#?}", summary.diagnostics);
 
@@ -2169,7 +2169,7 @@ pub fn one() -> Int
     .expect("write fixture");
 
     let source_arg = source.to_string_lossy().to_string();
-    let (program, parse_diagnostics) = parse_paths(&[source_arg.clone()]);
+    let (program, parse_diagnostics) = parse_paths(std::slice::from_ref(&source_arg));
     let summary = check_program(&program, parse_diagnostics);
     let diagnostic = summary
         .diagnostics
