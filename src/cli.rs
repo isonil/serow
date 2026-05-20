@@ -1447,8 +1447,10 @@ fn run_patch_remove_contract(args: &[String]) -> i32 {
         return 2;
     };
     let Some(index) = parse_patch_index(index) else {
-        eprintln!("invalid contract clause index `{index}`; use a 1-based integer");
-        return 2;
+        return patch_usage_error(
+            json_output,
+            format!("invalid contract clause index `{index}`; use a 1-based integer"),
+        );
     };
     let summary = remove_contract(path, target, clause, index);
     if json_output {
@@ -1466,8 +1468,10 @@ fn run_patch_remove_example(args: &[String]) -> i32 {
         return 2;
     };
     let Some(index) = parse_patch_index(index) else {
-        eprintln!("invalid example index `{index}`; use a 1-based integer");
-        return 2;
+        return patch_usage_error(
+            json_output,
+            format!("invalid example index `{index}`; use a 1-based integer"),
+        );
     };
     let summary = remove_example(path, target, index);
     if json_output {
@@ -1500,8 +1504,10 @@ fn run_patch_remove_migration(args: &[String]) -> i32 {
         return 2;
     };
     let Some(index) = parse_patch_index(index) else {
-        eprintln!("invalid migration index `{index}`; use a 1-based integer");
-        return 2;
+        return patch_usage_error(
+            json_output,
+            format!("invalid migration index `{index}`; use a 1-based integer"),
+        );
     };
     let summary = remove_migration(path, target, kind, index);
     if json_output {
@@ -1519,8 +1525,10 @@ fn run_patch_remove_property(args: &[String]) -> i32 {
         return 2;
     };
     let Some(index) = parse_patch_index(index) else {
-        eprintln!("invalid property index `{index}`; use a 1-based integer");
-        return 2;
+        return patch_usage_error(
+            json_output,
+            format!("invalid property index `{index}`; use a 1-based integer"),
+        );
     };
     let summary = remove_property(path, target, index);
     if json_output {
@@ -1598,8 +1606,10 @@ fn run_patch_set_contract(args: &[String]) -> i32 {
         [path, target, clause, index, expression] => match parse_patch_index(index) {
             Some(index) => (path, target, clause, Some(index), expression),
             None => {
-                eprintln!("invalid contract clause index `{index}`; use a 1-based integer");
-                return 2;
+                return patch_usage_error(
+                    json_output,
+                    format!("invalid contract clause index `{index}`; use a 1-based integer"),
+                );
             }
         },
         _ => {
@@ -1638,8 +1648,10 @@ fn run_patch_set_example(args: &[String]) -> i32 {
         [path, target, index, expression] => match parse_patch_index(index) {
             Some(index) => (path, target, Some(index), expression),
             None => {
-                eprintln!("invalid example index `{index}`; use a 1-based integer");
-                return 2;
+                return patch_usage_error(
+                    json_output,
+                    format!("invalid example index `{index}`; use a 1-based integer"),
+                );
             }
         },
         _ => {
@@ -1693,8 +1705,10 @@ fn run_patch_set_migration(args: &[String]) -> i32 {
         [path, target, kind, index, note] => match parse_patch_index(index) {
             Some(index) => (path, target, kind, Some(index), note),
             None => {
-                eprintln!("invalid migration index `{index}`; use a 1-based integer");
-                return 2;
+                return patch_usage_error(
+                    json_output,
+                    format!("invalid migration index `{index}`; use a 1-based integer"),
+                );
             }
         },
         _ => {
@@ -1718,8 +1732,10 @@ fn run_patch_set_property(args: &[String]) -> i32 {
         [path, target, index, forall, expression] => match parse_patch_index(index) {
             Some(index) => (path, target, Some(index), forall, expression),
             None => {
-                eprintln!("invalid property index `{index}`; use a 1-based integer");
-                return 2;
+                return patch_usage_error(
+                    json_output,
+                    format!("invalid property index `{index}`; use a 1-based integer"),
+                );
             }
         },
         _ => {
@@ -2034,6 +2050,22 @@ fn split_flag(args: &[String], flag: &str) -> (Vec<String>, bool) {
 fn parse_patch_index(value: &str) -> Option<usize> {
     let index = value.parse::<usize>().ok()?;
     (index > 0).then_some(index)
+}
+
+fn patch_usage_error(json_output: bool, message: String) -> i32 {
+    if json_output {
+        let summary = PatchSummary {
+            changed: 0,
+            diagnostics: vec![
+                Diagnostic::error("UsageError", message, None)
+                    .with_repair("Use a 1-based integer index."),
+            ],
+        };
+        println!("{}", patch_json(&summary));
+    } else {
+        eprintln!("{message}");
+    }
+    2
 }
 
 fn split_certify_profile(args: &[String]) -> Result<(Vec<String>, CertifyProfile), ()> {

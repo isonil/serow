@@ -8535,6 +8535,67 @@ pub fn id(x: Int) -> Int
 }
 
 #[test]
+fn indexed_patch_usage_errors_respect_json_flag() {
+    let remove_example = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "remove-example",
+            "examples/math.serow",
+            "@core.math.add.v1",
+            "nope",
+            "--json",
+        ])
+        .output()
+        .expect("run invalid indexed patch remove-example");
+    assert!(!remove_example.status.success(), "{remove_example:#?}");
+    assert!(
+        remove_example.stderr.is_empty(),
+        "{}",
+        String::from_utf8_lossy(&remove_example.stderr)
+    );
+    let remove_stdout = String::from_utf8(remove_example.stdout).expect("stdout is utf8");
+    assert!(remove_stdout.contains("\"ok\": false"), "{remove_stdout}");
+    assert!(
+        remove_stdout.contains("\"code\": \"UsageError\""),
+        "{remove_stdout}"
+    );
+    assert!(
+        remove_stdout.contains("invalid example index `nope`; use a 1-based integer"),
+        "{remove_stdout}"
+    );
+
+    let set_property = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-property",
+            "examples/math.serow",
+            "@core.math.add.v1",
+            "zero",
+            "forall x: Int:",
+            "add(x, 0) == x",
+            "--json",
+        ])
+        .output()
+        .expect("run invalid indexed patch set-property");
+    assert!(!set_property.status.success(), "{set_property:#?}");
+    assert!(
+        set_property.stderr.is_empty(),
+        "{}",
+        String::from_utf8_lossy(&set_property.stderr)
+    );
+    let set_stdout = String::from_utf8(set_property.stdout).expect("stdout is utf8");
+    assert!(set_stdout.contains("\"ok\": false"), "{set_stdout}");
+    assert!(
+        set_stdout.contains("\"code\": \"UsageError\""),
+        "{set_stdout}"
+    );
+    assert!(
+        set_stdout.contains("invalid property index `zero`; use a 1-based integer"),
+        "{set_stdout}"
+    );
+}
+
+#[test]
 fn structured_patch_target_must_be_unambiguous() {
     let dir = unique_temp_dir("serow-patch-ambiguous-target");
     fs::create_dir_all(&dir).expect("create temp dir");

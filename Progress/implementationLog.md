@@ -2,6 +2,10 @@
 
 ## 2026-05-20
 
+- Chose indexed patch command JSON consistency as a small agent-protocol hardening fix because `patch remove-*` and indexed `patch set-*` argument validation accepted `--json` but still emitted invalid-index usage errors as plain stderr.
+- Updated invalid index handling for indexed patch commands to emit a `UsageError` diagnostic in the normal patch JSON envelope when `--json` is present, preserving stderr text mode behavior.
+- Verification is recorded in the final run for this change.
+
 - Chose `compile rust --json` argument-error consistency as a small backend CLI hardening fix because invalid backend flags still emitted plain stderr usage text even when callers requested machine-readable JSON.
 - Updated `compile rust` argument parsing failures to emit a normal `UsageError` diagnostic JSON envelope when `--json` is present, while preserving existing stderr usage output for text mode, and tightened invalid crate-name/duplicate flag regressions around the JSON contract.
 - Verification is recorded in the final run for this change.
