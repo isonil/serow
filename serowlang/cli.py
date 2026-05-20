@@ -112,13 +112,21 @@ def _print_query(rows, json_output: bool) -> int:
     for row in rows:
         score = f" score={row['score']}" if "score" in row else ""
         print(f"{row['symbol']}{score}")
-        print(f"  {row['signature']}")
-        if row.get("intent"):
-            print(f"  intent: {row['intent']}")
+        if row.get("kind") == "type":
+            if row.get("type_kind") == "enum":
+                print(f"  enum {' | '.join(row['variants'])}")
+            else:
+                fields = ", ".join(
+                    f"{field['name']}: {field['type']}" for field in row["fields"]
+                )
+                print(f"  record {{ {fields} }}")
+        else:
+            print(f"  {row['signature']}")
+            if row.get("intent"):
+                print(f"  intent: {row['intent']}")
         print(f"  source: {row['source']}")
     return 0
 
 
 if __name__ == "__main__":
     sys.exit(main())
-

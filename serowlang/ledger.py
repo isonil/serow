@@ -1,7 +1,7 @@
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Dict, List, Union
 
-from .model import Function, Program
+from .model import Function, Program, TypeDecl
 
 
 @dataclass
@@ -23,6 +23,19 @@ class QueryMatch:
             "source": f"{self.function.source_path}:{self.function.line}",
             "reasons": self.reasons,
         }
+
+
+@dataclass
+class SymbolQueryMatch:
+    score: float
+    symbol: Union[Function, TypeDecl]
+    reasons: List[str]
+
+    def to_dict(self) -> Dict[str, object]:
+        payload = _symbol_to_dict(self.symbol)
+        payload["score"] = round(self.score, 3)
+        payload["reasons"] = self.reasons
+        return payload
 
 
 def query_intent(program: Program, text: str, limit: int = 10) -> List[QueryMatch]:
@@ -47,9 +60,11 @@ def intent_terms(text: str) -> List[str]:
     return sorted(_tokens(text))
 
 
-def query_symbol(program: Program, text: str, limit: int = 20) -> List[QueryMatch]:
-    needle = text.lower()
-    matches: List[QueryMatch] = []
+def query_symbol(program: Program, text: str, limit: int = 20) -> List[SymbolQueryMatch]:
+    needle = text.strip().lower()
+    if not needle:
+        return []
+    matches: List[SymbolQueryMatch] = []
     for function in program.functions:
         score = 0.0
         reasons: List[str] = []
@@ -66,24 +81,70 @@ def query_symbol(program: Program, text: str, limit: int = 20) -> List[QueryMatc
             score += 0.3
             reasons.append("module")
         if score:
-            matches.append(QueryMatch(score=score, function=function, reasons=reasons))
-    return sorted(matches, key=lambda item: (-item.score, item.function.symbol))[:limit]
+            matches.append(SymbolQueryMatch(score=score, symbol=function, reasons=reasons))
+    for type_decl in program.types:
+        score = 0.0
+        reasons = []
+        if type_decl.name.lower() == needle:
+            score += 1.0
+            reasons.append("exact-name")
+        elif needle in type_decl.name.lower():
+            score += 0.6
+            reasons.append("partial-name")
+        if needle in type_decl.symbol.lower():
+            score += 0.5
+            reasons.append("symbol")
+        if needle in type_decl.module.lower():
+            score += 0.3
+            reasons.append("module")
+        variants = [variant.lower() for variant in type_decl.variants]
+        if needle in variants:
+            score += 0.7
+            reasons.append("variant")
+        elif any(needle in variant for variant in variants):
+            score += 0.4
+            reasons.append("partial-variant")
+        if score:
+            matches.append(SymbolQueryMatch(score=score, symbol=type_decl, reasons=reasons))
+    return sorted(matches, key=lambda item: (-item.score, _symbol_id(item.symbol)))[:limit]
 
 
 def ledger_symbols(program: Program) -> List[Dict[str, object]]:
-    return [
-        {
-            "symbol": function.symbol,
-            "name": function.name,
-            "module": function.module,
-            "version": function.version,
-            "signature": function.signature,
-            "intent": function.intent,
-            "effects": function.effects,
-            "source": f"{function.source_path}:{function.line}",
+    rows = [_symbol_to_dict(function) for function in program.functions]
+    rows.extend(_symbol_to_dict(type_decl) for type_decl in program.types)
+    return sorted(rows, key=lambda item: item["symbol"])
+
+
+def _symbol_id(symbol: Union[Function, TypeDecl]) -> str:
+    return symbol.symbol
+
+
+def _symbol_to_dict(symbol: Union[Function, TypeDecl]) -> Dict[str, object]:
+    if isinstance(symbol, Function):
+        return {
+            "kind": "function",
+            "symbol": symbol.symbol,
+            "name": symbol.name,
+            "module": symbol.module,
+            "version": symbol.version,
+            "signature": symbol.signature,
+            "intent": symbol.intent,
+            "effects": symbol.effects,
+            "source": f"{symbol.source_path}:{symbol.line}",
         }
-        for function in sorted(program.functions, key=lambda item: item.symbol)
-    ]
+    return {
+        "fields": [
+            {"name": field.name, "type": field.type_name}
+            for field in symbol.fields
+        ],
+        "kind": "type",
+        "module": symbol.module,
+        "name": symbol.name,
+        "source": f"{symbol.source_path}:{symbol.line}",
+        "symbol": symbol.symbol,
+        "type_kind": "enum" if symbol.is_enum else "record",
+        "variants": symbol.variants,
+    }
 
 
 def _intent_token_weights(function: Function) -> Dict[str, float]:

@@ -2,6 +2,10 @@
 
 ## 2026-05-20
 
+- Chose Python reference ledger parity as a low-risk cleanup because Rust `query symbol`/`query symbols` now include declared record/enum types and enum variant hits, while the temporary Python bootstrap still listed only functions.
+- Extended the Python reference type model, ledger queries, JSON/text CLI rendering, and regression coverage so declared types and variant-name matches have the same structured row shape as the Rust tool surface.
+- Verification is recorded in the final run for this change.
+
 - Chose full symbol-list consistency as a small ledger cleanup because `query symbol` could find declared record/enum types but `query symbols` still listed only public functions.
 - Extended the ledger's full symbol listing, text output, and JSON output to include declared type symbols with record/enum shape metadata, and added focused CLI regression coverage.
 - Bumped `serow.project` to `0.4.98-rust-bootstrap` and documented the broader `query symbols` behavior.

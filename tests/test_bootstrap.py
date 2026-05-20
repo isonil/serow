@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 from serowlang.checker import check_program
-from serowlang.ledger import query_intent
+from serowlang.ledger import ledger_symbols, query_intent, query_symbol
 from serowlang.parser import parse_files
 
 
@@ -298,6 +298,49 @@ pub fn id(x: Int) -> Int
 
         stopword_matches = query_intent(program, "rank existing public functions by intent tokens")
         self.assertFalse(stopword_matches)
+
+    def test_symbol_queries_include_declared_types_and_variants(self):
+        program, parse_diagnostics = parse_files(["examples"])
+        self.assertFalse(parse_diagnostics)
+
+        type_matches = [match.to_dict() for match in query_symbol(program, "RpgState")]
+        self.assertTrue(type_matches)
+        self.assertEqual(type_matches[0]["kind"], "type")
+        self.assertEqual(type_matches[0]["symbol"], "@core.rpg.RpgState")
+        self.assertEqual(type_matches[0]["type_kind"], "record")
+        self.assertEqual(type_matches[0]["fields"][0], {"name": "room", "type": "Room"})
+
+        variant_matches = [match.to_dict() for match in query_symbol(program, "Cave")]
+        self.assertTrue(
+            any(
+                match["kind"] == "type"
+                and match["symbol"] == "@core.rpg.Room"
+                and "variant" in match["reasons"]
+                for match in variant_matches
+            ),
+            variant_matches,
+        )
+
+        symbols = ledger_symbols(program)
+        self.assertTrue(
+            any(
+                row["kind"] == "type"
+                and row["symbol"] == "@core.rpg.Command"
+                and row["type_kind"] == "enum"
+                and row["variants"] == [
+                    "North",
+                    "South",
+                    "Take",
+                    "Drink",
+                    "Fight",
+                    "Quit",
+                    "Look",
+                    "Unknown",
+                ]
+                for row in symbols
+            ),
+            symbols,
+        )
 
     def test_source_declared_symbol_version_is_part_of_identity(self):
         with tempfile.TemporaryDirectory() as directory:

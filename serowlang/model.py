@@ -29,6 +29,14 @@ class TypeDecl:
     fields: List[RecordField]
     variants: List[str] = field(default_factory=list)
 
+    @property
+    def symbol(self) -> str:
+        return f"@{self.module}.{self.name}"
+
+    @property
+    def is_enum(self) -> bool:
+        return bool(self.variants)
+
 
 @dataclass
 class Function:
