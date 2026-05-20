@@ -133,11 +133,11 @@ bin/serow patch set-version examples/math.serow @core.math.add.v1 v1
 
 `patch add-module` adds an empty module declaration to an existing or new `.serow` source file and rewrites the file canonically. Re-running it for a module already present in the patch input is a no-op.
 
-`patch add-type` inserts one record type declaration into an existing module. It accepts a single quoted declaration with or without the `type` prefix, rejects duplicate type names and duplicate fields before writing, and rewrites the file canonically.
+`patch add-type` inserts one record or nullary enum type declaration into an existing module. It accepts a single quoted declaration with or without the `type` prefix, rejects duplicate type names plus duplicate record fields or enum variants before writing, and rewrites the file canonically.
 
 `patch set-type` replaces the fields of one existing record type declaration. The replacement declaration must keep the same type name; use `patch rename-type` for renames. Field-level fallout remains visible through `serow check`, `serow plan`, and unattended certification.
 
-`patch remove-type` removes one existing record type declaration from a module through the structured patch interface and rewrites the file canonically. Removing a type that is still referenced is allowed as a source edit, and `serow check` reports the resulting type errors.
+`patch remove-type` removes one existing type declaration from a module through the structured patch interface and rewrites the file canonically. Removing a type that is still referenced is allowed as a source edit, and `serow check` reports the resulting type errors.
 
 `patch remove-function` removes one existing public function through the structured patch interface while preserving ambiguous-target protection. Removing a function that is still referenced is allowed as a source edit, and `serow check`, `serow plan`, and unattended certification report the resulting unknown-call or public-symbol-removal issues.
 
@@ -145,7 +145,7 @@ bin/serow patch set-version examples/math.serow @core.math.add.v1 v1
 
 `patch rename-module` changes one module name, updates record and function symbol ownership in that module, rewrites in-file `use` declarations that point at the old module, and rewrites in-file exact or module-qualified call references that resolve to the renamed module. Cross-file fallout remains visible through `serow check`, `serow plan`, and unattended certification.
 
-`patch rename-type` changes one record type name in a module and rewrites in-file type references in record fields, public signatures, record construction expressions, typed holes, and sampled property headers. Cross-file fallout remains visible through `serow check`, `serow plan`, and unattended certification.
+`patch rename-type` changes one type name in a module and rewrites in-file type references in record fields, public signatures, record construction expressions, typed holes, and sampled property headers. Cross-file fallout remains visible through `serow check`, `serow plan`, and unattended certification.
 
 `patch qualify-call` rewrites bare calls inside one caller function to an exact callee symbol. It is intended for making an ambiguous `name(...)` call deliberate after using `query symbol` to inspect candidates.
 

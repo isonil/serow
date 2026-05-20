@@ -1007,7 +1007,7 @@ fn validate_binary_entrypoint_shape(
             )
             .with_data(
                 "expected",
-                "pub fn main() -> Text | Int | Bool | Unit | <declared-type>",
+                "pub fn main() -> Text | Int | Bool | Unit | <declared record or enum>",
             ),
         ]);
     };
@@ -3871,7 +3871,7 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "patch add-type",
         "serow patch add-type <path> <module> <type-declaration> [--json]",
-        "Add one record type declaration through the structured patch interface.",
+        "Add one record or enum type declaration through the structured patch interface.",
     ),
     (
         "patch add-use",
@@ -3916,7 +3916,7 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "patch remove-type",
         "serow patch remove-type <path> <module> <type-name> [--json]",
-        "Remove one existing record type declaration through the structured patch interface.",
+        "Remove one existing type declaration through the structured patch interface.",
     ),
     (
         "patch remove-use",
@@ -3936,7 +3936,7 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "patch rename-type",
         "serow patch rename-type <path> <module> <type-name> <new-type-name> [--json]",
-        "Rename a record type and rewrite in-file type references through the structured patch interface.",
+        "Rename a type and rewrite in-file type references through the structured patch interface.",
     ),
     (
         "patch set-contract",

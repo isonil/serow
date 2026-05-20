@@ -5955,6 +5955,92 @@ pub fn starting_player() -> Player
 }
 
 #[test]
+fn patch_add_type_inserts_enum_declaration() {
+    let dir = unique_temp_dir("serow-patch-add-enum-type");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("enum_type.serow");
+    fs::write(
+        &source,
+        r#"module app.main
+
+pub fn start_room() -> Room
+  intent "Return the starting room."
+  version v1
+  contract
+    ensures result == Hall
+  examples
+    start_room() == Hall
+  properties
+    forall flag: Bool:
+      if flag then start_room() == Hall else start_room() != Cave
+  effects pure
+  impl
+    Hall
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "add-type",
+            source.to_str().expect("utf8 path"),
+            "app.main",
+            "Room = Hall | Cave",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch add-type enum");
+
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"changed\": 1"), "{stdout}");
+    let updated = fs::read_to_string(&source).expect("read updated fixture");
+    assert!(
+        updated.contains("module app.main\n\ntype Room = Hall | Cave\n\npub fn start_room"),
+        "{updated}"
+    );
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    assert!(
+        program
+            .types
+            .iter()
+            .any(|type_decl| type_decl.name == "Room"
+                && type_decl.variants == ["Hall".to_string(), "Cave".to_string()]),
+        "{:#?}",
+        program.types
+    );
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(summary.ok(), "{:#?}", summary.diagnostics);
+
+    let duplicate_variant = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "add-type",
+            source.to_str().expect("utf8 path"),
+            "app.main",
+            "Direction = North | North",
+            "--json",
+        ])
+        .output()
+        .expect("run rejected serow patch add-type enum");
+    assert!(
+        !duplicate_variant.status.success(),
+        "{duplicate_variant:#?}"
+    );
+    let duplicate_stdout = String::from_utf8(duplicate_variant.stdout).expect("stdout is utf8");
+    assert!(
+        duplicate_stdout.contains("InvalidPatchTarget"),
+        "{duplicate_stdout}"
+    );
+    let unchanged = fs::read_to_string(&source).expect("read unchanged fixture");
+    assert!(!unchanged.contains("Direction"), "{unchanged}");
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn patch_remove_type_removes_record_declaration() {
     let dir = unique_temp_dir("serow-patch-remove-type");
     fs::create_dir_all(&dir).expect("create temp dir");
@@ -9382,7 +9468,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("\"project_version\": \"0.4.96-rust-bootstrap\""),
+        stdout.contains("\"project_version\": \"0.4.97-rust-bootstrap\""),
         "{stdout}"
     );
     let source_bytes = fs::read("examples/math.serow").expect("read math source");
@@ -9429,7 +9515,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{manifest}"
     );
     assert!(
-        manifest.contains("project_version = \"0.4.96-rust-bootstrap\""),
+        manifest.contains("project_version = \"0.4.97-rust-bootstrap\""),
         "{manifest}"
     );
     assert!(
@@ -9511,7 +9597,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{metadata}"
     );
     assert!(
-        metadata.contains("\"project_version\": \"0.4.96-rust-bootstrap\""),
+        metadata.contains("\"project_version\": \"0.4.97-rust-bootstrap\""),
         "{metadata}"
     );
     assert!(
@@ -9575,7 +9661,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{readme}"
     );
     assert!(
-        readme.contains("- Serow project version: `0.4.96-rust-bootstrap`"),
+        readme.contains("- Serow project version: `0.4.97-rust-bootstrap`"),
         "{readme}"
     );
     assert!(

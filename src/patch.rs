@@ -473,14 +473,16 @@ pub fn add_type(path: &str, module: &str, declaration: &str) -> PatchSummary {
         ));
         return summary;
     }
-    let Some((name, fields)) = parse_type_declaration(declaration) else {
+    let Some(declaration) = parse_type_declaration(declaration) else {
         summary.diagnostics.push(
             Diagnostic::error(
                 "InvalidPatchTarget",
                 format!("Invalid type declaration `{declaration}`."),
                 Some(path.to_string()),
             )
-            .with_repair("Use a record declaration like `Player = { hp: Int, gold: Int }`."),
+            .with_repair(
+                "Use a record declaration like `Player = { hp: Int }` or an enum declaration like `Room = Hall | Cave`.",
+            ),
         );
         return summary;
     };
@@ -508,12 +510,12 @@ pub fn add_type(path: &str, module: &str, declaration: &str) -> PatchSummary {
     if let Some(existing) = program
         .types
         .iter()
-        .find(|candidate| candidate.name == name)
+        .find(|candidate| candidate.name == declaration.name)
     {
         summary.diagnostics.push(
             Diagnostic::error(
                 "PatchConflict",
-                format!("Type declaration `{name}` already exists."),
+                format!("Type declaration `{}` already exists.", declaration.name),
                 Some(existing.target()),
             )
             .with_data("type", existing.symbol())
@@ -528,12 +530,12 @@ pub fn add_type(path: &str, module: &str, declaration: &str) -> PatchSummary {
         .map(|type_decl| type_decl.line + 1)
         .unwrap_or(1);
     let type_decl = TypeDecl {
-        name,
+        name: declaration.name,
         module: module.to_string(),
         source_path: path.to_string(),
         line,
-        fields,
-        variants: Vec::new(),
+        fields: declaration.fields,
+        variants: declaration.variants,
     };
     program.modules[module_index].types.push(type_decl.clone());
     program.types.push(type_decl);
@@ -654,7 +656,7 @@ pub fn set_type(path: &str, module: &str, name: &str, declaration: &str) -> Patc
         ));
         return summary;
     }
-    let Some((declared_name, fields)) = parse_type_declaration(declaration) else {
+    let Some(declaration) = parse_type_declaration(declaration) else {
         summary.diagnostics.push(
             Diagnostic::error(
                 "InvalidPatchTarget",
@@ -665,17 +667,29 @@ pub fn set_type(path: &str, module: &str, name: &str, declaration: &str) -> Patc
         );
         return summary;
     };
-    if declared_name != name {
+    if declaration.is_enum() {
+        summary.diagnostics.push(
+            Diagnostic::error(
+                "InvalidPatchTarget",
+                format!("Invalid record type declaration `{}`.", declaration.name),
+                Some(path.to_string()),
+            )
+            .with_repair("Use a record declaration like `Player = { hp: Int, gold: Int }`."),
+        );
+        return summary;
+    }
+    if declaration.name != name {
         summary.diagnostics.push(
             Diagnostic::error(
                 "PatchConflict",
                 format!(
-                    "Replacement declaration names `{declared_name}` but target type is `{name}`."
+                    "Replacement declaration names `{}` but target type is `{name}`.",
+                    declaration.name
                 ),
                 Some(path.to_string()),
             )
             .with_data("target_type", name.to_string())
-            .with_data("replacement_type", declared_name)
+            .with_data("replacement_type", declaration.name)
             .with_repair(
                 "Use `patch rename-type` for renames, or keep the replacement type name unchanged.",
             ),
@@ -728,11 +742,23 @@ pub fn set_type(path: &str, module: &str, name: &str, declaration: &str) -> Patc
         return summary;
     };
 
-    if program.modules[module_index].types[type_index].fields == fields {
+    if program.modules[module_index].types[type_index].is_enum() {
+        summary.diagnostics.push(
+            Diagnostic::error(
+                "PatchConflict",
+                format!("Type `{name}` is an enum; `set-type` currently replaces record fields."),
+                Some(program.modules[module_index].types[type_index].target()),
+            )
+            .with_repair("Edit enum variants manually until structured enum replacement exists."),
+        );
         return summary;
     }
 
-    program.modules[module_index].types[type_index].fields = fields;
+    if program.modules[module_index].types[type_index].fields == declaration.fields {
+        return summary;
+    }
+
+    program.modules[module_index].types[type_index].fields = declaration.fields;
     rebuild_type_index(&mut program);
 
     let formatted = format_program(&program);
@@ -2915,7 +2941,20 @@ fn parse_signature(signature: &str) -> Option<(String, Vec<Param>, String)> {
     Some((name.to_string(), params, return_type.to_string()))
 }
 
-fn parse_type_declaration(declaration: &str) -> Option<(String, Vec<RecordField>)> {
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ParsedTypeDeclaration {
+    name: String,
+    fields: Vec<RecordField>,
+    variants: Vec<String>,
+}
+
+impl ParsedTypeDeclaration {
+    fn is_enum(&self) -> bool {
+        !self.variants.is_empty()
+    }
+}
+
+fn parse_type_declaration(declaration: &str) -> Option<ParsedTypeDeclaration> {
     let declaration = declaration
         .trim()
         .strip_prefix("type ")
@@ -2925,14 +2964,21 @@ fn parse_type_declaration(declaration: &str) -> Option<(String, Vec<RecordField>
     if !is_valid_ident(name) {
         return None;
     }
+    let body = body.trim();
+    if !body.starts_with('{') {
+        return parse_enum_type_declaration(name, body);
+    }
     let fields_text = body
-        .trim()
         .strip_prefix('{')
         .and_then(|value| value.strip_suffix('}'))?;
     let mut fields = Vec::new();
     let mut field_names = Vec::<String>::new();
     if fields_text.trim().is_empty() {
-        return Some((name.to_string(), fields));
+        return Some(ParsedTypeDeclaration {
+            name: name.to_string(),
+            fields,
+            variants: Vec::new(),
+        });
     }
     for raw_field in fields_text.split(',') {
         let (field_name, type_name) = raw_field.trim().split_once(':')?;
@@ -2950,7 +2996,30 @@ fn parse_type_declaration(declaration: &str) -> Option<(String, Vec<RecordField>
             type_name: type_name.to_string(),
         });
     }
-    Some((name.to_string(), fields))
+    Some(ParsedTypeDeclaration {
+        name: name.to_string(),
+        fields,
+        variants: Vec::new(),
+    })
+}
+
+fn parse_enum_type_declaration(name: &str, body: &str) -> Option<ParsedTypeDeclaration> {
+    if body.is_empty() {
+        return None;
+    }
+    let mut variants = Vec::<String>::new();
+    for raw_variant in body.split('|') {
+        let variant = raw_variant.trim();
+        if !is_valid_ident(variant) || variants.iter().any(|existing| existing == variant) {
+            return None;
+        }
+        variants.push(variant.to_string());
+    }
+    Some(ParsedTypeDeclaration {
+        name: name.to_string(),
+        fields: Vec::new(),
+        variants,
+    })
 }
 
 fn parse_params(text: &str) -> Option<Vec<Param>> {

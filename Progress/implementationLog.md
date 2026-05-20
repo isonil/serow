@@ -2,6 +2,11 @@
 
 ## 2026-05-20
 
+- Chose structured enum type insertion as the next agent-safe cleanup because nullary enum types are now first-class in parsing, checking, IR, and Rust backend output, but `patch add-type` still only accepted record declarations.
+- Extended `patch add-type` to accept `Name = Variant | Other` declarations with duplicate-variant rejection before writing, while keeping `patch set-type` scoped to record field replacement.
+- Bumped `serow.project` to `0.4.97-rust-bootstrap` and updated README, command discovery, roadmap, language notes, and current state for structured enum insertion.
+- Verification is recorded in the final run for this change.
+
 - Chose Rust backend CLI contract cleanup because `compile rust` already accepts `--bin` as an alias for `--emit-bin`, but help output, agent command discovery, and project metadata only advertised the long flag.
 - Added a shared `COMPILE_RUST_USAGE` string for the CLI and agent command catalogs so the human and machine-readable surfaces expose `--emit-bin|--bin` consistently.
 - Updated project and progress metadata to match the supported alias. Verification is recorded in the final run for this change.
