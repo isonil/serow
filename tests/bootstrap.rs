@@ -8714,6 +8714,30 @@ fn project_architecture_parser_decodes_json_string_escapes() {
 }
 
 #[test]
+fn project_architecture_parser_only_reads_top_level_dependency_strings() {
+    let project = r#"{
+  "architecture": {
+    "modules": {
+      "app.main": {
+        "may_depend_on": [
+          "core.math",
+          {"note": "core.secret"},
+          ["core.hidden"],
+          true,
+          "core.text"
+        ]
+      }
+    }
+  }
+}"#;
+
+    let architecture = parse_architecture(project);
+
+    let policy = architecture.policy_for("app.main").expect("policy");
+    assert_eq!(policy.may_depend_on, ["core.math", "core.text"]);
+}
+
+#[test]
 fn formatter_check_reports_drift_without_writing() {
     let dir = unique_temp_dir("serow-format-check");
     fs::create_dir_all(&dir).expect("create temp dir");

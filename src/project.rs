@@ -92,11 +92,23 @@ fn parse_may_depend_on(object: &str) -> Vec<String> {
     let mut values = Vec::new();
     let mut index = open + 1;
     while index < close {
-        let Some((dependency, value_end)) = read_string(value, index) else {
+        index = skip_ws(value, index);
+        if index >= close {
             break;
-        };
-        values.push(dependency);
-        index = value_end;
+        }
+        if value[index..].starts_with(',') {
+            index += 1;
+            continue;
+        }
+        if value[index..].starts_with('"') {
+            let Some((dependency, value_end)) = read_string(value, index) else {
+                break;
+            };
+            values.push(dependency);
+            index = value_end;
+            continue;
+        }
+        index = skip_value(value, index, close);
     }
     values
 }
