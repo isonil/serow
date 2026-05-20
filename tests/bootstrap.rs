@@ -47,6 +47,51 @@ fn explicit_missing_source_path_is_reported() {
 }
 
 #[test]
+fn duplicate_function_parameters_are_rejected() {
+    let dir = unique_temp_dir("serow-duplicate-params");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("duplicate_params.serow");
+    fs::write(
+        &source,
+        r#"module test.params
+
+pub fn choose(x: Int, x: Int) -> Int
+  intent "Return one provided value."
+  contract
+    ensures result == x
+  examples
+    choose(1, 2) == 2
+  properties
+    forall x: Int:
+      choose(x, x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    assert!(
+        parse_diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "DuplicateParameter"
+                && diagnostic.message.contains("`x`")),
+        "{parse_diagnostics:#?}"
+    );
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "DuplicateParameter"),
+        "{:#?}",
+        summary.diagnostics
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn failed_example_is_reported() {
     let dir = unique_temp_dir("serow-bad-example");
     fs::create_dir_all(&dir).expect("create temp dir");
@@ -6387,6 +6432,34 @@ fn patch_add_function_inserts_safe_public_skeleton() {
         "{:#?}",
         summary.diagnostics
     );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn patch_add_function_rejects_duplicate_parameters() {
+    let dir = unique_temp_dir("serow-patch-add-function-duplicate-params");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("duplicate_params.serow");
+    fs::write(&source, "module app.main\n").expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "add-function",
+            source.to_str().expect("utf8 path"),
+            "app.main",
+            "bad(x: Int, x: Int) -> Int",
+            "Return one provided value.",
+            "--json",
+        ])
+        .output()
+        .expect("run rejected serow patch add-function");
+
+    assert!(!output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("InvalidPatchTarget"), "{stdout}");
+    let unchanged = fs::read_to_string(&source).expect("read fixture");
+    assert!(!unchanged.contains("pub fn bad"), "{unchanged}");
     let _ = fs::remove_dir_all(dir);
 }
 

@@ -3031,7 +3031,10 @@ fn parse_params(text: &str) -> Option<Vec<Param>> {
         let (name, type_name) = raw_param.trim().split_once(':')?;
         let name = name.trim();
         let type_name = type_name.trim();
-        if !is_valid_ident(name) || type_name.is_empty() {
+        if !is_valid_ident(name)
+            || type_name.is_empty()
+            || params.iter().any(|param: &Param| param.name == name)
+        {
             return None;
         }
         params.push(Param {

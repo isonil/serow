@@ -704,3 +704,8 @@
 - Chose dependency-free project manifest parser hardening as a small production-readiness cleanup because architecture policy and project version loading depend on this parser before checks run.
 - Updated `serow.project` string parsing to decode JSON string escapes in keys and values, including `\uNNNN` escapes, instead of treating escaped characters as literal following bytes.
 - Added regression coverage for escaped project version keys, version values, architecture module names, and dependency names.
+- Chose duplicate function-parameter rejection as a small production-readiness cleanup because duplicate names were accepted at parse/patch boundaries but later evaluator and backend maps collapsed or renamed them inconsistently.
+- Added a `DuplicateParameter` parse diagnostic that rejects repeated function parameter names and omits the duplicate binding from the parsed signature.
+- Updated structured patch signature parsing so `patch add-function` and `patch set-signature` reject duplicate parameter names before writing.
+- Added regression coverage for source parsing/checking and patch-created signatures.
+- Verified with `bin/serow query intent "reject duplicate parameter names in function signatures"`, `bin/serow query symbol "parse_params"`, targeted duplicate-parameter tests, `bin/serow check`, `bin/serow certify`, `cargo test`, `cargo fmt -- --check`, and `cargo clippy --all-targets -- -D warnings`.

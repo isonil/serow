@@ -621,6 +621,17 @@ fn parse_params(text: &str, path: &str, line: usize) -> (Vec<Param>, Vec<Diagnos
             ));
             continue;
         }
+        if params.iter().any(|param: &Param| param.name == name) {
+            diagnostics.push(
+                Diagnostic::error(
+                    "DuplicateParameter",
+                    format!("Function parameter `{name}` is declared more than once."),
+                    Some(format!("{path}:{line}")),
+                )
+                .with_repair("Rename or remove the duplicate parameter."),
+            );
+            continue;
+        }
         params.push(Param {
             name: name.to_string(),
             type_name: type_name.trim().to_string(),
