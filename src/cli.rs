@@ -3724,6 +3724,8 @@ fn symbol_path(functions: &[Function]) -> String {
 
 type AgentCommand = (&'static str, &'static str, &'static str);
 
+const COMPILE_RUST_USAGE: &str = "serow compile rust [paths...] [--out-dir <dir>] [--check-out-dir] [--emit-bin|--bin] [--crate-name <name>] [--json]";
+
 const CORE_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "agent",
@@ -3747,7 +3749,7 @@ const CORE_AGENT_COMMANDS: &[AgentCommand] = &[
     ),
     (
         "compile rust",
-        "serow compile rust [paths...] [--out-dir <dir>] [--check-out-dir] [--emit-bin] [--crate-name <name>] [--json]",
+        COMPILE_RUST_USAGE,
         "Emit deterministic Rust source, write a generated Rust crate with explicit Cargo targets, or verify an existing generated crate with optional binary entrypoint, stale optional artifact detection, configurable package name, Cargo/README/JSON provenance metadata, and generated evidence tests for the supported checked IR subset.",
     ),
     (
@@ -3800,7 +3802,7 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
     ),
     (
         "compile rust",
-        "serow compile rust [paths...] [--out-dir <dir>] [--check-out-dir] [--emit-bin] [--crate-name <name>] [--json]",
+        COMPILE_RUST_USAGE,
         "Emit deterministic Rust source, write a generated Rust crate with explicit Cargo targets, or verify an existing generated crate with optional binary entrypoint, stale optional artifact detection, configurable package name, Cargo/README/JSON provenance metadata, and generated evidence tests for the supported checked IR subset.",
     ),
     (
@@ -4364,9 +4366,7 @@ fn print_usage() {
     eprintln!("  serow check [paths...] [--json]");
     eprintln!("  serow certify [paths...] [--profile unattended] [--json]");
     eprintln!("  serow compile ir [paths...] [--json]");
-    eprintln!(
-        "  serow compile rust [paths...] [--out-dir <dir>] [--check-out-dir] [--emit-bin] [--crate-name <name>] [--json]"
-    );
+    eprintln!("  {COMPILE_RUST_USAGE}");
     eprintln!("  serow fmt [paths...] [--check] [--json]");
     eprintln!(
         "  serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]"
@@ -4425,9 +4425,7 @@ fn print_usage() {
 fn print_compile_usage() {
     eprintln!("usage:");
     eprintln!("  serow compile ir [paths...] [--json]");
-    eprintln!(
-        "  serow compile rust [paths...] [--out-dir <dir>] [--check-out-dir] [--emit-bin] [--crate-name <name>] [--json]"
-    );
+    eprintln!("  {COMPILE_RUST_USAGE}");
 }
 
 fn print_agent_usage() {

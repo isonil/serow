@@ -2,6 +2,10 @@
 
 ## 2026-05-20
 
+- Chose Rust backend CLI contract cleanup because `compile rust` already accepts `--bin` as an alias for `--emit-bin`, but help output, agent command discovery, and project metadata only advertised the long flag.
+- Added a shared `COMPILE_RUST_USAGE` string for the CLI and agent command catalogs so the human and machine-readable surfaces expose `--emit-bin|--bin` consistently.
+- Updated project and progress metadata to match the supported alias. Verification is recorded in the final run for this change.
+
 - Chose generated Rust CLI argument hygiene as a production-readiness fix because `compile rust --crate-name` is a single-value backend flag but duplicate occurrences silently let the later value win.
 - Updated `compile rust` argument parsing to reject duplicate `--crate-name` flags before validation or artifact generation, matching `--out-dir`, `--check-out-dir`, and `--emit-bin` behavior.
 - Bumped `serow.project` to `0.4.96-rust-bootstrap` and updated backend provenance regression expectations.

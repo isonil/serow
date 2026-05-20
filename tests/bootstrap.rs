@@ -3142,7 +3142,7 @@ fn agent_json_includes_compact_machine_readable_workflow() {
     );
     assert!(
         stdout.contains(
-            "serow compile rust [paths...] [--out-dir <dir>] [--check-out-dir] [--emit-bin] [--crate-name <name>] [--json]"
+            "serow compile rust [paths...] [--out-dir <dir>] [--check-out-dir] [--emit-bin|--bin] [--crate-name <name>] [--json]"
         ),
         "{stdout}"
     );
@@ -3174,7 +3174,7 @@ fn agent_commands_json_includes_full_command_catalog() {
     assert!(stdout.contains("\"ok\": true"), "{stdout}");
     assert!(
         stdout.contains(
-            "serow compile rust [paths...] [--out-dir <dir>] [--check-out-dir] [--emit-bin] [--crate-name <name>] [--json]"
+            "serow compile rust [paths...] [--out-dir <dir>] [--check-out-dir] [--emit-bin|--bin] [--crate-name <name>] [--json]"
         ),
         "{stdout}"
     );

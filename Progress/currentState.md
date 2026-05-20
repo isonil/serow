@@ -121,7 +121,7 @@ Selection policy for generic implementation prompts:
   - carries executable example source lines and sampled-property source lines through IR so backend evidence metadata can point at the evidence itself
   - lowers enum variant values, exhaustive enum `match`, record construction, field access, record copy-update, local `let` bindings, local assignments, checked while loops, and ordered sequences in the public expression tree
 - Phase 3 Rust backend:
-  - `bin/serow compile rust [paths...] [--out-dir <dir>] [--check-out-dir] [--emit-bin] [--crate-name <name>] [--json]`
+  - `bin/serow compile rust [paths...] [--out-dir <dir>] [--check-out-dir] [--emit-bin|--bin] [--crate-name <name>] [--json]`
   - runs the checked IR lowering path first and refuses to emit Rust when checker or IR lowering errors are present
   - emits deterministic Rust source on stdout in text mode and includes the generated source, Serow project manifest version, deterministic aggregate Serow input fingerprint, per-source input paths/fingerprints/byte counts, deterministic generated source fingerprint, and source-location-aware symbol-to-Rust-name rows in JSON mode
   - writes a dependency-free Rust crate layout with `Cargo.toml`, `README.md`, `serow-metadata.json`, and `src/lib.rs` when passed `--out-dir <dir>`, using `--crate-name <name>` when provided and defaulting to `serow_generated`
