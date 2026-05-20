@@ -235,6 +235,44 @@ pub fn wrong(x: Int) -> Bool
 }
 
 #[test]
+fn unterminated_string_literals_are_rejected() {
+    let dir = unique_temp_dir("serow-unterminated-string");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("unterminated.serow");
+    fs::write(
+        &source,
+        r#"module test.strings
+
+pub fn label() -> Text
+  intent "Return a static label."
+  contract
+    ensures result == "ok"
+  examples
+    label() == "ok"
+  properties
+    forall x: Int:
+      label() == "ok"
+  effects pure
+  impl
+    "ok
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(
+        summary.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "TypeError"
+                && diagnostic.message.contains("Unterminated string literal")
+        }),
+        "{:#?}",
+        summary.diagnostics
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn function_call_argument_type_mismatch_is_reported() {
     let dir = unique_temp_dir("serow-call-type-mismatch");
     fs::create_dir_all(&dir).expect("create temp dir");

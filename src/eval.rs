@@ -240,10 +240,12 @@ pub(crate) fn tokenize(expression: &str) -> Result<Vec<Token>, String> {
         if char == '"' {
             index += 1;
             let mut value = String::new();
+            let mut terminated = false;
             while index < chars.len() {
                 let current = chars[index];
                 if current == '"' {
                     index += 1;
+                    terminated = true;
                     break;
                 }
                 if current == '\\' {
@@ -257,6 +259,9 @@ pub(crate) fn tokenize(expression: &str) -> Result<Vec<Token>, String> {
                 }
                 value.push(current);
                 index += 1;
+            }
+            if !terminated {
+                return Err("Unterminated string literal.".to_string());
             }
             tokens.push(Token::Text(value));
             continue;
