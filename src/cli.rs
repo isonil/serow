@@ -1787,14 +1787,13 @@ fn run_check(args: &[String], certify: bool) -> i32 {
     let (paths, profile) = if certify {
         match split_certify_profile(&args) {
             Ok(parsed) => parsed,
-            Err(()) => {
-                print_usage();
-                return 2;
-            }
+            Err(message) => return check_usage_error(json_output, message),
         }
     } else if args.iter().any(|arg| arg == "--profile") {
-        print_usage();
-        return 2;
+        return check_usage_error(
+            json_output,
+            "`--profile` is only supported by `serow certify`.".to_string(),
+        );
     } else {
         (args, CertifyProfile::Standard)
     };
@@ -1844,6 +1843,18 @@ fn run_check(args: &[String], certify: bool) -> i32 {
     } else {
         i32::from(has_errors(&summary.diagnostics))
     }
+}
+
+fn check_usage_error(json_output: bool, message: String) -> i32 {
+    if json_output {
+        let diagnostic = Diagnostic::error("UsageError", message, None)
+            .with_repair("Use `serow certify [paths...] --profile unattended [--json]`.");
+        println!("{}", diagnostics_json(false, &[diagnostic]));
+    } else {
+        eprintln!("{message}");
+        print_usage();
+    }
+    2
 }
 
 fn run_query(args: &[String]) -> i32 {
@@ -2062,7 +2073,7 @@ fn patch_usage_error(json_output: bool, message: String) -> i32 {
     2
 }
 
-fn split_certify_profile(args: &[String]) -> Result<(Vec<String>, CertifyProfile), ()> {
+fn split_certify_profile(args: &[String]) -> Result<(Vec<String>, CertifyProfile), String> {
     let mut paths = Vec::new();
     let mut profile = CertifyProfile::Standard;
     let mut saw_profile = false;
@@ -2070,16 +2081,20 @@ fn split_certify_profile(args: &[String]) -> Result<(Vec<String>, CertifyProfile
     while index < args.len() {
         if args[index] == "--profile" {
             if saw_profile {
-                return Err(());
+                return Err("`--profile` can only be provided once.".to_string());
             }
             saw_profile = true;
             let Some(value) = args.get(index + 1).map(String::as_str) else {
-                return Err(());
+                return Err("`--profile` requires a profile name.".to_string());
             };
             profile = match value {
                 "standard" | "default" => CertifyProfile::Standard,
                 "unattended" => CertifyProfile::Unattended,
-                _ => return Err(()),
+                _ => {
+                    return Err(format!(
+                        "Unknown certification profile `{value}`; expected `standard` or `unattended`."
+                    ));
+                }
             };
             index += 2;
         } else {

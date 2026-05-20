@@ -3134,6 +3134,37 @@ fn query_parse_errors_respect_json_flag() {
 }
 
 #[test]
+fn check_and_certify_usage_errors_respect_json_flag() {
+    let check_output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["check", "--profile", "unattended", "--json"])
+        .output()
+        .expect("run invalid serow check profile");
+    assert_eq!(check_output.status.code(), Some(2), "{check_output:#?}");
+    assert!(check_output.stderr.is_empty(), "{check_output:#?}");
+    let stdout = String::from_utf8(check_output.stdout).expect("stdout is utf8");
+    assert!(stdout.trim_start().starts_with('{'), "{stdout}");
+    assert!(stdout.contains("\"code\": \"UsageError\""), "{stdout}");
+    assert!(
+        stdout.contains("only supported by `serow certify`"),
+        "{stdout}"
+    );
+
+    let certify_output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["certify", "--profile", "strict", "--json"])
+        .output()
+        .expect("run invalid serow certify profile");
+    assert_eq!(certify_output.status.code(), Some(2), "{certify_output:#?}");
+    assert!(certify_output.stderr.is_empty(), "{certify_output:#?}");
+    let stdout = String::from_utf8(certify_output.stdout).expect("stdout is utf8");
+    assert!(stdout.trim_start().starts_with('{'), "{stdout}");
+    assert!(stdout.contains("\"code\": \"UsageError\""), "{stdout}");
+    assert!(
+        stdout.contains("Unknown certification profile `strict`"),
+        "{stdout}"
+    );
+}
+
+#[test]
 fn source_declared_symbol_version_is_part_of_identity() {
     let dir = unique_temp_dir("serow-source-version");
     fs::create_dir_all(&dir).expect("create temp dir");

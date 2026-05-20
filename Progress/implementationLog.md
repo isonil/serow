@@ -2,6 +2,10 @@
 
 ## 2026-05-20
 
+- Chose `check`/`certify` argument-error consistency as a small agent-protocol hardening fix because invalid `--profile` usage ignored `--json` and emitted plain usage text.
+- Updated profile parsing to return explicit usage diagnostics and made `check`/`certify` usage failures emit structured `UsageError` JSON when requested, preserving text usage output otherwise.
+- Verification is recorded in the final run for this change.
+
 - Chose Python reference checker parity as a low-risk cleanup because Rust already warns when record fields reference unknown types, while the temporary Python bootstrap only warned for function parameter and return types.
 - Added the Python `UnknownType` record-field warning and focused regression coverage so the reference checker keeps the same warning-level behavior for malformed record shapes.
 - Verification is recorded in the final run for this change.
