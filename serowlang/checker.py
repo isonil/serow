@@ -48,6 +48,7 @@ class CheckSummary:
 def check_program(program: Program, parse_diagnostics: List[Diagnostic]) -> CheckSummary:
     summary = CheckSummary(functions=len(program.functions), diagnostics=list(parse_diagnostics))
     evaluator = Evaluator(program.functions, program.types)
+    _check_type_declarations(program, summary)
     _check_duplicate_symbols(program, summary)
     _check_ambiguous_unqualified_calls(program, summary)
     _check_duplicate_intents(program, summary)
@@ -62,6 +63,55 @@ def check_program(program: Program, parse_diagnostics: List[Diagnostic]) -> Chec
     for function in program.functions:
         _check_executable_evidence(function, evaluator, summary)
     return summary
+
+
+def _check_type_declarations(program: Program, summary: CheckSummary) -> None:
+    seen_types: Dict[str, str] = {}
+    for type_decl in program.types:
+        target = f"{type_decl.source_path}:{type_decl.line}:{type_decl.name}"
+        if type_decl.name in seen_types:
+            summary.diagnostics.append(
+                Diagnostic(
+                    severity="error",
+                    code="DuplicateType",
+                    message=f"Duplicate type declaration `{type_decl.name}`.",
+                    target=target,
+                    data={"first": seen_types[type_decl.name]},
+                    repairs=[
+                        "Rename one type or keep type names unique during the bootstrap."
+                    ],
+                )
+            )
+        else:
+            seen_types[type_decl.name] = target
+
+        seen_fields = set()
+        for field in type_decl.fields:
+            if field.name in seen_fields:
+                summary.diagnostics.append(
+                    Diagnostic(
+                        severity="error",
+                        code="DuplicateRecordField",
+                        message=f"Type `{type_decl.name}` declares duplicate field `{field.name}`.",
+                        target=target,
+                    )
+                )
+            else:
+                seen_fields.add(field.name)
+
+        seen_variants = set()
+        for variant in type_decl.variants:
+            if variant in seen_variants:
+                summary.diagnostics.append(
+                    Diagnostic(
+                        severity="error",
+                        code="DuplicateEnumVariant",
+                        message=f"Type `{type_decl.name}` declares duplicate enum variant `{variant}`.",
+                        target=target,
+                    )
+                )
+            else:
+                seen_variants.add(variant)
 
 
 def _check_duplicate_symbols(program: Program, summary: CheckSummary) -> None:

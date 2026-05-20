@@ -55,6 +55,69 @@ pub fn choose(x: Int, x: Int) -> Int
                 [diagnostic.to_dict() for diagnostic in summary.diagnostics],
             )
 
+    def test_duplicate_type_declarations_are_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "duplicate_types.serow"
+            source.write_text(
+                """module test.types
+
+type Box = { value: Int }
+type Box = { label: Text }
+""",
+                encoding="utf-8",
+            )
+            program, parse_diagnostics = parse_files([str(source)])
+            summary = check_program(program, parse_diagnostics)
+            diagnostic = next(
+                diagnostic
+                for diagnostic in summary.diagnostics
+                if diagnostic.code == "DuplicateType"
+            )
+            self.assertIn("Box", diagnostic.message)
+            self.assertIn("first", diagnostic.data)
+
+    def test_duplicate_record_fields_are_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "duplicate_fields.serow"
+            source.write_text(
+                """module test.types
+
+type Box = { value: Int, value: Text }
+""",
+                encoding="utf-8",
+            )
+            program, parse_diagnostics = parse_files([str(source)])
+            summary = check_program(program, parse_diagnostics)
+            self.assertTrue(
+                any(
+                    diagnostic.code == "DuplicateRecordField"
+                    and "`value`" in diagnostic.message
+                    for diagnostic in summary.diagnostics
+                ),
+                [diagnostic.to_dict() for diagnostic in summary.diagnostics],
+            )
+
+    def test_duplicate_enum_variants_are_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "duplicate_variants.serow"
+            source.write_text(
+                """module test.types
+
+type Direction = North | North
+""",
+                encoding="utf-8",
+            )
+            program, parse_diagnostics = parse_files([str(source)])
+            summary = check_program(program, parse_diagnostics)
+            self.assertTrue(
+                any(
+                    diagnostic.code == "DuplicateEnumVariant"
+                    and "`North`" in diagnostic.message
+                    for diagnostic in summary.diagnostics
+                ),
+                [diagnostic.to_dict() for diagnostic in summary.diagnostics],
+            )
+
     def test_failed_example_is_reported(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "bad.serow"

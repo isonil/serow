@@ -2,6 +2,10 @@
 
 ## 2026-05-20
 
+- Chose Python reference checker parity as a small production-readiness cleanup because Rust rejects duplicate type declarations, duplicate record fields, and duplicate enum variants, but the temporary Python bootstrap accepted those malformed type declarations.
+- Mirrored Rust's `DuplicateType`, `DuplicateRecordField`, and `DuplicateEnumVariant` checks in `serowlang/checker.py`, and added focused Python regressions for each diagnostic.
+- Verified with `bin/serow query intent "reject duplicate enum variants" --json`, `bin/serow query symbol DuplicateType --json`, `bin/serow query symbol DuplicateRecordField --json`, `bin/serow query symbol DuplicateEnumVariant --json`, targeted Python duplicate-type tests, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `python3 -m unittest discover -s tests`, `bin/serow fmt --check`, `bin/serow check`, `bin/serow certify`, `bin/serow certify --profile unattended`, `cargo test`, and `git diff --check`.
+
 - Chose Python reference parser parity as a small production-readiness cleanup because Rust now rejects duplicate function parameter names, but the temporary Python bootstrap still accepted duplicate parameters and let later maps collapse them inconsistently.
 - Mirrored Rust's `DuplicateParameter` parse diagnostic in `serowlang/parser.py`, including the same message shape and repair hint, and added Python regression coverage.
 - Verified with `bin/serow query intent "reject duplicate parameter names in Python reference parser"`, `bin/serow query symbol DuplicateParameter`, targeted Rust/Python duplicate-parameter tests, `cargo fmt -- --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, `python3 -m unittest discover -s tests`, `bin/serow fmt --check`, `bin/serow check`, `bin/serow certify`, `bin/serow certify --profile unattended`, and `git diff --check`.
