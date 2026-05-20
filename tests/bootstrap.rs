@@ -11148,6 +11148,31 @@ fn compile_rust_rejects_duplicate_crate_name_flag() {
     assert!(!dir.exists(), "{dir:?}");
 }
 
+#[test]
+fn compile_rust_rejects_unknown_flags_as_usage_errors() {
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "compile",
+            "rust",
+            "examples/math.serow",
+            "--unknown-backend-flag",
+            "--json",
+        ])
+        .output()
+        .expect("run compile rust with unknown flag");
+    assert_eq!(output.status.code(), Some(2), "{output:#?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("\"code\": \"UsageError\"")
+            && stdout.contains("unknown `compile rust` flag `--unknown-backend-flag`"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.trim_start().starts_with('{') && stdout.trim_end().ends_with('}'),
+        "{stdout}"
+    );
+}
+
 fn unique_temp_dir(prefix: &str) -> PathBuf {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)

@@ -342,6 +342,13 @@ fn parse_compile_rust_args(args: &[String]) -> Result<CompileRustArgs, String> {
                 validate_rust_crate_name(value)?;
                 crate_name = value.clone();
             }
+            "--" => {
+                paths.extend(args[index + 1..].iter().cloned());
+                break;
+            }
+            _ if arg.starts_with("--") => {
+                return Err(format!("unknown `compile rust` flag `{arg}`."));
+            }
             _ => paths.push(arg.clone()),
         }
         index += 1;
