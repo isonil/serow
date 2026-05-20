@@ -10861,10 +10861,15 @@ fn compile_rust_rejects_invalid_crate_name() {
             .output()
             .expect("run compile rust with invalid crate name");
         assert_eq!(output.status.code(), Some(2), "{output:#?}");
-        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
         assert!(
-            stderr.contains("`--crate-name` must start with a lowercase ASCII letter"),
-            "{stderr}"
+            stdout.contains("\"code\": \"UsageError\"")
+                && stdout.contains("`--crate-name` must start with a lowercase ASCII letter"),
+            "{stdout}"
+        );
+        assert!(
+            stdout.trim_start().starts_with('{') && stdout.trim_end().ends_with('}'),
+            "{stdout}"
         );
     }
 }
@@ -10888,10 +10893,15 @@ fn compile_rust_rejects_duplicate_crate_name_flag() {
         .output()
         .expect("run compile rust with duplicate crate name");
     assert_eq!(output.status.code(), Some(2), "{output:#?}");
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stderr.contains("`--crate-name` can only be provided once"),
-        "{stderr}"
+        stdout.contains("\"code\": \"UsageError\"")
+            && stdout.contains("`--crate-name` can only be provided once"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.trim_start().starts_with('{') && stdout.trim_end().ends_with('}'),
+        "{stdout}"
     );
     assert!(!dir.exists(), "{dir:?}");
 }

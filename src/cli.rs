@@ -194,8 +194,14 @@ fn run_compile_rust(args: &[String]) -> i32 {
     let parsed = match parse_compile_rust_args(args) {
         Ok(parsed) => parsed,
         Err(message) => {
-            eprintln!("{message}");
-            print_compile_usage();
+            if compile_rust_json_requested(args) {
+                let diagnostic =
+                    Diagnostic::error("UsageError", message, None).with_repair(COMPILE_RUST_USAGE);
+                println!("{}", diagnostics_json(false, &[diagnostic]));
+            } else {
+                eprintln!("{message}");
+                print_compile_usage();
+            }
             return 2;
         }
     };
@@ -357,6 +363,10 @@ fn parse_compile_rust_args(args: &[String]) -> Result<CompileRustArgs, String> {
         emit_bin,
         check_out_dir,
     })
+}
+
+fn compile_rust_json_requested(args: &[String]) -> bool {
+    args.iter().any(|arg| arg == "--json")
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

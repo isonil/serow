@@ -2,6 +2,10 @@
 
 ## 2026-05-20
 
+- Chose `compile rust --json` argument-error consistency as a small backend CLI hardening fix because invalid backend flags still emitted plain stderr usage text even when callers requested machine-readable JSON.
+- Updated `compile rust` argument parsing failures to emit a normal `UsageError` diagnostic JSON envelope when `--json` is present, while preserving existing stderr usage output for text mode, and tightened invalid crate-name/duplicate flag regressions around the JSON contract.
+- Verification is recorded in the final run for this change.
+
 - Chose generated Rust crate-name validation as a backend hardening fix because `compile rust --out-dir --crate-name 1bad` passed Serow validation but Cargo rejects package names that start with a digit.
 - Tightened `--crate-name` first-character validation to require a lowercase ASCII letter and extended invalid crate-name regression coverage to include digit-leading names.
 - Verification is recorded in the final run for this change.
