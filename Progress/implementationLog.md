@@ -2,6 +2,10 @@
 
 ## 2026-05-20
 
+- Chose Python reference parser parity as a small production-readiness cleanup because Rust now rejects duplicate function parameter names, but the temporary Python bootstrap still accepted duplicate parameters and let later maps collapse them inconsistently.
+- Mirrored Rust's `DuplicateParameter` parse diagnostic in `serowlang/parser.py`, including the same message shape and repair hint, and added Python regression coverage.
+- Verified with `bin/serow query intent "reject duplicate parameter names in Python reference parser"`, `bin/serow query symbol DuplicateParameter`, targeted Rust/Python duplicate-parameter tests, `cargo fmt -- --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, `python3 -m unittest discover -s tests`, `bin/serow fmt --check`, `bin/serow check`, `bin/serow certify`, `bin/serow certify --profile unattended`, and `git diff --check`.
+
 - Chose formatter repair-action precision as a small production-readiness fix because `fmt --check` diagnostics pointed at the drifted file but suggested `bin/serow fmt` without that path, which can format the default source set instead of the exact failing input.
 - Updated `FormatDrift` repair actions to include the drifted source path and tightened regression coverage to assert the exact command argv.
 - Verified with `bin/serow query intent "format Serow source files canonically"`, `bin/serow query symbol "fmt"`, `cargo fmt --check`, `cargo test formatter_check_reports_drift_without_writing -- --nocapture`, `cargo clippy --all-targets -- -D warnings`, `bin/serow fmt --check`, `bin/serow check`, `bin/serow certify`, `cargo test`, `python3 -m unittest discover -s tests`, `bin/serow certify --profile unattended`, and `git diff --check`.

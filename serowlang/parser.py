@@ -353,6 +353,7 @@ def _parse_migration_record(content: str):
 def _parse_params(text: str, path: str, line: int) -> Tuple[List[Param], List[Diagnostic]]:
     diagnostics: List[Diagnostic] = []
     params: List[Param] = []
+    seen_names = set()
     if not text.strip():
         return params, diagnostics
     for raw_param in text.split(","):
@@ -379,6 +380,18 @@ def _parse_params(text: str, path: str, line: int) -> Tuple[List[Param], List[Di
                 )
             )
             continue
+        if name in seen_names:
+            diagnostics.append(
+                Diagnostic(
+                    severity="error",
+                    code="DuplicateParameter",
+                    message=f"Function parameter `{name}` is declared more than once.",
+                    target=f"{path}:{line}",
+                    repairs=["Rename or remove the duplicate parameter."],
+                )
+            )
+            continue
+        seen_names.add(name)
         params.append(Param(name=name, type_name=type_name))
     return params, diagnostics
 

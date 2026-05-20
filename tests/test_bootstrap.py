@@ -16,6 +16,45 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual(summary.examples, 44)
         self.assertEqual(summary.properties, 18)
 
+    def test_duplicate_function_parameters_are_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "duplicate_params.serow"
+            source.write_text(
+                """module test.params
+
+pub fn choose(x: Int, x: Int) -> Int
+  intent "Return one provided value."
+  contract
+    ensures result == x
+  examples
+    choose(1, 2) == 2
+  properties
+    forall x: Int:
+      choose(x, x) == x
+  effects pure
+  impl
+    x
+""",
+                encoding="utf-8",
+            )
+            program, parse_diagnostics = parse_files([str(source)])
+            self.assertTrue(
+                any(
+                    diagnostic.code == "DuplicateParameter"
+                    and "`x`" in diagnostic.message
+                    for diagnostic in parse_diagnostics
+                ),
+                [diagnostic.to_dict() for diagnostic in parse_diagnostics],
+            )
+            summary = check_program(program, parse_diagnostics)
+            self.assertTrue(
+                any(
+                    diagnostic.code == "DuplicateParameter"
+                    for diagnostic in summary.diagnostics
+                ),
+                [diagnostic.to_dict() for diagnostic in summary.diagnostics],
+            )
+
     def test_failed_example_is_reported(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "bad.serow"
