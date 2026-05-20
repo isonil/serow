@@ -10287,7 +10287,12 @@ fn update_test_fnv1a64(hash: &mut u64, byte: u8) {
 }
 
 fn git(dir: &PathBuf, args: &[&str]) {
-    let status = Command::new("git")
+    let args = if args == ["init"] {
+        vec!["init", "--initial-branch", "master"]
+    } else {
+        args.to_vec()
+    };
+    let output = Command::new("git")
         .current_dir(dir)
         .args([
             "-c",
@@ -10295,8 +10300,14 @@ fn git(dir: &PathBuf, args: &[&str]) {
             "-c",
             "user.email=serow@example.invalid",
         ])
-        .args(args)
-        .status()
+        .args(&args)
+        .output()
         .expect("run git");
-    assert!(status.success(), "git {args:?} failed");
+    assert!(
+        output.status.success(),
+        "git {args:?} failed with status {}\nstdout:\n{}\nstderr:\n{}",
+        output.status,
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
