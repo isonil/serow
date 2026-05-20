@@ -583,6 +583,39 @@ pub fn same_id(x: Int) -> Int
                 summary.diagnostics,
             )
 
+    def test_parser_unescapes_quoted_metadata_strings(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "escaped_metadata.serow"
+            source.write_text(
+                r'''module test.metadata
+
+pub fn id(x: Int) -> Int
+  intent "Return \"quoted\" path C:\\tmp."
+  version v1
+  migration
+    implementation-change "Changed \"quoted\" path C:\\tmp."
+  contract
+    ensures result == x
+  examples
+    id(1) == 1
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+''',
+                encoding="utf-8",
+            )
+            program, parse_diagnostics = parse_files([str(source)])
+            self.assertEqual([], parse_diagnostics)
+            function = program.functions[0]
+            self.assertEqual(function.intent, 'Return "quoted" path C:\\tmp.')
+            self.assertEqual(
+                function.migrations[0].note,
+                'Changed "quoted" path C:\\tmp.',
+            )
+
     def test_near_duplicate_public_intent_is_warned(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "near_duplicate_intent.serow"

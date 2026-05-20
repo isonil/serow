@@ -17,7 +17,6 @@ TYPE_RE = re.compile(
 RECORD_TYPE_RE = re.compile(
     r"^type\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*\{(?P<fields>.*)\}\s*$"
 )
-INTENT_RE = re.compile(r'^intent\s+"(?P<intent>.*)"\s*$')
 IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
@@ -251,10 +250,22 @@ def _parse_function(path: str, module: str, line: int, header: re.Match, block: 
             continue
         if raw.startswith("  ") and not raw.startswith("    "):
             content = raw[2:].strip()
-            intent_match = INTENT_RE.match(content)
-            if intent_match:
+            if content.startswith("intent "):
+                intent = _parse_quoted_string(content[len("intent ") :])
+                if intent is None:
+                    diagnostics.append(
+                        Diagnostic(
+                            severity="error",
+                            code="ParseError",
+                            message=f"Invalid intent string `{content}`.",
+                            target=f"{path}:{offset}",
+                            repairs=['Use `intent "short description"` with a valid quoted string.'],
+                        )
+                    )
+                    current_section = None
+                    continue
                 _mark_section(seen_sections, "intent", diagnostics, path, offset)
-                function.intent = intent_match.group("intent")
+                function.intent = intent
                 current_section = None
                 continue
             if content.startswith("version "):
@@ -366,10 +377,39 @@ def _parse_migration_record(content: str):
     note = note.strip()
     if not kind.strip() or not note.startswith('"') or not note.endswith('"') or len(note) < 2:
         return None
-    note = note[1:-1].strip()
+    note = _parse_quoted_string(note)
+    if note is None:
+        return None
+    note = note.strip()
     if not note:
         return None
     return MigrationRecord(kind=kind.strip(), note=note)
+
+
+def _parse_quoted_string(text: str):
+    text = text.strip()
+    if not text.startswith('"'):
+        return None
+    value = []
+    escaped = False
+    for index, char in enumerate(text[1:], start=1):
+        if escaped:
+            if char in {'"', "\\"}:
+                value.append(char)
+            else:
+                value.append("\\")
+                value.append(char)
+            escaped = False
+            continue
+        if char == "\\":
+            escaped = True
+            continue
+        if char == '"':
+            if text[index + 1 :].strip():
+                return None
+            return "".join(value)
+        value.append(char)
+    return None
 
 
 def _parse_params(text: str, path: str, line: int) -> Tuple[List[Param], List[Diagnostic]]:

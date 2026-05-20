@@ -2,6 +2,10 @@
 
 ## 2026-05-20
 
+- Chose Python reference parser metadata parity as a low-risk cleanup because the Rust parser already unescapes quoted metadata strings, while the temporary Python bootstrap kept escape sequences in `intent` text and migration notes.
+- Added a shared Python quoted-string parser for intent and migration metadata plus focused regression coverage for escaped quotes and backslashes.
+- Verification is recorded in the final run for this change.
+
 - Chose `check`/`certify` argument-error consistency as a small agent-protocol hardening fix because invalid `--profile` usage ignored `--json` and emitted plain usage text.
 - Updated profile parsing to return explicit usage diagnostics and made `check`/`certify` usage failures emit structured `UsageError` JSON when requested, preserving text usage output otherwise.
 - Verification is recorded in the final run for this change.
