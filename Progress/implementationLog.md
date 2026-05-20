@@ -685,3 +685,6 @@
 - Extended `serow.ir.v0` with a `match` expression node and updated JSON output.
 - Updated the Rust backend to emit exhaustive Rust `match` expressions over generated enum types.
 - Added regression coverage for successful exhaustive matching, missing cases, duplicate cases, unknown variants, non-enum matched expressions, branch type mismatch, IR JSON, generated Rust source, and compiled generated Rust tests.
+- Chose binary-entrypoint enum support cleanup because the Rust backend already accepted declared enum return types for `--emit-bin`, but diagnostics and docs still described only declared records.
+- Added regression coverage that compiles and runs a generated binary crate whose public zero-argument `main` returns a declared enum, proving the generated entrypoint prints the derived `Debug` variant.
+- Updated binary entrypoint diagnostics, agent bootstrap text/JSON, README, language notes, current state, and project rules to describe declared record/enum return support consistently.

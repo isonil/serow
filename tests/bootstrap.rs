@@ -9990,6 +9990,91 @@ pub fn main() -> Player
 }
 
 #[test]
+fn compile_rust_emit_bin_prints_enum_entrypoint_with_debug() {
+    let dir = unique_temp_dir("serow-compile-rust-emit-bin-enum");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("app.serow");
+    fs::write(
+        &source,
+        r#"module app.entry
+
+type Status = Ready | Done
+
+pub fn main() -> Status
+  intent "Return the application status."
+  version v1
+  contract
+    ensures result == Done
+  examples
+    main() == Done
+  properties
+    forall flag: Bool:
+      main() == Done or flag == flag
+  effects pure
+  impl
+    Done
+"#,
+    )
+    .expect("write fixture");
+    let out_dir = dir.join("generated_app");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "compile",
+            "rust",
+            &source.to_string_lossy(),
+            "--out-dir",
+            &out_dir.to_string_lossy(),
+            "--emit-bin",
+            "--crate-name",
+            "serow_generated_enum_app",
+            "--json",
+        ])
+        .output()
+        .expect("run compile rust --emit-bin enum");
+    assert!(output.status.success(), "{output:#?}");
+
+    let cargo_toml = out_dir.join("Cargo.toml");
+    let main_rs = out_dir.join("src").join("main.rs");
+    let manifest = fs::read_to_string(&cargo_toml).expect("read generated manifest");
+    assert!(
+        manifest.contains("binary_entrypoint_return_type = \"Status\""),
+        "{manifest}"
+    );
+    assert!(
+        manifest.contains("symbol = \"@app.entry.Status\""),
+        "{manifest}"
+    );
+    assert!(
+        manifest.contains("rust_name = \"SerowAppEntryStatus\""),
+        "{manifest}"
+    );
+    let main_source = fs::read_to_string(&main_rs).expect("read generated main");
+    assert!(
+        main_source.contains("let result = serow_generated::serow_app_entry_main_v1();"),
+        "{main_source}"
+    );
+    assert!(
+        main_source.contains("println!(\"{:?}\", result);"),
+        "{main_source}"
+    );
+
+    let run_output = Command::new("cargo")
+        .args(["run", "--quiet", "--manifest-path"])
+        .arg(&cargo_toml)
+        .output()
+        .expect("cargo run generated enum crate");
+    assert!(
+        run_output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&run_output.stdout),
+        String::from_utf8_lossy(&run_output.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&run_output.stdout), "Done\n");
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn compile_rust_rpg_json_emits_seeded_helpers_and_terminal_loop() {
     let output = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args(["compile", "rust", "examples/rpg.serow", "--json"])

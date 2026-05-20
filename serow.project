@@ -170,6 +170,7 @@
     "rust_backend_in_place_record_state_updates": true,
     "rust_backend_final_record_update_moves": true,
     "rust_backend_binary_entrypoint": true,
+    "rust_backend_binary_entrypoint_declared_enums": true,
     "rust_backend_binary_entrypoint_metadata": true,
     "rust_backend_json_metadata_sidecar": true,
     "rust_backend_generated_readme": true,

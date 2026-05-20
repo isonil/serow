@@ -1007,7 +1007,7 @@ fn validate_binary_entrypoint_shape(
             )
             .with_data(
                 "expected",
-                "pub fn main() -> Text | Int | Bool | Unit | <declared-record>",
+                "pub fn main() -> Text | Int | Bool | Unit | <declared-type>",
             ),
         ]);
     };
@@ -1050,7 +1050,7 @@ fn validate_binary_entrypoint_shape(
             Diagnostic::error(
                 "RustBinaryUnsupportedEntrypointReturn",
                 format!(
-                    "Rust binary entrypoint `{}` returns unsupported type `{}`; expected Text, Int, Bool, Unit, or a declared record type.",
+                    "Rust binary entrypoint `{}` returns unsupported type `{}`; expected Text, Int, Bool, Unit, or a declared record/enum type.",
                     function.symbol(),
                     function.return_type
                 ),
@@ -1060,7 +1060,7 @@ fn validate_binary_entrypoint_shape(
             .with_data("return_type", function.return_type.clone())
             .with_data(
                 "supported_return_types",
-                "Text, Int, Bool, Unit, declared records",
+                "Text, Int, Bool, Unit, declared records, declared enums",
             ),
         );
     }
@@ -4054,7 +4054,14 @@ fn agent_json() -> String {
             "effects",
             "impl"
         ]),
-        str_array_json(&["Int", "Bool", "Text", "Unit", "declared records"]),
+        str_array_json(&[
+            "Int",
+            "Bool",
+            "Text",
+            "Unit",
+            "declared records",
+            "declared enums",
+        ]),
         str_array_json(&[
             "cargo fmt --check",
             "cargo clippy -- -D warnings",
@@ -4067,9 +4074,9 @@ fn agent_json() -> String {
             "bin/serow plan --json"
         ]),
         str_array_json(&[
-            "Properties are sampled, not proven; replay uses deterministic seeds for built-in and bounded declared-record samples, and non-executable property diagnostics include unsupported-sample reasons such as recursive record cycles.",
+            "Properties are sampled, not proven; replay uses deterministic seeds for built-in, bounded declared-record, and declared-enum samples, and non-executable property diagnostics include unsupported-sample reasons such as recursive record cycles.",
             "Intent search is deterministic token ranking, not semantic embeddings.",
-            "Rust backend emission supports pure Int/Bool/Text/Unit functions, non-recursive declared records, and terminal io intrinsics, emits runtime asserts for Serow requires and ensures clauses, emits Rust tests for pure Serow examples and deterministic sampled properties, moves final record update bases when postconditions do not need the original value, rejects recursive record layouts with explicit diagnostics, records the Serow project version, aggregate/per-source Serow input fingerprints, plus type, source, binary entrypoint, and exact evidence-line metadata in generated Cargo manifests, README files, and serow-metadata.json sidecars, disables automatic Cargo target discovery in generated manifests, removes stale generated main.rs files when returning to library-only output, and can check generated crate artifacts for drift or unexpected optional artifacts.",
+            "Rust backend emission supports pure Int/Bool/Text/Unit functions, non-recursive declared records, nullary declared enums, and terminal io intrinsics, emits runtime asserts for Serow requires and ensures clauses, emits Rust tests for pure Serow examples and deterministic sampled properties, moves final record update bases when postconditions do not need the original value, rejects recursive record layouts with explicit diagnostics, records the Serow project version, aggregate/per-source Serow input fingerprints, plus type, source, binary entrypoint, and exact evidence-line metadata in generated Cargo manifests, README files, and serow-metadata.json sidecars, disables automatic Cargo target discovery in generated manifests, removes stale generated main.rs files when returning to library-only output, and can check generated crate artifacts for drift or unexpected optional artifacts.",
             "Expression support is intentionally small and formatting does not preserve comments.",
             "JSON output is hand-written until external dependencies are accepted."
         ])
@@ -4270,7 +4277,7 @@ fn print_agent_bootstrap() {
     println!("  version (optional; unattended requires explicit vN)");
     println!("  intent, contract, examples, properties, effects, impl");
     println!("supported bootstrap types:");
-    println!("  Int, Bool, Text, Unit, declared records");
+    println!("  Int, Bool, Text, Unit, declared records, declared enums");
     println!("verification gates:");
     println!("  cargo fmt --check");
     println!("  cargo clippy -- -D warnings");
@@ -4283,15 +4290,15 @@ fn print_agent_bootstrap() {
     println!("  bin/serow plan --json");
     println!("known limits:");
     println!(
-        "  properties are sampled, not proven; declared-record samples are bounded and recursive sample cycles are reported explicitly"
+        "  properties are sampled, not proven; declared-record samples are bounded, declared enum variants are sampled, and recursive sample cycles are reported explicitly"
     );
     println!("  intent search is token-ranked, not semantic embeddings");
     println!(
-        "  Rust backend emission supports pure Int/Bool/Text/Unit functions, non-recursive declared records, terminal io intrinsics, and ownership-aware final record updates"
+        "  Rust backend emission supports pure Int/Bool/Text/Unit functions, non-recursive declared records, nullary declared enums, terminal io intrinsics, and ownership-aware final record updates"
     );
     println!("  Rust backend rejects recursive record layouts with explicit diagnostics");
     println!(
-        "  Rust binary emission requires pub fn main() -> Text | Int | Bool | Unit | declared record"
+        "  Rust binary emission requires pub fn main() -> Text | Int | Bool | Unit | declared record or enum"
     );
     println!("  Rust backend emits runtime asserts for Serow requires and ensures clauses");
     println!("  Rust backend emits Rust tests for pure Serow examples and sampled properties");
@@ -4334,7 +4341,7 @@ fn print_agent_diagnostics() {
     );
     println!("  typed holes report symbol, expected type, and implementation obligations");
     println!(
-        "  property samples cover boundary and representative Int, Bool, Text, Unit, and bounded declared-record values; recursive record sample cycles are reported explicitly"
+        "  property samples cover boundary and representative Int, Bool, Text, Unit, bounded declared-record values, and declared enum variants; recursive record sample cycles are reported explicitly"
     );
     println!("  unattended certification validates structured repair action commands");
     println!("plan json:");
