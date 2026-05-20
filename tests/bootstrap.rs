@@ -9300,7 +9300,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("\"project_version\": \"0.4.95-rust-bootstrap\""),
+        stdout.contains("\"project_version\": \"0.4.96-rust-bootstrap\""),
         "{stdout}"
     );
     let source_bytes = fs::read("examples/math.serow").expect("read math source");
@@ -9347,7 +9347,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{manifest}"
     );
     assert!(
-        manifest.contains("project_version = \"0.4.95-rust-bootstrap\""),
+        manifest.contains("project_version = \"0.4.96-rust-bootstrap\""),
         "{manifest}"
     );
     assert!(
@@ -9429,7 +9429,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{metadata}"
     );
     assert!(
-        metadata.contains("\"project_version\": \"0.4.95-rust-bootstrap\""),
+        metadata.contains("\"project_version\": \"0.4.96-rust-bootstrap\""),
         "{metadata}"
     );
     assert!(
@@ -9493,7 +9493,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{readme}"
     );
     assert!(
-        readme.contains("- Serow project version: `0.4.95-rust-bootstrap`"),
+        readme.contains("- Serow project version: `0.4.96-rust-bootstrap`"),
         "{readme}"
     );
     assert!(
@@ -10294,6 +10294,33 @@ fn compile_rust_rejects_invalid_crate_name() {
         stderr.contains("`--crate-name` must start with a lowercase ASCII letter or digit"),
         "{stderr}"
     );
+}
+
+#[test]
+fn compile_rust_rejects_duplicate_crate_name_flag() {
+    let dir = unique_temp_dir("serow-duplicate-crate-name");
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "compile",
+            "rust",
+            "examples/math.serow",
+            "--out-dir",
+            dir.to_str().expect("utf8 path"),
+            "--crate-name",
+            "serow_one",
+            "--crate-name",
+            "serow_two",
+            "--json",
+        ])
+        .output()
+        .expect("run compile rust with duplicate crate name");
+    assert_eq!(output.status.code(), Some(2), "{output:#?}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("`--crate-name` can only be provided once"),
+        "{stderr}"
+    );
+    assert!(!dir.exists(), "{dir:?}");
 }
 
 fn unique_temp_dir(prefix: &str) -> PathBuf {

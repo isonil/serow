@@ -2,6 +2,11 @@
 
 ## 2026-05-20
 
+- Chose generated Rust CLI argument hygiene as a production-readiness fix because `compile rust --crate-name` is a single-value backend flag but duplicate occurrences silently let the later value win.
+- Updated `compile rust` argument parsing to reject duplicate `--crate-name` flags before validation or artifact generation, matching `--out-dir`, `--check-out-dir`, and `--emit-bin` behavior.
+- Bumped `serow.project` to `0.4.96-rust-bootstrap` and updated backend provenance regression expectations.
+- Verified with `cargo fmt --check` and `cargo test compile_rust_rejects_duplicate_crate_name_flag -- --nocapture`; full verification is recorded in the final run for this change.
+
 - Chose strict repair-action validation hygiene as a small production-readiness fix because `patch add-module` and `patch set-type` are public structured patch commands but were missing from the unattended certification repair-action allowlist.
 - Added both patch commands to `validate_repair_actions` and extended the regression test with synthetic `add-module` and `set-type` command repair actions so future diagnostics can safely point at those commands.
 - Verified with `cargo fmt --check`, `cargo test repair_action_contract_validation_rejects_malformed_commands -- --nocapture`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, `bin/serow fmt --check`, `bin/serow check`, `bin/serow certify`, `bin/serow certify --profile unattended`, `python3 -m unittest discover -s tests`, and `git diff --check`.

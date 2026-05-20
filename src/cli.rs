@@ -288,6 +288,7 @@ fn parse_compile_rust_args(args: &[String]) -> Result<CompileRustArgs, String> {
     let mut json_output = false;
     let mut out_dir = None;
     let mut crate_name = "serow_generated".to_string();
+    let mut crate_name_seen = false;
     let mut emit_bin = false;
     let mut check_out_dir = false;
     let mut index = 0;
@@ -321,6 +322,10 @@ fn parse_compile_rust_args(args: &[String]) -> Result<CompileRustArgs, String> {
                 out_dir = Some(value.clone());
             }
             "--crate-name" => {
+                if crate_name_seen {
+                    return Err("`--crate-name` can only be provided once.".to_string());
+                }
+                crate_name_seen = true;
                 index += 1;
                 let Some(value) = args.get(index) else {
                     return Err("`--crate-name` requires a crate name.".to_string());
