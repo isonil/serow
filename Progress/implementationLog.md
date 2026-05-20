@@ -2,6 +2,10 @@
 
 ## 2026-05-20
 
+- Chose dependency-free project manifest parser hardening as a small production-readiness cleanup because architecture policy and project version loading depend on `serow.project` before checks run.
+- Tightened JSON string parsing for the project manifest so raw control characters are rejected instead of becoming part of version, module, or dependency strings, while preserving valid escaped control sequences.
+- Verification is recorded in the final run for this change.
+
 - Chose Python reference parser metadata parity as a low-risk cleanup because the Rust parser already unescapes quoted metadata strings, while the temporary Python bootstrap kept escape sequences in `intent` text and migration notes.
 - Added a shared Python quoted-string parser for intent and migration metadata plus focused regression coverage for escaped quotes and backslashes.
 - Verification is recorded in the final run for this change.

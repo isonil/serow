@@ -8899,11 +8899,11 @@ fn project_architecture_parser_reads_module_policies() {
 #[test]
 fn project_architecture_parser_decodes_json_string_escapes() {
     let project = r#"{
-  "vers\u0069on": "0.4.\uD835\uDFD8-rust\u002dbootstrap",
+  "vers\u0069on": "0.4.\uD835\uDFD8-rust\u002dbootstrap\n",
   "architecture": {
     "modules": {
       "app.\u006dain": {
-        "may_depend_on": ["core.\u006dath", "core.text", "unicode.\uD835\uDFD8"]
+        "may_depend_on": ["core.\u006dath", "core.text", "unicode.\uD835\uDFD8", "escaped.\tdep"]
       }
     }
   }
@@ -8911,15 +8911,30 @@ fn project_architecture_parser_decodes_json_string_escapes() {
 
     assert_eq!(
         parse_project_version(project).as_deref(),
-        Some("0.4.\u{1d7d8}-rust-bootstrap")
+        Some("0.4.\u{1d7d8}-rust-bootstrap\n")
     );
     let architecture = parse_architecture(project);
 
     let policy = architecture.policy_for("app.main").expect("policy");
     assert_eq!(
         policy.may_depend_on,
-        ["core.math", "core.text", "unicode.\u{1d7d8}"]
+        [
+            "core.math",
+            "core.text",
+            "unicode.\u{1d7d8}",
+            "escaped.\tdep"
+        ]
     );
+}
+
+#[test]
+fn project_architecture_parser_rejects_raw_control_chars_in_strings() {
+    let raw_version = "{\n  \"version\": \"0.4.\ninvalid\"\n}";
+    assert_eq!(parse_project_version(raw_version), None);
+
+    let raw_module_key = "{\n  \"architecture\": {\n    \"modules\": {\n      \"app.\tmain\": {\n        \"may_depend_on\": [\"core.math\"]\n      }\n    }\n  }\n}";
+    let architecture = parse_architecture(raw_module_key);
+    assert!(architecture.policy_for("app.\tmain").is_none());
 }
 
 #[test]

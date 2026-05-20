@@ -167,6 +167,9 @@ fn read_string(text: &str, start: usize) -> Option<(String, usize)> {
         if char == '"' {
             return Some((value, index + char.len_utf8()));
         }
+        if char.is_control() {
+            return None;
+        }
         value.push(char);
         index += char.len_utf8();
     }
