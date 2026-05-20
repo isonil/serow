@@ -112,7 +112,10 @@ pub fn exact_intent_key(text: &str) -> String {
 }
 
 pub fn query_symbol(program: &Program, text: &str, limit: usize) -> Vec<QueryMatch> {
-    let needle = text.to_lowercase();
+    let needle = text.trim().to_lowercase();
+    if needle.is_empty() {
+        return Vec::new();
+    }
     let mut matches = Vec::new();
     for function in queryable_functions(program) {
         let mut score = 0.0;

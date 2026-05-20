@@ -2723,6 +2723,15 @@ fn type_query_finds_functions_by_signature_shape() {
         "{int_unary_matches:#?}"
     );
 
+    assert!(
+        query_symbol(&program, "", 20).is_empty(),
+        "empty symbol queries should not match every function"
+    );
+    assert!(
+        query_symbol(&program, "   ", 20).is_empty(),
+        "blank symbol queries should not match every function"
+    );
+
     let cli = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args(["query", "type", "Int, Int -> Int", "examples", "--json"])
         .output()
@@ -2734,6 +2743,18 @@ fn type_query_finds_functions_by_signature_shape() {
         "{stdout}"
     );
     assert!(stdout.contains("\"reasons\""), "{stdout}");
+
+    let empty_symbol_cli = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["query", "symbol", "", "--json"])
+        .output()
+        .expect("run empty serow query symbol");
+    assert!(empty_symbol_cli.status.success(), "{empty_symbol_cli:#?}");
+    let stdout = String::from_utf8(empty_symbol_cli.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"results\""), "{stdout}");
+    assert!(
+        !stdout.contains("\"symbol\":"),
+        "empty symbol query should return no results: {stdout}"
+    );
 }
 
 #[test]
