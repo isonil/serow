@@ -583,10 +583,10 @@ fn parse_migration_record(content: &str) -> Option<(String, String)> {
     let (kind, note) = content.split_once(' ')?;
     let kind = kind.trim();
     let note = note.trim();
-    if kind.is_empty() || !note.starts_with('"') || !note.ends_with('"') || note.len() < 2 {
+    if kind.is_empty() {
         return None;
     }
-    let note = note[1..note.len() - 1].trim();
+    let note = parse_quoted_string(note)?.trim().to_string();
     if note.is_empty() {
         return None;
     }
@@ -631,11 +631,7 @@ fn parse_params(text: &str, path: &str, line: usize) -> (Vec<Param>, Vec<Diagnos
 
 fn parse_intent(content: &str) -> Option<String> {
     let rest = content.strip_prefix("intent ")?;
-    if rest.starts_with('"') && rest.ends_with('"') && rest.len() >= 2 {
-        Some(rest[1..rest.len() - 1].to_string())
-    } else {
-        None
-    }
+    parse_quoted_string(rest)
 }
 
 fn parse_effects(text: &str) -> Vec<String> {
@@ -651,6 +647,39 @@ fn parse_effects(text: &str) -> Vec<String> {
             .collect();
     }
     vec![text.to_string()]
+}
+
+fn parse_quoted_string(text: &str) -> Option<String> {
+    let text = text.trim();
+    if !text.starts_with('"') {
+        return None;
+    }
+    let mut value = String::new();
+    let mut escaped = false;
+    let mut chars = text[1..].chars().peekable();
+    while let Some(char) = chars.next() {
+        if escaped {
+            match char {
+                '"' => value.push('"'),
+                '\\' => value.push('\\'),
+                other => {
+                    value.push('\\');
+                    value.push(other);
+                }
+            }
+            escaped = false;
+            continue;
+        }
+        if char == '\\' {
+            escaped = true;
+            continue;
+        }
+        if char == '"' {
+            return chars.peek().is_none().then_some(value);
+        }
+        value.push(char);
+    }
+    None
 }
 
 fn mark_section(

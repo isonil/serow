@@ -8384,6 +8384,42 @@ pub fn id(x: Int) -> Int
 }
 
 #[test]
+fn formatter_preserves_escaped_metadata_strings() {
+    let dir = unique_temp_dir("serow-format-escaped-metadata");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("escaped_metadata.serow");
+    let source_text = r#"module test.format
+
+pub fn id(x: Int) -> Int
+  intent "Return \"x\" from C:\\tmp."
+  version v1
+  migration
+    implementation-change "Preserve \"quoted\" metadata under C:\\tmp."
+  contract
+    ensures result == x
+  examples
+    id(1) == 1
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+"#;
+    fs::write(&source, source_text).expect("write fixture");
+
+    let summary = format_paths(&[source.to_string_lossy().to_string()], true);
+    assert!(summary.ok(), "{summary:#?}");
+    assert_eq!(summary.files, 1);
+    assert_eq!(summary.changed, 0);
+    assert_eq!(
+        fs::read_to_string(&source).expect("read fixture"),
+        source_text
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn formatter_rewrites_to_canonical_projection() {
     let dir = unique_temp_dir("serow-format-write");
     fs::create_dir_all(&dir).expect("create temp dir");
