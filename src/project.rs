@@ -34,37 +34,40 @@ pub fn parse_project_version(source: &str) -> Option<String> {
 }
 
 pub fn parse_architecture(source: &str) -> Architecture {
-    let Some(modules_key) = source.find("\"modules\"") else {
+    let Some(architecture) = object_field_value(source, "architecture") else {
         return Architecture::default();
     };
-    let Some(open_offset) = source[modules_key..].find('{') else {
+    let Some(modules) = object_field_value(architecture, "modules") else {
         return Architecture::default();
     };
-    let open = modules_key + open_offset;
-    let Some(close) = find_matching(source, open, '{', '}') else {
+    if !modules.starts_with('{') {
+        return Architecture::default();
+    }
+    let open = 0;
+    let Some(close) = find_matching(modules, open, '{', '}') else {
         return Architecture::default();
     };
 
     let mut policies = Vec::new();
     let mut index = open + 1;
     while index < close {
-        let Some((module, key_end)) = read_string(source, index) else {
+        let Some((module, key_end)) = read_string(modules, index) else {
             break;
         };
-        index = skip_ws(source, key_end);
-        if !source[index..].starts_with(':') {
+        index = skip_ws(modules, key_end);
+        if !modules[index..].starts_with(':') {
             index = key_end;
             continue;
         }
-        index = skip_ws(source, index + 1);
-        if !source[index..].starts_with('{') {
+        index = skip_ws(modules, index + 1);
+        if !modules[index..].starts_with('{') {
             index += 1;
             continue;
         }
-        let Some(object_end) = find_matching(source, index, '{', '}') else {
+        let Some(object_end) = find_matching(modules, index, '{', '}') else {
             break;
         };
-        let object = &source[index..=object_end];
+        let object = &modules[index..=object_end];
         policies.push(ModulePolicy {
             module,
             may_depend_on: parse_may_depend_on(object),
@@ -76,23 +79,23 @@ pub fn parse_architecture(source: &str) -> Architecture {
 }
 
 fn parse_may_depend_on(object: &str) -> Vec<String> {
-    let Some(key) = object.find("\"may_depend_on\"") else {
+    let Some(value) = object_field_value(object, "may_depend_on") else {
         return Vec::new();
     };
-    let Some(open_offset) = object[key..].find('[') else {
+    if !value.starts_with('[') {
         return Vec::new();
-    };
-    let open = key + open_offset;
-    let Some(close) = find_matching(object, open, '[', ']') else {
+    }
+    let open = 0;
+    let Some(close) = find_matching(value, open, '[', ']') else {
         return Vec::new();
     };
     let mut values = Vec::new();
     let mut index = open + 1;
     while index < close {
-        let Some((value, value_end)) = read_string(object, index) else {
+        let Some((dependency, value_end)) = read_string(value, index) else {
             break;
         };
-        values.push(value);
+        values.push(dependency);
         index = value_end;
     }
     values
@@ -161,6 +164,14 @@ fn find_matching(text: &str, open: usize, open_char: char, close_char: char) -> 
 }
 
 fn top_level_string_value(source: &str, key: &str) -> Option<String> {
+    let value = object_field_value(source, key)?;
+    if !value.starts_with('"') {
+        return None;
+    }
+    read_string(value, 0).map(|(value, _)| value)
+}
+
+fn object_field_value<'a>(source: &'a str, key: &str) -> Option<&'a str> {
     let root_open = source.find('{')?;
     let root_close = find_matching(source, root_open, '{', '}')?;
     let mut index = root_open + 1;
@@ -186,17 +197,15 @@ fn top_level_string_value(source: &str, key: &str) -> Option<String> {
         }
         index = skip_ws(source, index + 1);
         if candidate_key == key {
-            if !source[index..].starts_with('"') {
-                return None;
-            }
-            return read_string(source, index).map(|(value, _)| value);
+            let value_end = value_end(source, index, root_close);
+            return Some(source[index..value_end].trim_end());
         }
         index = skip_value(source, index, root_close);
     }
     None
 }
 
-fn skip_value(source: &str, start: usize, limit: usize) -> usize {
+fn value_end(source: &str, start: usize, limit: usize) -> usize {
     let mut index = start;
     let mut stack = Vec::new();
     let mut in_string = false;
@@ -230,10 +239,18 @@ fn skip_value(source: &str, start: usize, limit: usize) -> usize {
             '}' | ']' if stack.last() == Some(&char) => {
                 stack.pop();
             }
-            ',' if stack.is_empty() => return index + 1,
+            ',' if stack.is_empty() => return index,
             _ => {}
         }
         index += char.len_utf8();
+    }
+    index
+}
+
+fn skip_value(source: &str, start: usize, limit: usize) -> usize {
+    let mut index = value_end(source, start, limit);
+    if index < limit && source[index..].starts_with(',') {
+        index += 1;
     }
     index
 }

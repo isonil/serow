@@ -8243,6 +8243,11 @@ fn project_architecture_parser_reads_module_policies() {
     let project = r#"{
   "language": "Serow",
   "implementation": {
+    "modules": {
+      "bootstrap.internal": {
+        "may_depend_on": ["not.architecture"]
+      }
+    },
     "version": "nested-bootstrap-detail"
   },
   "version": "0.4.82-rust-bootstrap",
@@ -8264,6 +8269,7 @@ fn project_architecture_parser_reads_module_policies() {
 
     let policy = architecture.policy_for("app.main").expect("policy");
     assert_eq!(policy.may_depend_on, ["core.math", "core.text"]);
+    assert!(architecture.policy_for("bootstrap.internal").is_none());
 }
 
 #[test]
