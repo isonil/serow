@@ -1866,8 +1866,7 @@ fn run_query(args: &[String]) -> i32 {
     match query_command {
         "callees" => {
             let Some(parsed) = parse_text_query_args(&args[1..]) else {
-                print_query_usage();
-                return 2;
+                return text_query_usage_error("callees", &args[1..]);
             };
             let (program, parse_diagnostics) = parse_paths(&parsed.paths);
             if emit_query_parse_errors("callees", parsed.json_output, &parse_diagnostics) {
@@ -1883,8 +1882,7 @@ fn run_query(args: &[String]) -> i32 {
         }
         "dependents" => {
             let Some(parsed) = parse_text_query_args(&args[1..]) else {
-                print_query_usage();
-                return 2;
+                return text_query_usage_error("dependents", &args[1..]);
             };
             let (program, parse_diagnostics) = parse_paths(&parsed.paths);
             if emit_query_parse_errors("dependents", parsed.json_output, &parse_diagnostics) {
@@ -1900,8 +1898,7 @@ fn run_query(args: &[String]) -> i32 {
         }
         "impact" => {
             let Some(parsed) = parse_text_query_args(&args[1..]) else {
-                print_query_usage();
-                return 2;
+                return text_query_usage_error("impact", &args[1..]);
             };
             let (program, parse_diagnostics) = parse_paths(&parsed.paths);
             if emit_query_parse_errors("impact", parsed.json_output, &parse_diagnostics) {
@@ -1917,8 +1914,7 @@ fn run_query(args: &[String]) -> i32 {
         }
         "intent" => {
             let Some(parsed) = parse_text_query_args(&args[1..]) else {
-                print_query_usage();
-                return 2;
+                return text_query_usage_error("intent", &args[1..]);
             };
             let (program, parse_diagnostics) = parse_paths(&parsed.paths);
             if emit_query_parse_errors("intent", parsed.json_output, &parse_diagnostics) {
@@ -1934,8 +1930,7 @@ fn run_query(args: &[String]) -> i32 {
         }
         "symbol" => {
             let Some(parsed) = parse_text_query_args(&args[1..]) else {
-                print_query_usage();
-                return 2;
+                return text_query_usage_error("symbol", &args[1..]);
             };
             let (program, parse_diagnostics) = parse_paths(&parsed.paths);
             if emit_query_parse_errors("symbol", parsed.json_output, &parse_diagnostics) {
@@ -1951,8 +1946,7 @@ fn run_query(args: &[String]) -> i32 {
         }
         "type" => {
             let Some(parsed) = parse_text_query_args(&args[1..]) else {
-                print_query_usage();
-                return 2;
+                return text_query_usage_error("type", &args[1..]);
             };
             let (program, parse_diagnostics) = parse_paths(&parsed.paths);
             if emit_query_parse_errors("type", parsed.json_output, &parse_diagnostics) {
@@ -1989,6 +1983,24 @@ fn parse_text_query_args(args: &[String]) -> Option<TextQueryArgs> {
         paths: args[1..].to_vec(),
         json_output,
     })
+}
+
+fn text_query_usage_error(query_command: &str, args: &[String]) -> i32 {
+    let (_, json_output) = split_flag(args, "--json");
+    if json_output {
+        let diagnostic = Diagnostic::error(
+            "UsageError",
+            format!("`serow query {query_command}` requires query text."),
+            None,
+        )
+        .with_repair(format!(
+            "Use `serow query {query_command} <text> [paths...] [--json]`."
+        ));
+        println!("{}", diagnostics_json(false, &[diagnostic]));
+    } else {
+        print_query_usage();
+    }
+    2
 }
 
 fn run_symbols_query(args: &[String]) -> i32 {

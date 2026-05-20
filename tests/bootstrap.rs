@@ -3088,17 +3088,35 @@ fn text_query_commands_reject_json_flag_without_query_text() {
         "symbol",
         "type",
     ] {
-        let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        let text_output = Command::new(env!("CARGO_BIN_EXE_serow"))
+            .args(["query", query_command])
+            .output()
+            .expect("run serow query without required text");
+
+        assert!(!text_output.status.success(), "{text_output:#?}");
+        assert_eq!(text_output.status.code(), Some(2), "{text_output:#?}");
+        let stderr = String::from_utf8(text_output.stderr).expect("stderr is utf8");
+        assert!(
+            stderr.contains(&format!("serow query {query_command} ")),
+            "{stderr}"
+        );
+
+        let json_output = Command::new(env!("CARGO_BIN_EXE_serow"))
             .args(["query", query_command, "--json"])
             .output()
             .expect("run serow query without required text");
 
-        assert!(!output.status.success(), "{output:#?}");
-        assert_eq!(output.status.code(), Some(2), "{output:#?}");
-        let stderr = String::from_utf8(output.stderr).expect("stderr is utf8");
+        assert!(!json_output.status.success(), "{json_output:#?}");
+        assert_eq!(json_output.status.code(), Some(2), "{json_output:#?}");
+        assert!(json_output.stderr.is_empty(), "{json_output:#?}");
+        let stdout = String::from_utf8(json_output.stdout).expect("stdout is utf8");
+        assert!(stdout.trim_start().starts_with('{'), "{stdout}");
+        assert!(stdout.contains("\"code\": \"UsageError\""), "{stdout}");
         assert!(
-            stderr.contains(&format!("serow query {query_command} ")),
-            "{stderr}"
+            stdout.contains(&format!(
+                "`serow query {query_command}` requires query text."
+            )),
+            "{stdout}"
         );
     }
 }
@@ -10010,7 +10028,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("\"project_version\": \"0.4.98-rust-bootstrap\""),
+        stdout.contains("\"project_version\": \"0.4.99-rust-bootstrap\""),
         "{stdout}"
     );
     let source_bytes = fs::read("examples/math.serow").expect("read math source");
@@ -10057,7 +10075,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{manifest}"
     );
     assert!(
-        manifest.contains("project_version = \"0.4.98-rust-bootstrap\""),
+        manifest.contains("project_version = \"0.4.99-rust-bootstrap\""),
         "{manifest}"
     );
     assert!(
@@ -10139,7 +10157,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{metadata}"
     );
     assert!(
-        metadata.contains("\"project_version\": \"0.4.98-rust-bootstrap\""),
+        metadata.contains("\"project_version\": \"0.4.99-rust-bootstrap\""),
         "{metadata}"
     );
     assert!(
@@ -10203,7 +10221,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{readme}"
     );
     assert!(
-        readme.contains("- Serow project version: `0.4.98-rust-bootstrap`"),
+        readme.contains("- Serow project version: `0.4.99-rust-bootstrap`"),
         "{readme}"
     );
     assert!(

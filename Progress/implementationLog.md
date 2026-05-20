@@ -2,6 +2,10 @@
 
 ## 2026-05-20
 
+- Chose text-query usage diagnostics as a small agent-protocol hardening fix because `serow query <text-command> --json` honored JSON for parse errors but still emitted plain stderr usage when the required query text was missing.
+- Updated text-query usage failures to return a structured `UsageError` diagnostics JSON envelope whenever `--json` is requested, while preserving plain usage output for text mode.
+- Bumped `serow.project` to `0.4.99-rust-bootstrap`; verification is recorded in the final run for this change.
+
 - Chose dependency-free project manifest parser hardening as a small production-readiness cleanup because architecture policy and project version loading depend on `serow.project` before checks run.
 - Tightened JSON string parsing for the project manifest so raw control characters are rejected instead of becoming part of version, module, or dependency strings, while preserving valid escaped control sequences.
 - Verification is recorded in the final run for this change.
