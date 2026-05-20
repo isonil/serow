@@ -2,6 +2,10 @@
 
 ## 2026-05-20
 
+- Chose generated Rust crate-name validation as a backend hardening fix because `compile rust --out-dir --crate-name 1bad` passed Serow validation but Cargo rejects package names that start with a digit.
+- Tightened `--crate-name` first-character validation to require a lowercase ASCII letter and extended invalid crate-name regression coverage to include digit-leading names.
+- Verification is recorded in the final run for this change.
+
 - Chose effect declaration hygiene as a small production-readiness cleanup because redundant declarations such as `effects [io, io]` and `effects [pure, io]` were silently normalized by set-based effect checks.
 - Added Rust and Python checker warnings with canonical `patch set-effects` repair actions for duplicate effect capabilities and `pure` mixed with concrete capabilities.
 - Verification is recorded in the final run for this change.

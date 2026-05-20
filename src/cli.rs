@@ -1149,10 +1149,8 @@ fn validate_rust_crate_name(crate_name: &str) -> Result<(), String> {
     let Some(first) = chars.next() else {
         return Err("`--crate-name` cannot be empty.".to_string());
     };
-    if !first.is_ascii_lowercase() && !first.is_ascii_digit() {
-        return Err(
-            "`--crate-name` must start with a lowercase ASCII letter or digit.".to_string(),
-        );
+    if !first.is_ascii_lowercase() {
+        return Err("`--crate-name` must start with a lowercase ASCII letter.".to_string());
     }
     if !crate_name.chars().all(|char| {
         char.is_ascii_lowercase() || char.is_ascii_digit() || char == '_' || char == '-'

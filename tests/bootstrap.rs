@@ -10846,25 +10846,27 @@ pub fn main() -> Handle
 
 #[test]
 fn compile_rust_rejects_invalid_crate_name() {
-    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
-        .args([
-            "compile",
-            "rust",
-            "examples/math.serow",
-            "--out-dir",
-            "/tmp/serow-invalid-crate-name",
-            "--crate-name",
-            "BadName",
-            "--json",
-        ])
-        .output()
-        .expect("run compile rust with invalid crate name");
-    assert_eq!(output.status.code(), Some(2), "{output:#?}");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("`--crate-name` must start with a lowercase ASCII letter or digit"),
-        "{stderr}"
-    );
+    for crate_name in ["BadName", "1bad"] {
+        let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+            .args([
+                "compile",
+                "rust",
+                "examples/math.serow",
+                "--out-dir",
+                "/tmp/serow-invalid-crate-name",
+                "--crate-name",
+                crate_name,
+                "--json",
+            ])
+            .output()
+            .expect("run compile rust with invalid crate name");
+        assert_eq!(output.status.code(), Some(2), "{output:#?}");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("`--crate-name` must start with a lowercase ASCII letter"),
+            "{stderr}"
+        );
+    }
 }
 
 #[test]
