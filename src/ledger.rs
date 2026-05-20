@@ -2,13 +2,35 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::eval::{called_functions, resolve_function};
 use crate::intrinsics::intrinsic_functions;
-use crate::model::{Function, Program};
+use crate::model::{Function, Program, TypeDecl};
 
 #[derive(Clone, Debug)]
 pub struct QueryMatch {
     pub score: f64,
     pub function: Function,
     pub reasons: Vec<String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct SymbolQueryMatch {
+    pub score: f64,
+    pub symbol: SymbolMatch,
+    pub reasons: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum SymbolMatch {
+    Function(Box<Function>),
+    Type(Box<TypeDecl>),
+}
+
+impl SymbolMatch {
+    pub fn symbol(&self) -> String {
+        match self {
+            SymbolMatch::Function(function) => function.symbol(),
+            SymbolMatch::Type(type_decl) => type_decl.symbol(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -111,7 +133,7 @@ pub fn exact_intent_key(text: &str) -> String {
     normalized.trim().to_string()
 }
 
-pub fn query_symbol(program: &Program, text: &str, limit: usize) -> Vec<QueryMatch> {
+pub fn query_symbol(program: &Program, text: &str, limit: usize) -> Vec<SymbolQueryMatch> {
     let needle = text.trim().to_lowercase();
     if needle.is_empty() {
         return Vec::new();
@@ -136,9 +158,50 @@ pub fn query_symbol(program: &Program, text: &str, limit: usize) -> Vec<QueryMat
             reasons.push("module".to_string());
         }
         if score > 0.0 {
-            matches.push(QueryMatch {
+            matches.push(SymbolQueryMatch {
                 score,
-                function: function.clone(),
+                symbol: SymbolMatch::Function(Box::new(function.clone())),
+                reasons,
+            });
+        }
+    }
+    for type_decl in &program.types {
+        let mut score = 0.0;
+        let mut reasons = Vec::new();
+        if type_decl.name.to_lowercase() == needle {
+            score += 1.0;
+            reasons.push("exact-name".to_string());
+        } else if type_decl.name.to_lowercase().contains(&needle) {
+            score += 0.6;
+            reasons.push("partial-name".to_string());
+        }
+        if type_decl.symbol().to_lowercase().contains(&needle) {
+            score += 0.5;
+            reasons.push("symbol".to_string());
+        }
+        if type_decl.module.to_lowercase().contains(&needle) {
+            score += 0.3;
+            reasons.push("module".to_string());
+        }
+        if type_decl
+            .variants
+            .iter()
+            .any(|variant| variant.to_lowercase() == needle)
+        {
+            score += 0.7;
+            reasons.push("variant".to_string());
+        } else if type_decl
+            .variants
+            .iter()
+            .any(|variant| variant.to_lowercase().contains(&needle))
+        {
+            score += 0.4;
+            reasons.push("partial-variant".to_string());
+        }
+        if score > 0.0 {
+            matches.push(SymbolQueryMatch {
+                score,
+                symbol: SymbolMatch::Type(Box::new(type_decl.clone())),
                 reasons,
             });
         }
@@ -148,7 +211,7 @@ pub fn query_symbol(program: &Program, text: &str, limit: usize) -> Vec<QueryMat
             .score
             .partial_cmp(&left.score)
             .unwrap_or(std::cmp::Ordering::Equal)
-            .then_with(|| left.function.symbol().cmp(&right.function.symbol()))
+            .then_with(|| left.symbol.symbol().cmp(&right.symbol.symbol()))
     });
     matches.truncate(limit);
     matches

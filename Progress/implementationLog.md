@@ -2,6 +2,10 @@
 
 ## 2026-05-20
 
+- Chose symbol-query coverage as a Serow tool-interface cleanup because `query symbol` could find public functions but not declared record/enum types or enum variants, even though agents are instructed to use it before adding potentially existing symbols.
+- Extended Rust symbol lookup and JSON/text output with type rows, including record fields, enum variants, and type kind metadata, while keeping intent and type-shape queries function-focused.
+- Verification is recorded in the final run for this change.
+
 - Chose indexed patch command JSON consistency as a small agent-protocol hardening fix because `patch remove-*` and indexed `patch set-*` argument validation accepted `--json` but still emitted invalid-index usage errors as plain stderr.
 - Updated invalid index handling for indexed patch commands to emit a `UsageError` diagnostic in the normal patch JSON envelope when `--json` is present, preserving stderr text mode behavior.
 - Verification is recorded in the final run for this change.

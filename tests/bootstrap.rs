@@ -7,7 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serow::checker::check_program;
 use serow::diagnostic::{Diagnostic, RepairAction, validate_repair_actions};
 use serow::formatter::format_paths;
-use serow::ledger::{query_intent, query_symbol, query_type};
+use serow::ledger::{SymbolMatch, query_intent, query_symbol, query_type};
 use serow::parser::parse_paths;
 use serow::project::{parse_architecture, parse_project_version};
 
@@ -1016,16 +1016,18 @@ fn terminal_io_intrinsics_are_queryable() {
     let (program, _) = parse_paths(&["examples".to_string()]);
     let print_matches = query_symbol(&program, "print", 10);
     assert!(
-        print_matches
-            .iter()
-            .any(|query_match| query_match.function.symbol() == "@serow.intrinsic.print.v1"),
+        print_matches.iter().any(|query_match| matches!(
+            &query_match.symbol,
+            SymbolMatch::Function(function) if function.symbol() == "@serow.intrinsic.print.v1"
+        )),
         "{print_matches:#?}"
     );
     let read_line_matches = query_symbol(&program, "read_line", 10);
     assert!(
-        read_line_matches
-            .iter()
-            .any(|query_match| query_match.function.symbol() == "@serow.intrinsic.read_line.v1"),
+        read_line_matches.iter().any(|query_match| matches!(
+            &query_match.symbol,
+            SymbolMatch::Function(function) if function.symbol() == "@serow.intrinsic.read_line.v1"
+        )),
         "{read_line_matches:#?}"
     );
     let intent_matches = query_intent(&program, "print text to terminal", 10);
@@ -2967,6 +2969,27 @@ fn type_query_finds_functions_by_signature_shape() {
         "blank symbol queries should not match every function"
     );
 
+    let type_matches = query_symbol(&program, "Room", 20);
+    assert!(
+        type_matches.iter().any(|query_match| matches!(
+            &query_match.symbol,
+            SymbolMatch::Type(type_decl) if type_decl.name == "Room"
+        )),
+        "{type_matches:#?}"
+    );
+
+    let variant_matches = query_symbol(&program, "Cave", 20);
+    assert!(
+        variant_matches.iter().any(|query_match| {
+            query_match.reasons.iter().any(|reason| reason == "variant")
+                && matches!(
+                    &query_match.symbol,
+                    SymbolMatch::Type(type_decl) if type_decl.variants.iter().any(|variant| variant == "Cave")
+                )
+        }),
+        "{variant_matches:#?}"
+    );
+
     let cli = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args(["query", "type", "Int, Int -> Int", "examples", "--json"])
         .output()
@@ -2990,6 +3013,19 @@ fn type_query_finds_functions_by_signature_shape() {
         !stdout.contains("\"symbol\":"),
         "empty symbol query should return no results: {stdout}"
     );
+
+    let type_cli = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["query", "symbol", "Room", "examples", "--json"])
+        .output()
+        .expect("run serow query symbol for type");
+    assert!(type_cli.status.success(), "{type_cli:#?}");
+    let stdout = String::from_utf8(type_cli.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"kind\": \"type\""), "{stdout}");
+    assert!(
+        stdout.contains("\"symbol\": \"@core.rpg.Room\""),
+        "{stdout}"
+    );
+    assert!(stdout.contains("\"type_kind\": \"enum\""), "{stdout}");
 }
 
 #[test]

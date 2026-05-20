@@ -6,8 +6,8 @@ use crate::diagnostic::{Diagnostic, has_errors, validate_repair_actions};
 use crate::formatter::{FormatSummary, format_paths};
 use crate::ir::{IrExpr, IrFunction, IrProgram, IrSummary, lower_checked_program};
 use crate::ledger::{
-    Callee, Dependent, ImpactDependent, query_callees, query_dependents, query_impact,
-    query_intent, query_symbol, query_type, symbols,
+    Callee, Dependent, ImpactDependent, SymbolMatch, SymbolQueryMatch, query_callees,
+    query_dependents, query_impact, query_intent, query_symbol, query_type, symbols,
 };
 use crate::model::Function;
 use crate::parser::{discover_sources, parse_paths};
@@ -1932,9 +1932,9 @@ fn run_query(args: &[String]) -> i32 {
             }
             let matches = query_symbol(&program, &parsed.text, 20);
             if parsed.json_output {
-                println!("{}", query_matches_json(&matches));
+                println!("{}", symbol_query_matches_json(&matches));
             } else {
-                print_query_matches(&matches);
+                print_symbol_query_matches(&matches);
             }
             0
         }
@@ -2464,6 +2464,41 @@ fn print_query_matches(matches: &[crate::ledger::QueryMatch]) {
             row.function.source_path, row.function.line
         );
         println!("  version: {}", row.function.version());
+    }
+}
+
+fn print_symbol_query_matches(matches: &[SymbolQueryMatch]) {
+    if matches.is_empty() {
+        println!("no matches");
+        return;
+    }
+    for row in matches {
+        match &row.symbol {
+            SymbolMatch::Function(function) => {
+                println!("{} score={:.3}", function.symbol(), row.score);
+                println!("  {}", function.signature());
+                if let Some(intent) = &function.intent {
+                    println!("  intent: {intent}");
+                }
+                println!("  source: {}:{}", function.source_path, function.line);
+                println!("  version: {}", function.version());
+            }
+            SymbolMatch::Type(type_decl) => {
+                println!("{} score={:.3}", type_decl.symbol(), row.score);
+                if type_decl.is_enum() {
+                    println!("  enum {}", type_decl.variants.join(" | "));
+                } else {
+                    let fields = type_decl
+                        .fields
+                        .iter()
+                        .map(|field| format!("{}: {}", field.name, field.type_name))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    println!("  record {{ {fields} }}");
+                }
+                println!("  source: {}:{}", type_decl.source_path, type_decl.line);
+            }
+        }
     }
 }
 
@@ -3664,6 +3699,62 @@ fn query_matches_json(matches: &[crate::ledger::QueryMatch]) -> String {
                 json_string(&row.function.symbol()),
                 json_string(row.function.version()),
             )
+        })
+        .collect::<Vec<_>>()
+        .join(",\n    ");
+    format!("{{\n  \"ok\": true,\n  \"results\": [\n    {rows}\n  ]\n}}")
+}
+
+fn symbol_query_matches_json(matches: &[SymbolQueryMatch]) -> String {
+    let rows = matches
+        .iter()
+        .map(|row| match &row.symbol {
+            SymbolMatch::Function(function) => {
+                format!(
+                    "{{\n      \"effects\": {},\n      \"intent\": {},\n      \"kind\": \"function\",\n      \"module\": {},\n      \"name\": {},\n      \"reasons\": {},\n      \"score\": {:.3},\n      \"signature\": {},\n      \"source\": {},\n      \"symbol\": {},\n      \"version\": {}\n    }}",
+                    string_array_json(&function.effects),
+                    option_string_json(function.intent.as_deref()),
+                    json_string(&function.module),
+                    json_string(&function.name),
+                    string_array_json(&row.reasons),
+                    row.score,
+                    json_string(&function.signature()),
+                    json_string(&format!("{}:{}", function.source_path, function.line)),
+                    json_string(&function.symbol()),
+                    json_string(function.version()),
+                )
+            }
+            SymbolMatch::Type(type_decl) => {
+                let fields = type_decl
+                    .fields
+                    .iter()
+                    .map(|field| {
+                        format!(
+                            "{{\"name\": {}, \"type\": {}}}",
+                            json_string(&field.name),
+                            json_string(&field.type_name)
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let type_kind = if type_decl.is_enum() {
+                    "enum"
+                } else {
+                    "record"
+                };
+                format!(
+                    "{{\n      \"fields\": [{}],\n      \"kind\": \"type\",\n      \"module\": {},\n      \"name\": {},\n      \"reasons\": {},\n      \"score\": {:.3},\n      \"source\": {},\n      \"symbol\": {},\n      \"type_kind\": {},\n      \"variants\": {}\n    }}",
+                    fields,
+                    json_string(&type_decl.module),
+                    json_string(&type_decl.name),
+                    string_array_json(&row.reasons),
+                    row.score,
+                    json_string(&format!("{}:{}", type_decl.source_path, type_decl.line)),
+                    json_string(&type_decl.symbol()),
+                    json_string(type_kind),
+                    string_array_json(&type_decl.variants),
+                )
+            }
         })
         .collect::<Vec<_>>()
         .join(",\n    ");

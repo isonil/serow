@@ -182,7 +182,7 @@ bin/serow query dependents @core.math.add.v1
 bin/serow query impact @core.math.add.v1
 ```
 
-`query type` accepts exact bootstrap type shapes such as `Int, Int -> Int`, wildcard shapes such as `_ -> Int`, simple type-token queries such as `Text`, and declared record type names that appear in public signatures.
+`query symbol` searches public functions, declared record and enum types, and enum variant names. `query type` accepts exact bootstrap type shapes such as `Int, Int -> Int`, wildcard shapes such as `_ -> Int`, simple type-token queries such as `Text`, and declared record type names that appear in public signatures.
 
 Replay a failing sampled property from a diagnostic seed. Built-in property samples currently include `Int` values `-2, -1, 0, 1, 2, -10, 10`, both `Bool` values, representative `Text` values including empty, short, spaced, and numeric-looking strings, the singleton `Unit` value, bounded declared-record samples built from those values, and declared enum variants. Failed replay diagnostics include shrink hint fields when a simpler failing or erroring sampled binding exists. Non-executable replay diagnostics include unsupported-sample reasons, recursive record sample cycles when present, and indexed `patch remove-property` repair actions.
 

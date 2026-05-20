@@ -81,13 +81,13 @@ Selection policy for generic implementation prompts:
 - Duplicate bare function names are allowed when call sites are qualified.
 - Semantic ledger queries:
   - `bin/serow query intent "<description>"` with deterministic token-ranked matching
-  - `bin/serow query symbol "<name>"`
+  - `bin/serow query symbol "<name>"` for public functions, declared record/enum types, and enum variant names
   - `bin/serow query type "<type-or-shape>"`
   - `bin/serow query symbols`
   - `bin/serow query callees "<symbol-or-name>"`
   - `bin/serow query dependents "<symbol-or-name>"`
   - `bin/serow query impact "<symbol-or-name>"` with direct and transitive dependent paths
-- Symbol, intent, and type query JSON expose source-level version metadata separately from the canonical symbol string.
+- Function symbol, intent, and type query JSON expose source-level version metadata separately from the canonical symbol string; type symbol query rows expose record/enum shape metadata.
 - Agent bootstrap command:
   - `bin/serow agent`
   - `bin/serow agent --json`
