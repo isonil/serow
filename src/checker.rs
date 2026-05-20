@@ -2027,11 +2027,3 @@ fn split_args(text: &str) -> Vec<String> {
     }
     parts
 }
-
-#[allow(dead_code)]
-fn _unique_codes(diagnostics: &[Diagnostic]) -> HashSet<String> {
-    diagnostics
-        .iter()
-        .map(|diagnostic| diagnostic.code.clone())
-        .collect()
-}
