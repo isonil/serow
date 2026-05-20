@@ -2,6 +2,10 @@
 
 ## 2026-05-20
 
+- Chose effect declaration hygiene as a small production-readiness cleanup because redundant declarations such as `effects [io, io]` and `effects [pure, io]` were silently normalized by set-based effect checks.
+- Added Rust and Python checker warnings with canonical `patch set-effects` repair actions for duplicate effect capabilities and `pure` mixed with concrete capabilities.
+- Verification is recorded in the final run for this change.
+
 - Chose agent diagnostic protocol wording as a low-risk cleanup because `agent diagnostics --json` described duplicate evidence repair actions with a nonexistent `remove-evidence` patch command even though the actual structured actions are `remove-example`, `remove-contract`, and `remove-property`.
 - Corrected the machine-readable protocol text and added a regression assertion so command discovery does not drift back to the nonexistent command name.
 - Verification is recorded in the final run for this change.

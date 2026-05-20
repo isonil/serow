@@ -59,6 +59,7 @@ pub fn check_program(program: &Program, parse_diagnostics: Vec<Diagnostic>) -> C
         check_function_shape(function, program, &mut summary);
         check_repeated_evidence(function, &mut summary);
         check_repeated_migrations(function, &mut summary);
+        check_effect_declaration(function, &mut summary);
     }
     for function in &program.functions {
         check_static_types(function, program, &mut summary);
@@ -1351,6 +1352,85 @@ fn check_effects(program: &Program, summary: &mut CheckSummary) {
             ),
         );
     }
+}
+
+fn check_effect_declaration(function: &Function, summary: &mut CheckSummary) {
+    if function.effects.is_empty() {
+        return;
+    }
+
+    let suggested_effects =
+        effect_declaration_from_capabilities(effect_capabilities(function).into_iter().collect());
+    let duplicate_effects = duplicate_effects(&function.effects);
+    if !duplicate_effects.is_empty() {
+        summary.diagnostics.push(
+            Diagnostic::warning(
+                "DuplicateEffectCapability",
+                format!(
+                    "Function `{}` declares duplicate effect capabilities: {}.",
+                    function.name,
+                    duplicate_effects.join(", ")
+                ),
+                Some(function.target()),
+            )
+            .with_data("function", function.symbol())
+            .with_data("effects", effect_label(function))
+            .with_data("duplicate_effects", duplicate_effects.join(", "))
+            .with_data("suggested_effects", suggested_effects.clone())
+            .with_repair("Declare each effect capability once.")
+            .with_command_repair(
+                "Replace with canonical effect declaration",
+                vec![
+                    "bin/serow".to_string(),
+                    "patch".to_string(),
+                    "set-effects".to_string(),
+                    function.source_path.clone(),
+                    function.symbol(),
+                    suggested_effects.clone(),
+                ],
+            ),
+        );
+    }
+
+    if function.effects.iter().any(|effect| effect == "pure") && function.effects.len() > 1 {
+        summary.diagnostics.push(
+            Diagnostic::warning(
+                "PureEffectWithCapabilities",
+                format!(
+                    "Function `{}` mixes `pure` with concrete effect capabilities.",
+                    function.name
+                ),
+                Some(function.target()),
+            )
+            .with_data("function", function.symbol())
+            .with_data("effects", effect_label(function))
+            .with_data("suggested_effects", suggested_effects.clone())
+            .with_repair("Use `pure` only when no concrete effect capabilities are required.")
+            .with_command_repair(
+                "Replace with canonical effect declaration",
+                vec![
+                    "bin/serow".to_string(),
+                    "patch".to_string(),
+                    "set-effects".to_string(),
+                    function.source_path.clone(),
+                    function.symbol(),
+                    suggested_effects,
+                ],
+            ),
+        );
+    }
+}
+
+fn duplicate_effects(effects: &[String]) -> Vec<String> {
+    let mut seen = HashSet::<String>::new();
+    let mut duplicates = effects
+        .iter()
+        .filter(|effect| !seen.insert((*effect).clone()))
+        .cloned()
+        .collect::<Vec<_>>();
+    duplicates.sort();
+    duplicates.dedup();
+    duplicates
 }
 
 fn callee_required_capabilities(function: &Function) -> HashSet<String> {

@@ -46,6 +46,7 @@ Selection policy for generic implementation prompts:
   - single-sample property replay via `bin/serow replay property <sample-seed> [paths...] [--json]`, including the same deterministic shrink hint fields as checker failures and evaluation errors when a simpler same-outcome binding exists
   - inferred cross-module dependencies from function calls in implementations, contracts, examples, and properties
   - conservative structured effect capability validation: direct callers must declare every concrete non-`pure` capability required by resolved callees, and resolved direct-call wrappers warn on concrete capabilities not required by non-self callees
+  - redundant effect declaration warnings for duplicate capabilities and `pure` mixed with concrete capabilities, with canonical `patch set-effects` repair actions
 - Compiler-owned terminal intrinsics:
   - `print(text: Text) -> Unit`
   - `read_line() -> Text`

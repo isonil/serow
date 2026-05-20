@@ -56,6 +56,7 @@ def check_program(program: Program, parse_diagnostics: List[Diagnostic]) -> Chec
         _check_function_shape(function, program, summary)
         _check_repeated_evidence(function, summary)
         _check_repeated_migrations(function, summary)
+        _check_effect_declaration(function, summary)
     for function in program.functions:
         _check_example_constraints(function, program, summary)
         _check_property_constraints(function, program, summary)
@@ -731,6 +732,82 @@ def _check_effects(program: Program, summary: CheckSummary) -> None:
                 ],
             )
         )
+
+
+def _check_effect_declaration(function: Function, summary: CheckSummary) -> None:
+    if not function.effects:
+        return
+    suggested_effects = _effect_declaration_from_capabilities(_effect_capabilities(function))
+    duplicate_effects = _duplicate_effects(function.effects)
+    if duplicate_effects:
+        summary.diagnostics.append(
+            Diagnostic(
+                severity="warning",
+                code="DuplicateEffectCapability",
+                message=(
+                    f"Function `{function.name}` declares duplicate effect capabilities: "
+                    f"{', '.join(duplicate_effects)}."
+                ),
+                target=function.target,
+                data={
+                    "function": function.symbol,
+                    "effects": _effect_label(function),
+                    "duplicate_effects": ", ".join(duplicate_effects),
+                    "suggested_effects": suggested_effects,
+                },
+                repairs=["Declare each effect capability once."],
+            )
+            .with_command_repair(
+                "Replace with canonical effect declaration",
+                [
+                    "bin/serow",
+                    "patch",
+                    "set-effects",
+                    function.source_path,
+                    function.symbol,
+                    suggested_effects,
+                ],
+            )
+        )
+
+    if "pure" in function.effects and len(function.effects) > 1:
+        summary.diagnostics.append(
+            Diagnostic(
+                severity="warning",
+                code="PureEffectWithCapabilities",
+                message=f"Function `{function.name}` mixes `pure` with concrete effect capabilities.",
+                target=function.target,
+                data={
+                    "function": function.symbol,
+                    "effects": _effect_label(function),
+                    "suggested_effects": suggested_effects,
+                },
+                repairs=[
+                    "Use `pure` only when no concrete effect capabilities are required."
+                ],
+            )
+            .with_command_repair(
+                "Replace with canonical effect declaration",
+                [
+                    "bin/serow",
+                    "patch",
+                    "set-effects",
+                    function.source_path,
+                    function.symbol,
+                    suggested_effects,
+                ],
+            )
+        )
+
+
+def _duplicate_effects(effects: List[str]) -> List[str]:
+    seen = set()
+    duplicates = set()
+    for effect in effects:
+        if effect in seen:
+            duplicates.add(effect)
+        seen.add(effect)
+    return sorted(duplicates)
 
 
 def _function_expressions(function: Function) -> List[Tuple[str, str]]:

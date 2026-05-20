@@ -1129,6 +1129,110 @@ pub fn declared_extra(x: Int) -> Int
 }
 
 #[test]
+fn redundant_effect_declarations_warn_with_patch_repairs() {
+    let dir = unique_temp_dir("serow-redundant-effects");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("effects.serow");
+    fs::write(
+        &source,
+        r#"module test.effects
+
+pub fn repeated(x: Int) -> Int
+  intent "Echo the integer input with repeated capability metadata."
+  contract
+    ensures result == x
+  examples
+    repeated(1) == 1
+  properties
+    forall x: Int:
+      repeated(x) == x
+  effects [io, io]
+  impl
+    x
+
+pub fn mixed(x: Int) -> Int
+  intent "Preserve the input number while mixing pure marker into a capability list."
+  contract
+    ensures result == x
+  examples
+    mixed(1) == 1
+  properties
+    forall x: Int:
+      mixed(x) == x
+  effects [pure, io]
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(summary.ok(), "{:#?}", summary.diagnostics);
+
+    let duplicate = summary
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "DuplicateEffectCapability")
+        .expect("duplicate effect diagnostic");
+    assert_eq!(
+        duplicate.severity,
+        serow::diagnostic::Severity::Warning,
+        "{duplicate:#?}"
+    );
+    assert!(
+        duplicate
+            .data
+            .iter()
+            .any(|(key, value)| key == "duplicate_effects" && value == "io"),
+        "{duplicate:#?}"
+    );
+    assert!(
+        duplicate.repair_actions.iter().any(|action| action.command
+            == vec![
+                "bin/serow",
+                "patch",
+                "set-effects",
+                source.to_string_lossy().as_ref(),
+                "@test.effects.repeated.v1",
+                "[io]"
+            ]),
+        "{duplicate:#?}"
+    );
+
+    let mixed = summary
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "PureEffectWithCapabilities")
+        .expect("mixed pure effect diagnostic");
+    assert!(
+        mixed
+            .data
+            .iter()
+            .any(|(key, value)| key == "suggested_effects" && value == "[io]"),
+        "{mixed:#?}"
+    );
+    assert!(
+        mixed.repair_actions.iter().any(|action| action.command
+            == vec![
+                "bin/serow",
+                "patch",
+                "set-effects",
+                source.to_string_lossy().as_ref(),
+                "@test.effects.mixed.v1",
+                "[io]"
+            ]),
+        "{mixed:#?}"
+    );
+    assert!(
+        validate_repair_actions(&summary.diagnostics).is_empty(),
+        "{:#?}",
+        summary.diagnostics
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn patch_set_effects_repairs_effect_capability_diagnostics() {
     let dir = unique_temp_dir("serow-patch-set-effects");
     fs::create_dir_all(&dir).expect("create temp dir");

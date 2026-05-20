@@ -1165,6 +1165,89 @@ pub fn declared_extra(x: Int) -> Int
                 summary.diagnostics,
             )
 
+    def test_redundant_effect_declarations_warn_with_patch_repairs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "effects.serow"
+            source.write_text(
+                """module test.effects
+
+pub fn repeated(x: Int) -> Int
+  intent "Echo the integer input with repeated capability metadata."
+  contract
+    ensures result == x
+  examples
+    repeated(1) == 1
+  properties
+    forall x: Int:
+      repeated(x) == x
+  effects [io, io]
+  impl
+    x
+
+pub fn mixed(x: Int) -> Int
+  intent "Preserve the input number while mixing pure marker into a capability list."
+  contract
+    ensures result == x
+  examples
+    mixed(1) == 1
+  properties
+    forall x: Int:
+      mixed(x) == x
+  effects [pure, io]
+  impl
+    x
+""",
+                encoding="utf-8",
+            )
+            program, parse_diagnostics = parse_files([str(source)])
+            summary = check_program(program, parse_diagnostics)
+            self.assertTrue(summary.ok, summary.diagnostics)
+
+            duplicate = next(
+                diagnostic
+                for diagnostic in summary.diagnostics
+                if diagnostic.code == "DuplicateEffectCapability"
+            )
+            self.assertEqual(duplicate.severity, "warning")
+            self.assertEqual(duplicate.data.get("duplicate_effects"), "io")
+            self.assertTrue(
+                any(
+                    action.command
+                    == [
+                        "bin/serow",
+                        "patch",
+                        "set-effects",
+                        str(source),
+                        "@test.effects.repeated.v1",
+                        "[io]",
+                    ]
+                    for action in duplicate.repair_actions
+                ),
+                duplicate,
+            )
+
+            mixed = next(
+                diagnostic
+                for diagnostic in summary.diagnostics
+                if diagnostic.code == "PureEffectWithCapabilities"
+            )
+            self.assertEqual(mixed.data.get("suggested_effects"), "[io]")
+            self.assertTrue(
+                any(
+                    action.command
+                    == [
+                        "bin/serow",
+                        "patch",
+                        "set-effects",
+                        str(source),
+                        "@test.effects.mixed.v1",
+                        "[io]",
+                    ]
+                    for action in mixed.repair_actions
+                ),
+                mixed,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
