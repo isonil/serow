@@ -2,6 +2,10 @@
 
 ## 2026-05-20
 
+- Chose strict repair-action validation hygiene as a small production-readiness fix because `patch add-module` and `patch set-type` are public structured patch commands but were missing from the unattended certification repair-action allowlist.
+- Added both patch commands to `validate_repair_actions` and extended the regression test with synthetic `add-module` and `set-type` command repair actions so future diagnostics can safely point at those commands.
+- Verified with `cargo fmt --check`, `cargo test repair_action_contract_validation_rejects_malformed_commands -- --nocapture`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, `bin/serow fmt --check`, `bin/serow check`, `bin/serow certify`, `bin/serow certify --profile unattended`, `python3 -m unittest discover -s tests`, and `git diff --check`.
+
 - Chose minimal enum/sum type declarations as the next language-core slice because records already flowed through parser, checker, evaluator, IR, sampled evidence, and Rust lowering, while text-game style domains still needed small closed sets such as rooms and commands.
 - Added `type Name = Variant | Other` parsing and formatting for nullary enum variants, extended `TypeDecl` with variant metadata, and kept record declarations on the existing `{ field: Type }` path.
 - Added enum variant construction by bare variant name, enum equality/inequality, enum values in records, executable examples/contracts/properties, deterministic enum property samples, IR `enum_variant` nodes, and Rust lowering to generated `enum`s deriving `Clone`, `Debug`, `PartialEq`, and `Eq`.

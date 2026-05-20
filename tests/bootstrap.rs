@@ -2916,6 +2916,38 @@ fn repair_action_contract_validation_rejects_malformed_commands() {
                 "Int, Int -> Int".to_string(),
             ],
         ),
+        Diagnostic::warning(
+            "SyntheticAddModuleRepair",
+            "Synthetic diagnostic with an add-module repair action.",
+            Some("test.target".to_string()),
+        )
+        .with_command_repair(
+            "Add module",
+            vec![
+                "bin/serow".to_string(),
+                "patch".to_string(),
+                "add-module".to_string(),
+                "examples/new_module.serow".to_string(),
+                "app.main".to_string(),
+            ],
+        ),
+        Diagnostic::warning(
+            "SyntheticSetTypeRepair",
+            "Synthetic diagnostic with a set-type repair action.",
+            Some("test.target".to_string()),
+        )
+        .with_command_repair(
+            "Replace type",
+            vec![
+                "bin/serow".to_string(),
+                "patch".to_string(),
+                "set-type".to_string(),
+                "examples/math.serow".to_string(),
+                "core.math".to_string(),
+                "Point".to_string(),
+                "Point = { x: Int, y: Int }".to_string(),
+            ],
+        ),
     ];
     assert!(validate_repair_actions(&diagnostics).is_empty());
 
