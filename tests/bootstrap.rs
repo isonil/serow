@@ -3122,6 +3122,53 @@ fn text_query_commands_reject_json_flag_without_query_text() {
 }
 
 #[test]
+fn query_usage_errors_respect_json_flag() {
+    let missing_command = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["query", "--json"])
+        .output()
+        .expect("run serow query without command");
+    assert_eq!(
+        missing_command.status.code(),
+        Some(2),
+        "{missing_command:#?}"
+    );
+    assert!(missing_command.stderr.is_empty(), "{missing_command:#?}");
+    let stdout = String::from_utf8(missing_command.stdout).expect("stdout is utf8");
+    assert!(stdout.trim_start().starts_with('{'), "{stdout}");
+    assert!(stdout.contains("\"code\": \"UsageError\""), "{stdout}");
+    assert!(
+        stdout.contains("`serow query` requires a query command."),
+        "{stdout}"
+    );
+
+    let unknown_text = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["query", "unknown-query"])
+        .output()
+        .expect("run unknown serow query command");
+    assert_eq!(unknown_text.status.code(), Some(2), "{unknown_text:#?}");
+    let stderr = String::from_utf8(unknown_text.stderr).expect("stderr is utf8");
+    assert!(
+        stderr.contains("Unknown serow query command `unknown-query`."),
+        "{stderr}"
+    );
+    assert!(stderr.contains("serow query intent <text>"), "{stderr}");
+
+    let unknown_json = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["query", "unknown-query", "--json"])
+        .output()
+        .expect("run unknown serow query command as json");
+    assert_eq!(unknown_json.status.code(), Some(2), "{unknown_json:#?}");
+    assert!(unknown_json.stderr.is_empty(), "{unknown_json:#?}");
+    let stdout = String::from_utf8(unknown_json.stdout).expect("stdout is utf8");
+    assert!(stdout.trim_start().starts_with('{'), "{stdout}");
+    assert!(stdout.contains("\"code\": \"UsageError\""), "{stdout}");
+    assert!(
+        stdout.contains("Unknown serow query command `unknown-query`."),
+        "{stdout}"
+    );
+}
+
+#[test]
 fn query_parse_errors_respect_json_flag() {
     let dir = unique_temp_dir("serow-query-parse-errors");
     let source = dir.join("missing.serow");
