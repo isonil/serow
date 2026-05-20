@@ -701,3 +701,6 @@
 - Chose binary-entrypoint enum support cleanup because the Rust backend already accepted declared enum return types for `--emit-bin`, but diagnostics and docs still described only declared records.
 - Added regression coverage that compiles and runs a generated binary crate whose public zero-argument `main` returns a declared enum, proving the generated entrypoint prints the derived `Debug` variant.
 - Updated binary entrypoint diagnostics, agent bootstrap text/JSON, README, language notes, current state, and project rules to describe declared record/enum return support consistently.
+- Chose dependency-free project manifest parser hardening as a small production-readiness cleanup because architecture policy and project version loading depend on this parser before checks run.
+- Updated `serow.project` string parsing to decode JSON string escapes in keys and values, including `\uNNNN` escapes, instead of treating escaped characters as literal following bytes.
+- Added regression coverage for escaped project version keys, version values, architecture module names, and dependency names.

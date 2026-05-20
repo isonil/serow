@@ -111,24 +111,62 @@ fn read_string(text: &str, start: usize) -> Option<(String, usize)> {
         return None;
     }
     index += 1;
-    let mut escaped = false;
     let mut value = String::new();
-    for (offset, char) in text[index..].char_indices() {
-        if escaped {
-            value.push(char);
-            escaped = false;
-            continue;
-        }
+    while index < text.len() {
+        let char = text[index..].chars().next()?;
         if char == '\\' {
-            escaped = true;
+            index += char.len_utf8();
+            let escaped = text[index..].chars().next()?;
+            match escaped {
+                '"' | '\\' | '/' => {
+                    value.push(escaped);
+                    index += escaped.len_utf8();
+                }
+                'b' => {
+                    value.push('\u{0008}');
+                    index += escaped.len_utf8();
+                }
+                'f' => {
+                    value.push('\u{000c}');
+                    index += escaped.len_utf8();
+                }
+                'n' => {
+                    value.push('\n');
+                    index += escaped.len_utf8();
+                }
+                'r' => {
+                    value.push('\r');
+                    index += escaped.len_utf8();
+                }
+                't' => {
+                    value.push('\t');
+                    index += escaped.len_utf8();
+                }
+                'u' => {
+                    let hex_start = index + escaped.len_utf8();
+                    let code = read_hex_escape(text, hex_start)?;
+                    value.push(char::from_u32(code)?);
+                    index = hex_start + 4;
+                }
+                _ => return None,
+            }
             continue;
         }
         if char == '"' {
-            return Some((value, index + offset + 1));
+            return Some((value, index + char.len_utf8()));
         }
         value.push(char);
+        index += char.len_utf8();
     }
     None
+}
+
+fn read_hex_escape(text: &str, start: usize) -> Option<u32> {
+    let mut value = 0;
+    for byte in text.as_bytes().get(start..start + 4)? {
+        value = value * 16 + char::from(*byte).to_digit(16)?;
+    }
+    Some(value)
 }
 
 fn find_matching(text: &str, open: usize, open_char: char, close_char: char) -> Option<usize> {

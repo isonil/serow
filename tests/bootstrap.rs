@@ -8421,6 +8421,29 @@ fn project_architecture_parser_reads_module_policies() {
 }
 
 #[test]
+fn project_architecture_parser_decodes_json_string_escapes() {
+    let project = r#"{
+  "vers\u0069on": "0.4.98-rust\u002dbootstrap",
+  "architecture": {
+    "modules": {
+      "app.\u006dain": {
+        "may_depend_on": ["core.\u006dath", "core.text"]
+      }
+    }
+  }
+}"#;
+
+    assert_eq!(
+        parse_project_version(project).as_deref(),
+        Some("0.4.98-rust-bootstrap")
+    );
+    let architecture = parse_architecture(project);
+
+    let policy = architecture.policy_for("app.main").expect("policy");
+    assert_eq!(policy.may_depend_on, ["core.math", "core.text"]);
+}
+
+#[test]
 fn formatter_check_reports_drift_without_writing() {
     let dir = unique_temp_dir("serow-format-check");
     fs::create_dir_all(&dir).expect("create temp dir");
