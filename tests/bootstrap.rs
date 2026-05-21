@@ -8809,6 +8809,43 @@ fn indexed_patch_usage_errors_respect_json_flag() {
 }
 
 #[test]
+fn patch_usage_errors_respect_json_flag() {
+    for args in [
+        vec!["patch", "--json"],
+        vec!["patch", "unknown-patch", "--json"],
+        vec![
+            "patch",
+            "set-intent",
+            "examples/math.serow",
+            "@core.math.add.v1",
+            "--json",
+        ],
+        vec![
+            "patch",
+            "--json",
+            "set-intent",
+            "examples/math.serow",
+            "@core.math.add.v1",
+        ],
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+            .args(args)
+            .output()
+            .expect("run invalid serow patch command");
+        assert_eq!(output.status.code(), Some(2), "{output:#?}");
+        assert!(
+            output.stderr.is_empty(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+        assert!(stdout.trim_start().starts_with('{'), "{stdout}");
+        assert!(stdout.contains("\"ok\": false"), "{stdout}");
+        assert!(stdout.contains("\"code\": \"UsageError\""), "{stdout}");
+    }
+}
+
+#[test]
 fn structured_patch_target_must_be_unambiguous() {
     let dir = unique_temp_dir("serow-patch-ambiguous-target");
     fs::create_dir_all(&dir).expect("create temp dir");
@@ -10075,7 +10112,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("\"project_version\": \"0.4.99-rust-bootstrap\""),
+        stdout.contains("\"project_version\": \"0.4.100-rust-bootstrap\""),
         "{stdout}"
     );
     let source_bytes = fs::read("examples/math.serow").expect("read math source");
@@ -10122,7 +10159,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{manifest}"
     );
     assert!(
-        manifest.contains("project_version = \"0.4.99-rust-bootstrap\""),
+        manifest.contains("project_version = \"0.4.100-rust-bootstrap\""),
         "{manifest}"
     );
     assert!(
@@ -10204,7 +10241,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{metadata}"
     );
     assert!(
-        metadata.contains("\"project_version\": \"0.4.99-rust-bootstrap\""),
+        metadata.contains("\"project_version\": \"0.4.100-rust-bootstrap\""),
         "{metadata}"
     );
     assert!(
@@ -10268,7 +10305,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{readme}"
     );
     assert!(
-        readme.contains("- Serow project version: `0.4.99-rust-bootstrap`"),
+        readme.contains("- Serow project version: `0.4.100-rust-bootstrap`"),
         "{readme}"
     );
     assert!(

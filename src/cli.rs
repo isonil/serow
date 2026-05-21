@@ -1209,54 +1209,57 @@ fn run_plan(args: &[String]) -> i32 {
 }
 
 fn run_patch(args: &[String]) -> i32 {
-    let Some(patch_command) = args.first().map(String::as_str) else {
-        print_patch_usage();
-        return 2;
+    let (patch_args, json_output) = split_flag(args, "--json");
+    let Some(patch_command) = patch_args.first().map(String::as_str) else {
+        return invalid_patch_args(json_output);
     };
+    let mut command_args = patch_args[1..].to_vec();
+    if json_output {
+        command_args.push("--json".to_string());
+    }
     match patch_command {
-        "add-contract" => run_patch_add_contract(&args[1..]),
-        "add-example" => run_patch_add_example(&args[1..]),
-        "add-function" => run_patch_add_function(&args[1..]),
-        "add-migration" => run_patch_add_migration(&args[1..]),
-        "add-module" => run_patch_add_module(&args[1..]),
-        "add-property" => run_patch_add_property(&args[1..]),
-        "add-type" => run_patch_add_type(&args[1..]),
-        "add-use" => run_patch_add_use(&args[1..]),
-        "fill-hole" => run_patch_fill_hole(&args[1..]),
-        "qualify-call" => run_patch_qualify_call(&args[1..]),
-        "remove-contract" => run_patch_remove_contract(&args[1..]),
-        "remove-example" => run_patch_remove_example(&args[1..]),
-        "remove-function" => run_patch_remove_function(&args[1..]),
-        "remove-migration" => run_patch_remove_migration(&args[1..]),
-        "remove-property" => run_patch_remove_property(&args[1..]),
-        "remove-type" => run_patch_remove_type(&args[1..]),
-        "remove-use" => run_patch_remove_use(&args[1..]),
-        "rename-function" => run_patch_rename_function(&args[1..]),
-        "rename-module" => run_patch_rename_module(&args[1..]),
-        "rename-type" => run_patch_rename_type(&args[1..]),
-        "set-contract" => run_patch_set_contract(&args[1..]),
-        "set-effects" => run_patch_set_effects(&args[1..]),
-        "set-example" => run_patch_set_example(&args[1..]),
-        "set-impl" => run_patch_set_impl(&args[1..]),
-        "set-intent" => run_patch_set_intent(&args[1..]),
-        "set-migration" => run_patch_set_migration(&args[1..]),
-        "set-property" => run_patch_set_property(&args[1..]),
-        "set-signature" => run_patch_set_signature(&args[1..]),
-        "set-type" => run_patch_set_type(&args[1..]),
-        "set-use" => run_patch_set_use(&args[1..]),
-        "set-version" => run_patch_set_version(&args[1..]),
-        _ => {
-            print_patch_usage();
-            2
-        }
+        "add-contract" => run_patch_add_contract(&command_args),
+        "add-example" => run_patch_add_example(&command_args),
+        "add-function" => run_patch_add_function(&command_args),
+        "add-migration" => run_patch_add_migration(&command_args),
+        "add-module" => run_patch_add_module(&command_args),
+        "add-property" => run_patch_add_property(&command_args),
+        "add-type" => run_patch_add_type(&command_args),
+        "add-use" => run_patch_add_use(&command_args),
+        "fill-hole" => run_patch_fill_hole(&command_args),
+        "qualify-call" => run_patch_qualify_call(&command_args),
+        "remove-contract" => run_patch_remove_contract(&command_args),
+        "remove-example" => run_patch_remove_example(&command_args),
+        "remove-function" => run_patch_remove_function(&command_args),
+        "remove-migration" => run_patch_remove_migration(&command_args),
+        "remove-property" => run_patch_remove_property(&command_args),
+        "remove-type" => run_patch_remove_type(&command_args),
+        "remove-use" => run_patch_remove_use(&command_args),
+        "rename-function" => run_patch_rename_function(&command_args),
+        "rename-module" => run_patch_rename_module(&command_args),
+        "rename-type" => run_patch_rename_type(&command_args),
+        "set-contract" => run_patch_set_contract(&command_args),
+        "set-effects" => run_patch_set_effects(&command_args),
+        "set-example" => run_patch_set_example(&command_args),
+        "set-impl" => run_patch_set_impl(&command_args),
+        "set-intent" => run_patch_set_intent(&command_args),
+        "set-migration" => run_patch_set_migration(&command_args),
+        "set-property" => run_patch_set_property(&command_args),
+        "set-signature" => run_patch_set_signature(&command_args),
+        "set-type" => run_patch_set_type(&command_args),
+        "set-use" => run_patch_set_use(&command_args),
+        "set-version" => run_patch_set_version(&command_args),
+        _ => patch_command_usage_error(
+            json_output,
+            format!("Unknown serow patch command `{patch_command}`."),
+        ),
     }
 }
 
 fn run_patch_add_contract(args: &[String]) -> i32 {
     let (args, json_output) = split_flag(args, "--json");
     let [path, target, clause, expression] = args.as_slice() else {
-        print_patch_usage();
-        return 2;
+        return invalid_patch_args(json_output);
     };
     let summary = add_contract(path, target, clause, expression);
     if json_output {
@@ -1270,8 +1273,7 @@ fn run_patch_add_contract(args: &[String]) -> i32 {
 fn run_patch_add_example(args: &[String]) -> i32 {
     let (args, json_output) = split_flag(args, "--json");
     let [path, target, expression] = args.as_slice() else {
-        print_patch_usage();
-        return 2;
+        return invalid_patch_args(json_output);
     };
     let summary = add_example(path, target, expression);
     if json_output {
@@ -1285,8 +1287,7 @@ fn run_patch_add_example(args: &[String]) -> i32 {
 fn run_patch_add_function(args: &[String]) -> i32 {
     let (args, json_output) = split_flag(args, "--json");
     let [path, module, signature, intent] = args.as_slice() else {
-        print_patch_usage();
-        return 2;
+        return invalid_patch_args(json_output);
     };
     let summary = add_function(path, module, signature, intent);
     if json_output {
@@ -1300,8 +1301,7 @@ fn run_patch_add_function(args: &[String]) -> i32 {
 fn run_patch_add_migration(args: &[String]) -> i32 {
     let (args, json_output) = split_flag(args, "--json");
     let [path, target, kind, note] = args.as_slice() else {
-        print_patch_usage();
-        return 2;
+        return invalid_patch_args(json_output);
     };
     let summary = add_migration(path, target, kind, note);
     if json_output {
@@ -1315,8 +1315,7 @@ fn run_patch_add_migration(args: &[String]) -> i32 {
 fn run_patch_add_module(args: &[String]) -> i32 {
     let (args, json_output) = split_flag(args, "--json");
     let [path, module] = args.as_slice() else {
-        print_patch_usage();
-        return 2;
+        return invalid_patch_args(json_output);
     };
     let summary = add_module(path, module);
     if json_output {
@@ -1330,8 +1329,7 @@ fn run_patch_add_module(args: &[String]) -> i32 {
 fn run_patch_add_property(args: &[String]) -> i32 {
     let (args, json_output) = split_flag(args, "--json");
     let [path, target, forall, expression] = args.as_slice() else {
-        print_patch_usage();
-        return 2;
+        return invalid_patch_args(json_output);
     };
     let summary = add_property(path, target, forall, expression);
     if json_output {
@@ -1345,8 +1343,7 @@ fn run_patch_add_property(args: &[String]) -> i32 {
 fn run_patch_add_type(args: &[String]) -> i32 {
     let (args, json_output) = split_flag(args, "--json");
     let [path, module, declaration] = args.as_slice() else {
-        print_patch_usage();
-        return 2;
+        return invalid_patch_args(json_output);
     };
     let summary = add_type(path, module, declaration);
     if json_output {
@@ -1360,8 +1357,7 @@ fn run_patch_add_type(args: &[String]) -> i32 {
 fn run_patch_add_use(args: &[String]) -> i32 {
     let (args, json_output) = split_flag(args, "--json");
     let [path, module, dependency] = args.as_slice() else {
-        print_patch_usage();
-        return 2;
+        return invalid_patch_args(json_output);
     };
     let summary = add_use(path, module, dependency);
     if json_output {
@@ -1375,8 +1371,7 @@ fn run_patch_add_use(args: &[String]) -> i32 {
 fn run_patch_remove_type(args: &[String]) -> i32 {
     let (args, json_output) = split_flag(args, "--json");
     let [path, module, name] = args.as_slice() else {
-        print_patch_usage();
-        return 2;
+        return invalid_patch_args(json_output);
     };
     let summary = remove_type(path, module, name);
     if json_output {
@@ -1390,8 +1385,7 @@ fn run_patch_remove_type(args: &[String]) -> i32 {
 fn run_patch_remove_use(args: &[String]) -> i32 {
     let (args, json_output) = split_flag(args, "--json");
     let [path, module, dependency] = args.as_slice() else {
-        print_patch_usage();
-        return 2;
+        return invalid_patch_args(json_output);
     };
     let summary = remove_use(path, module, dependency);
     if json_output {
@@ -1405,8 +1399,7 @@ fn run_patch_remove_use(args: &[String]) -> i32 {
 fn run_patch_set_use(args: &[String]) -> i32 {
     let (args, json_output) = split_flag(args, "--json");
     let [path, module, old_dependency, new_dependency] = args.as_slice() else {
-        print_patch_usage();
-        return 2;
+        return invalid_patch_args(json_output);
     };
     let summary = set_use(path, module, old_dependency, new_dependency);
     if json_output {
@@ -1420,8 +1413,7 @@ fn run_patch_set_use(args: &[String]) -> i32 {
 fn run_patch_fill_hole(args: &[String]) -> i32 {
     let (args, json_output) = split_flag(args, "--json");
     let [path, target, expression] = args.as_slice() else {
-        print_patch_usage();
-        return 2;
+        return invalid_patch_args(json_output);
     };
     let summary = fill_hole(path, target, expression);
     if json_output {
@@ -1435,8 +1427,7 @@ fn run_patch_fill_hole(args: &[String]) -> i32 {
 fn run_patch_qualify_call(args: &[String]) -> i32 {
     let (args, json_output) = split_flag(args, "--json");
     let [path, caller_target, call_name, callee_target] = args.as_slice() else {
-        print_patch_usage();
-        return 2;
+        return invalid_patch_args(json_output);
     };
     let summary = qualify_call(path, caller_target, call_name, callee_target);
     if json_output {
@@ -1450,8 +1441,7 @@ fn run_patch_qualify_call(args: &[String]) -> i32 {
 fn run_patch_remove_contract(args: &[String]) -> i32 {
     let (args, json_output) = split_flag(args, "--json");
     let [path, target, clause, index] = args.as_slice() else {
-        print_patch_usage();
-        return 2;
+        return invalid_patch_args(json_output);
     };
     let Some(index) = parse_patch_index(index) else {
         return patch_usage_error(
@@ -1471,8 +1461,7 @@ fn run_patch_remove_contract(args: &[String]) -> i32 {
 fn run_patch_remove_example(args: &[String]) -> i32 {
     let (args, json_output) = split_flag(args, "--json");
     let [path, target, index] = args.as_slice() else {
-        print_patch_usage();
-        return 2;
+        return invalid_patch_args(json_output);
     };
     let Some(index) = parse_patch_index(index) else {
         return patch_usage_error(
@@ -1492,8 +1481,7 @@ fn run_patch_remove_example(args: &[String]) -> i32 {
 fn run_patch_remove_function(args: &[String]) -> i32 {
     let (args, json_output) = split_flag(args, "--json");
     let [path, target] = args.as_slice() else {
-        print_patch_usage();
-        return 2;
+        return invalid_patch_args(json_output);
     };
     let summary = remove_function(path, target);
     if json_output {
@@ -1507,8 +1495,7 @@ fn run_patch_remove_function(args: &[String]) -> i32 {
 fn run_patch_remove_migration(args: &[String]) -> i32 {
     let (args, json_output) = split_flag(args, "--json");
     let [path, target, kind, index] = args.as_slice() else {
-        print_patch_usage();
-        return 2;
+        return invalid_patch_args(json_output);
     };
     let Some(index) = parse_patch_index(index) else {
         return patch_usage_error(
@@ -1528,8 +1515,7 @@ fn run_patch_remove_migration(args: &[String]) -> i32 {
 fn run_patch_remove_property(args: &[String]) -> i32 {
     let (args, json_output) = split_flag(args, "--json");
     let [path, target, index] = args.as_slice() else {
-        print_patch_usage();
-        return 2;
+        return invalid_patch_args(json_output);
     };
     let Some(index) = parse_patch_index(index) else {
         return patch_usage_error(
@@ -1549,8 +1535,7 @@ fn run_patch_remove_property(args: &[String]) -> i32 {
 fn run_patch_set_type(args: &[String]) -> i32 {
     let (args, json_output) = split_flag(args, "--json");
     let [path, module, name, declaration] = args.as_slice() else {
-        print_patch_usage();
-        return 2;
+        return invalid_patch_args(json_output);
     };
     let summary = set_type(path, module, name, declaration);
     if json_output {
@@ -1564,8 +1549,7 @@ fn run_patch_set_type(args: &[String]) -> i32 {
 fn run_patch_rename_function(args: &[String]) -> i32 {
     let (args, json_output) = split_flag(args, "--json");
     let [path, target, new_name] = args.as_slice() else {
-        print_patch_usage();
-        return 2;
+        return invalid_patch_args(json_output);
     };
     let summary = rename_function(path, target, new_name);
     if json_output {
@@ -1579,8 +1563,7 @@ fn run_patch_rename_function(args: &[String]) -> i32 {
 fn run_patch_rename_module(args: &[String]) -> i32 {
     let (args, json_output) = split_flag(args, "--json");
     let [path, module, new_module] = args.as_slice() else {
-        print_patch_usage();
-        return 2;
+        return invalid_patch_args(json_output);
     };
     let summary = rename_module(path, module, new_module);
     if json_output {
@@ -1594,8 +1577,7 @@ fn run_patch_rename_module(args: &[String]) -> i32 {
 fn run_patch_rename_type(args: &[String]) -> i32 {
     let (args, json_output) = split_flag(args, "--json");
     let [path, module, name, new_name] = args.as_slice() else {
-        print_patch_usage();
-        return 2;
+        return invalid_patch_args(json_output);
     };
     let summary = rename_type(path, module, name, new_name);
     if json_output {
@@ -1620,8 +1602,7 @@ fn run_patch_set_contract(args: &[String]) -> i32 {
             }
         },
         _ => {
-            print_patch_usage();
-            return 2;
+            return invalid_patch_args(json_output);
         }
     };
     let summary = set_contract(path, target, clause, index, expression);
@@ -1636,8 +1617,7 @@ fn run_patch_set_contract(args: &[String]) -> i32 {
 fn run_patch_set_effects(args: &[String]) -> i32 {
     let (args, json_output) = split_flag(args, "--json");
     let [path, target, effects] = args.as_slice() else {
-        print_patch_usage();
-        return 2;
+        return invalid_patch_args(json_output);
     };
     let summary = set_effects(path, target, effects);
     if json_output {
@@ -1662,8 +1642,7 @@ fn run_patch_set_example(args: &[String]) -> i32 {
             }
         },
         _ => {
-            print_patch_usage();
-            return 2;
+            return invalid_patch_args(json_output);
         }
     };
     let summary = set_example(path, target, index, expression);
@@ -1678,8 +1657,7 @@ fn run_patch_set_example(args: &[String]) -> i32 {
 fn run_patch_set_impl(args: &[String]) -> i32 {
     let (args, json_output) = split_flag(args, "--json");
     let [path, target, expression] = args.as_slice() else {
-        print_patch_usage();
-        return 2;
+        return invalid_patch_args(json_output);
     };
     let summary = set_impl(path, target, expression);
     if json_output {
@@ -1693,8 +1671,7 @@ fn run_patch_set_impl(args: &[String]) -> i32 {
 fn run_patch_set_intent(args: &[String]) -> i32 {
     let (args, json_output) = split_flag(args, "--json");
     let [path, target, intent] = args.as_slice() else {
-        print_patch_usage();
-        return 2;
+        return invalid_patch_args(json_output);
     };
     let summary = set_intent(path, target, intent);
     if json_output {
@@ -1719,8 +1696,7 @@ fn run_patch_set_migration(args: &[String]) -> i32 {
             }
         },
         _ => {
-            print_patch_usage();
-            return 2;
+            return invalid_patch_args(json_output);
         }
     };
     let summary = set_migration(path, target, kind, index, note);
@@ -1746,8 +1722,7 @@ fn run_patch_set_property(args: &[String]) -> i32 {
             }
         },
         _ => {
-            print_patch_usage();
-            return 2;
+            return invalid_patch_args(json_output);
         }
     };
     let summary = set_property(path, target, index, forall, expression);
@@ -1762,8 +1737,7 @@ fn run_patch_set_property(args: &[String]) -> i32 {
 fn run_patch_set_signature(args: &[String]) -> i32 {
     let (args, json_output) = split_flag(args, "--json");
     let [path, target, signature] = args.as_slice() else {
-        print_patch_usage();
-        return 2;
+        return invalid_patch_args(json_output);
     };
     let summary = set_signature(path, target, signature);
     if json_output {
@@ -1777,8 +1751,7 @@ fn run_patch_set_signature(args: &[String]) -> i32 {
 fn run_patch_set_version(args: &[String]) -> i32 {
     let (args, json_output) = split_flag(args, "--json");
     let [path, target, version] = args.as_slice() else {
-        print_patch_usage();
-        return 2;
+        return invalid_patch_args(json_output);
     };
     let summary = set_version(path, target, version);
     if json_output {
@@ -2093,6 +2066,31 @@ fn split_flag(args: &[String], flag: &str) -> (Vec<String>, bool) {
 fn parse_patch_index(value: &str) -> Option<usize> {
     let index = value.parse::<usize>().ok()?;
     (index > 0).then_some(index)
+}
+
+fn invalid_patch_args(json_output: bool) -> i32 {
+    patch_command_usage_error(
+        json_output,
+        "Invalid serow patch command usage.".to_string(),
+    )
+}
+
+fn patch_command_usage_error(json_output: bool, message: String) -> i32 {
+    if json_output {
+        let summary = PatchSummary {
+            changed: 0,
+            diagnostics: vec![
+                Diagnostic::error("UsageError", message, None).with_repair(
+                    "Use `serow patch <command> ... [--json]`; run `serow agent commands --json` for the full patch command catalog.",
+                ),
+            ],
+        };
+        println!("{}", patch_json(&summary));
+    } else {
+        eprintln!("{message}");
+        print_patch_usage();
+    }
+    2
 }
 
 fn patch_usage_error(json_output: bool, message: String) -> i32 {
