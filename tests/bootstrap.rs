@@ -11257,6 +11257,23 @@ fn compile_rust_rejects_unknown_flags_as_usage_errors() {
     );
 }
 
+#[test]
+fn compile_rust_usage_json_detection_respects_path_separator() {
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["compile", "rust", "--unknown-backend-flag", "--", "--json"])
+        .output()
+        .expect("run compile rust usage error with separated json-looking path");
+    assert_eq!(output.status.code(), Some(2), "{output:#?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(stdout, "", "{stdout}");
+    assert!(
+        stderr.contains("unknown `compile rust` flag `--unknown-backend-flag`"),
+        "{stderr}"
+    );
+    assert!(stderr.contains("usage:"), "{stderr}");
+}
+
 fn unique_temp_dir(prefix: &str) -> PathBuf {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)

@@ -792,3 +792,5 @@
 - Added diagnostics-aware source discovery to `serowlang.parser`, preserving the existing `discover_sources` helper while routing `parse_files` through `SourceNotFound` and `NoSerowSources` diagnostics.
 - Added Python regressions for explicit missing `.serow` files and empty source directories.
 - Verified with `bin/serow query intent "report missing source paths during parsing"`, `bin/serow query symbol "SourceNotFound"`, `cargo fmt --check`, targeted Rust missing-source coverage, `python3 -m unittest discover -s tests`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, `bin/serow fmt --check --json`, `bin/serow check`, `bin/serow certify`, `bin/serow certify --profile unattended`, and `git diff --check`.
+- Chose compile-rust usage-output protocol cleanup because `--json` detection for parse errors incorrectly scanned arguments after `--`, where flag-looking values are source paths.
+- Updated `compile rust` usage-error JSON detection to stop at the path separator and added a CLI regression proving a separated `--json` path no longer changes a usage error from stderr text to stdout JSON.

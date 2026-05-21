@@ -373,7 +373,9 @@ fn parse_compile_rust_args(args: &[String]) -> Result<CompileRustArgs, String> {
 }
 
 fn compile_rust_json_requested(args: &[String]) -> bool {
-    args.iter().any(|arg| arg == "--json")
+    args.iter()
+        .take_while(|arg| arg.as_str() != "--")
+        .any(|arg| arg == "--json")
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
