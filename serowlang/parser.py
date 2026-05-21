@@ -229,14 +229,14 @@ def _parse_enum_decl(path: str, module: str, line: int, header: re.Match):
     variants = []
     for raw_variant in header.group("body").split("|"):
         variant = raw_variant.strip()
-        if not re.match(r"^[A-Z][A-Za-z0-9_]*$", variant):
+        if not IDENT_RE.match(variant):
             diagnostics.append(
                 Diagnostic(
                     severity="error",
                     code="ParseError",
                     message=f"Invalid enum variant name `{variant}`.",
                     target=f"{path}:{line}",
-                    repairs=["Use `type Name = Variant | Other`."],
+                    repairs=["Use simple nullary variant names, for example `Hall | Cave`."],
                 )
             )
             continue

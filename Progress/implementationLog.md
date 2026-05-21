@@ -2,6 +2,10 @@
 
 ## 2026-05-21
 
+- Chose Python reference enum parser parity as a low-risk cleanup because the Rust parser accepts any valid identifier for nullary enum variants, while the temporary Python bootstrap still rejected lowercase variants.
+- Updated the Python enum declaration parser to use the shared identifier rule and added a regression that checks lowercase enum variants through parsing, checking, examples, contracts, and sampled properties.
+- Verification is recorded in the final run for this change.
+
 - Chose Python reference sampler parity as a low-risk cleanup because Rust supports sampled properties over declared records and enum variants, while the temporary Python bootstrap still treated those declared types as unsupported.
 - Added bounded Python record samples, enum variant samples, recursive record cycle reasons, and focused Python regressions for declared-type sampled properties.
 - Verification is recorded in the final run for this change.

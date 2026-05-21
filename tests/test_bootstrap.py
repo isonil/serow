@@ -199,6 +199,37 @@ type Direction = North | North
                 [diagnostic.to_dict() for diagnostic in summary.diagnostics],
             )
 
+    def test_lowercase_enum_variants_are_accepted(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "lowercase_variants.serow"
+            source.write_text(
+                """module test.types
+
+type Status = idle | running
+
+pub fn initial() -> Status
+  intent "Return the initial status."
+  contract
+    ensures result == idle
+  examples
+    initial() == idle
+  properties
+    forall status: Status:
+      initial() == idle
+  effects pure
+  impl
+    idle
+""",
+                encoding="utf-8",
+            )
+            program, parse_diagnostics = parse_files([str(source)])
+            self.assertEqual(parse_diagnostics, [])
+            summary = check_program(program, parse_diagnostics)
+            self.assertTrue(
+                summary.ok,
+                [diagnostic.to_dict() for diagnostic in summary.diagnostics],
+            )
+
     def test_failed_example_is_reported(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "bad.serow"
