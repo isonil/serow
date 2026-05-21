@@ -41,6 +41,37 @@ class BootstrapTests(unittest.TestCase):
             self.assertEqual(diagnostic.target, directory)
             self.assertIn("No `.serow` source files found", diagnostic.message)
 
+    def test_python_parser_preserves_module_dependencies(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "module_deps.serow"
+            source.write_text(
+                """module app.main
+use core.math
+use core.math
+
+type Box = { value: Int }
+""",
+                encoding="utf-8",
+            )
+            program, parse_diagnostics = parse_files([str(source)])
+            self.assertEqual(parse_diagnostics, [])
+            self.assertIn("app.main", program.modules)
+            dependencies = program.modules["app.main"].dependencies
+            self.assertEqual(len(dependencies), 1)
+            self.assertEqual(dependencies[0].module, "core.math")
+            self.assertEqual(dependencies[0].source_path, str(source))
+            self.assertEqual(dependencies[0].line, 2)
+
+    def test_python_parser_preserves_explicit_empty_modules(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "empty_module.serow"
+            source.write_text("module app.empty\n", encoding="utf-8")
+            program, parse_diagnostics = parse_files([str(source)])
+            self.assertEqual(parse_diagnostics, [])
+            self.assertEqual(program.functions, [])
+            self.assertIn("app.empty", program.modules)
+            self.assertEqual(program.modules["app.empty"].source_path, str(source))
+
     def test_duplicate_function_parameters_are_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "duplicate_params.serow"

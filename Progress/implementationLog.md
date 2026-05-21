@@ -2,6 +2,10 @@
 
 ## 2026-05-21
 
+- Chose Python reference module parser parity as a low-risk cleanup because the Rust parser preserves explicit module declarations and `use` dependencies, while the temporary Python bootstrap dropped module-only files and dependency metadata.
+- Added Python model support for module dependencies, taught the Python parser to preserve `use` declarations and explicit empty modules, and covered duplicate dependency deduplication plus empty-module preservation in the Python regression suite.
+- Verified with focused Python parser tests, `python3 -m unittest discover -s tests`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, `bin/serow fmt --check --json`, `bin/serow check`, `bin/serow certify`, and `git diff --check`.
+
 - Chose structured patch metadata validation as a small source-integrity fix because `patch add-function`, `patch set-intent`, and migration patch commands could accept raw newline/control characters that the formatter would write into single-line quoted sections.
 - Added shared single-line metadata validation for intents and migration notes, covered the rejecting path through CLI regression tests, and bumped `serow.project` to `0.4.102-rust-bootstrap`.
 - Verification is recorded in the final run for this change.

@@ -3,7 +3,15 @@ from pathlib import Path
 from typing import Iterable, List, Tuple
 
 from .diagnostics import Diagnostic
-from .model import Function, MigrationRecord, Param, Program, RecordField, TypeDecl
+from .model import (
+    Function,
+    MigrationRecord,
+    ModuleDependency,
+    Param,
+    Program,
+    RecordField,
+    TypeDecl,
+)
 
 
 FUNCTION_RE = re.compile(
@@ -11,6 +19,7 @@ FUNCTION_RE = re.compile(
     r"\((?P<params>[^)]*)\)\s*->\s*(?P<return>[A-Za-z_][A-Za-z0-9_<>, ]*)\s*$"
 )
 MODULE_RE = re.compile(r"^module\s+(?P<name>[A-Za-z_][A-Za-z0-9_.]*)\s*$")
+USE_RE = re.compile(r"^use\s+(?P<name>[A-Za-z_][A-Za-z0-9_.]*)\s*$")
 TYPE_RE = re.compile(
     r"^type\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?P<body>.+)\s*$"
 )
@@ -83,6 +92,10 @@ def parse_files(paths: Iterable[str]) -> Tuple[Program, List[Diagnostic]]:
     for source in sources:
         parsed, file_diagnostics = parse_file(source)
         diagnostics.extend(file_diagnostics)
+        for module in parsed.modules.values():
+            program.add_module(module.name, module.source_path)
+            for dependency in module.dependencies:
+                program.add_module_dependency(module.name, dependency)
         for type_decl in parsed.types:
             program.add_type(type_decl)
         for function in parsed.functions:
@@ -107,6 +120,32 @@ def parse_file(path: Path) -> Tuple[Program, List[Diagnostic]]:
         module_match = MODULE_RE.match(stripped)
         if module_match:
             module = module_match.group("name")
+            program.add_module(module, str(path))
+            index += 1
+            continue
+
+        use_match = USE_RE.match(stripped)
+        if use_match:
+            program.add_module_dependency(
+                module,
+                ModuleDependency(
+                    module=use_match.group("name"),
+                    source_path=str(path),
+                    line=index + 1,
+                ),
+            )
+            index += 1
+            continue
+
+        if stripped.startswith("use "):
+            diagnostics.append(
+                Diagnostic(
+                    severity="error",
+                    code="ParseError",
+                    message=f"Invalid module dependency `{stripped[len('use ') :].strip()}`.",
+                    target=f"{path}:{index + 1}",
+                )
+            )
             index += 1
             continue
 
@@ -147,7 +186,11 @@ def parse_file(path: Path) -> Tuple[Program, List[Diagnostic]]:
                 code="ParseError",
                 message=f"Unexpected top-level syntax: {stripped}",
                 target=f"{path}:{index + 1}",
-                repairs=["Use `module <name>` or `pub fn name(args) -> Type`."],
+                repairs=[
+                    "Use `module <name>`, `use <module>`, "
+                    "`type Name = { field: Type }`, `type Name = Variant | Other`, "
+                    "or `pub fn name(args) -> Type`."
+                ],
             )
         )
         index += 1
@@ -160,7 +203,11 @@ def _find_function_end(lines: List[str], start: int) -> int:
     while index < len(lines):
         stripped = _without_comment(lines[index]).strip()
         if stripped and not lines[index].startswith((" ", "\t")):
-            if MODULE_RE.match(stripped) or FUNCTION_RE.match(stripped):
+            if (
+                MODULE_RE.match(stripped)
+                or USE_RE.match(stripped)
+                or FUNCTION_RE.match(stripped)
+            ):
                 break
             if TYPE_RE.match(stripped):
                 break

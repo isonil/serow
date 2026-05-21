@@ -73,9 +73,17 @@ class Function:
 
 
 @dataclass
+class ModuleDependency:
+    module: str
+    source_path: str
+    line: int
+
+
+@dataclass
 class Module:
     name: str
     source_path: str
+    dependencies: List[ModuleDependency] = field(default_factory=list)
     types: List[TypeDecl] = field(default_factory=list)
     functions: List[Function] = field(default_factory=list)
 
@@ -86,14 +94,22 @@ class Program:
     types: List[TypeDecl] = field(default_factory=list)
     functions: List[Function] = field(default_factory=list)
 
+    def add_module(self, name: str, source_path: str) -> None:
+        if name not in self.modules:
+            self.modules[name] = Module(name, source_path)
+
+    def add_module_dependency(self, module_name: str, dependency: ModuleDependency) -> None:
+        self.add_module(module_name, dependency.source_path)
+        dependencies = self.modules[module_name].dependencies
+        if not any(existing.module == dependency.module for existing in dependencies):
+            dependencies.append(dependency)
+
     def add_type(self, type_decl: TypeDecl) -> None:
-        if type_decl.module not in self.modules:
-            self.modules[type_decl.module] = Module(type_decl.module, type_decl.source_path)
+        self.add_module(type_decl.module, type_decl.source_path)
         self.modules[type_decl.module].types.append(type_decl)
         self.types.append(type_decl)
 
     def add_function(self, function: Function) -> None:
-        if function.module not in self.modules:
-            self.modules[function.module] = Module(function.module, function.source_path)
+        self.add_module(function.module, function.source_path)
         self.modules[function.module].functions.append(function)
         self.functions.append(function)
