@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -54,7 +55,8 @@ pub fn discover_sources_with_diagnostics(paths: &[String]) -> (Vec<PathBuf>, Vec
             sources.push(root.clone());
         } else if root.is_dir() {
             let before = sources.len();
-            collect_serow_files(root, &mut sources);
+            let mut visited = HashSet::new();
+            collect_serow_files(root, &mut sources, &mut visited);
             if !paths.is_empty() && sources.len() == before {
                 let source_path = root.to_string_lossy().to_string();
                 diagnostics.push(
@@ -84,14 +86,19 @@ pub fn discover_sources_with_diagnostics(paths: &[String]) -> (Vec<PathBuf>, Vec
     (sources, diagnostics)
 }
 
-fn collect_serow_files(path: &Path, sources: &mut Vec<PathBuf>) {
+fn collect_serow_files(path: &Path, sources: &mut Vec<PathBuf>, visited: &mut HashSet<PathBuf>) {
+    if let Ok(canonical) = fs::canonicalize(path)
+        && !visited.insert(canonical)
+    {
+        return;
+    }
     let Ok(entries) = fs::read_dir(path) else {
         return;
     };
     for entry in entries.flatten() {
         let path = entry.path();
         if path.is_dir() {
-            collect_serow_files(&path, sources);
+            collect_serow_files(&path, sources, visited);
         } else if path.is_file() && path.extension().is_some_and(|ext| ext == "serow") {
             sources.push(path);
         }

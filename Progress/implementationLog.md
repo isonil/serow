@@ -2,6 +2,11 @@
 
 ## 2026-05-21
 
+- Chose source discovery hardening as a small production-readiness cleanup because recursive `.serow` discovery followed directory symlink cycles without tracking visited directories.
+- Made Rust source discovery remember canonical directory paths during traversal so ancestor/self symlink loops terminate.
+- Added Unix regression coverage that creates a symlink cycle and verifies discovery returns the single real source file.
+- Verified with `bin/serow query intent "general cleanup bugfix tech debt production readiness"`, `bin/serow query symbol "parse"`, `cargo fmt --check`, `cargo test source_discovery_ignores_directory_symlink_cycles`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, `python3 -m unittest discover -s tests`, `bin/serow check`, `bin/serow certify`, `bin/serow certify --profile unattended`, and `git diff --check`.
+
 - Chose Python reference enum parser parity as a low-risk cleanup because the Rust parser accepts any valid identifier for nullary enum variants, while the temporary Python bootstrap still rejected lowercase variants.
 - Updated the Python enum declaration parser to use the shared identifier rule and added a regression that checks lowercase enum variants through parsing, checking, examples, contracts, and sampled properties.
 - Verification is recorded in the final run for this change.

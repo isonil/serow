@@ -8,7 +8,7 @@ use serow::checker::check_program;
 use serow::diagnostic::{Diagnostic, RepairAction, validate_repair_actions};
 use serow::formatter::format_paths;
 use serow::ledger::{SymbolMatch, query_intent, query_symbol, query_type, symbols};
-use serow::parser::parse_paths;
+use serow::parser::{discover_sources, parse_paths};
 use serow::project::{parse_architecture, parse_project_version};
 
 #[test]
@@ -44,6 +44,25 @@ fn explicit_missing_source_path_is_reported() {
     let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
     assert!(stdout.contains("SourceNotFound"), "{stdout}");
     assert!(stdout.contains("does not exist"), "{stdout}");
+}
+
+#[cfg(unix)]
+#[test]
+fn source_discovery_ignores_directory_symlink_cycles() {
+    let dir = unique_temp_dir("serow-source-symlink-cycle");
+    let source_dir = dir.join("sources");
+    fs::create_dir_all(&source_dir).expect("create source dir");
+    fs::write(source_dir.join("main.serow"), "module cycle.test\n").expect("write source");
+    std::os::unix::fs::symlink(&dir, source_dir.join("loop")).expect("create symlink cycle");
+
+    let sources = discover_sources(&[dir.to_string_lossy().to_string()]);
+
+    assert_eq!(sources.len(), 1, "{sources:#?}");
+    assert_eq!(
+        sources[0].file_name().and_then(|name| name.to_str()),
+        Some("main.serow")
+    );
+    let _ = fs::remove_dir_all(dir);
 }
 
 #[test]
