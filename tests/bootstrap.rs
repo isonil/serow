@@ -2432,6 +2432,42 @@ fn bad_variable(Look: Command) -> Command
 }
 
 #[test]
+fn duplicate_enum_variant_is_not_reported_as_cross_type_ambiguity() {
+    let dir = unique_temp_dir("serow-duplicate-enum-variant");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("duplicate_variant.serow");
+    fs::write(
+        &source,
+        r#"module test.enums
+
+type Direction = North | North
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "DuplicateEnumVariant"
+                && diagnostic.message.contains("North")),
+        "{:#?}",
+        summary.diagnostics
+    );
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "AmbiguousEnumVariant"),
+        "{:#?}",
+        summary.diagnostics
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn recursive_record_property_samples_report_cycle_reason() {
     let dir = unique_temp_dir("serow-recursive-record-property-samples");
     fs::create_dir_all(&dir).expect("create temp dir");

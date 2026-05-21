@@ -136,7 +136,13 @@ fn check_enum_variant_ambiguity(program: &Program, summary: &mut CheckSummary) {
     let mut variants = HashMap::<String, Vec<&crate::model::TypeDecl>>::new();
     for type_decl in &program.types {
         for variant in &type_decl.variants {
-            variants.entry(variant.clone()).or_default().push(type_decl);
+            let owners = variants.entry(variant.clone()).or_default();
+            if !owners
+                .iter()
+                .any(|owner| owner.module == type_decl.module && owner.name == type_decl.name)
+            {
+                owners.push(type_decl);
+            }
         }
     }
 
