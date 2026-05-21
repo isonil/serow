@@ -2,6 +2,10 @@
 
 ## 2026-05-21
 
+- Chose generated Rust source-input bookkeeping as a low-risk backend maintenance cleanup because `compile rust` independently rediscovered and reread the same inputs for per-file metadata and aggregate input fingerprints.
+- Consolidated source-input rows and aggregate fingerprint into one internal `SourceInputs` value so generated crate metadata and drift checks share one source walk while preserving existing output.
+- Verification is recorded in the final run for this change.
+
 - Chose sampled-property binding validation as a small checker correctness fix because duplicate `forall` variable names were accepted and then silently overwritten during property type checking and execution.
 - Added a `DuplicatePropertyVariable` checker error with property index and binding-index data plus a structured removal repair action, covered it with a focused Rust bootstrap regression, and bumped `serow.project` to `0.4.103-rust-bootstrap`.
 - Verification is recorded in the final run for this change.

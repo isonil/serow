@@ -208,7 +208,6 @@ fn run_compile_rust(args: &[String]) -> i32 {
     let paths = parsed.paths;
     let json_output = parsed.json_output;
     let source_inputs = source_input_metadata(&paths);
-    let input_fingerprint = source_input_fingerprint(&paths);
     let project_version = load_project_version();
     let (program, parse_diagnostics) = parse_paths(&paths);
     let binary_entrypoint_shape = parsed
@@ -236,7 +235,9 @@ fn run_compile_rust(args: &[String]) -> i32 {
             out_dir,
             &parsed.crate_name,
             rust,
-            input_fingerprint.as_deref(),
+            source_inputs
+                .as_ref()
+                .map(|source_inputs| source_inputs.fingerprint.as_str()),
             source_inputs.as_deref().unwrap_or(&[]),
             project_version.as_deref(),
             binary_entrypoint.as_ref(),
@@ -262,7 +263,9 @@ fn run_compile_rust(args: &[String]) -> i32 {
                 &checked_files,
                 RustOutputMetadata {
                     crate_name: &parsed.crate_name,
-                    input_fingerprint: input_fingerprint.as_deref(),
+                    input_fingerprint: source_inputs
+                        .as_ref()
+                        .map(|source_inputs| source_inputs.fingerprint.as_str()),
                     source_inputs: source_inputs.as_deref().unwrap_or(&[]),
                     project_version: project_version.as_deref(),
                 },
@@ -963,6 +966,20 @@ struct SourceInput {
     bytes: usize,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct SourceInputs {
+    fingerprint: String,
+    inputs: Vec<SourceInput>,
+}
+
+impl std::ops::Deref for SourceInputs {
+    type Target = [SourceInput];
+
+    fn deref(&self) -> &Self::Target {
+        &self.inputs
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 struct RustOutputMetadata<'a> {
     crate_name: &'a str,
@@ -971,35 +988,30 @@ struct RustOutputMetadata<'a> {
     project_version: Option<&'a str>,
 }
 
-fn source_input_metadata(paths: &[String]) -> Option<Vec<SourceInput>> {
+fn source_input_metadata(paths: &[String]) -> Option<SourceInputs> {
     let mut inputs = Vec::new();
-    for path in discover_sources(paths) {
-        let bytes = fs::read(&path).ok()?;
-        inputs.push(SourceInput {
-            path: path.to_string_lossy().to_string(),
-            fingerprint: source_bytes_fingerprint(&bytes),
-            bytes: bytes.len(),
-        });
-    }
-    Some(inputs)
-}
-
-fn source_input_fingerprint(paths: &[String]) -> Option<String> {
     let mut hash = 0xcbf29ce484222325u64;
-    let sources = discover_sources(paths);
-    for path in sources {
+    for path in discover_sources(paths) {
         let path_text = path.to_string_lossy();
         for byte in path_text.as_bytes() {
             update_fnv1a64(&mut hash, *byte);
         }
         update_fnv1a64(&mut hash, 0);
         let bytes = fs::read(&path).ok()?;
-        for byte in bytes {
-            update_fnv1a64(&mut hash, byte);
+        for byte in &bytes {
+            update_fnv1a64(&mut hash, *byte);
         }
         update_fnv1a64(&mut hash, 0);
+        inputs.push(SourceInput {
+            path: path.to_string_lossy().to_string(),
+            fingerprint: source_bytes_fingerprint(&bytes),
+            bytes: bytes.len(),
+        });
     }
-    Some(format!("fnv1a64:{hash:016x}"))
+    Some(SourceInputs {
+        fingerprint: format!("fnv1a64:{hash:016x}"),
+        inputs,
+    })
 }
 
 fn source_bytes_fingerprint(bytes: &[u8]) -> String {
