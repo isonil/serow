@@ -3405,6 +3405,43 @@ fn query_parse_errors_respect_json_flag() {
 }
 
 #[test]
+fn query_json_detection_respects_path_separator() {
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["query", "intent", "add", "--", "--json"])
+        .output()
+        .expect("run serow query intent with separated json-looking path");
+    assert!(!output.status.success(), "{output:#?}");
+    assert!(output.stderr.is_empty(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("serow query intent: failed"), "{stdout}");
+    assert!(
+        stdout.contains("Input path `--json` does not exist."),
+        "{stdout}"
+    );
+    assert!(
+        !stdout.trim_start().starts_with('{'),
+        "separated --json path should not request JSON output: {stdout}"
+    );
+
+    let symbols_output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["query", "symbols", "--", "--json"])
+        .output()
+        .expect("run serow query symbols with separated json-looking path");
+    assert!(!symbols_output.status.success(), "{symbols_output:#?}");
+    assert!(symbols_output.stderr.is_empty(), "{symbols_output:#?}");
+    let stdout = String::from_utf8(symbols_output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("serow query symbols: failed"), "{stdout}");
+    assert!(
+        stdout.contains("Input path `--json` does not exist."),
+        "{stdout}"
+    );
+    assert!(
+        !stdout.trim_start().starts_with('{'),
+        "separated --json path should not request JSON output: {stdout}"
+    );
+}
+
+#[test]
 fn check_and_certify_usage_errors_respect_json_flag() {
     let check_output = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args(["check", "--profile", "unattended", "--json"])

@@ -1943,7 +1943,7 @@ fn check_usage_error(json_output: bool, message: String) -> i32 {
 }
 
 fn run_query(args: &[String]) -> i32 {
-    let (query_args, json_requested) = split_flag(args, "--json");
+    let (query_args, json_requested) = split_flag_before_separator(args, "--json");
     let Some(query_command) = query_args.first().map(String::as_str) else {
         return query_usage_error(
             json_requested,
@@ -2070,11 +2070,13 @@ struct TextQueryArgs {
 }
 
 fn parse_text_query_args(args: &[String]) -> Option<TextQueryArgs> {
-    let (args, json_output) = split_flag(args, "--json");
+    let (args, mut json_output) = split_flag_before_separator(args, "--json");
     let text = args.first()?.clone();
+    let (paths, path_json_output) = split_paths_and_json(&args[1..]);
+    json_output |= path_json_output;
     Some(TextQueryArgs {
         text,
-        paths: args[1..].to_vec(),
+        paths,
         json_output,
     })
 }
