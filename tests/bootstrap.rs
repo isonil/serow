@@ -10666,6 +10666,53 @@ fn compile_rust_out_dir_writes_crate_layout() {
 }
 
 #[test]
+fn compile_rust_generated_readme_escapes_backtick_source_paths() {
+    let dir = unique_temp_dir("serow-compile-rust-readme-backtick-path");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("source`with`tick.serow");
+    let out_dir = dir.join("generated_crate");
+    fs::write(
+        &source,
+        r#"module test.readme
+
+pub fn id(x: Int) -> Int
+  intent "Return the input integer."
+  version v1
+  contract
+    ensures result == x
+  examples
+    id(1) == 1
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "compile",
+            "rust",
+            &source.to_string_lossy(),
+            "--out-dir",
+            &out_dir.to_string_lossy(),
+        ])
+        .output()
+        .expect("run compile rust --out-dir");
+    assert!(output.status.success(), "{output:#?}");
+
+    let readme = fs::read_to_string(out_dir.join("README.md")).expect("read generated README");
+    assert!(
+        readme.contains(&format!("- ``{}``: ", source.to_string_lossy())),
+        "{readme}"
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn compile_rust_emit_bin_writes_runnable_crate() {
     let dir = unique_temp_dir("serow-compile-rust-emit-bin");
     fs::create_dir_all(&dir).expect("create temp dir");

@@ -2,6 +2,11 @@
 
 ## 2026-05-21
 
+- Chose generated README robustness as a small Rust backend artifact cleanup because source paths are user-controlled and embedded backticks could break Markdown inline-code spans.
+- Added a Markdown inline-code renderer for generated README provenance fields and source inputs, using longer delimiters when values contain backticks.
+- Added regression coverage that compiles a `.serow` file with backticks in its filename and verifies the generated README keeps the source path in one code span.
+- Verified with `cargo fmt --check`, `cargo test compile_rust_generated_readme_escapes_backtick_source_paths -- --nocapture`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, `bin/serow check`, `bin/serow certify`, and `bin/serow certify --profile unattended`.
+
 - Chose sampled-property diagnostic specificity as a small production-readiness cleanup because unsupported record property bindings reported only a generic unknown-type reason, leaving agents to rediscover which nested field type was missing.
 - Made Rust and Python bootstrap sampleability reasons carry the exact unknown type name, preserving the existing unsupported binding type while clarifying direct and nested unknown-type failures.
 - Verification is recorded in the final run for this change.

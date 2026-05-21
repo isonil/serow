@@ -759,11 +759,11 @@ fn render_generated_readme_md(
             "\n",
             "## Provenance\n",
             "\n",
-            "- Backend: `{}`\n",
-            "- IR version: `{}`\n",
-            "- Serow project version: `{}`\n",
-            "- Input fingerprint: `{}`\n",
-            "- Generated source fingerprint: `{}`\n",
+            "- Backend: {}\n",
+            "- IR version: {}\n",
+            "- Serow project version: {}\n",
+            "- Input fingerprint: {}\n",
+            "- Generated source fingerprint: {}\n",
             "\n",
             "## Generated Counts\n",
             "\n",
@@ -772,11 +772,11 @@ fn render_generated_readme_md(
             "- Evidence tests: {}\n",
         ),
         crate_name,
-        rust.backend,
-        rust.ir_version,
-        project_version.unwrap_or("unknown"),
-        input_fingerprint.unwrap_or("unknown"),
-        rust.source_fingerprint,
+        markdown_inline_code(&rust.backend),
+        markdown_inline_code(&rust.ir_version),
+        markdown_inline_code(project_version.unwrap_or("unknown")),
+        markdown_inline_code(input_fingerprint.unwrap_or("unknown")),
+        markdown_inline_code(&rust.source_fingerprint),
         rust.types.len(),
         rust.functions.len(),
         rust.tests.len()
@@ -787,15 +787,15 @@ fn render_generated_readme_md(
                 "\n",
                 "## Binary Entrypoint\n",
                 "\n",
-                "- Serow symbol: `{}`\n",
-                "- Rust function: `{}`\n",
-                "- Return type: `{}`\n",
-                "- Source: `{}` line {}\n",
+                "- Serow symbol: {}\n",
+                "- Rust function: {}\n",
+                "- Return type: {}\n",
+                "- Source: {} line {}\n",
             ),
-            entrypoint.symbol,
-            entrypoint.rust_name,
-            entrypoint.return_type,
-            entrypoint.source_path,
+            markdown_inline_code(&entrypoint.symbol),
+            markdown_inline_code(&entrypoint.rust_name),
+            markdown_inline_code(&entrypoint.return_type),
+            markdown_inline_code(&entrypoint.source_path),
             entrypoint.line
         ));
     }
@@ -805,8 +805,10 @@ fn render_generated_readme_md(
     } else {
         for input in source_inputs {
             source.push_str(&format!(
-                "- `{}`: {} bytes, `{}`\n",
-                input.path, input.bytes, input.fingerprint
+                "- {}: {} bytes, {}\n",
+                markdown_inline_code(&input.path),
+                input.bytes,
+                markdown_inline_code(&input.fingerprint)
             ));
         }
     }
@@ -822,6 +824,25 @@ fn render_generated_readme_md(
         source.push_str("- `src/main.rs` contains the generated binary entrypoint.\n");
     }
     source
+}
+
+fn markdown_inline_code(value: &str) -> String {
+    let mut longest_backtick_run = 0;
+    let mut current_backtick_run = 0;
+    for character in value.chars() {
+        if character == '`' {
+            current_backtick_run += 1;
+            longest_backtick_run = longest_backtick_run.max(current_backtick_run);
+        } else {
+            current_backtick_run = 0;
+        }
+    }
+    let delimiter = "`".repeat(longest_backtick_run + 1);
+    if value.starts_with('`') || value.ends_with('`') {
+        format!("{delimiter} {value} {delimiter}")
+    } else {
+        format!("{delimiter}{value}{delimiter}")
+    }
 }
 
 fn render_generated_metadata_json(
