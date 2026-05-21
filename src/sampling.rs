@@ -9,7 +9,7 @@ pub(crate) fn samples_for_type(type_name: &str, types: &[TypeDecl]) -> Option<Ve
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum SampleUnsupportedReason {
-    UnknownType,
+    UnknownType(String),
     RecursiveRecordCycle(Vec<String>),
 }
 
@@ -29,7 +29,9 @@ pub(crate) struct SampleUnsupportedSummary {
 impl SampleUnsupported {
     pub(crate) fn reason_text(&self) -> String {
         match &self.reason {
-            SampleUnsupportedReason::UnknownType => "unknown type".to_string(),
+            SampleUnsupportedReason::UnknownType(type_name) => {
+                format!("unknown type `{type_name}`")
+            }
             SampleUnsupportedReason::RecursiveRecordCycle(cycle) => {
                 format!("recursive record sample cycle: {}", cycle.join(" -> "))
             }
@@ -39,7 +41,7 @@ impl SampleUnsupported {
     pub(crate) fn cycle_text(&self) -> Option<String> {
         match &self.reason {
             SampleUnsupportedReason::RecursiveRecordCycle(cycle) => Some(cycle.join(" -> ")),
-            SampleUnsupportedReason::UnknownType => None,
+            SampleUnsupportedReason::UnknownType(_) => None,
         }
     }
 }
@@ -129,7 +131,7 @@ fn declared_samples_for_type(
     let type_decl = types
         .iter()
         .find(|declared| declared.name == type_name)
-        .ok_or(SampleUnsupportedReason::UnknownType)?;
+        .ok_or_else(|| SampleUnsupportedReason::UnknownType(type_name.to_string()))?;
     if type_decl.is_enum() {
         return Ok(type_decl
             .variants
@@ -159,7 +161,9 @@ fn declared_samples_for_type(
         };
         if samples.is_empty() {
             active_records.pop();
-            return Err(SampleUnsupportedReason::UnknownType);
+            return Err(SampleUnsupportedReason::UnknownType(
+                field.type_name.clone(),
+            ));
         }
         field_samples.push((field.name.clone(), samples));
     }

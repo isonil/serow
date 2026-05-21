@@ -2045,6 +2045,12 @@ pub fn id(x: Int) -> Int
         "{diagnostic:#?}"
     );
     assert!(
+        diagnostic.data.iter().any(|(key, value)| {
+            key == "unsupported_reasons" && value == "Blob: unknown type `Blob`"
+        }),
+        "{diagnostic:#?}"
+    );
+    assert!(
         diagnostic.repair_actions.iter().any(|action| {
             action.kind == "command"
                 && action.label == "Remove the non-executable sampled property"
@@ -2057,6 +2063,57 @@ pub fn id(x: Int) -> Int
                         "@test.property.id.v1",
                         "1",
                     ]
+        }),
+        "{diagnostic:#?}"
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn sampled_record_property_reports_nested_unknown_type_reason() {
+    let dir = unique_temp_dir("serow-nested-unsupported-property-type");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("nested_unsupported_property_type.serow");
+    fs::write(
+        &source,
+        r#"module test.property
+
+type Wrapper = { payload: Blob }
+
+pub fn one() -> Int
+  version v1
+  intent "Return one while a wrapper property binding exists."
+  contract
+    ensures result == 1
+  examples
+    one() == 1
+  properties
+    forall wrapper: Wrapper:
+      one() == 1
+  effects pure
+  impl
+    1
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    let diagnostic = summary
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "PropertyNotExecutable")
+        .expect("nested unsupported property diagnostic");
+    assert!(
+        diagnostic
+            .data
+            .iter()
+            .any(|(key, value)| key == "unsupported_types" && value == "Wrapper"),
+        "{diagnostic:#?}"
+    );
+    assert!(
+        diagnostic.data.iter().any(|(key, value)| {
+            key == "unsupported_reasons" && value == "Wrapper: unknown type `Blob`"
         }),
         "{diagnostic:#?}"
     );

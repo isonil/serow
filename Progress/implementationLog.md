@@ -2,6 +2,10 @@
 
 ## 2026-05-21
 
+- Chose sampled-property diagnostic specificity as a small production-readiness cleanup because unsupported record property bindings reported only a generic unknown-type reason, leaving agents to rediscover which nested field type was missing.
+- Made Rust and Python bootstrap sampleability reasons carry the exact unknown type name, preserving the existing unsupported binding type while clarifying direct and nested unknown-type failures.
+- Verification is recorded in the final run for this change.
+
 - Chose source discovery hardening as a small production-readiness cleanup because recursive `.serow` discovery followed directory symlink cycles without tracking visited directories.
 - Made Rust source discovery remember canonical directory paths during traversal so ancestor/self symlink loops terminate.
 - Added Unix regression coverage that creates a symlink cycle and verifies discovery returns the single real source file.

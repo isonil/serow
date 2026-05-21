@@ -1002,6 +1002,10 @@ pub fn id(x: Int) -> Int
             )
             self.assertEqual(diagnostic.data.get("property_index"), "1")
             self.assertEqual(diagnostic.data.get("unsupported_types"), "Blob")
+            self.assertEqual(
+                diagnostic.data.get("unsupported_reasons"),
+                "Blob: unknown type `Blob`",
+            )
             self.assertEqual(diagnostic.data.get("property"), "id(1) == 1")
             self.assertTrue(
                 any(
@@ -1010,6 +1014,43 @@ pub fn id(x: Int) -> Int
                     for action in diagnostic.repair_actions
                 ),
                 diagnostic.to_dict(),
+            )
+
+    def test_sampled_record_property_reports_nested_unknown_type_reason(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "nested_unsupported_property_type.serow"
+            source.write_text(
+                """module test.property
+
+type Wrapper = { payload: Blob }
+
+pub fn one() -> Int
+  version v1
+  intent "Return one while a wrapper property binding exists."
+  contract
+    ensures result == 1
+  examples
+    one() == 1
+  properties
+    forall wrapper: Wrapper:
+      one() == 1
+  effects pure
+  impl
+    1
+""",
+                encoding="utf-8",
+            )
+            program, parse_diagnostics = parse_files([str(source)])
+            summary = check_program(program, parse_diagnostics)
+            diagnostic = next(
+                diagnostic
+                for diagnostic in summary.diagnostics
+                if diagnostic.code == "PropertyNotExecutable"
+            )
+            self.assertEqual(diagnostic.data.get("unsupported_types"), "Wrapper")
+            self.assertEqual(
+                diagnostic.data.get("unsupported_reasons"),
+                "Wrapper: unknown type `Blob`",
             )
 
     def test_sampled_properties_support_declared_records_and_enums(self):

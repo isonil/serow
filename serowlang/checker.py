@@ -1347,7 +1347,7 @@ def _format_sample_value(value: Any) -> str:
 
 @dataclass(frozen=True)
 class _UnknownSampleType:
-    pass
+    type_name: str
 
 
 @dataclass(frozen=True)
@@ -1371,7 +1371,7 @@ def _samples_for_type(type_name: str, types: List[TypeDecl], active_records: Opt
         return [None]
     type_decl = next((declared for declared in types if declared.name == type_name), None)
     if type_decl is None:
-        return _UnsupportedSample(_UnknownSampleType())
+        return _UnsupportedSample(_UnknownSampleType(type_name))
     if type_decl.is_enum:
         return [
             {"__enum": type_name, "variant": variant}
@@ -1390,7 +1390,7 @@ def _samples_for_type(type_name: str, types: List[TypeDecl], active_records: Opt
         if isinstance(samples, _UnsupportedSample):
             return samples
         if not samples:
-            return _UnsupportedSample(_UnknownSampleType())
+            return _UnsupportedSample(_UnknownSampleType(field.type_name))
         field_samples.append((field.name, samples))
 
     default_fields = {
@@ -1417,6 +1417,8 @@ def _record_sample_value(type_name: str, fields: Dict[str, Any]) -> Dict[str, An
 def _unsupported_sample_reason_text(reason: object) -> str:
     if isinstance(reason, _RecursiveRecordCycle):
         return f"recursive record sample cycle: {' -> '.join(reason.cycle)}"
+    if isinstance(reason, _UnknownSampleType):
+        return f"unknown type `{reason.type_name}`"
     return "unknown type"
 
 

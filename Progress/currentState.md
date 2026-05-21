@@ -40,7 +40,7 @@ Selection policy for generic implementation prompts:
   - duplicate examples, executable examples that do not directly call the public function under test, duplicate contract clauses, duplicate sampled property blocks, duplicate migration acknowledgements, sampled properties with no bound variables, sampled properties that do not directly call the public function under test, and sampled properties with unsupported generator types as low-signal evidence warnings, with explicit recursive record sample-cycle details when sampling fails
   - ambiguous bare-call diagnostics with qualified-reference repair guidance and structured symbol lookup repair actions
   - unknown function static type errors with structured symbol lookup repair actions
-  - sampled `forall` properties over deterministic `Int`, `Bool`, `Text`, singleton `Unit`, and bounded declared-record sample sets, with unsupported-sample reasons surfaced through check, replay, and plan output
+  - sampled `forall` properties over deterministic `Int`, `Bool`, `Text`, singleton `Unit`, and bounded declared-record sample sets, with unsupported-sample reasons surfaced through check, replay, and plan output, including exact unknown type names
   - deterministic sampled-property failure and evaluation-error replay data with property indexes, sample indexes, seed strings, sampled bindings, and single-sample replay repair actions
   - deterministic sampled-property shrink data for failing or erroring properties when a simpler same-outcome binding exists in the built-in samples
   - single-sample property replay via `bin/serow replay property <sample-seed> [paths...] [--json]`, including the same deterministic shrink hint fields as checker failures and evaluation errors when a simpler same-outcome binding exists
@@ -207,7 +207,7 @@ Selection policy for generic implementation prompts:
 - `patch rename-function` renames a public function and rewrites resolved call references in the patched source, using exact `@module.name.vN(...)` references when the new bare name would be ambiguous.
 - `patch rename-module` renames one module, rewrites record/function ownership, in-file `use` declarations, and in-file exact or module-qualified call references that resolve to the renamed module while leaving cross-file impact to the normal check/plan/certify gates.
 - `patch qualify-call` rewrites bare calls inside one caller function to an exact selected callee symbol so ambiguous call sites can be made deliberate through the structured patch interface.
-- `replay property` reports unsupported sampled property generator types with the same indexed `patch remove-property` structured repair action used by checker diagnostics.
+- `replay property` reports unsupported sampled property generator types with the same indexed `patch remove-property` structured repair action used by checker diagnostics, including exact unknown type names in unsupported-sample reasons.
 - Structured JSON diagnostic repair actions:
   - command repair actions are emitted as `repair_actions` alongside legacy `repairs`
   - currently used for format drift, missing module dependencies, forbidden declared module dependencies, ambiguous bare-call and unknown-function symbol lookup, duplicate-intent lookup, low-signal evidence removal, duplicate/stale migration removal, implicit-version fixes in unattended certification, and effect capability declaration repairs
