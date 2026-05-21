@@ -99,6 +99,48 @@ pub fn identity(x: Int) -> Int
 }
 
 #[test]
+fn fmt_path_separator_allows_check_looking_paths() {
+    let dir = unique_temp_dir("serow-fmt-path-separator");
+    let source_dir = dir.join("--check");
+    fs::create_dir_all(&source_dir).expect("create check-looking source dir");
+    let source = source_dir.join("main.serow");
+    fs::write(
+        &source,
+        r#"module cli.separator
+pub fn identity(x: Int) -> Int
+  intent "Return x unchanged."
+  contract
+    ensures result == x
+  examples
+    identity(2) == 2
+  properties
+    forall x: Int:
+      identity(x) == x
+  effects pure
+  impl
+    x    
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args(["fmt", "--", "--check"])
+        .output()
+        .expect("run serow fmt with check-looking path");
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("serow fmt: ok"), "{stdout}");
+    assert!(stdout.contains("1 changed"), "{stdout}");
+    assert!(
+        fs::read_to_string(&source)
+            .expect("read formatted fixture")
+            .contains("    x\n"),
+        "source should be formatted after `--`; stdout: {stdout}"
+    );
+}
+
+#[test]
 fn duplicate_function_parameters_are_rejected() {
     let dir = unique_temp_dir("serow-duplicate-params");
     fs::create_dir_all(&dir).expect("create temp dir");

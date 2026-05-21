@@ -152,7 +152,7 @@ fn run_agent(args: &[String]) -> i32 {
 }
 
 fn run_fmt(args: &[String]) -> i32 {
-    let (args, check) = split_flag(args, "--check");
+    let (args, check) = split_flag_before_separator(args, "--check");
     let (paths, json_output) = split_paths_and_json(&args);
     let summary = format_paths(&paths, check);
     if json_output {
@@ -2142,6 +2142,23 @@ fn split_flag(args: &[String], flag: &str) -> (Vec<String>, bool) {
     let mut found = false;
     for arg in args {
         if arg == flag {
+            found = true;
+        } else {
+            rest.push(arg.clone());
+        }
+    }
+    (rest, found)
+}
+
+fn split_flag_before_separator(args: &[String], flag: &str) -> (Vec<String>, bool) {
+    let mut rest = Vec::new();
+    let mut found = false;
+    let mut parsing_options = true;
+    for arg in args {
+        if parsing_options && arg == "--" {
+            parsing_options = false;
+            rest.push(arg.clone());
+        } else if parsing_options && arg == flag {
             found = true;
         } else {
             rest.push(arg.clone());
