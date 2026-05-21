@@ -3955,6 +3955,41 @@ fn agent_command_prints_bootstrap_contract() {
 }
 
 #[test]
+fn agent_usage_errors_respect_json_flag() {
+    let text_output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["agent", "unknown-agent"])
+        .output()
+        .expect("run unknown serow agent command");
+
+    assert_eq!(text_output.status.code(), Some(2), "{text_output:#?}");
+    let stderr = String::from_utf8(text_output.stderr).expect("stderr is utf8");
+    assert!(
+        stderr.contains("Unknown serow agent command `unknown-agent`."),
+        "{stderr}"
+    );
+    assert!(stderr.contains("serow agent commands [--json]"), "{stderr}");
+
+    let json_output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["agent", "unknown-agent", "--json"])
+        .output()
+        .expect("run unknown serow agent command as json");
+
+    assert_eq!(json_output.status.code(), Some(2), "{json_output:#?}");
+    assert!(json_output.stderr.is_empty(), "{json_output:#?}");
+    let stdout = String::from_utf8(json_output.stdout).expect("stdout is utf8");
+    assert!(stdout.trim_start().starts_with('{'), "{stdout}");
+    assert!(stdout.contains("\"code\": \"UsageError\""), "{stdout}");
+    assert!(
+        stdout.contains("Unknown serow agent command `unknown-agent`."),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("serow agent [commands|diagnostics]"),
+        "{stdout}"
+    );
+}
+
+#[test]
 fn agent_json_includes_compact_machine_readable_workflow() {
     let output = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args(["agent", "--json"])
@@ -10550,7 +10585,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("\"project_version\": \"0.4.104-rust-bootstrap\""),
+        stdout.contains("\"project_version\": \"0.4.105-rust-bootstrap\""),
         "{stdout}"
     );
     let source_bytes = fs::read("examples/math.serow").expect("read math source");
@@ -10597,7 +10632,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{manifest}"
     );
     assert!(
-        manifest.contains("project_version = \"0.4.104-rust-bootstrap\""),
+        manifest.contains("project_version = \"0.4.105-rust-bootstrap\""),
         "{manifest}"
     );
     assert!(
@@ -10679,7 +10714,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{metadata}"
     );
     assert!(
-        metadata.contains("\"project_version\": \"0.4.104-rust-bootstrap\""),
+        metadata.contains("\"project_version\": \"0.4.105-rust-bootstrap\""),
         "{metadata}"
     );
     assert!(
@@ -10743,7 +10778,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{readme}"
     );
     assert!(
-        readme.contains("- Serow project version: `0.4.104-rust-bootstrap`"),
+        readme.contains("- Serow project version: `0.4.105-rust-bootstrap`"),
         "{readme}"
     );
     assert!(

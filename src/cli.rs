@@ -164,11 +164,30 @@ fn run_agent(args: &[String]) -> i32 {
             }
             0
         }
+        [command] => agent_usage_error(
+            json_output,
+            format!("Unknown serow agent command `{command}`."),
+        ),
         _ => {
-            print_agent_usage();
-            2
+            let rendered = rest.join(" ");
+            agent_usage_error(
+                json_output,
+                format!("Unknown serow agent command sequence `{rendered}`."),
+            )
         }
     }
+}
+
+fn agent_usage_error(json_output: bool, message: String) -> i32 {
+    if json_output {
+        let diagnostic = Diagnostic::error("UsageError", message, None)
+            .with_repair("Use `serow agent [commands|diagnostics] [--json]`.");
+        println!("{}", diagnostics_json(false, &[diagnostic]));
+    } else {
+        eprintln!("{message}");
+        print_agent_usage();
+    }
+    2
 }
 
 fn run_fmt(args: &[String]) -> i32 {

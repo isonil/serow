@@ -2,6 +2,10 @@
 
 ## 2026-05-21
 
+- Chose agent CLI JSON usage consistency as a small agent-protocol hardening fix because malformed `serow agent ... --json` commands still emitted plain usage text while other command families now return structured diagnostics.
+- Updated agent command dispatch to emit `UsageError` JSON envelopes for unknown or malformed agent subcommands when `--json` is requested, covered text and JSON regressions, and bumped `serow.project` to `0.4.105-rust-bootstrap`.
+- Verification is recorded in the final run for this change.
+
 - Chose replay CLI JSON usage consistency as a small agent-protocol hardening fix because `serow replay property --json` treated `--json` as a sample seed instead of reporting a structured usage diagnostic.
 - Updated replay command dispatch to honor inherited JSON requests for missing or unknown replay commands and missing property seeds, covered the behavior with CLI regressions, and bumped `serow.project` to `0.4.104-rust-bootstrap`.
 - Verification is recorded in the final run for this change.
