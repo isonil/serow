@@ -2738,6 +2738,17 @@ pub fn one() -> Int
         "{plan_stdout}"
     );
 
+    let text_plan = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["plan", &source_arg])
+        .output()
+        .expect("run text plan");
+    assert!(text_plan.status.success(), "{text_plan:#?}");
+    let text_plan_stdout = String::from_utf8(text_plan.stdout).expect("stdout is utf8");
+    assert!(
+        text_plan_stdout.contains("recursive_record_cycles=Node -> Node"),
+        "{text_plan_stdout}"
+    );
+
     let _ = fs::remove_dir_all(dir);
 }
 
@@ -10355,7 +10366,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("\"project_version\": \"0.4.100-rust-bootstrap\""),
+        stdout.contains("\"project_version\": \"0.4.101-rust-bootstrap\""),
         "{stdout}"
     );
     let source_bytes = fs::read("examples/math.serow").expect("read math source");
@@ -10402,7 +10413,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{manifest}"
     );
     assert!(
-        manifest.contains("project_version = \"0.4.100-rust-bootstrap\""),
+        manifest.contains("project_version = \"0.4.101-rust-bootstrap\""),
         "{manifest}"
     );
     assert!(
@@ -10484,7 +10495,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{metadata}"
     );
     assert!(
-        metadata.contains("\"project_version\": \"0.4.100-rust-bootstrap\""),
+        metadata.contains("\"project_version\": \"0.4.101-rust-bootstrap\""),
         "{metadata}"
     );
     assert!(
@@ -10548,7 +10559,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{readme}"
     );
     assert!(
-        readme.contains("- Serow project version: `0.4.100-rust-bootstrap`"),
+        readme.contains("- Serow project version: `0.4.101-rust-bootstrap`"),
         "{readme}"
     );
     assert!(

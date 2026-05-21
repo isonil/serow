@@ -2,6 +2,10 @@
 
 ## 2026-05-21
 
+- Chose human-readable plan output parity as a small agent ergonomics fix because JSON property coverage included recursive record sample cycles while text `serow plan` hid them.
+- Added recursive record cycle details to text-mode sampled property coverage rows, covered the recursive-record fixture in both JSON and text plan modes, and bumped `serow.project` to `0.4.101-rust-bootstrap`.
+- Verification is recorded in the final run for this change.
+
 - Chose generated README robustness as a small Rust backend artifact cleanup because source paths are user-controlled and embedded backticks could break Markdown inline-code spans.
 - Added a Markdown inline-code renderer for generated README provenance fields and source inputs, using longer delimiters when values contain backticks.
 - Added regression coverage that compiles a `.serow` file with backticks in its filename and verifies the generated README keeps the source path in one code span.

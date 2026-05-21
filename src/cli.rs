@@ -2773,14 +2773,20 @@ fn print_plan(plan: &ChangePlan) {
                 } else {
                     hint.unsupported_reasons.join("; ")
                 };
+                let recursive_record_cycles = if hint.recursive_record_cycles.is_empty() {
+                    "none".to_string()
+                } else {
+                    hint.recursive_record_cycles.join("; ")
+                };
                 println!(
-                    "    property {}: {} samples, direct_call={}, vacuous={}, unsupported_types={}, unsupported_reasons={}",
+                    "    property {}: {} samples, direct_call={}, vacuous={}, unsupported_types={}, unsupported_reasons={}, recursive_record_cycles={}",
                     hint.property_index,
                     hint.sample_count,
                     hint.direct_call,
                     hint.vacuous,
                     unsupported,
-                    unsupported_reasons
+                    unsupported_reasons,
+                    recursive_record_cycles
                 );
             }
         }
