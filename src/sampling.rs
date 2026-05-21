@@ -266,49 +266,17 @@ pub(crate) fn find_shrunk_property_failure(
     original_values: &[Value],
     original_sample_index: usize,
 ) -> Option<ShrunkPropertyFailure> {
-    let original_complexity = sample_complexity(original_values);
-    let mut best: Option<(usize, usize, String)> = None;
-    for (sample_offset, values) in cartesian_product(sample_sets).into_iter().enumerate() {
-        let sample_index = sample_offset + 1;
-        if sample_index == original_sample_index {
-            continue;
-        }
-        let complexity = sample_complexity(&values);
-        if complexity > original_complexity {
-            continue;
-        }
-        let bindings = variables
-            .iter()
-            .zip(values.iter().cloned())
-            .map(|((name, _), value)| (name.clone(), value))
-            .collect::<HashMap<_, _>>();
-        let mut evaluator = Evaluator::new(functions, types);
-        match evaluator.eval(expression, &bindings) {
-            Ok(Value::Bool(true)) | Err(_) => continue,
-            Ok(_) => {}
-        }
-        let is_better = match best.as_ref() {
-            Some((best_complexity, best_index, _)) => {
-                complexity < *best_complexity
-                    || (complexity == *best_complexity && sample_index < *best_index)
-            }
-            None => true,
-        };
-        if is_better {
-            best = Some((
-                complexity,
-                sample_index,
-                format_sample_bindings(variables, &bindings),
-            ));
-        }
-    }
-    best.and_then(|(complexity, sample_index, bindings)| {
-        (complexity < original_complexity
-            || (complexity == original_complexity && sample_index < original_sample_index))
-            .then_some(ShrunkPropertyFailure {
-                sample_index,
-                bindings,
-            })
+    let search = ShrinkSearch {
+        variables,
+        expression,
+        functions,
+        types,
+        sample_sets,
+        original_values,
+        original_sample_index,
+    };
+    find_shrunk_property_case(search, |result| {
+        !matches!(result, Ok(Value::Bool(true)) | Err(_))
     })
 }
 
@@ -321,24 +289,54 @@ pub(crate) fn find_shrunk_property_evaluation_error(
     original_values: &[Value],
     original_sample_index: usize,
 ) -> Option<ShrunkPropertyFailure> {
-    let original_complexity = sample_complexity(original_values);
+    let search = ShrinkSearch {
+        variables,
+        expression,
+        functions,
+        types,
+        sample_sets,
+        original_values,
+        original_sample_index,
+    };
+    find_shrunk_property_case(search, |result| result.is_err())
+}
+
+struct ShrinkSearch<'a> {
+    variables: &'a [(String, String)],
+    expression: &'a str,
+    functions: &'a [Function],
+    types: &'a [TypeDecl],
+    sample_sets: &'a [Vec<Value>],
+    original_values: &'a [Value],
+    original_sample_index: usize,
+}
+
+fn find_shrunk_property_case(
+    search: ShrinkSearch<'_>,
+    mut matches_case: impl FnMut(Result<Value, String>) -> bool,
+) -> Option<ShrunkPropertyFailure> {
+    let original_complexity = sample_complexity(search.original_values);
     let mut best: Option<(usize, usize, String)> = None;
-    for (sample_offset, values) in cartesian_product(sample_sets).into_iter().enumerate() {
+    for (sample_offset, values) in cartesian_product(search.sample_sets)
+        .into_iter()
+        .enumerate()
+    {
         let sample_index = sample_offset + 1;
-        if sample_index == original_sample_index {
+        if sample_index == search.original_sample_index {
             continue;
         }
         let complexity = sample_complexity(&values);
         if complexity > original_complexity {
             continue;
         }
-        let bindings = variables
+        let bindings = search
+            .variables
             .iter()
             .zip(values.iter().cloned())
             .map(|((name, _), value)| (name.clone(), value))
             .collect::<HashMap<_, _>>();
-        let mut evaluator = Evaluator::new(functions, types);
-        if evaluator.eval(expression, &bindings).is_ok() {
+        let mut evaluator = Evaluator::new(search.functions, search.types);
+        if !matches_case(evaluator.eval(search.expression, &bindings)) {
             continue;
         }
         let is_better = match best.as_ref() {
@@ -352,13 +350,13 @@ pub(crate) fn find_shrunk_property_evaluation_error(
             best = Some((
                 complexity,
                 sample_index,
-                format_sample_bindings(variables, &bindings),
+                format_sample_bindings(search.variables, &bindings),
             ));
         }
     }
     best.and_then(|(complexity, sample_index, bindings)| {
         (complexity < original_complexity
-            || (complexity == original_complexity && sample_index < original_sample_index))
+            || (complexity == original_complexity && sample_index < search.original_sample_index))
             .then_some(ShrunkPropertyFailure {
                 sample_index,
                 bindings,
