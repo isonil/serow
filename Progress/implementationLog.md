@@ -2,6 +2,10 @@
 
 ## 2026-05-21
 
+- Chose compile CLI JSON usage consistency as a small agent-protocol hardening fix because malformed top-level `serow compile ... --json` commands still emitted plain usage text while related command families return structured diagnostics.
+- Updated compile command dispatch to preserve inherited `--json` for `compile ir` and `compile rust`, emit `UsageError` JSON envelopes for missing or unknown compile targets, respect `--` as a path separator, covered the behavior with CLI regressions, and bumped `serow.project` to `0.4.106-rust-bootstrap`.
+- Verification is recorded in the final run for this change.
+
 - Chose agent CLI JSON usage consistency as a small agent-protocol hardening fix because malformed `serow agent ... --json` commands still emitted plain usage text while other command families now return structured diagnostics.
 - Updated agent command dispatch to emit `UsageError` JSON envelopes for unknown or malformed agent subcommands when `--json` is requested, covered text and JSON regressions, and bumped `serow.project` to `0.4.105-rust-bootstrap`.
 - Verification is recorded in the final run for this change.

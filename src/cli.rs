@@ -203,22 +203,38 @@ fn run_fmt(args: &[String]) -> i32 {
 }
 
 fn run_compile(args: &[String]) -> i32 {
-    let Some(compile_command) = args.first().map(String::as_str) else {
-        print_compile_usage();
-        return 2;
+    let (compile_args, json_requested) = split_flag_before_separator(args, "--json");
+    let Some(compile_command) = compile_args.first().map(String::as_str) else {
+        return compile_usage_error(
+            json_requested,
+            "`serow compile` requires a compile target.".to_string(),
+        );
     };
     match compile_command {
-        "ir" => run_compile_ir(&args[1..]),
-        "rust" => run_compile_rust(&args[1..]),
-        _ => {
-            print_compile_usage();
-            2
-        }
+        "ir" => run_compile_ir(&compile_args[1..], json_requested),
+        "rust" => run_compile_rust(&compile_args[1..], json_requested),
+        _ => compile_usage_error(
+            json_requested,
+            format!("Unknown serow compile target `{compile_command}`."),
+        ),
     }
 }
 
-fn run_compile_ir(args: &[String]) -> i32 {
-    let (paths, json_output) = split_paths_and_json(args);
+fn compile_usage_error(json_output: bool, message: String) -> i32 {
+    if json_output {
+        let diagnostic = Diagnostic::error("UsageError", message, None)
+            .with_repair("Use `serow compile <ir|rust> ... [--json]`.");
+        println!("{}", diagnostics_json(false, &[diagnostic]));
+    } else {
+        eprintln!("{message}");
+        print_compile_usage();
+    }
+    2
+}
+
+fn run_compile_ir(args: &[String], inherited_json_output: bool) -> i32 {
+    let (paths, mut json_output) = split_paths_and_json(args);
+    json_output |= inherited_json_output;
     let (program, parse_diagnostics) = parse_paths(&paths);
     let summary = lower_checked_program(&program, parse_diagnostics);
     if json_output {
@@ -229,11 +245,11 @@ fn run_compile_ir(args: &[String]) -> i32 {
     i32::from(!summary.ok())
 }
 
-fn run_compile_rust(args: &[String]) -> i32 {
+fn run_compile_rust(args: &[String], inherited_json_output: bool) -> i32 {
     let parsed = match parse_compile_rust_args(args) {
         Ok(parsed) => parsed,
         Err(message) => {
-            if compile_rust_json_requested(args) {
+            if inherited_json_output || compile_rust_json_requested(args) {
                 let diagnostic =
                     Diagnostic::error("UsageError", message, None).with_repair(COMPILE_RUST_USAGE);
                 println!("{}", diagnostics_json(false, &[diagnostic]));
@@ -245,7 +261,7 @@ fn run_compile_rust(args: &[String]) -> i32 {
         }
     };
     let paths = parsed.paths;
-    let json_output = parsed.json_output;
+    let json_output = parsed.json_output || inherited_json_output;
     let source_inputs = source_input_metadata(&paths);
     let project_version = load_project_version();
     let (program, parse_diagnostics) = parse_paths(&paths);

@@ -3577,6 +3577,51 @@ fn check_and_certify_usage_errors_respect_json_flag() {
 }
 
 #[test]
+fn compile_usage_errors_respect_json_flag() {
+    let missing_target = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["compile", "--json"])
+        .output()
+        .expect("run serow compile without target");
+    assert_eq!(missing_target.status.code(), Some(2), "{missing_target:#?}");
+    assert!(missing_target.stderr.is_empty(), "{missing_target:#?}");
+    let stdout = String::from_utf8(missing_target.stdout).expect("stdout is utf8");
+    assert!(stdout.trim_start().starts_with('{'), "{stdout}");
+    assert!(stdout.contains("\"code\": \"UsageError\""), "{stdout}");
+    assert!(
+        stdout.contains("`serow compile` requires a compile target."),
+        "{stdout}"
+    );
+
+    let unknown_target = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["compile", "unknown-target", "--json"])
+        .output()
+        .expect("run unknown serow compile target as json");
+    assert_eq!(unknown_target.status.code(), Some(2), "{unknown_target:#?}");
+    assert!(unknown_target.stderr.is_empty(), "{unknown_target:#?}");
+    let stdout = String::from_utf8(unknown_target.stdout).expect("stdout is utf8");
+    assert!(stdout.trim_start().starts_with('{'), "{stdout}");
+    assert!(stdout.contains("\"code\": \"UsageError\""), "{stdout}");
+    assert!(
+        stdout.contains("Unknown serow compile target `unknown-target`."),
+        "{stdout}"
+    );
+
+    let rust_usage = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["compile", "--json", "rust", "--unknown-backend-flag"])
+        .output()
+        .expect("run invalid serow compile rust usage with inherited json");
+    assert_eq!(rust_usage.status.code(), Some(2), "{rust_usage:#?}");
+    assert!(rust_usage.stderr.is_empty(), "{rust_usage:#?}");
+    let stdout = String::from_utf8(rust_usage.stdout).expect("stdout is utf8");
+    assert!(stdout.trim_start().starts_with('{'), "{stdout}");
+    assert!(stdout.contains("\"code\": \"UsageError\""), "{stdout}");
+    assert!(
+        stdout.contains("unknown `compile rust` flag `--unknown-backend-flag`"),
+        "{stdout}"
+    );
+}
+
+#[test]
 fn source_declared_symbol_version_is_part_of_identity() {
     let dir = unique_temp_dir("serow-source-version");
     fs::create_dir_all(&dir).expect("create temp dir");
@@ -10576,6 +10621,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
     assert!(output.status.success(), "{output:#?}");
     let stdout = String::from_utf8_lossy(&output.stdout);
     let input_fingerprint = stable_test_input_fingerprint(&[PathBuf::from("examples/math.serow")]);
+    let project_version = current_project_version_for_test();
     assert!(
         stdout.contains("\"crate_name\": \"serow_math_generated\""),
         "{stdout}"
@@ -10585,7 +10631,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("\"project_version\": \"0.4.105-rust-bootstrap\""),
+        stdout.contains(&format!("\"project_version\": \"{project_version}\"")),
         "{stdout}"
     );
     let source_bytes = fs::read("examples/math.serow").expect("read math source");
@@ -10632,7 +10678,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{manifest}"
     );
     assert!(
-        manifest.contains("project_version = \"0.4.105-rust-bootstrap\""),
+        manifest.contains(&format!("project_version = \"{project_version}\"")),
         "{manifest}"
     );
     assert!(
@@ -10714,7 +10760,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{metadata}"
     );
     assert!(
-        metadata.contains("\"project_version\": \"0.4.105-rust-bootstrap\""),
+        metadata.contains(&format!("\"project_version\": \"{project_version}\"")),
         "{metadata}"
     );
     assert!(
@@ -10778,7 +10824,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{readme}"
     );
     assert!(
-        readme.contains("- Serow project version: `0.4.105-rust-bootstrap`"),
+        readme.contains(&format!("- Serow project version: `{project_version}`")),
         "{readme}"
     );
     assert!(
@@ -11809,6 +11855,11 @@ fn stable_test_source_fingerprint(source: &str) -> String {
         hash = hash.wrapping_mul(0x100000001b3);
     }
     format!("fnv1a64:{hash:016x}")
+}
+
+fn current_project_version_for_test() -> String {
+    let source = fs::read_to_string("serow.project").expect("read project manifest");
+    parse_project_version(&source).expect("project manifest version")
 }
 
 fn stable_test_input_fingerprint(paths: &[PathBuf]) -> String {
