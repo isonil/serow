@@ -19,6 +19,7 @@ The current implementation is a bootstrap toolchain written in dependency-free R
 - unknown function type errors with structured symbol lookup repair actions
 - missing-section diagnostics with safe structured patch actions for absent effects and implementation sections
 - typed-hole diagnostics with structured implementation obligations derived from signatures, contracts, examples, and sampled properties, plus type-shape lookup repair actions
+- duplicate sampled property variables rejected before evidence execution, with property/binding index details and an indexed removal repair action
 - duplicate public examples, executable examples that do not call the function under test, contract clauses, sampled property blocks, sampled properties with no bound variables, sampled properties that do not call the function under test, and sampled properties with unsupported generator types reported as low-signal evidence warnings, with indexed removal repair actions, exact unknown type reasons, and recursive record sample-cycle details where available
 - duplicate migration acknowledgements reported as warnings with indexed removal repair actions
 - sampled properties over built-in `Int`, `Bool`, `Text`, singleton `Unit`, bounded declared-record sample sets, and enum variants, with deterministic sample indexes, seed strings, bindings, explicit unsupported-sample reasons, simpler shrunk failing or erroring bindings when available, and a single-sample replay command for failures

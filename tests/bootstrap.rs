@@ -205,6 +205,49 @@ pub fn choose(x: Int, x: Int) -> Int
 }
 
 #[test]
+fn duplicate_property_variables_are_rejected() {
+    let dir = unique_temp_dir("serow-duplicate-property-vars");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("duplicate_property_vars.serow");
+    fs::write(
+        &source,
+        r#"module test.properties
+
+pub fn identity(x: Int) -> Int
+  intent "Return x unchanged."
+  contract
+    ensures result == x
+  examples
+    identity(2) == 2
+  properties
+    forall x: Int, x: Bool:
+      identity(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(
+        summary.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "DuplicatePropertyVariable"
+                && diagnostic.message.contains("`x`")
+                && diagnostic
+                    .data
+                    .iter()
+                    .any(|(key, value)| key == "duplicate_binding_index" && value == "2")
+        }),
+        "{:#?}",
+        summary.diagnostics
+    );
+    assert!(!summary.ok(), "{:#?}", summary.diagnostics);
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn malformed_type_names_are_rejected_during_parse() {
     let dir = unique_temp_dir("serow-malformed-types");
     fs::create_dir_all(&dir).expect("create temp dir");
@@ -10457,7 +10500,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("\"project_version\": \"0.4.102-rust-bootstrap\""),
+        stdout.contains("\"project_version\": \"0.4.103-rust-bootstrap\""),
         "{stdout}"
     );
     let source_bytes = fs::read("examples/math.serow").expect("read math source");
@@ -10504,7 +10547,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{manifest}"
     );
     assert!(
-        manifest.contains("project_version = \"0.4.102-rust-bootstrap\""),
+        manifest.contains("project_version = \"0.4.103-rust-bootstrap\""),
         "{manifest}"
     );
     assert!(
@@ -10586,7 +10629,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{metadata}"
     );
     assert!(
-        metadata.contains("\"project_version\": \"0.4.102-rust-bootstrap\""),
+        metadata.contains("\"project_version\": \"0.4.103-rust-bootstrap\""),
         "{metadata}"
     );
     assert!(
@@ -10650,7 +10693,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{readme}"
     );
     assert!(
-        readme.contains("- Serow project version: `0.4.102-rust-bootstrap`"),
+        readme.contains("- Serow project version: `0.4.103-rust-bootstrap`"),
         "{readme}"
     );
     assert!(

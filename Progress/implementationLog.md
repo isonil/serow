@@ -2,6 +2,10 @@
 
 ## 2026-05-21
 
+- Chose sampled-property binding validation as a small checker correctness fix because duplicate `forall` variable names were accepted and then silently overwritten during property type checking and execution.
+- Added a `DuplicatePropertyVariable` checker error with property index and binding-index data plus a structured removal repair action, covered it with a focused Rust bootstrap regression, and bumped `serow.project` to `0.4.103-rust-bootstrap`.
+- Verification is recorded in the final run for this change.
+
 - Chose Python reference module parser parity as a low-risk cleanup because the Rust parser preserves explicit module declarations and `use` dependencies, while the temporary Python bootstrap dropped module-only files and dependency metadata.
 - Added Python model support for module dependencies, taught the Python parser to preserve `use` declarations and explicit empty modules, and covered duplicate dependency deduplication plus empty-module preservation in the Python regression suite.
 - Verified with focused Python parser tests, `python3 -m unittest discover -s tests`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, `bin/serow fmt --check --json`, `bin/serow check`, `bin/serow certify`, and `git diff --check`.

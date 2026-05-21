@@ -1053,6 +1053,31 @@ fn check_property_constraints(function: &Function, program: &Program, summary: &
         return;
     }
     for property in property_blocks(&function.properties) {
+        for (name, first_binding_index, duplicate_binding_index) in
+            duplicate_property_variables(&property)
+        {
+            summary.diagnostics.push(
+                Diagnostic::error(
+                    "DuplicatePropertyVariable",
+                    format!(
+                        "Sampled property for `{}` declares forall variable `{name}` more than once.",
+                        function.name
+                    ),
+                    Some(function.target()),
+                )
+                .with_data("function", function.symbol())
+                .with_data("property_index", property.index.to_string())
+                .with_data("variable", name)
+                .with_data("first_binding_index", first_binding_index.to_string())
+                .with_data("duplicate_binding_index", duplicate_binding_index.to_string())
+                .with_data("property", &property.expression)
+                .with_command_repair(
+                    "Remove the sampled property with duplicate forall bindings",
+                    evidence_removal_repair_command(function, "property", property.index),
+                )
+                .with_repair("Rename or remove duplicate forall bindings before checking the property."),
+            );
+        }
         if property.variables.is_empty() {
             summary.diagnostics.push(
                 Diagnostic::warning(
@@ -1117,6 +1142,23 @@ fn check_property_constraints(function: &Function, program: &Program, summary: &
             ),
         );
     }
+}
+
+fn duplicate_property_variables(property: &PropertyBlock) -> Vec<(String, usize, usize)> {
+    let mut seen = HashMap::<String, usize>::new();
+    let mut duplicates = Vec::new();
+    for (index, (name, _)) in property.variables.iter().enumerate() {
+        if name.is_empty() {
+            continue;
+        }
+        let binding_index = index + 1;
+        if let Some(first_index) = seen.get(name) {
+            duplicates.push((name.clone(), *first_index, binding_index));
+        } else {
+            seen.insert(name.clone(), binding_index);
+        }
+    }
+    duplicates
 }
 
 fn check_example_constraints(function: &Function, program: &Program, summary: &mut CheckSummary) {

@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "0.4.102-rust-bootstrap",
+  "version": "0.4.103-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -81,6 +81,7 @@
     "near_duplicate_public_intents_warned": true,
     "type_shape_ledger_queries": true,
     "duplicate_evidence_warned": true,
+    "duplicate_property_variables_rejected": true,
     "duplicate_migrations_warned": true,
     "backend_ir_includes_preconditions": true,
     "backend_ir_includes_postconditions": true,
