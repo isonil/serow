@@ -47,6 +47,58 @@ fn explicit_missing_source_path_is_reported() {
 }
 
 #[test]
+fn source_path_separator_allows_json_looking_paths() {
+    let dir = unique_temp_dir("serow-path-separator");
+    let source_dir = dir.join("--json");
+    fs::create_dir_all(&source_dir).expect("create json-looking source dir");
+    fs::write(
+        source_dir.join("main.serow"),
+        r#"module cli.separator
+
+pub fn identity(x: Int) -> Int
+  intent "Return x unchanged."
+  contract
+    ensures result == x
+  examples
+    identity(2) == 2
+  properties
+    forall x: Int:
+      identity(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let check = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args(["check", "--", "--json"])
+        .output()
+        .expect("run serow check with json-looking path");
+    assert!(check.status.success(), "{check:#?}");
+    let stdout = String::from_utf8(check.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("serow check: ok"), "{stdout}");
+    assert!(
+        !stdout.trim_start().starts_with('{'),
+        "path after `--` should not enable JSON output: {stdout}"
+    );
+
+    let ir = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args(["compile", "ir", "--", "--json"])
+        .output()
+        .expect("run serow compile ir with json-looking path");
+    assert!(ir.status.success(), "{ir:#?}");
+    let stdout = String::from_utf8(ir.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("serow compile ir: ok"), "{stdout}");
+    assert!(
+        !stdout.trim_start().starts_with('{'),
+        "path after `--` should not enable JSON output: {stdout}"
+    );
+}
+
+#[test]
 fn duplicate_function_parameters_are_rejected() {
     let dir = unique_temp_dir("serow-duplicate-params");
     fs::create_dir_all(&dir).expect("create temp dir");

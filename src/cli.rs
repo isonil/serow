@@ -1765,19 +1765,13 @@ fn run_patch_set_version(args: &[String]) -> i32 {
 }
 
 fn run_check(args: &[String], certify: bool) -> i32 {
-    let (args, json_output) = split_flag(args, "--json");
-    let (paths, profile) = if certify {
-        match split_certify_profile(&args) {
-            Ok(parsed) => parsed,
-            Err(message) => return check_usage_error(json_output, message),
-        }
-    } else if args.iter().any(|arg| arg == "--profile") {
-        return check_usage_error(
-            json_output,
-            "`--profile` is only supported by `serow certify`.".to_string(),
-        );
-    } else {
-        (args, CertifyProfile::Standard)
+    let CheckArgs {
+        paths,
+        profile,
+        json_output,
+    } = match parse_check_args(args, certify) {
+        Ok(parsed) => parsed,
+        Err((json_output, message)) => return check_usage_error(json_output, message),
     };
     let (program, parse_diagnostics) = parse_paths(&paths);
     let mut summary = check_program(&program, parse_diagnostics);
@@ -1825,6 +1819,94 @@ fn run_check(args: &[String], certify: bool) -> i32 {
     } else {
         i32::from(has_errors(&summary.diagnostics))
     }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct CheckArgs {
+    paths: Vec<String>,
+    profile: CertifyProfile,
+    json_output: bool,
+}
+
+fn parse_check_args(args: &[String], certify: bool) -> Result<CheckArgs, (bool, String)> {
+    let mut paths = Vec::new();
+    let mut profile = CertifyProfile::Standard;
+    let mut saw_profile = false;
+    let mut json_output = json_flag_requested(args);
+    let mut parsing_options = true;
+    let mut index = 0;
+    while index < args.len() {
+        let arg = &args[index];
+        if parsing_options {
+            match arg.as_str() {
+                "--" => {
+                    parsing_options = false;
+                    index += 1;
+                    continue;
+                }
+                "--json" => {
+                    json_output = true;
+                    index += 1;
+                    continue;
+                }
+                "--profile" => {
+                    if !certify {
+                        return Err((
+                            json_output,
+                            "`--profile` is only supported by `serow certify`.".to_string(),
+                        ));
+                    }
+                    if saw_profile {
+                        return Err((
+                            json_output,
+                            "`--profile` can only be provided once.".to_string(),
+                        ));
+                    }
+                    saw_profile = true;
+                    let Some(value) = args.get(index + 1).map(String::as_str) else {
+                        return Err((
+                            json_output,
+                            "`--profile` requires a profile name.".to_string(),
+                        ));
+                    };
+                    if value == "--json" {
+                        return Err((
+                            json_output,
+                            "`--profile` requires a profile name.".to_string(),
+                        ));
+                    }
+                    profile = match value {
+                        "standard" | "default" => CertifyProfile::Standard,
+                        "unattended" => CertifyProfile::Unattended,
+                        _ => {
+                            return Err((
+                                json_output,
+                                format!(
+                                    "Unknown certification profile `{value}`; expected `standard` or `unattended`."
+                                ),
+                            ));
+                        }
+                    };
+                    index += 2;
+                    continue;
+                }
+                _ => {}
+            }
+        }
+        paths.push(arg.clone());
+        index += 1;
+    }
+    Ok(CheckArgs {
+        paths,
+        profile,
+        json_output,
+    })
+}
+
+fn json_flag_requested(args: &[String]) -> bool {
+    args.iter()
+        .take_while(|arg| arg.as_str() != "--")
+        .any(|arg| arg == "--json")
 }
 
 fn check_usage_error(json_output: bool, message: String) -> i32 {
@@ -2042,8 +2124,11 @@ fn emit_query_parse_errors(
 fn split_paths_and_json(args: &[String]) -> (Vec<String>, bool) {
     let mut paths = Vec::new();
     let mut json_output = false;
+    let mut parsing_options = true;
     for arg in args {
-        if arg == "--json" {
+        if parsing_options && arg == "--" {
+            parsing_options = false;
+        } else if parsing_options && arg == "--json" {
             json_output = true;
         } else {
             paths.push(arg.clone());
@@ -2109,38 +2194,6 @@ fn patch_usage_error(json_output: bool, message: String) -> i32 {
         eprintln!("{message}");
     }
     2
-}
-
-fn split_certify_profile(args: &[String]) -> Result<(Vec<String>, CertifyProfile), String> {
-    let mut paths = Vec::new();
-    let mut profile = CertifyProfile::Standard;
-    let mut saw_profile = false;
-    let mut index = 0;
-    while index < args.len() {
-        if args[index] == "--profile" {
-            if saw_profile {
-                return Err("`--profile` can only be provided once.".to_string());
-            }
-            saw_profile = true;
-            let Some(value) = args.get(index + 1).map(String::as_str) else {
-                return Err("`--profile` requires a profile name.".to_string());
-            };
-            profile = match value {
-                "standard" | "default" => CertifyProfile::Standard,
-                "unattended" => CertifyProfile::Unattended,
-                _ => {
-                    return Err(format!(
-                        "Unknown certification profile `{value}`; expected `standard` or `unattended`."
-                    ));
-                }
-            };
-            index += 2;
-        } else {
-            paths.push(args[index].clone());
-            index += 1;
-        }
-    }
-    Ok((paths, profile))
 }
 
 fn print_check_summary(summary: &CheckSummary, certify: bool, profile: CertifyProfile) {
