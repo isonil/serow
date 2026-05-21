@@ -2,6 +2,10 @@
 
 ## 2026-05-21
 
+- Chose structured patch metadata validation as a small source-integrity fix because `patch add-function`, `patch set-intent`, and migration patch commands could accept raw newline/control characters that the formatter would write into single-line quoted sections.
+- Added shared single-line metadata validation for intents and migration notes, covered the rejecting path through CLI regression tests, and bumped `serow.project` to `0.4.102-rust-bootstrap`.
+- Verification is recorded in the final run for this change.
+
 - Chose human-readable plan output parity as a small agent ergonomics fix because JSON property coverage included recursive record sample cycles while text `serow plan` hid them.
 - Added recursive record cycle details to text-mode sampled property coverage rows, covered the recursive-record fixture in both JSON and text plan modes, and bumped `serow.project` to `0.4.101-rust-bootstrap`.
 - Verification is recorded in the final run for this change.

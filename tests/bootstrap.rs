@@ -7125,6 +7125,97 @@ fn patch_add_function_rejects_duplicate_parameters() {
 }
 
 #[test]
+fn patch_rejects_multiline_single_line_metadata() {
+    let dir = unique_temp_dir("serow-patch-multiline-metadata");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("metadata.serow");
+    fs::write(
+        &source,
+        r#"module app.main
+
+pub fn id(x: Int) -> Int
+  intent "Return x unchanged."
+  version v1
+  contract
+    ensures result == x
+  examples
+    id(3) == 3
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+    let before = fs::read_to_string(&source).expect("read fixture before patches");
+
+    let add_function = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "add-function",
+            source.to_str().expect("utf8 path"),
+            "app.main",
+            "bad(x: Int) -> Int",
+            "Return x.\nThen return it again.",
+            "--json",
+        ])
+        .output()
+        .expect("run rejected serow patch add-function");
+    assert!(!add_function.status.success(), "{add_function:#?}");
+    let add_stdout = String::from_utf8(add_function.stdout).expect("stdout is utf8");
+    assert!(add_stdout.contains("InvalidPatchTarget"), "{add_stdout}");
+    assert!(add_stdout.contains("single line"), "{add_stdout}");
+
+    let set_intent = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-intent",
+            source.to_str().expect("utf8 path"),
+            "@app.main.id.v1",
+            "Return x.\nThen return it again.",
+            "--json",
+        ])
+        .output()
+        .expect("run rejected serow patch set-intent");
+    assert!(!set_intent.status.success(), "{set_intent:#?}");
+    let intent_stdout = String::from_utf8(set_intent.stdout).expect("stdout is utf8");
+    assert!(
+        intent_stdout.contains("InvalidPatchTarget"),
+        "{intent_stdout}"
+    );
+    assert!(intent_stdout.contains("single line"), "{intent_stdout}");
+
+    let set_migration = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-migration",
+            source.to_str().expect("utf8 path"),
+            "@app.main.id.v1",
+            "implementation-change",
+            "Reviewed implementation.\nStill compatible.",
+            "--json",
+        ])
+        .output()
+        .expect("run rejected serow patch set-migration");
+    assert!(!set_migration.status.success(), "{set_migration:#?}");
+    let migration_stdout = String::from_utf8(set_migration.stdout).expect("stdout is utf8");
+    assert!(
+        migration_stdout.contains("InvalidPatchTarget"),
+        "{migration_stdout}"
+    );
+    assert!(
+        migration_stdout.contains("single line"),
+        "{migration_stdout}"
+    );
+
+    let after = fs::read_to_string(&source).expect("read fixture after patches");
+    assert_eq!(before, after);
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn patch_remove_function_removes_public_function() {
     let dir = unique_temp_dir("serow-patch-remove-function");
     fs::create_dir_all(&dir).expect("create temp dir");
@@ -10366,7 +10457,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("\"project_version\": \"0.4.101-rust-bootstrap\""),
+        stdout.contains("\"project_version\": \"0.4.102-rust-bootstrap\""),
         "{stdout}"
     );
     let source_bytes = fs::read("examples/math.serow").expect("read math source");
@@ -10413,7 +10504,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{manifest}"
     );
     assert!(
-        manifest.contains("project_version = \"0.4.101-rust-bootstrap\""),
+        manifest.contains("project_version = \"0.4.102-rust-bootstrap\""),
         "{manifest}"
     );
     assert!(
@@ -10495,7 +10586,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{metadata}"
     );
     assert!(
-        metadata.contains("\"project_version\": \"0.4.101-rust-bootstrap\""),
+        metadata.contains("\"project_version\": \"0.4.102-rust-bootstrap\""),
         "{metadata}"
     );
     assert!(
@@ -10559,7 +10650,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{readme}"
     );
     assert!(
-        readme.contains("- Serow project version: `0.4.101-rust-bootstrap`"),
+        readme.contains("- Serow project version: `0.4.102-rust-bootstrap`"),
         "{readme}"
     );
     assert!(

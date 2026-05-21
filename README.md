@@ -171,6 +171,8 @@ bin/serow patch set-version examples/math.serow @core.math.add.v1 v1
 
 `patch set-migration` creates a missing migration acknowledgement for a kind, replaces a single existing record of that kind, or replaces a specific record when passed a 1-based index before the note.
 
+Structured patch commands that write single-line quoted metadata, including intents and migration notes, reject raw control characters before writing so they cannot produce malformed source.
+
 Query the project ledger:
 
 ```sh

@@ -917,6 +917,9 @@ pub fn add_function(path: &str, module: &str, signature: &str, intent: &str) -> 
         ));
         return summary;
     }
+    if let Some(summary) = validate_single_line_metadata(path, "Function intent", intent.trim()) {
+        return summary;
+    }
     let Some((name, params, return_type)) = parse_signature(signature) else {
         summary.diagnostics.push(
             Diagnostic::error(
@@ -1727,6 +1730,22 @@ fn validate_migration_patch(path: &str, kind: &str, note: &str) -> Option<PatchS
         ));
         return Some(summary);
     }
+    if let Some(summary) = validate_single_line_metadata(path, "Migration note", note) {
+        return Some(summary);
+    }
+    None
+}
+
+fn validate_single_line_metadata(path: &str, field: &str, value: &str) -> Option<PatchSummary> {
+    if value.chars().any(char::is_control) {
+        let mut summary = PatchSummary::default();
+        summary.diagnostics.push(Diagnostic::error(
+            "InvalidPatchTarget",
+            format!("{field} must be a single line without raw control characters."),
+            Some(path.to_string()),
+        ));
+        return Some(summary);
+    }
     None
 }
 
@@ -1803,6 +1822,9 @@ pub fn set_intent(path: &str, target: &str, intent: &str) -> PatchSummary {
             "Function intent must not be empty.",
             Some(path.to_string()),
         ));
+        return summary;
+    }
+    if let Some(summary) = validate_single_line_metadata(path, "Function intent", intent) {
         return summary;
     }
     patch_function_checked_with_program(path, target, |program, function| {
