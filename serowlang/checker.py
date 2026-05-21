@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from .diagnostics import Diagnostic
 from .evaluator import EvaluationError, Evaluator, resolve_function
 from .ledger import intent_terms, query_intent
-from .model import Function, Program
+from .model import Function, Program, TypeDecl
 
 
 REQUIRED_PUBLIC_SECTIONS = ["intent", "contract", "examples", "properties", "effects", "impl"]
@@ -62,7 +62,7 @@ def check_program(program: Program, parse_diagnostics: List[Diagnostic]) -> Chec
         _check_property_constraints(function, program, summary)
     _check_effects(program, summary)
     for function in program.functions:
-        _check_executable_evidence(function, evaluator, summary)
+        _check_executable_evidence(function, evaluator, program.types, summary)
     return summary
 
 
@@ -892,13 +892,18 @@ def _effect_declaration_from_capabilities(capabilities) -> str:
     return "[" + ", ".join(normalized) + "]"
 
 
-def _check_executable_evidence(function: Function, evaluator: Evaluator, summary: CheckSummary) -> None:
+def _check_executable_evidence(
+    function: Function,
+    evaluator: Evaluator,
+    types: List[TypeDecl],
+    summary: CheckSummary,
+) -> None:
     for example in function.examples:
         summary.examples += 1
         _check_example(function, example, evaluator, summary)
     for property_block in _property_blocks(function.properties):
         summary.properties += 1
-        _check_property(function, property_block, evaluator, summary)
+        _check_property(function, property_block, evaluator, types, summary)
 
 
 def _check_example(function: Function, example: str, evaluator: Evaluator, summary: CheckSummary) -> None:
@@ -1039,25 +1044,49 @@ def _check_contracts(
             )
 
 
-def _check_property(function: Function, block: Tuple[int, List[Tuple[str, str]], str], evaluator: Evaluator, summary: CheckSummary) -> None:
+def _check_property(
+    function: Function,
+    block: Tuple[int, List[Tuple[str, str]], str],
+    evaluator: Evaluator,
+    types: List[TypeDecl],
+    summary: CheckSummary,
+) -> None:
     property_index, variables, expression = block
-    samples = [_samples_for_type(type_name) for _, type_name in variables]
-    if any(sample is None for sample in samples):
-        unsupported_types = sorted(
-            {type_name for _, type_name in variables if _samples_for_type(type_name) is None}
+    sample_results = [_samples_for_type(type_name, types) for _, type_name in variables]
+    unsupported = [
+        (type_name, reason)
+        for (_, type_name), result in zip(variables, sample_results)
+        if isinstance(result, _UnsupportedSample)
+        for reason in [result.reason]
+    ]
+    if unsupported:
+        unsupported_types = sorted({type_name for type_name, _ in unsupported})
+        unsupported_reasons = sorted(
+            {f"{type_name}: {_unsupported_sample_reason_text(reason)}" for type_name, reason in unsupported}
         )
+        recursive_record_cycles = sorted(
+            {
+                " -> ".join(reason.cycle)
+                for _, reason in unsupported
+                if isinstance(reason, _RecursiveRecordCycle)
+            }
+        )
+        data = {
+            "function": function.symbol,
+            "property_index": str(property_index),
+            "property": expression,
+            "unsupported_types": ", ".join(unsupported_types),
+            "unsupported_reasons": "; ".join(unsupported_reasons),
+        }
+        if recursive_record_cycles:
+            data["recursive_record_cycles"] = "; ".join(recursive_record_cycles)
         summary.diagnostics.append(
             Diagnostic(
                 severity="warning",
                 code="PropertyNotExecutable",
                 message="Property contains a type without bootstrap samples.",
                 target=function.target,
-                data={
-                    "function": function.symbol,
-                    "property_index": str(property_index),
-                    "property": expression,
-                    "unsupported_types": ", ".join(unsupported_types),
-                },
+                data=data,
             )
             .with_command_repair(
                 "Remove the non-executable sampled property",
@@ -1069,6 +1098,7 @@ def _check_property(function: Function, block: Tuple[int, List[Tuple[str, str]],
         )
         return
 
+    samples = sample_results
     for sample_index, values in enumerate(itertools.product(*samples), start=1):
         bindings = {name: value for (name, _), value in zip(variables, values)}
         sample_data = {
@@ -1250,6 +1280,14 @@ def _value_complexity(value: Any) -> int:
         return abs(value)
     if isinstance(value, str):
         return len(value)
+    if isinstance(value, dict):
+        if "__enum" in value:
+            return len(value["variant"])
+        return sum(
+            _value_complexity(item)
+            for name, item in value.items()
+            if name != "__type"
+        )
     return 0
 
 
@@ -1293,10 +1331,36 @@ def _format_sample_value(value: Any) -> str:
         return str(value).lower()
     if isinstance(value, str):
         return json.dumps(value)
+    if isinstance(value, dict) and "__enum" in value:
+        return str(value["variant"])
+    if isinstance(value, dict) and "__type" in value:
+        fields = ", ".join(
+            f"{name}: {_format_sample_value(field_value)}"
+            for name, field_value in value.items()
+            if name != "__type"
+        )
+        return f"{value['__type']} {{ {fields} }}"
+    if value is None:
+        return "unit"
     return str(value)
 
 
-def _samples_for_type(type_name: str):
+@dataclass(frozen=True)
+class _UnknownSampleType:
+    pass
+
+
+@dataclass(frozen=True)
+class _RecursiveRecordCycle:
+    cycle: Tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class _UnsupportedSample:
+    reason: object
+
+
+def _samples_for_type(type_name: str, types: List[TypeDecl], active_records: Optional[List[str]] = None):
     if type_name == "Int":
         return [-2, -1, 0, 1, 2, -10, 10]
     if type_name == "Bool":
@@ -1305,7 +1369,55 @@ def _samples_for_type(type_name: str):
         return ["", "a", "Serow", "with space", "123"]
     if type_name == "Unit":
         return [None]
-    return None
+    type_decl = next((declared for declared in types if declared.name == type_name), None)
+    if type_decl is None:
+        return _UnsupportedSample(_UnknownSampleType())
+    if type_decl.is_enum:
+        return [
+            {"__enum": type_name, "variant": variant}
+            for variant in type_decl.variants
+        ]
+
+    active_records = list(active_records or [])
+    if type_name in active_records:
+        cycle = active_records[active_records.index(type_name):] + [type_name]
+        return _UnsupportedSample(_RecursiveRecordCycle(tuple(cycle)))
+    active_records.append(type_name)
+
+    field_samples = []
+    for field in type_decl.fields:
+        samples = _samples_for_type(field.type_name, types, active_records)
+        if isinstance(samples, _UnsupportedSample):
+            return samples
+        if not samples:
+            return _UnsupportedSample(_UnknownSampleType())
+        field_samples.append((field.name, samples))
+
+    default_fields = {
+        name: samples[0]
+        for name, samples in field_samples
+    }
+    records = [_record_sample_value(type_name, default_fields)]
+    for name, samples in field_samples:
+        for sample in samples[1:]:
+            fields = dict(default_fields)
+            fields[name] = sample
+            record = _record_sample_value(type_name, fields)
+            if record not in records:
+                records.append(record)
+    return records
+
+
+def _record_sample_value(type_name: str, fields: Dict[str, Any]) -> Dict[str, Any]:
+    value = {"__type": type_name}
+    value.update(fields)
+    return value
+
+
+def _unsupported_sample_reason_text(reason: object) -> str:
+    if isinstance(reason, _RecursiveRecordCycle):
+        return f"recursive record sample cycle: {' -> '.join(reason.cycle)}"
+    return "unknown type"
 
 
 def _extract_single_call(example: str, function: Function):

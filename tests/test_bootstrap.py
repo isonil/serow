@@ -981,6 +981,82 @@ pub fn id(x: Int) -> Int
                 diagnostic.to_dict(),
             )
 
+    def test_sampled_properties_support_declared_records_and_enums(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "declared_property_samples.serow"
+            source.write_text(
+                """module test.property
+
+type Box = { value: Int, label: Text }
+type Direction = North | South
+
+pub fn box_value(box: Box) -> Int
+  version v1
+  intent "Return the value stored in the box."
+  contract
+    ensures result == box.value
+  examples
+    box_value(Box { value: 1, label: "x" }) == 1
+  properties
+    forall box: Box:
+      box_value(box) == box.value
+  effects pure
+  impl
+    box.value
+
+pub fn is_north(direction: Direction) -> Bool
+  version v1
+  intent "Report whether a direction is north."
+  contract
+    ensures result == (direction == North)
+  examples
+    is_north(North) == true
+  properties
+    forall direction: Direction:
+      is_north(direction) == (direction == North)
+  effects pure
+  impl
+    direction == North
+""",
+                encoding="utf-8",
+            )
+            program, parse_diagnostics = parse_files([str(source)])
+            summary = check_program(program, parse_diagnostics)
+            self.assertTrue(summary.ok, [diagnostic.to_dict() for diagnostic in summary.diagnostics])
+            self.assertEqual(summary.properties, 2)
+
+    def test_recursive_record_property_samples_report_cycle_reason(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "recursive_property_type.serow"
+            source.write_text(
+                """module test.property
+
+type Node = { next: Node }
+
+fn id(node: Node) -> Node
+  properties
+    forall node: Node:
+      id(node) == node
+  effects pure
+  impl
+    node
+""",
+                encoding="utf-8",
+            )
+            program, parse_diagnostics = parse_files([str(source)])
+            summary = check_program(program, parse_diagnostics)
+            diagnostic = next(
+                diagnostic
+                for diagnostic in summary.diagnostics
+                if diagnostic.code == "PropertyNotExecutable"
+            )
+            self.assertEqual(diagnostic.data.get("unsupported_types"), "Node")
+            self.assertEqual(
+                diagnostic.data.get("unsupported_reasons"),
+                "Node: recursive record sample cycle: Node -> Node",
+            )
+            self.assertEqual(diagnostic.data.get("recursive_record_cycles"), "Node -> Node")
+
     def test_sampled_property_failure_reports_replay_data(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "property_replay.serow"

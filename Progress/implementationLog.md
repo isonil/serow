@@ -2,6 +2,10 @@
 
 ## 2026-05-21
 
+- Chose Python reference sampler parity as a low-risk cleanup because Rust supports sampled properties over declared records and enum variants, while the temporary Python bootstrap still treated those declared types as unsupported.
+- Added bounded Python record samples, enum variant samples, recursive record cycle reasons, and focused Python regressions for declared-type sampled properties.
+- Verification is recorded in the final run for this change.
+
 - Chose patch-command JSON usage consistency as a small agent-protocol hardening fix because `serow patch ... --json` returned structured diagnostics for invalid indexes but still emitted plain usage text for missing or unknown patch commands.
 - Updated patch command dispatch and subcommand arity handling so JSON-requested usage failures return the normal patch JSON envelope with `UsageError` diagnostics, while preserving text usage output for non-JSON callers.
 - Bumped `serow.project` to `0.4.100-rust-bootstrap`; verification is recorded in the final run for this change.
