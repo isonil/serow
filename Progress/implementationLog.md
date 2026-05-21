@@ -2,6 +2,10 @@
 
 ## 2026-05-21
 
+- Chose replay CLI JSON usage consistency as a small agent-protocol hardening fix because `serow replay property --json` treated `--json` as a sample seed instead of reporting a structured usage diagnostic.
+- Updated replay command dispatch to honor inherited JSON requests for missing or unknown replay commands and missing property seeds, covered the behavior with CLI regressions, and bumped `serow.project` to `0.4.104-rust-bootstrap`.
+- Verification is recorded in the final run for this change.
+
 - Chose generated Rust source-input bookkeeping as a low-risk backend maintenance cleanup because `compile rust` independently rediscovered and reread the same inputs for per-file metadata and aggregate input fingerprints.
 - Consolidated source-input rows and aggregate fingerprint into one internal `SourceInputs` value so generated crate metadata and drift checks share one source walk while preserving existing output.
 - Verification is recorded in the final run for this change.

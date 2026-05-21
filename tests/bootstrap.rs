@@ -3429,6 +3429,56 @@ fn query_usage_errors_respect_json_flag() {
 }
 
 #[test]
+fn replay_usage_errors_respect_json_flag() {
+    let missing_command = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["replay", "--json"])
+        .output()
+        .expect("run serow replay without command");
+    assert_eq!(
+        missing_command.status.code(),
+        Some(2),
+        "{missing_command:#?}"
+    );
+    assert!(missing_command.stderr.is_empty(), "{missing_command:#?}");
+    let stdout = String::from_utf8(missing_command.stdout).expect("stdout is utf8");
+    assert!(stdout.trim_start().starts_with('{'), "{stdout}");
+    assert!(stdout.contains("\"code\": \"UsageError\""), "{stdout}");
+    assert!(
+        stdout.contains("`serow replay` requires a replay command."),
+        "{stdout}"
+    );
+
+    let missing_seed = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["replay", "property", "--json"])
+        .output()
+        .expect("run serow replay property without seed");
+    assert_eq!(missing_seed.status.code(), Some(2), "{missing_seed:#?}");
+    assert!(missing_seed.stderr.is_empty(), "{missing_seed:#?}");
+    let stdout = String::from_utf8(missing_seed.stdout).expect("stdout is utf8");
+    assert!(stdout.trim_start().starts_with('{'), "{stdout}");
+    assert!(stdout.contains("\"code\": \"UsageError\""), "{stdout}");
+    assert!(
+        stdout.contains("`serow replay property` requires a sample seed."),
+        "{stdout}"
+    );
+    assert!(!stdout.contains("InvalidSampleSeed"), "{stdout}");
+
+    let unknown_json = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["replay", "unknown-replay", "--json"])
+        .output()
+        .expect("run unknown serow replay command as json");
+    assert_eq!(unknown_json.status.code(), Some(2), "{unknown_json:#?}");
+    assert!(unknown_json.stderr.is_empty(), "{unknown_json:#?}");
+    let stdout = String::from_utf8(unknown_json.stdout).expect("stdout is utf8");
+    assert!(stdout.trim_start().starts_with('{'), "{stdout}");
+    assert!(stdout.contains("\"code\": \"UsageError\""), "{stdout}");
+    assert!(
+        stdout.contains("Unknown serow replay command `unknown-replay`."),
+        "{stdout}"
+    );
+}
+
+#[test]
 fn query_parse_errors_respect_json_flag() {
     let dir = unique_temp_dir("serow-query-parse-errors");
     let source = dir.join("missing.serow");
@@ -10500,7 +10550,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("\"project_version\": \"0.4.103-rust-bootstrap\""),
+        stdout.contains("\"project_version\": \"0.4.104-rust-bootstrap\""),
         "{stdout}"
     );
     let source_bytes = fs::read("examples/math.serow").expect("read math source");
@@ -10547,7 +10597,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{manifest}"
     );
     assert!(
-        manifest.contains("project_version = \"0.4.103-rust-bootstrap\""),
+        manifest.contains("project_version = \"0.4.104-rust-bootstrap\""),
         "{manifest}"
     );
     assert!(
@@ -10629,7 +10679,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{metadata}"
     );
     assert!(
-        metadata.contains("\"project_version\": \"0.4.103-rust-bootstrap\""),
+        metadata.contains("\"project_version\": \"0.4.104-rust-bootstrap\""),
         "{metadata}"
     );
     assert!(
@@ -10693,7 +10743,7 @@ fn compile_rust_out_dir_writes_crate_layout() {
         "{readme}"
     );
     assert!(
-        readme.contains("- Serow project version: `0.4.103-rust-bootstrap`"),
+        readme.contains("- Serow project version: `0.4.104-rust-bootstrap`"),
         "{readme}"
     );
     assert!(

@@ -65,25 +65,33 @@ pub fn main(args: impl Iterator<Item = String>) -> i32 {
 }
 
 fn run_replay(args: &[String]) -> i32 {
-    let Some(replay_command) = args.first().map(String::as_str) else {
-        print_replay_usage();
-        return 2;
+    let (replay_args, json_requested) = split_flag_before_separator(args, "--json");
+    let Some(replay_command) = replay_args.first().map(String::as_str) else {
+        return replay_usage_error(
+            json_requested,
+            "`serow replay` requires a replay command.".to_string(),
+        );
     };
     match replay_command {
-        "property" => run_replay_property(&args[1..]),
-        _ => {
-            print_replay_usage();
-            2
-        }
+        "property" => run_replay_property(&replay_args[1..], json_requested),
+        _ => replay_usage_error(
+            json_requested,
+            format!("Unknown serow replay command `{replay_command}`."),
+        ),
     }
 }
 
-fn run_replay_property(args: &[String]) -> i32 {
+fn run_replay_property(args: &[String], inherited_json_output: bool) -> i32 {
+    let (args, mut json_output) = split_flag_before_separator(args, "--json");
+    json_output |= inherited_json_output;
     let Some(sample_seed) = args.first() else {
-        print_replay_usage();
-        return 2;
+        return replay_usage_error(
+            json_output,
+            "`serow replay property` requires a sample seed.".to_string(),
+        );
     };
-    let (paths, json_output) = split_paths_and_json(&args[1..]);
+    let (paths, path_json_output) = split_paths_and_json(&args[1..]);
+    json_output |= path_json_output;
     let (program, parse_diagnostics) = parse_paths(&paths);
     if has_errors(&parse_diagnostics) {
         if json_output {
@@ -100,6 +108,18 @@ fn run_replay_property(args: &[String]) -> i32 {
         print_property_replay_summary(&summary);
     }
     i32::from(!summary.ok())
+}
+
+fn replay_usage_error(json_output: bool, message: String) -> i32 {
+    if json_output {
+        let diagnostic = Diagnostic::error("UsageError", message, None)
+            .with_repair("Use `serow replay property <sample-seed> [paths...] [--json]`.");
+        println!("{}", diagnostics_json(false, &[diagnostic]));
+    } else {
+        eprintln!("{message}");
+        print_replay_usage();
+    }
+    2
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
