@@ -18,6 +18,7 @@ Selection policy for generic implementation prompts:
 ## V1 Closure State
 
 - Phase 0 bootstrap tooling is closed for public v1. The dependency-free Rust CLI, parser/checker, executable examples, sampled properties/contracts, semantic ledger queries, and project manifest workflow are in place and verified by the normal gates.
+- Phase 2.5 agent-certification tightening is done enough for public v1: standard certification is warning-free/error-free over the normal identity, dependency, effect, intent, and evidence diagnostics, and all certification profiles validate structured repair-action command contracts before accepting diagnostic output.
 - The first production backend slice is done enough for public v1: portable IR plus dependency-free Rust source/crate generation for the supported bootstrap subset, generated metadata, artifact drift checks, runtime contract assertions, generated pure evidence tests, and binary entrypoint support are all implemented.
 - Remaining backend work such as WASM/TypeScript/Python backends, richer external effect boundaries, recursive record layout support, generic list indexing, list pattern matching, higher-order collection APIs, and semantic-embedding intent search is explicitly v2/future scope rather than blocking the public v1 bootstrap baseline.
 - The Python bootstrap remains reference-only. It should keep parity where cheap, but Rust is the source of truth for v1 behavior.
@@ -135,7 +136,7 @@ Selection policy for generic implementation prompts:
   - rejects impacted dependent call edges that lack executable example or sampled property coverage
   - rejects stale migration acknowledgements on changed tracked public symbols
   - rejects removed public symbols that do not have a same-name replacement version
-  - rejects malformed structured diagnostic repair actions emitted during strict-profile certification, while accepting known safe `query`, `patch`, `replay`, and type-shape lookup command actions
+  - all certification profiles reject malformed structured diagnostic repair actions while accepting known safe `query`, `patch`, `replay`, and type-shape lookup command actions
   - accepts explicit migration acknowledgements for intentional public behavior, capability expansion, evidence weakening, implementation, and impact-review decisions
 - Phase 3 backend foundation:
   - `bin/serow compile ir [paths...] [--json]`
@@ -235,6 +236,7 @@ Selection policy for generic implementation prompts:
 - Structured JSON diagnostic repair actions:
   - command repair actions are emitted as `repair_actions` alongside legacy `repairs`
   - currently used for format drift, missing module dependencies, forbidden declared module dependencies, ambiguous bare-call and unknown-function symbol lookup, duplicate-intent lookup, low-signal evidence removal, duplicate/stale migration removal, implicit-version fixes in unattended certification, and effect capability declaration repairs
+  - all `certify` profiles validate structured command repair actions before considering diagnostic output acceptable
 - Deterministic source formatting:
   - `bin/serow fmt [paths...]`
   - `bin/serow fmt [paths...] --check`

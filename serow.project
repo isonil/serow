@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "0.4.111-rust-bootstrap",
+  "version": "0.4.112-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -149,6 +149,7 @@
     "typed_holes_allowed": true,
     "typed_hole_type_lookup_repair_actions": true,
     "typed_hole_diagnostics_report_obligations": true,
+    "certify_validates_repair_action_contracts": true,
     "unattended_rejects_same_version_public_contract_surface_change": true,
     "unattended_rejects_capability_expansion_without_migration": true,
     "unattended_rejects_evidence_weakening": true,

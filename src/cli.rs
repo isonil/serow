@@ -1896,10 +1896,9 @@ fn run_check(args: &[String], certify: bool) -> i32 {
         summary
             .diagnostics
             .extend(unattended_removed_public_symbol_diagnostics(&paths));
-        let repair_action_contract_diagnostics = validate_repair_actions(&summary.diagnostics);
-        summary
-            .diagnostics
-            .extend(repair_action_contract_diagnostics);
+    }
+    if certify {
+        enforce_certification_repair_action_contracts(&mut summary);
     }
     if json_output {
         println!("{}", check_json(&summary, certify.then_some(profile)));
@@ -1911,6 +1910,13 @@ fn run_check(args: &[String], certify: bool) -> i32 {
     } else {
         i32::from(has_errors(&summary.diagnostics))
     }
+}
+
+fn enforce_certification_repair_action_contracts(summary: &mut CheckSummary) {
+    let repair_action_contract_diagnostics = validate_repair_actions(&summary.diagnostics);
+    summary
+        .diagnostics
+        .extend(repair_action_contract_diagnostics);
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -4326,7 +4332,7 @@ const CORE_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "certify",
         "serow certify [paths...] [--profile unattended] [--json]",
-        "Require a warning-free and error-free checker result, with an optional stricter unattended profile.",
+        "Require a warning-free and error-free checker result plus structured repair-action consistency, with an optional stricter unattended profile.",
     ),
     (
         "compile ir",
@@ -4379,7 +4385,7 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "certify",
         "serow certify [paths...] [--profile unattended] [--json]",
-        "Require a warning-free and error-free checker result, with an optional stricter unattended profile.",
+        "Require a warning-free and error-free checker result plus structured repair-action consistency, with an optional stricter unattended profile.",
     ),
     (
         "compile ir",
@@ -4702,7 +4708,7 @@ fn agent_diagnostics_json() -> String {
     concat!(
         "{\n",
         "  \"ok\": true,\n",
-        "  \"diagnostic_json\": {\"repairs\": \"legacy human-readable repair strings\", \"repair_actions\": \"machine-readable command actions when available\", \"missing_sections\": \"MissingRequiredSection diagnostics include safe set-effects/set-impl patch command actions when those non-evidence sections are absent\", \"typed_holes\": \"TypedHole diagnostics include symbol, signature, hole_type, expected_type, obligations data, and a query type command action for the declared signature shape\", \"unknown_function_type_errors\": \"TypeError diagnostics for unknown function calls include the missing function name and a query symbol command action\", \"architecture\": \"MissingModuleDependency and declared ArchitectureViolation diagnostics include add-use or remove-use patch command actions when the repair is exact\", \"ambiguous_calls\": \"AmbiguousUnqualifiedCall diagnostics include candidate symbols and a query symbol command action\", \"intent_reuse\": \"PossibleDuplicate and NearDuplicateIntent include shared_terms, new_only_terms, and candidate_only_terms data\", \"duplicate_evidence\": \"Duplicate evidence diagnostics include indexed remove-example, remove-contract, or remove-property patch command actions\", \"duplicate_migrations\": \"DuplicateMigration includes indexed remove-migration patch command actions\", \"low_signal_examples\": \"ShallowExample includes indexed remove-example patch command actions\", \"low_signal_properties\": \"VacuousProperty, ShallowProperty, and PropertyNotExecutable include indexed remove-property patch command actions plus unsupported_reasons when sampling fails\", \"property_replay\": \"PropertyFailed and PropertyEvaluationError include property_index, sample_index, sample_seed, bindings, and a replay command action; replayed PropertyNotExecutable diagnostics include unsupported_reasons and indexed remove-property repair actions\", \"property_shrinking\": \"PropertyFailed and PropertyEvaluationError include shrunk_sample_index, shrunk_sample_seed, and shrunk_bindings when a simpler failing or erroring sampled binding is found\"},\n",
+        "  \"diagnostic_json\": {\"repairs\": \"legacy human-readable repair strings\", \"repair_actions\": \"machine-readable command actions when available\", \"certification\": \"certify validates structured repair action command contracts before accepting diagnostics\", \"missing_sections\": \"MissingRequiredSection diagnostics include safe set-effects/set-impl patch command actions when those non-evidence sections are absent\", \"typed_holes\": \"TypedHole diagnostics include symbol, signature, hole_type, expected_type, obligations data, and a query type command action for the declared signature shape\", \"unknown_function_type_errors\": \"TypeError diagnostics for unknown function calls include the missing function name and a query symbol command action\", \"architecture\": \"MissingModuleDependency and declared ArchitectureViolation diagnostics include add-use or remove-use patch command actions when the repair is exact\", \"ambiguous_calls\": \"AmbiguousUnqualifiedCall diagnostics include candidate symbols and a query symbol command action\", \"intent_reuse\": \"PossibleDuplicate and NearDuplicateIntent include shared_terms, new_only_terms, and candidate_only_terms data\", \"duplicate_evidence\": \"Duplicate evidence diagnostics include indexed remove-example, remove-contract, or remove-property patch command actions\", \"duplicate_migrations\": \"DuplicateMigration includes indexed remove-migration patch command actions\", \"low_signal_examples\": \"ShallowExample includes indexed remove-example patch command actions\", \"low_signal_properties\": \"VacuousProperty, ShallowProperty, and PropertyNotExecutable include indexed remove-property patch command actions plus unsupported_reasons when sampling fails\", \"property_replay\": \"PropertyFailed and PropertyEvaluationError include property_index, sample_index, sample_seed, bindings, and a replay command action; replayed PropertyNotExecutable diagnostics include unsupported_reasons and indexed remove-property repair actions\", \"property_shrinking\": \"PropertyFailed and PropertyEvaluationError include shrunk_sample_index, shrunk_sample_seed, and shrunk_bindings when a simpler failing or erroring sampled binding is found\"},\n",
         "  \"plan_json\": {\"semantic_changes\": \"changed symbols include deterministic labels with acknowledgement state and details for public deltas\", \"removed_symbols\": \"changed tracked files include removed public canonical symbols and same-name replacement candidates\", \"property_coverage\": \"changed symbols include sampled-property sample counts, direct-call flags, vacuous flags, unsupported generator types, unsupported reasons, and recursive record sample cycles after built-in and bounded declared-record sampling\", \"intent_implementation_risks\": \"changed symbols include advisory lexical arithmetic intent/implementation mismatch risks\", \"stale_migrations\": \"changed symbols include indexed migration acknowledgements that no current unattended gate requires\"}\n",
         "}"
     )
@@ -4936,7 +4942,7 @@ fn print_agent_diagnostics() {
     println!(
         "  property samples cover boundary and representative Int, Float, Bool, Text, Unit, bounded declared-record values, and declared enum variants; recursive record sample cycles are reported explicitly"
     );
-    println!("  unattended certification validates structured repair action commands");
+    println!("  certification validates structured repair action commands");
     println!("plan json:");
     println!("  semantic_changes include deterministic labels with acknowledgement state");
     println!(
@@ -5089,4 +5095,38 @@ fn print_query_usage() {
 fn print_replay_usage() {
     eprintln!("usage:");
     eprintln!("  serow replay property <sample-seed> [paths...] [--json]");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::enforce_certification_repair_action_contracts;
+    use crate::checker::CheckSummary;
+    use crate::diagnostic::Diagnostic;
+
+    #[test]
+    fn certification_repair_action_contracts_append_diagnostics() {
+        let mut summary = CheckSummary {
+            diagnostics: vec![
+                Diagnostic::warning(
+                    "SyntheticBrokenRepair",
+                    "Synthetic diagnostic with a malformed repair action.",
+                    Some("test.target".to_string()),
+                )
+                .with_command_repair(
+                    "Broken repair",
+                    vec!["serow".to_string(), "patch".to_string()],
+                ),
+            ],
+            ..CheckSummary::default()
+        };
+
+        enforce_certification_repair_action_contracts(&mut summary);
+
+        assert!(summary.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "RepairActionContractViolation"
+                && diagnostic.data.iter().any(|(key, value)| {
+                    key == "diagnostic_code" && value == "SyntheticBrokenRepair"
+                })
+        }));
+    }
 }

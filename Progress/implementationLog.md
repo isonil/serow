@@ -2,6 +2,11 @@
 
 ## 2026-05-23
 
+- Chose Phase 2.5 certification closure because the roadmap still treated repair-action consistency as an open certification task, while the implementation only validated structured repair actions in the unattended profile.
+- Moved structured repair-action command contract validation into every `bin/serow certify` profile while leaving `bin/serow check` as a normal checker-only command.
+- Marked the Phase 2.5 agent-certification tightening line done enough for public v1, bumped `serow.project` to `0.4.112-rust-bootstrap`, and updated CLI/progress documentation to describe certification-wide repair-action validation.
+- Verification is recorded in the final run for this change.
+
 - Chose v1 closure bookkeeping as the next task because Phase 0 bootstrap tooling and the first Phase 3 Rust backend slice are already implemented and verified, but the roadmap still presented them as open-ended "started" work.
 - Marked Phase 0 as closed for public v1 and Phase 3 IR/Rust backend work as done enough for the supported bootstrap subset, with remaining backend targets, recursive records, richer list/generic support, external effects, and semantic-embedding intent search explicitly deferred to v2/future scope.
 - Bumped `serow.project` to `0.4.110-rust-bootstrap` and updated README/current-state wording to describe the current codebase as a public v1 bootstrap baseline rather than an unclosed prototype.
