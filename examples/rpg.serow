@@ -4,7 +4,9 @@ type Room = Hall | Cave
 
 type Command = North | South | Take | Drink | Fight | Quit | Look | Unknown
 
-type RpgState = { room: Room, hp: Int, gold: Int, potion: Bool, seed: Int, done: Bool, won: Bool }
+type Item = Potion | Key
+
+type RpgState = { room: Room, hp: Int, gold: Int, inventory: List<Item>, seed: Int, done: Bool, won: Bool }
 
 pub fn next_random(seed: Int) -> Int
   intent "Advance a bounded linear congruential seed value."
@@ -42,26 +44,28 @@ pub fn random_range(seed: Int, max: Int) -> Int
     next_random(seed) % max
 
 pub fn initial_state() -> RpgState
-  intent "Assemble launch data for the adventure scenario."
+  intent "Assemble launch data with an empty adventure inventory."
   version v1
   contract
     ensures result.room == Hall
     ensures result.hp == 10
     ensures result.gold == 0
-    ensures result.potion == false
+    ensures len(result.inventory) == 0
+    ensures contains(result.inventory, Potion) == false
     ensures result.seed == 7
     ensures result.done == false
     ensures result.won == false
   examples
     initial_state().room == Hall
     initial_state().hp == 10
+    len(initial_state().inventory) == 0
     initial_state().seed == 7
   properties
     forall flag: Bool:
       initial_state().done == false or flag == flag
   effects pure
   impl
-    RpgState { room: Hall, hp: 10, gold: 0, potion: false, seed: 7, done: false, won: false }
+    RpgState { room: Hall, hp: 10, gold: 0, inventory: [], seed: 7, done: false, won: false }
 
 pub fn room_description(state: RpgState) -> Text
   intent "Return prose for a location name."
@@ -79,20 +83,21 @@ pub fn room_description(state: RpgState) -> Text
     if state.room == Hall then "Hall: torchlight, a locked gate, and an exit north." else "Cave: a crystal beast guards the gate."
 
 pub fn status_text(state: RpgState) -> Text
-  intent "Return prose for health and carried potion."
+  intent "Return prose for health and carried inventory."
   version v1
   contract
-    ensures result == "The gate is open." or result == "You have fallen." or result == "You carry a potion." or result == "You are empty handed."
+    ensures result == "The gate is open." or result == "You have fallen." or result == "You carry a potion." or result == "You carry a key." or result == "You are empty handed."
   examples
     status_text(initial_state()) == "You are empty handed."
-    status_text(initial_state() with { potion: true }) == "You carry a potion."
+    status_text(initial_state() with { inventory: [Potion] }) == "You carry a potion."
+    status_text(initial_state() with { inventory: [Key] }) == "You carry a key."
     status_text(initial_state() with { won: true }) == "The gate is open."
   properties
     forall flag: Bool:
       status_text(initial_state()) == "You are empty handed." or flag == flag
   effects pure
   impl
-    if state.won == true then "The gate is open." else if state.hp <= 0 then "You have fallen." else if state.potion == true then "You carry a potion." else "You are empty handed."
+    if state.won == true then "The gate is open." else if state.hp <= 0 then "You have fallen." else if contains(state.inventory, Potion) == true then "You carry a potion." else if contains(state.inventory, Key) == true then "You carry a key." else "You are empty handed."
 
 pub fn parse_command(command: Text) -> Command
   intent "Convert player input text into an RPG command."
@@ -131,11 +136,11 @@ pub fn fight_beast(state: RpgState) -> RpgState
     ensures result.hp <= state.hp
     ensures result.gold == state.gold or result.gold == state.gold + 10
   examples
-    fight_beast(RpgState { room: Cave, hp: 10, gold: 0, potion: false, seed: 7, done: false, won: false }).won == true
-    fight_beast(RpgState { room: Cave, hp: 10, gold: 0, potion: false, seed: 5, done: false, won: false }).hp == 7
+    fight_beast(RpgState { room: Cave, hp: 10, gold: 0, inventory: [], seed: 7, done: false, won: false }).won == true
+    fight_beast(RpgState { room: Cave, hp: 10, gold: 0, inventory: [], seed: 5, done: false, won: false }).hp == 7
   properties
     forall seed: Int:
-      fight_beast(RpgState { room: Cave, hp: 10, gold: 0, potion: false, seed: seed, done: false, won: false }).seed == next_random(seed)
+      fight_beast(RpgState { room: Cave, hp: 10, gold: 0, inventory: [], seed: seed, done: false, won: false }).seed == next_random(seed)
   effects pure
   impl
     let roll = random_range(state.seed, 4);
@@ -151,16 +156,20 @@ pub fn apply_command(state: RpgState, command: Text) -> RpgState
     ensures result.hp <= state.hp + 3
   examples
     apply_command(initial_state(), "north").room == Cave
-    apply_command(initial_state(), "take").potion == true
-    apply_command(RpgState { room: Cave, hp: 10, gold: 0, potion: false, seed: 7, done: false, won: false }, "fight").won == true
-    apply_command(RpgState { room: Cave, hp: 2, gold: 0, potion: false, seed: 5, done: false, won: false }, "fight").done == true
+    contains(apply_command(initial_state(), "take").inventory, Potion) == true
+    contains(apply_command(initial_state(), "take").inventory, Key) == true
+    contains(apply_command(apply_command(initial_state(), "take"), "drink").inventory, Potion) == false
+    contains(apply_command(apply_command(initial_state(), "take"), "drink").inventory, Key) == true
+    apply_command(RpgState { room: Cave, hp: 10, gold: 0, inventory: [], seed: 7, done: false, won: false }, "fight").won == true
+    apply_command(RpgState { room: Cave, hp: 2, gold: 0, inventory: [], seed: 5, done: false, won: false }, "fight").done == true
   properties
     forall command: Text:
       apply_command(initial_state(), command).hp <= 13
   effects pure
   impl
     let action = parse_command(command);
-    if action == North then if state.room == Hall then state with { room: Cave } else state else if action == South then if state.room == Cave then state with { room: Hall } else state else if action == Take then if state.room == Hall and state.potion == false then state with { potion: true, gold: state.gold + 1 } else state else if action == Drink then if state.potion == true then state with { potion: false, hp: state.hp + 3 } else state else if action == Fight then if state.room == Cave then fight_beast(state) else state else if action == Quit then state with { done: true } else state
+    if action == North then if state.room == Hall then state with { room: Cave } else state else if action == South then if state.room == Cave then state with { room: Hall } else state else if action == Take then if state.room == Hall and contains(state.inventory, Potion) == false then let with_potion = push(state.inventory, Potion);
+    if contains(state.inventory, Key) == false then state with { inventory: push(with_potion, Key), gold: state.gold + 1 } else state with { inventory: with_potion, gold: state.gold + 1 } else state else if action == Drink then if contains(state.inventory, Potion) == true then state with { inventory: remove_first(state.inventory, Potion), hp: state.hp + 3 } else state else if action == Fight then if state.room == Cave then fight_beast(state) else state else if action == Quit then state with { done: true } else state
 
 pub fn main() -> Unit
   intent "Run the interactive stdin command loop."

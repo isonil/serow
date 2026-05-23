@@ -11850,6 +11850,7 @@ fn homogeneous_lists_check_lower_and_compile_to_rust_vecs() {
         r#"module test.lists
 
 type Pack = { items: List<Text> }
+type Item = Potion | Key
 type MaybeText = { found: Bool, value: Text }
 type MaybeInt = { found: Bool, value: Int }
 
@@ -11895,6 +11896,47 @@ pub fn add_item(items: List<Text>, item: Text) -> List<Text>
   effects pure
   impl
     push(items, item)
+
+pub fn remove_item(items: List<Text>, item: Text) -> List<Text>
+  intent "Consume the earliest matching text token from a bag copy."
+  contract
+    ensures len(result) <= len(items)
+  examples
+    contains(remove_item(["potion"], "potion"), "potion") == false
+    contains(remove_item(["torch"], "key"), "torch") == true
+  properties
+    forall item: Text:
+      contains(remove_item(push([], item), item), item) == false
+  effects pure
+  impl
+    remove_first(items, item)
+
+pub fn drop_potion(items: List<Item>) -> List<Item>
+  intent "Consume a potion token from an enum-backed pack."
+  contract
+    ensures len(result) <= len(items)
+  examples
+    contains(drop_potion([Potion]), Potion) == false
+    contains(drop_potion([Key]), Key) == true
+  properties
+    forall flag: Bool:
+      contains(drop_potion([Potion]), Potion) == false or flag == flag
+  effects pure
+  impl
+    remove_first(items, Potion)
+
+pub fn empty_pack() -> Pack
+  intent "Return a pack whose item field starts empty."
+  contract
+    ensures len(result.items) == 0
+  examples
+    len(empty_pack().items) == 0
+  properties
+    forall flag: Bool:
+      contains(empty_pack().items, "torch") == false or flag == flag
+  effects pure
+  impl
+    Pack { items: [] }
 
 pub fn starter_pack() -> Pack
   intent "Return a pack that stores list-valued items."
@@ -11969,6 +12011,10 @@ pub fn get_int_at(items: List<Int>, index: Int) -> MaybeInt
         "{stdout}"
     );
     assert!(
+        stdout.contains("\"target\": \"@serow.intrinsic.remove_first.v1\""),
+        "{stdout}"
+    );
+    assert!(
         stdout.contains("\"target\": \"@serow.intrinsic.get_text.v1\""),
         "{stdout}"
     );
@@ -11999,6 +12045,7 @@ pub fn get_int_at(items: List<Int>, index: Int) -> MaybeInt
     );
     assert!(stdout.contains(".contains(&"), "{stdout}");
     assert!(stdout.contains(".push("), "{stdout}");
+    assert!(stdout.contains(".remove("), "{stdout}");
     assert!(stdout.contains(".get(serow_index as usize)"), "{stdout}");
 
     let crate_dir = dir.join("generated");

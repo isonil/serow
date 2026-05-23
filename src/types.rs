@@ -34,9 +34,7 @@ pub(crate) fn type_accepts(actual: &str, expected: &str) -> bool {
 
 pub(crate) fn comparable_type(type_name: &str) -> bool {
     match parse_type(type_name) {
-        Some(TypeName::Named(name)) => {
-            matches!(name.as_str(), "Int" | "Bool" | "Text" | "Unit" | "Never")
-        }
+        Some(TypeName::Named(_)) => true,
         Some(TypeName::List(element)) => comparable_type(&element.to_source()),
         None => false,
     }

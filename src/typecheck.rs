@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::eval::{Token, find_match_body_start, resolve_function, tokenize};
 use crate::intrinsics::{
-    CONTAINS_SYMBOL, GET_INT_SYMBOL, GET_TEXT_SYMBOL, LEN_SYMBOL, PUSH_SYMBOL,
+    CONTAINS_SYMBOL, GET_INT_SYMBOL, GET_TEXT_SYMBOL, LEN_SYMBOL, PUSH_SYMBOL, REMOVE_FIRST_SYMBOL,
 };
 use crate::model::{Function, TypeDecl};
 use crate::types::{
@@ -468,6 +468,7 @@ impl<'a> TypeParser<'a> {
             LEN_SYMBOL => return self.parse_len_call(name, &args),
             CONTAINS_SYMBOL => return self.parse_contains_call(name, &args),
             PUSH_SYMBOL => return self.parse_push_call(name, &args),
+            REMOVE_FIRST_SYMBOL => return self.parse_remove_first_call(name, &args),
             GET_TEXT_SYMBOL => return self.parse_get_call(name, &args, "Text", "MaybeText"),
             GET_INT_SYMBOL => return self.parse_get_call(name, &args, "Int", "MaybeInt"),
             _ => {}
@@ -552,6 +553,37 @@ impl<'a> TypeParser<'a> {
             return Err(format!(
                 "Function `{name}` argument 2 expected {element_type}, got {}.",
                 args[1]
+            ));
+        }
+        Ok(list_type(if element_type == "Never" {
+            &args[1]
+        } else {
+            &element_type
+        }))
+    }
+
+    fn parse_remove_first_call(&self, name: &str, args: &[String]) -> Result<String, String> {
+        if args.len() != 2 {
+            return Err(format!(
+                "Function `{name}` expected 2 arguments, got {}.",
+                args.len()
+            ));
+        }
+        let Some(element_type) = list_element_type(&args[0]) else {
+            return Err(format!(
+                "Function `{name}` argument 1 expected List<T>, got {}.",
+                args[0]
+            ));
+        };
+        if element_type != "Never" && !type_accepts(&args[1], &element_type) {
+            return Err(format!(
+                "Function `{name}` argument 2 expected {element_type}, got {}.",
+                args[1]
+            ));
+        }
+        if element_type != "Never" && !comparable_type(&element_type) {
+            return Err(format!(
+                "Function `{name}` requires a comparable list element type, got {element_type}."
             ));
         }
         Ok(list_type(if element_type == "Never" {

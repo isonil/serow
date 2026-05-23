@@ -224,7 +224,7 @@ Selection policy for generic implementation prompts:
 - `patch add-function` and `patch set-intent` reject exact normalized duplicate public intents before writing, returning a `PossibleDuplicate` diagnostic with a `query intent` repair action.
 - Structured patch commands that write single-line quoted metadata, including intents and migration notes, reject raw control characters before writing so generated source remains parseable.
 - Sample program in `examples/math.serow`.
-- Deterministic terminal RPG demo in `examples/rpg.serow`, including seed-threaded pure randomness helpers, enum-backed room and command state, HP/gold/potion state, win/loss/end states, and a `pub fn main() -> Unit` entrypoint for the Rust binary backend.
+- Deterministic terminal RPG demo in `examples/rpg.serow`, including seed-threaded pure randomness helpers, enum-backed room, command, and item state, `List<Item>` inventory modeling, HP/gold state, win/loss/end states, and a `pub fn main() -> Unit` entrypoint for the Rust binary backend.
 - Rust unit/integration tests in `tests/bootstrap.rs`.
 - Earlier Python bootstrap remains in `serowlang/` as reference code.
 - Project license: Apache-2.0.

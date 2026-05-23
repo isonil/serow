@@ -4,7 +4,7 @@ use crate::diagnostic::{Diagnostic, has_errors};
 use crate::eval::Value;
 use crate::intrinsics::{
     CONTAINS_SYMBOL, GET_INT_SYMBOL, GET_TEXT_SYMBOL, LEN_SYMBOL, PRINT_SYMBOL, PUSH_SYMBOL,
-    READ_LINE_SYMBOL, is_intrinsic_symbol,
+    READ_LINE_SYMBOL, REMOVE_FIRST_SYMBOL, is_intrinsic_symbol,
 };
 use crate::ir::{
     IrBinaryOp, IrExpr, IrFunction, IrProgram, IrSummary, IrUnaryOp, lower_checked_program,
@@ -776,7 +776,8 @@ fn render_expr(
                     types,
                     signatures,
                 )?;
-                if rendered.type_name != declared.type_name {
+                let rendered = coerce_empty_list(rendered, &declared.type_name, type_names)?;
+                if !type_accepts(&rendered.type_name, &declared.type_name) {
                     return Err(format!(
                         "Record `{type_name}` field `{}` lowered as {}, expected {}.",
                         declared.name, rendered.type_name, declared.type_name
@@ -883,7 +884,8 @@ fn render_expr(
                     types,
                     signatures,
                 )?;
-                if rendered.type_name != declared.type_name {
+                let rendered = coerce_empty_list(rendered, &declared.type_name, type_names)?;
+                if !type_accepts(&rendered.type_name, &declared.type_name) {
                     return Err(format!(
                         "Record `{}` update field `{field}` lowered as {}, expected {}.",
                         base.type_name, rendered.type_name, declared.type_name
@@ -1416,7 +1418,9 @@ fn render_in_place_record_update_assignment(
             context.types,
             context.signatures,
         )?;
-        if rendered_value.type_name != declared.type_name {
+        let rendered_value =
+            coerce_empty_list(rendered_value, &declared.type_name, context.type_names)?;
+        if !type_accepts(&rendered_value.type_name, &declared.type_name) {
             return Err(format!(
                 "Record `{expected_type}` update field `{field}` lowered as {}, expected {}.",
                 rendered_value.type_name, declared.type_name
@@ -1525,7 +1529,9 @@ fn render_moving_record_update_expression(
             context.types,
             context.signatures,
         )?;
-        if rendered_value.type_name != declared.type_name {
+        let rendered_value =
+            coerce_empty_list(rendered_value, &declared.type_name, context.type_names)?;
+        if !type_accepts(&rendered_value.type_name, &declared.type_name) {
             return Err(format!(
                 "Record `{expected_type}` update field `{field}` lowered as {}, expected {}.",
                 rendered_value.type_name, declared.type_name
@@ -1568,6 +1574,18 @@ fn render_empty_list_as(
         code: format!("{}::new()", rust_constructor_path(&rust_type)),
         type_name: type_name.to_string(),
     })
+}
+
+fn coerce_empty_list(
+    rendered: RenderedExpr,
+    expected_type: &str,
+    type_names: &HashMap<String, String>,
+) -> Result<RenderedExpr, String> {
+    if rendered.type_name == EMPTY_LIST_TYPE && list_element_type(expected_type).is_some() {
+        render_empty_list_as(expected_type, type_names)
+    } else {
+        Ok(rendered)
+    }
 }
 
 fn rust_constructor_path(rust_type: &str) -> String {
@@ -2145,6 +2163,44 @@ fn render_intrinsic_call(
                 code: format!(
                     "{{ let mut serow_list = {}; serow_list.push({}); serow_list }}",
                     strip_outer_parens(&args[0].code),
+                    strip_outer_parens(&args[1].code)
+                ),
+                type_name: result_type,
+            })
+        }
+        REMOVE_FIRST_SYMBOL => {
+            if args.len() != 2 {
+                return Err(format!(
+                    "Intrinsic `{REMOVE_FIRST_SYMBOL}` has {} lowered arguments, expected 2.",
+                    args.len()
+                ));
+            }
+            let Some(element_type) = list_element_type(&args[0].type_name) else {
+                return Err(format!(
+                    "Intrinsic `{REMOVE_FIRST_SYMBOL}` argument 1 lowered as {}, expected List<T>.",
+                    args[0].type_name
+                ));
+            };
+            if element_type != "Never" && !type_accepts(&args[1].type_name, &element_type) {
+                return Err(format!(
+                    "Intrinsic `{REMOVE_FIRST_SYMBOL}` argument 2 lowered as {}, expected {element_type}.",
+                    args[1].type_name
+                ));
+            }
+            let result_type = list_type(if element_type == "Never" {
+                &args[1].type_name
+            } else {
+                &element_type
+            });
+            let list_code = if args[0].type_name == EMPTY_LIST_TYPE {
+                render_empty_list_as(&result_type, context.type_names)?.code
+            } else {
+                strip_outer_parens(&args[0].code).to_string()
+            };
+            Ok(RenderedExpr {
+                code: format!(
+                    "{{ let mut serow_list = {}; if let Some(serow_index) = serow_list.iter().position(|serow_value| serow_value == &{}) {{ serow_list.remove(serow_index); }} serow_list }}",
+                    list_code,
                     strip_outer_parens(&args[1].code)
                 ),
                 type_name: result_type,

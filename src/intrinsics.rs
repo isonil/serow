@@ -7,6 +7,7 @@ pub const READ_LINE_SYMBOL: &str = "@serow.intrinsic.read_line.v1";
 pub const LEN_SYMBOL: &str = "@serow.intrinsic.len.v1";
 pub const CONTAINS_SYMBOL: &str = "@serow.intrinsic.contains.v1";
 pub const PUSH_SYMBOL: &str = "@serow.intrinsic.push.v1";
+pub const REMOVE_FIRST_SYMBOL: &str = "@serow.intrinsic.remove_first.v1";
 pub const GET_TEXT_SYMBOL: &str = "@serow.intrinsic.get_text.v1";
 pub const GET_INT_SYMBOL: &str = "@serow.intrinsic.get_int.v1";
 
@@ -144,6 +145,39 @@ static INTRINSICS: LazyLock<Vec<Function>> = LazyLock::new(|| {
             implementation: None,
         },
         Function {
+            name: "remove_first".to_string(),
+            module: "serow.intrinsic".to_string(),
+            public: true,
+            version: "v1".to_string(),
+            version_explicit: true,
+            params: vec![
+                Param {
+                    name: "list".to_string(),
+                    type_name: "List<T>".to_string(),
+                },
+                Param {
+                    name: "value".to_string(),
+                    type_name: "T".to_string(),
+                },
+            ],
+            return_type: "List<T>".to_string(),
+            source_path: "<intrinsic>".to_string(),
+            line: 0,
+            intent: Some(
+                "Return a homogeneous list with the first matching comparable value removed."
+                    .to_string(),
+            ),
+            requires: Vec::new(),
+            contracts: Vec::new(),
+            examples: Vec::new(),
+            example_lines: Vec::new(),
+            properties: Vec::new(),
+            property_lines: Vec::new(),
+            migrations: Vec::new(),
+            effects: vec!["pure".to_string()],
+            implementation: None,
+        },
+        Function {
             name: "get_text".to_string(),
             module: "serow.intrinsic".to_string(),
             public: true,
@@ -224,6 +258,7 @@ pub fn is_intrinsic_symbol(symbol: &str) -> bool {
             | LEN_SYMBOL
             | CONTAINS_SYMBOL
             | PUSH_SYMBOL
+            | REMOVE_FIRST_SYMBOL
             | GET_TEXT_SYMBOL
             | GET_INT_SYMBOL
     )

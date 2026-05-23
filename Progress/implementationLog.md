@@ -2,6 +2,8 @@
 
 ## 2026-05-23
 
+- Added `remove_first(list, value)` as a compiler-owned pure list intrinsic, with checker/evaluator/Rust backend support for removing the first matching comparable value from homogeneous lists.
+- Migrated `examples/rpg.serow` inventory from a fixed `potion: Bool` field to enum-backed `inventory: List<Item>` state, using `push`, `contains`, and `remove_first` for take/drink behavior while keeping the terminal game flow intact.
 - Added temporary bootstrap safe list access through compiler-owned pure intrinsics `get_text(list: List<Text>, index: Int) -> MaybeText` and `get_int(list: List<Int>, index: Int) -> MaybeInt`.
 - Chose the explicit `MaybeText`/`MaybeInt` record result path because generic payload enums are not yet in the source language; callers declare `{ found, value }` records until `get(list, index) -> Option<T>` is feasible.
 - Updated the checker, evaluator, IR lowering path, Rust backend, examples, and docs so negative, out-of-range, and empty-list access returns `found: false` instead of panicking.
@@ -308,7 +310,7 @@
 - Added integration coverage that compiles a record-returning Serow `main`, writes a generated Rust crate, verifies manifest metadata and `main.rs`, and runs the binary.
 - Refreshed the Python reference bootstrap for the current sample corpus by parsing record declarations, evaluating record construction/access/update, and recognizing current sample evidence counts.
 - Updated CLI help, README, and Progress docs to advertise record-returning Rust binary entrypoints.
-- Added `examples/rpg.serow`, a deterministic terminal RPG demo with two rooms, HP/gold/potion state, command parsing, win/loss/end states, and a `pub fn main() -> Unit` entrypoint for generated Rust binaries.
+- Added `examples/rpg.serow`, a deterministic terminal RPG demo with two rooms, HP/gold/inventory state, command parsing, win/loss/end states, and a `pub fn main() -> Unit` entrypoint for generated Rust binaries.
 - Added seed-threaded pure randomness helpers `next_random(seed: Int) -> Int` and `random_range(seed: Int, max: Int) -> Int` instead of adding ambient randomness.
 - Added pure RPG helper evidence for command parsing, room/status descriptions, deterministic combat, and state transitions, plus Rust backend integration coverage for generated helper source, generated Rust tests, and a scripted winning binary run.
 - Updated README with the command sequence for building and running the RPG demo through `bin/serow compile rust --emit-bin`.
