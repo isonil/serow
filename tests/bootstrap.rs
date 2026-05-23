@@ -4417,6 +4417,71 @@ pub fn id(x: Int) -> Int
 }
 
 #[test]
+fn missing_required_section_repairs_can_create_effects_and_impl() {
+    let dir = unique_temp_dir("serow-missing-section-create-repairs");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("missing_sections.serow");
+    fs::write(
+        &source,
+        r#"module app.main
+
+pub fn id(x: Int) -> Int
+  intent "Return the input unchanged."
+  version v1
+  contract
+    ensures result == x
+  examples
+    id(3) == 3
+  properties
+    forall x: Int:
+      id(x) == x
+"#,
+    )
+    .expect("write fixture");
+
+    let effects_patch = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-effects",
+            source.to_str().expect("utf8 path"),
+            "@app.main.id.v1",
+            "pure",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch set-effects");
+    assert!(effects_patch.status.success(), "{effects_patch:#?}");
+
+    let impl_patch = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-impl",
+            source.to_str().expect("utf8 path"),
+            "@app.main.id.v1",
+            "HOLE(Int)",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch set-impl");
+    assert!(impl_patch.status.success(), "{impl_patch:#?}");
+
+    let updated = fs::read_to_string(&source).expect("read updated fixture");
+    assert!(updated.contains("  effects pure"), "{updated}");
+    assert!(updated.contains("  impl\n    HOLE(Int)"), "{updated}");
+
+    let after = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["check", source.to_str().expect("utf8 path"), "--json"])
+        .output()
+        .expect("rerun serow check --json");
+    assert!(!after.status.success(), "{after:#?}");
+    let stdout = String::from_utf8(after.stdout).expect("stdout is utf8");
+    assert!(!stdout.contains("MissingRequiredSection"), "{stdout}");
+    assert!(stdout.contains("TypedHole"), "{stdout}");
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn declared_cross_module_call_checks() {
     let dir = unique_temp_dir("serow-declared-use");
     fs::create_dir_all(&dir).expect("create temp dir");

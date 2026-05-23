@@ -99,9 +99,11 @@ bin/serow patch set-version examples/math.serow @core.math.add.v1 v1
 
 `patch qualify-call` rewrites bare calls inside one caller function to an exact callee symbol. It is intended for making an ambiguous `name(...)` call deliberate after using `query symbol` to inspect candidates.
 
+`patch set-effects` creates a missing effect declaration or replaces an existing one through the structured patch interface. The effects argument must be `pure` or a bracketed concrete capability list such as `[io, network]`. Capability expansion remains a public-surface change that the unattended profile gates through versioning or `capability-expansion` migration acknowledgement.
+
 `patch set-impl` creates a missing implementation section or replaces an existing implementation expression through the structured patch interface. It does not replace certification: changed public implementations are still reported by `serow plan` and gated by `certify --profile unattended`.
 
-`MissingRequiredSection` diagnostics include safe patch commands for absent non-evidence sections when available: `patch set-effects ... pure` establishes an explicit baseline declaration, and `patch set-impl ... "HOLE(Type)"` creates a typed implementation hole without inventing behavior.
+`MissingRequiredSection` diagnostics include safe patch commands for absent non-evidence sections when available: `patch set-effects ... pure` creates an explicit baseline declaration, and `patch set-impl ... "HOLE(Type)"` creates a typed implementation hole without inventing behavior.
 
 `patch set-contract` creates a missing contract clause, replaces a single existing `requires` or `ensures` clause, or replaces a specific clause when passed a 1-based index before the expression.
 

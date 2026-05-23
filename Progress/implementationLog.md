@@ -888,3 +888,7 @@
 - Added `query effects` to the structured repair-action command validator and extended the repair-action contract regression with a synthetic effect lookup command.
 - Updated `serow.project` to version `0.4.113-rust-bootstrap`.
 - Verified with `bin/serow query intent "validate structured repair action command for query effects" --json`, `bin/serow query symbol "validate_repair_actions" --json`, `cargo fmt --check`, targeted repair-action contract regression, `bin/serow check --json`, `bin/serow certify --json`, `cargo clippy -- -D warnings`, `cargo test`, `python3 -m unittest discover -s tests`, `bin/serow fmt --check --json`, `bin/serow certify --profile unattended --json`, `bin/serow plan --json`, `bin/serow query effects @core.rpg.main.v1 examples/rpg.serow --json`, `bin/serow agent commands --json`, and `git diff --check`.
+- Chose missing-section structured patch closure because Phase 2.5 still listed adding missing public sections from skeletons as open, while the implemented patch commands already covered the v1 section set.
+- Added regression coverage proving `MissingRequiredSection` repair commands can create a missing `effects pure` declaration and a typed-hole `impl` section without raw source editing.
+- Updated CLI/language/progress documentation to state that `patch set-effects` creates missing effect declarations as well as replacing existing declarations, marked missing-section patch coverage done enough for v1, and bumped `serow.project` to `0.4.114-rust-bootstrap`.
+- Verification is recorded in the final run for this change.

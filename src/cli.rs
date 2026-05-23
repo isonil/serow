@@ -4510,7 +4510,7 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "patch set-effects",
         "serow patch set-effects <path> <symbol-or-name> <effects> [--json]",
-        "Replace a function's explicit effect capability declaration.",
+        "Create or replace a function's effect capability declaration.",
     ),
     (
         "patch set-example",
