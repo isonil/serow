@@ -11,6 +11,7 @@ use crate::sampling::{
     format_sample_bindings, sample_unsupported_summary, samples_for_type,
 };
 use crate::typecheck::infer_expression_type;
+use crate::types::{is_list_type, list_element_type, type_accepts};
 
 const REQUIRED_PUBLIC_SECTIONS: &[&str] = &[
     "intent",
@@ -850,6 +851,10 @@ fn check_function_shape(function: &Function, program: &Program, summary: &mut Ch
 
 fn is_known_type(type_name: &str, program: &Program) -> bool {
     SUPPORTED_TYPES.contains(&type_name)
+        || (is_list_type(type_name)
+            && list_element_type(type_name)
+                .as_deref()
+                .is_some_and(|element| is_known_type(element, program)))
         || program
             .types
             .iter()
@@ -1222,7 +1227,7 @@ fn check_static_types(function: &Function, program: &Program, summary: &mut Chec
             &program.functions,
             &program.types,
         ) {
-            Ok(actual) if actual == function.return_type => {}
+            Ok(actual) if type_accepts(&actual, &function.return_type) => {}
             Ok(actual) => summary.diagnostics.push(
                 Diagnostic::error(
                     "ReturnTypeMismatch",

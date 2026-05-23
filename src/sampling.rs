@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use crate::eval::{Evaluator, Value};
 use crate::model::{Function, TypeDecl};
+use crate::types::is_list_type;
 
 pub(crate) fn samples_for_type(type_name: &str, types: &[TypeDecl]) -> Option<Vec<Value>> {
     samples_for_type_result(type_name, types, &mut Vec::new()).ok()
@@ -11,6 +12,7 @@ pub(crate) fn samples_for_type(type_name: &str, types: &[TypeDecl]) -> Option<Ve
 pub(crate) enum SampleUnsupportedReason {
     UnknownType(String),
     RecursiveRecordCycle(Vec<String>),
+    ListSamplesUnsupported(String),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -35,13 +37,17 @@ impl SampleUnsupported {
             SampleUnsupportedReason::RecursiveRecordCycle(cycle) => {
                 format!("recursive record sample cycle: {}", cycle.join(" -> "))
             }
+            SampleUnsupportedReason::ListSamplesUnsupported(type_name) => {
+                format!("list samples unsupported for `{type_name}`")
+            }
         }
     }
 
     pub(crate) fn cycle_text(&self) -> Option<String> {
         match &self.reason {
             SampleUnsupportedReason::RecursiveRecordCycle(cycle) => Some(cycle.join(" -> ")),
-            SampleUnsupportedReason::UnknownType(_) => None,
+            SampleUnsupportedReason::UnknownType(_)
+            | SampleUnsupportedReason::ListSamplesUnsupported(_) => None,
         }
     }
 }
@@ -119,6 +125,9 @@ fn samples_for_type_result(
             Value::Text("123".to_string()),
         ]),
         "Unit" => Ok(vec![Value::Unit]),
+        other if is_list_type(other) => Err(SampleUnsupportedReason::ListSamplesUnsupported(
+            other.to_string(),
+        )),
         _ => declared_samples_for_type(type_name, types, active_records),
     }
 }
@@ -371,6 +380,7 @@ fn value_complexity(value: &Value) -> usize {
         Value::Text(value) => value.chars().count(),
         Value::Record { fields, .. } => fields.values().map(value_complexity).sum(),
         Value::Enum { variant, .. } => variant.len(),
+        Value::List { elements, .. } => elements.iter().map(value_complexity).sum(),
         Value::Unit => 0,
     }
 }

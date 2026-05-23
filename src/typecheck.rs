@@ -1,7 +1,11 @@
 use std::collections::HashMap;
 
 use crate::eval::{Token, find_match_body_start, resolve_function, tokenize};
+use crate::intrinsics::{CONTAINS_SYMBOL, LEN_SYMBOL, PUSH_SYMBOL};
 use crate::model::{Function, TypeDecl};
+use crate::types::{
+    EMPTY_LIST_TYPE, comparable_type, is_list_type, list_element_type, list_type, type_accepts,
+};
 
 pub(crate) fn infer_expression_type(
     expression: &str,
@@ -238,7 +242,19 @@ impl<'a> TypeParser<'a> {
             };
             let right = self.parse_add()?;
             match op {
-                "==" | "!=" => require_same_type(&left, &right, op)?,
+                "==" | "!=" => {
+                    require_compatible_type(&left, &right, op)?;
+                    let comparable = if left == EMPTY_LIST_TYPE {
+                        &right
+                    } else {
+                        &left
+                    };
+                    if is_list_type(comparable) && !comparable_type(comparable) {
+                        return Err(format!(
+                            "`{op}` requires comparable operands, got {comparable}."
+                        ));
+                    }
+                }
                 "<" | "<=" | ">" | ">=" => {
                     require_same_type(&left, &right, op)?;
                     if left != "Int" && left != "Text" {
@@ -403,8 +419,35 @@ impl<'a> TypeParser<'a> {
                 self.expect(&Token::RParen)?;
                 Ok(type_name)
             }
+            Token::LBracket => self.parse_list_literal(),
             _ => Err(format!("Unexpected token {:?}.", token)),
         }
+    }
+
+    fn parse_list_literal(&mut self) -> Result<String, String> {
+        self.expect(&Token::LBracket)?;
+        let mut element_type = None::<String>;
+        if !self.consume(&Token::RBracket) {
+            loop {
+                let actual = self.parse_expression()?;
+                match &element_type {
+                    Some(expected) if !type_accepts(&actual, expected) => {
+                        return Err(format!(
+                            "List literal elements must have one type, got {expected} and {actual}."
+                        ));
+                    }
+                    Some(_) => {}
+                    None => element_type = Some(actual),
+                }
+                if self.consume(&Token::RBracket) {
+                    break;
+                }
+                self.expect(&Token::Comma)?;
+            }
+        }
+        Ok(element_type
+            .map(|element_type| list_type(&element_type))
+            .unwrap_or_else(|| EMPTY_LIST_TYPE.to_string()))
     }
 
     fn parse_call(&mut self, name: &str) -> Result<String, String> {
@@ -419,6 +462,12 @@ impl<'a> TypeParser<'a> {
                 self.expect(&Token::Comma)?;
             }
         }
+        match function.symbol().as_str() {
+            LEN_SYMBOL => return self.parse_len_call(name, &args),
+            CONTAINS_SYMBOL => return self.parse_contains_call(name, &args),
+            PUSH_SYMBOL => return self.parse_push_call(name, &args),
+            _ => {}
+        }
         if args.len() != function.params.len() {
             return Err(format!(
                 "Function `{name}` expected {} arguments, got {}.",
@@ -427,7 +476,7 @@ impl<'a> TypeParser<'a> {
             ));
         }
         for (index, (actual, param)) in args.iter().zip(&function.params).enumerate() {
-            if actual != &param.type_name {
+            if !type_accepts(actual, &param.type_name) {
                 return Err(format!(
                     "Function `{name}` argument {} expected {}, got {}.",
                     index + 1,
@@ -437,6 +486,75 @@ impl<'a> TypeParser<'a> {
             }
         }
         Ok(function.return_type.clone())
+    }
+
+    fn parse_len_call(&self, name: &str, args: &[String]) -> Result<String, String> {
+        if args.len() != 1 {
+            return Err(format!(
+                "Function `{name}` expected 1 arguments, got {}.",
+                args.len()
+            ));
+        }
+        if !is_list_type(&args[0]) {
+            return Err(format!(
+                "Function `{name}` argument 1 expected List<T>, got {}.",
+                args[0]
+            ));
+        }
+        Ok("Int".to_string())
+    }
+
+    fn parse_contains_call(&self, name: &str, args: &[String]) -> Result<String, String> {
+        if args.len() != 2 {
+            return Err(format!(
+                "Function `{name}` expected 2 arguments, got {}.",
+                args.len()
+            ));
+        }
+        let Some(element_type) = list_element_type(&args[0]) else {
+            return Err(format!(
+                "Function `{name}` argument 1 expected List<T>, got {}.",
+                args[0]
+            ));
+        };
+        if element_type != "Never" && !type_accepts(&args[1], &element_type) {
+            return Err(format!(
+                "Function `{name}` argument 2 expected {element_type}, got {}.",
+                args[1]
+            ));
+        }
+        if element_type != "Never" && !comparable_type(&element_type) {
+            return Err(format!(
+                "Function `{name}` requires a comparable list element type, got {element_type}."
+            ));
+        }
+        Ok("Bool".to_string())
+    }
+
+    fn parse_push_call(&self, name: &str, args: &[String]) -> Result<String, String> {
+        if args.len() != 2 {
+            return Err(format!(
+                "Function `{name}` expected 2 arguments, got {}.",
+                args.len()
+            ));
+        }
+        let Some(element_type) = list_element_type(&args[0]) else {
+            return Err(format!(
+                "Function `{name}` argument 1 expected List<T>, got {}.",
+                args[0]
+            ));
+        };
+        if element_type != "Never" && !type_accepts(&args[1], &element_type) {
+            return Err(format!(
+                "Function `{name}` argument 2 expected {element_type}, got {}.",
+                args[1]
+            ));
+        }
+        Ok(list_type(if element_type == "Never" {
+            &args[1]
+        } else {
+            &element_type
+        }))
     }
 
     fn parse_name_parts(&mut self, first: String) -> Result<Vec<String>, String> {
@@ -611,7 +729,7 @@ impl<'a> TypeParser<'a> {
 }
 
 fn require_type(actual: &str, expected: &str, context: &str) -> Result<(), String> {
-    if actual == expected {
+    if type_accepts(actual, expected) {
         Ok(())
     } else {
         Err(format!("{context} expected {expected}, got {actual}."))
@@ -619,11 +737,15 @@ fn require_type(actual: &str, expected: &str, context: &str) -> Result<(), Strin
 }
 
 fn require_same_type(left: &str, right: &str, context: &str) -> Result<(), String> {
-    if left == right {
+    if type_accepts(left, right) || type_accepts(right, left) {
         Ok(())
     } else {
         Err(format!(
             "{context} requires matching types, got {left} and {right}."
         ))
     }
+}
+
+fn require_compatible_type(left: &str, right: &str, context: &str) -> Result<(), String> {
+    require_same_type(left, right, context)
 }

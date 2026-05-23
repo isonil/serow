@@ -6,6 +6,7 @@ use crate::diagnostic::Diagnostic;
 use crate::model::{
     Function, MigrationRecord, ModuleDependency, Param, Program, RecordField, TypeDecl,
 };
+use crate::types::{is_valid_type_name, split_top_level_commas};
 
 const BLOCK_SECTIONS: &[&str] = &["contract", "examples", "properties", "migration", "impl"];
 const MIGRATION_KINDS: &[&str] = &[
@@ -295,7 +296,7 @@ fn parse_type_decl(
 
     let mut fields = Vec::new();
     if !fields_text.trim().is_empty() {
-        for raw_field in fields_text.split(',') {
+        for raw_field in split_top_level_commas(fields_text) {
             let field = raw_field.trim();
             let Some((field_name, type_name)) = field.split_once(':') else {
                 return Some(Err(Diagnostic::error(
@@ -625,7 +626,7 @@ fn parse_params(text: &str, path: &str, line: usize) -> (Vec<Param>, Vec<Diagnos
     if text.trim().is_empty() {
         return (params, diagnostics);
     }
-    for raw_param in text.split(',') {
+    for raw_param in split_top_level_commas(text) {
         let part = raw_param.trim();
         let Some((name, type_name)) = part.split_once(':') else {
             diagnostics.push(
@@ -790,10 +791,6 @@ fn is_valid_ident(name: &str) -> bool {
     };
     (first == '_' || first.is_ascii_alphabetic())
         && chars.all(|char| char == '_' || char.is_ascii_alphanumeric())
-}
-
-fn is_valid_type_name(name: &str) -> bool {
-    is_valid_ident(name)
 }
 
 fn is_valid_version(version: &str) -> bool {

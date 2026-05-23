@@ -2,12 +2,15 @@ use std::collections::HashMap;
 
 use crate::diagnostic::{Diagnostic, has_errors};
 use crate::eval::Value;
-use crate::intrinsics::{PRINT_SYMBOL, READ_LINE_SYMBOL, is_intrinsic_symbol};
+use crate::intrinsics::{
+    CONTAINS_SYMBOL, LEN_SYMBOL, PRINT_SYMBOL, PUSH_SYMBOL, READ_LINE_SYMBOL, is_intrinsic_symbol,
+};
 use crate::ir::{
     IrBinaryOp, IrExpr, IrFunction, IrProgram, IrSummary, IrUnaryOp, lower_checked_program,
 };
 use crate::model::{Program, TypeDecl};
 use crate::sampling::{cartesian_product, samples_for_type};
+use crate::types::{EMPTY_LIST_TYPE, list_element_type, list_type, type_accepts};
 
 #[derive(Clone, Debug)]
 pub struct RustBackendSummary {
@@ -384,8 +387,17 @@ fn render_function(
         types,
         signatures,
     )
-    .map(|body| strip_outer_parens(&body.code).to_string())
     .map_err(|message| vec![backend_error(function, message)])?;
+    if !type_accepts(&body.type_name, &function.return_type) {
+        return Err(vec![backend_error(
+            function,
+            format!(
+                "Lowered implementation has type {}, expected {}.",
+                body.type_name, function.return_type
+            ),
+        )]);
+    }
+    let body = strip_outer_parens(&body.code).to_string();
 
     let mut contract_variables = variables;
     let mut contract_variable_types = variable_types;
@@ -436,7 +448,7 @@ fn render_function(
         format!("\n{}", postcondition_guards.join("\n"))
     };
     Ok(format!(
-        "pub fn {rust_name}({}) -> {return_type} {{\n{precondition_block}    let {result_name} = {body};{postcondition_block}\n    {result_name}\n}}",
+        "pub fn {rust_name}({}) -> {return_type} {{\n{precondition_block}    let {result_name}: {return_type} = {body};{postcondition_block}\n    {result_name}\n}}",
         params.join(", ")
     ))
 }
@@ -646,6 +658,39 @@ fn render_expr(
                 type_name: type_name.clone(),
             })
         }
+        IrExpr::ListLiteral { elements } => {
+            let mut rendered_elements = Vec::new();
+            let mut element_type = None::<String>;
+            for element in elements {
+                let rendered = render_expr(
+                    element,
+                    variables,
+                    variable_types,
+                    rust_names,
+                    type_names,
+                    types,
+                    signatures,
+                )?;
+                match &element_type {
+                    Some(expected) if !type_accepts(&rendered.type_name, expected) => {
+                        return Err(format!(
+                            "Lowered list literal elements have mismatched types {} and {}.",
+                            expected, rendered.type_name
+                        ));
+                    }
+                    Some(_) => {}
+                    None => element_type = Some(rendered.type_name.clone()),
+                }
+                rendered_elements.push(strip_outer_parens(&rendered.code).to_string());
+            }
+            let type_name = element_type
+                .map(|element_type| list_type(&element_type))
+                .unwrap_or_else(|| EMPTY_LIST_TYPE.to_string());
+            Ok(RenderedExpr {
+                code: format!("vec![{}]", rendered_elements.join(", ")),
+                type_name,
+            })
+        }
         IrExpr::Call { target, args, .. } => {
             if is_intrinsic_symbol(target) {
                 return render_intrinsic_call(
@@ -689,7 +734,7 @@ fn render_expr(
                 ));
             }
             for (index, (arg, expected)) in args.iter().zip(&signature.params).enumerate() {
-                if &arg.type_name != expected {
+                if !type_accepts(&arg.type_name, expected) {
                     return Err(format!(
                         "Call to `{target}` argument {} lowered as {}, expected {}.",
                         index + 1,
@@ -891,7 +936,7 @@ fn render_expr(
                 types,
                 signatures,
             };
-            let left = if is_comparison_operator(op) {
+            let mut left = if is_comparison_operator(op) {
                 render_comparison_operand(left, context)?
             } else {
                 render_expr(
@@ -904,7 +949,7 @@ fn render_expr(
                     signatures,
                 )?
             };
-            let right = if is_comparison_operator(op) {
+            let mut right = if is_comparison_operator(op) {
                 render_comparison_operand(right, context)?
             } else {
                 render_expr(
@@ -917,6 +962,20 @@ fn render_expr(
                     signatures,
                 )?
             };
+            if matches!(op, IrBinaryOp::Eq | IrBinaryOp::NotEq) {
+                if left.type_name == EMPTY_LIST_TYPE && right.type_name == EMPTY_LIST_TYPE {
+                    left = render_empty_list_as(&list_type("Unit"), type_names)?;
+                    right = render_empty_list_as(&list_type("Unit"), type_names)?;
+                } else if left.type_name == EMPTY_LIST_TYPE
+                    && list_element_type(&right.type_name).is_some()
+                {
+                    left = render_empty_list_as(&right.type_name, type_names)?;
+                } else if right.type_name == EMPTY_LIST_TYPE
+                    && list_element_type(&left.type_name).is_some()
+                {
+                    right = render_empty_list_as(&left.type_name, type_names)?;
+                }
+            }
             let operator = match op {
                 IrBinaryOp::Add => "+",
                 IrBinaryOp::Sub => "-",
@@ -1499,6 +1558,21 @@ fn rendered(code: String, type_name: &str) -> RenderedExpr {
     }
 }
 
+fn render_empty_list_as(
+    type_name: &str,
+    type_names: &HashMap<String, String>,
+) -> Result<RenderedExpr, String> {
+    let rust_type = rust_type(type_name, type_names)?;
+    Ok(RenderedExpr {
+        code: format!("{}::new()", rust_constructor_path(&rust_type)),
+        type_name: type_name.to_string(),
+    })
+}
+
+fn rust_constructor_path(rust_type: &str) -> String {
+    rust_type.replacen('<', "::<", 1)
+}
+
 fn ir_expr_references_var(expr: &IrExpr, name: &str) -> bool {
     match expr {
         IrExpr::Var(value) => value == name,
@@ -1540,6 +1614,9 @@ fn ir_expr_references_var(expr: &IrExpr, name: &str) -> bool {
             value,
         } => assigned == name || ir_expr_references_var(value, name),
         IrExpr::Call { args, .. } => args.iter().any(|arg| ir_expr_references_var(arg, name)),
+        IrExpr::ListLiteral { elements } => elements
+            .iter()
+            .any(|element| ir_expr_references_var(element, name)),
         IrExpr::RecordConstruct { fields, .. } => fields
             .iter()
             .any(|(_, value)| ir_expr_references_var(value, name)),
@@ -1595,6 +1672,9 @@ fn ir_expr_assigns_to(expr: &IrExpr, name: &str) -> bool {
             ir_expr_assigns_to(first, name) || ir_expr_assigns_to(second, name)
         }
         IrExpr::Call { args, .. } => args.iter().any(|arg| ir_expr_assigns_to(arg, name)),
+        IrExpr::ListLiteral { elements } => elements
+            .iter()
+            .any(|element| ir_expr_assigns_to(element, name)),
         IrExpr::RecordConstruct { fields, .. } => fields
             .iter()
             .any(|(_, value)| ir_expr_assigns_to(value, name)),
@@ -1621,7 +1701,31 @@ fn strip_outer_parens(expression: &str) -> &str {
     else {
         return expression;
     };
-    inner
+    if outer_parens_wrap_expression(expression) {
+        inner
+    } else {
+        expression
+    }
+}
+
+fn outer_parens_wrap_expression(expression: &str) -> bool {
+    let mut depth = 0usize;
+    for (index, char) in expression.char_indices() {
+        match char {
+            '(' => depth += 1,
+            ')' => {
+                depth = match depth.checked_sub(1) {
+                    Some(depth) => depth,
+                    None => return false,
+                };
+                if depth == 0 && index + char.len_utf8() < expression.len() {
+                    return false;
+                }
+            }
+            _ => {}
+        }
+    }
+    depth == 0
 }
 
 fn rust_function_names(functions: &[IrFunction]) -> HashMap<String, String> {
@@ -1667,6 +1771,9 @@ fn rust_type_names(types: &[TypeDecl]) -> HashMap<String, String> {
 }
 
 fn rust_type(type_name: &str, type_names: &HashMap<String, String>) -> Result<String, String> {
+    if let Some(element_type) = list_element_type(type_name) {
+        return Ok(format!("Vec<{}>", rust_type(&element_type, type_names)?));
+    }
     match type_name {
         "Int" => Ok("i64".to_string()),
         "Bool" => Ok("bool".to_string()),
@@ -1773,6 +1880,13 @@ fn render_sample_value(
                 .get(type_name)
                 .ok_or_else(|| format!("No generated Rust type for enum sample `{type_name}`."))?;
             Ok(format!("{rust_name}::{}", rust_variant_identifier(variant)))
+        }
+        Value::List { elements, .. } => {
+            let elements = elements
+                .iter()
+                .map(|element| render_sample_value(element, type_names))
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(format!("vec![{}]", elements.join(", ")))
         }
         Value::Unit => Ok("()".to_string()),
     }
@@ -1953,6 +2067,87 @@ fn render_intrinsic_call(
                 .to_string(),
                 "Text",
             ))
+        }
+        LEN_SYMBOL => {
+            if args.len() != 1 {
+                return Err(format!(
+                    "Intrinsic `{LEN_SYMBOL}` has {} lowered arguments, expected 1.",
+                    args.len()
+                ));
+            }
+            if list_element_type(&args[0].type_name).is_none() {
+                return Err(format!(
+                    "Intrinsic `{LEN_SYMBOL}` argument 1 lowered as {}, expected List<T>.",
+                    args[0].type_name
+                ));
+            }
+            let list_code = if args[0].type_name == EMPTY_LIST_TYPE {
+                render_empty_list_as(&list_type("Unit"), context.type_names)?.code
+            } else {
+                strip_outer_parens(&args[0].code).to_string()
+            };
+            Ok(rendered(format!("{list_code}.len() as i64"), "Int"))
+        }
+        CONTAINS_SYMBOL => {
+            if args.len() != 2 {
+                return Err(format!(
+                    "Intrinsic `{CONTAINS_SYMBOL}` has {} lowered arguments, expected 2.",
+                    args.len()
+                ));
+            }
+            let Some(element_type) = list_element_type(&args[0].type_name) else {
+                return Err(format!(
+                    "Intrinsic `{CONTAINS_SYMBOL}` argument 1 lowered as {}, expected List<T>.",
+                    args[0].type_name
+                ));
+            };
+            if element_type != "Never" && !type_accepts(&args[1].type_name, &element_type) {
+                return Err(format!(
+                    "Intrinsic `{CONTAINS_SYMBOL}` argument 2 lowered as {}, expected {element_type}.",
+                    args[1].type_name
+                ));
+            }
+            Ok(rendered(
+                format!(
+                    "{}.contains(&{})",
+                    strip_outer_parens(&args[0].code),
+                    strip_outer_parens(&args[1].code)
+                ),
+                "Bool",
+            ))
+        }
+        PUSH_SYMBOL => {
+            if args.len() != 2 {
+                return Err(format!(
+                    "Intrinsic `{PUSH_SYMBOL}` has {} lowered arguments, expected 2.",
+                    args.len()
+                ));
+            }
+            let Some(element_type) = list_element_type(&args[0].type_name) else {
+                return Err(format!(
+                    "Intrinsic `{PUSH_SYMBOL}` argument 1 lowered as {}, expected List<T>.",
+                    args[0].type_name
+                ));
+            };
+            if element_type != "Never" && !type_accepts(&args[1].type_name, &element_type) {
+                return Err(format!(
+                    "Intrinsic `{PUSH_SYMBOL}` argument 2 lowered as {}, expected {element_type}.",
+                    args[1].type_name
+                ));
+            }
+            let result_type = list_type(if element_type == "Never" {
+                &args[1].type_name
+            } else {
+                &element_type
+            });
+            Ok(RenderedExpr {
+                code: format!(
+                    "{{ let mut serow_list = {}; serow_list.push({}); serow_list }}",
+                    strip_outer_parens(&args[0].code),
+                    strip_outer_parens(&args[1].code)
+                ),
+                type_name: result_type,
+            })
         }
         _ => Err(format!("Unsupported intrinsic `{target}`.")),
     }

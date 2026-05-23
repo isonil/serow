@@ -1,7 +1,10 @@
 use std::collections::{BTreeMap, HashMap};
 
-use crate::intrinsics::{PRINT_SYMBOL, READ_LINE_SYMBOL, intrinsic_functions};
+use crate::intrinsics::{
+    CONTAINS_SYMBOL, LEN_SYMBOL, PRINT_SYMBOL, PUSH_SYMBOL, READ_LINE_SYMBOL, intrinsic_functions,
+};
 use crate::model::{Function, TypeDecl};
+use crate::types::{EMPTY_LIST_TYPE, list_element_type, list_type, type_accepts};
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct CallReference {
@@ -58,6 +61,10 @@ pub enum Value {
         type_name: String,
         variant: String,
     },
+    List {
+        element_type: Option<String>,
+        elements: Vec<Value>,
+    },
     Unit,
 }
 
@@ -76,6 +83,14 @@ impl std::fmt::Display for Value {
                 write!(formatter, "{type_name} {{ {fields} }}")
             }
             Value::Enum { variant, .. } => write!(formatter, "{variant}"),
+            Value::List { elements, .. } => {
+                let elements = elements
+                    .iter()
+                    .map(|value| value.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                write!(formatter, "[{elements}]")
+            }
             Value::Unit => write!(formatter, "unit"),
         }
     }
@@ -113,6 +128,15 @@ impl Evaluator {
         if function.symbol() == READ_LINE_SYMBOL {
             return call_read_line_intrinsic(name, args);
         }
+        if function.symbol() == LEN_SYMBOL {
+            return call_len_intrinsic(name, args);
+        }
+        if function.symbol() == CONTAINS_SYMBOL {
+            return call_contains_intrinsic(name, args);
+        }
+        if function.symbol() == PUSH_SYMBOL {
+            return call_push_intrinsic(name, args);
+        }
         let Some(implementation) = &function.implementation else {
             return Err(format!("Function `{name}` has no implementation."));
         };
@@ -131,8 +155,11 @@ impl Evaluator {
             .params
             .iter()
             .zip(args)
-            .map(|(param, value)| (param.name.clone(), value))
-            .collect::<HashMap<_, _>>();
+            .map(|(param, value)| {
+                coerce_value_to_type(value, &param.type_name)
+                    .map(|value| (param.name.clone(), value))
+            })
+            .collect::<Result<HashMap<_, _>, _>>()?;
         self.call_depth += 1;
         let value = (|| {
             for requirement in &function.requires {
@@ -151,6 +178,7 @@ impl Evaluator {
                 }
             }
             self.eval(implementation, &bindings)
+                .and_then(|value| coerce_value_to_type(value, &function.return_type))
         })();
         self.call_depth -= 1;
         value.map(|value| CallResult {
@@ -208,6 +236,8 @@ pub(crate) enum Token {
     Semicolon,
     LParen,
     RParen,
+    LBracket,
+    RBracket,
     LBrace,
     RBrace,
     Comma,
@@ -323,6 +353,8 @@ pub(crate) fn tokenize(expression: &str) -> Result<Vec<Token>, String> {
             '%' => Token::Percent,
             '(' => Token::LParen,
             ')' => Token::RParen,
+            '[' => Token::LBracket,
+            ']' => Token::RBracket,
             '{' => Token::LBrace,
             '}' => Token::RBrace,
             ',' => Token::Comma,
@@ -362,16 +394,23 @@ pub(crate) fn tokenize(expression: &str) -> Result<Vec<Token>, String> {
 
 pub(crate) fn find_match_body_start(tokens: &[Token], start: usize) -> Result<usize, String> {
     let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
     for (offset, token) in tokens[start..].iter().enumerate() {
         let index = start + offset;
         match token {
             Token::LParen => paren_depth += 1,
+            Token::LBracket => bracket_depth += 1,
             Token::RParen => {
                 paren_depth = paren_depth
                     .checked_sub(1)
                     .ok_or_else(|| "Unexpected `)` before match body.".to_string())?;
             }
-            Token::LBrace if paren_depth == 0 => return Ok(index),
+            Token::RBracket => {
+                bracket_depth = bracket_depth
+                    .checked_sub(1)
+                    .ok_or_else(|| "Unexpected `]` before match body.".to_string())?;
+            }
+            Token::LBrace if paren_depth == 0 && bracket_depth == 0 => return Ok(index),
             _ => {}
         }
     }
@@ -380,24 +419,35 @@ pub(crate) fn find_match_body_start(tokens: &[Token], start: usize) -> Result<us
 
 pub(crate) fn find_match_branch_end(tokens: &[Token], start: usize) -> Result<usize, String> {
     let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
     let mut brace_depth = 0usize;
     for (offset, token) in tokens[start..].iter().enumerate() {
         let index = start + offset;
         match token {
             Token::LParen => paren_depth += 1,
+            Token::LBracket => bracket_depth += 1,
             Token::RParen => {
                 paren_depth = paren_depth
                     .checked_sub(1)
                     .ok_or_else(|| "Unexpected `)` in match branch.".to_string())?;
             }
+            Token::RBracket => {
+                bracket_depth = bracket_depth
+                    .checked_sub(1)
+                    .ok_or_else(|| "Unexpected `]` in match branch.".to_string())?;
+            }
             Token::LBrace => brace_depth += 1,
-            Token::RBrace if brace_depth == 0 && paren_depth == 0 => return Ok(index),
+            Token::RBrace if brace_depth == 0 && paren_depth == 0 && bracket_depth == 0 => {
+                return Ok(index);
+            }
             Token::RBrace => {
                 brace_depth = brace_depth
                     .checked_sub(1)
                     .ok_or_else(|| "Unexpected `}` in match branch.".to_string())?;
             }
-            Token::Comma if brace_depth == 0 && paren_depth == 0 => return Ok(index),
+            Token::Comma if brace_depth == 0 && paren_depth == 0 && bracket_depth == 0 => {
+                return Ok(index);
+            }
             _ => {}
         }
     }
@@ -925,8 +975,41 @@ impl<'a> ExprParser<'a> {
                 self.expect(&Token::RParen)?;
                 Ok(value)
             }
+            Token::LBracket => self.parse_list_literal(),
             _ => Err(format!("Unexpected token {:?}.", token)),
         }
+    }
+
+    fn parse_list_literal(&mut self) -> Result<Value, String> {
+        self.expect(&Token::LBracket)?;
+        let mut elements = Vec::new();
+        let mut element_type = None::<String>;
+        if !self.consume(&Token::RBracket) {
+            loop {
+                let value = self.parse_expression()?;
+                let value_type = value_type_name(&value);
+                match &element_type {
+                    Some(expected) if !type_accepts(&value_type, expected) => {
+                        return Err(format!(
+                            "List literal elements must have one type, got {expected} and {value_type}."
+                        ));
+                    }
+                    Some(_) => {}
+                    None => {
+                        element_type = Some(value_type);
+                    }
+                }
+                elements.push(value);
+                if self.consume(&Token::RBracket) {
+                    break;
+                }
+                self.expect(&Token::Comma)?;
+            }
+        }
+        Ok(Value::List {
+            element_type,
+            elements,
+        })
     }
 
     fn parse_name_parts(&mut self, first: String) -> Result<Vec<String>, String> {
@@ -956,13 +1039,13 @@ impl<'a> ExprParser<'a> {
                 };
                 let value = self.parse_expression()?;
                 let actual = value_type_name(&value);
-                if actual != declared.type_name {
+                if !type_accepts(&actual, &declared.type_name) {
                     return Err(format!(
                         "Record `{type_name}` field `{field}` expected {}, got {actual}.",
                         declared.type_name
                     ));
                 }
-                fields.insert(field, value);
+                fields.insert(field, coerce_value_to_type(value, &declared.type_name)?);
                 if self.consume(&Token::RBrace) {
                     break;
                 }
@@ -1022,13 +1105,13 @@ impl<'a> ExprParser<'a> {
                     .find(|declared| declared.name == field)
                     .expect("field existence checked above");
                 let actual = value_type_name(&value);
-                if actual != declared.type_name {
+                if !type_accepts(&actual, &declared.type_name) {
                     return Err(format!(
                         "Record `{type_name}` update field `{field}` expected {}, got {actual}.",
                         declared.type_name
                     ));
                 }
-                fields.insert(field, value);
+                fields.insert(field, coerce_value_to_type(value, &declared.type_name)?);
                 if self.consume(&Token::RBrace) {
                     break;
                 }
@@ -1131,6 +1214,18 @@ fn same_value_type(left: &Value, right: &Value) -> bool {
                 type_name: right, ..
             },
         ) => left == right,
+        (
+            Value::List {
+                element_type: left, ..
+            },
+            Value::List {
+                element_type: right,
+                ..
+            },
+        ) => match (left, right) {
+            (Some(left), Some(right)) => type_accepts(left, right) || type_accepts(right, left),
+            _ => true,
+        },
         _ => false,
     }
 }
@@ -1142,7 +1237,30 @@ fn value_type_name(value: &Value) -> String {
         Value::Text(_) => "Text".to_string(),
         Value::Record { type_name, .. } => type_name.clone(),
         Value::Enum { type_name, .. } => type_name.clone(),
+        Value::List {
+            element_type: Some(element_type),
+            ..
+        } => list_type(element_type),
+        Value::List {
+            element_type: None, ..
+        } => EMPTY_LIST_TYPE.to_string(),
         Value::Unit => "Unit".to_string(),
+    }
+}
+
+fn coerce_value_to_type(value: Value, expected_type: &str) -> Result<Value, String> {
+    let actual = value_type_name(&value);
+    if !type_accepts(&actual, expected_type) {
+        return Err(format!("Expected {expected_type}, got {actual}."));
+    }
+    match value {
+        Value::List { elements, .. } if list_element_type(expected_type).is_some() => {
+            Ok(Value::List {
+                element_type: list_element_type(expected_type),
+                elements,
+            })
+        }
+        other => Ok(other),
     }
 }
 
@@ -1194,13 +1312,31 @@ fn record_field(value: Value, field: &str) -> Result<Value, String> {
 
 fn compare_values(left: &Value, op: &str, right: &Value) -> Result<bool, String> {
     match op {
-        "==" => Ok(left == right),
-        "!=" => Ok(left != right),
+        "==" => Ok(value_equal(left, right)),
+        "!=" => Ok(!value_equal(left, right)),
         "<" => Ok(as_ordered(left, right, |ordering| ordering.is_lt())?),
         "<=" => Ok(as_ordered(left, right, |ordering| ordering.is_le())?),
         ">" => Ok(as_ordered(left, right, |ordering| ordering.is_gt())?),
         ">=" => Ok(as_ordered(left, right, |ordering| ordering.is_ge())?),
         _ => Err(format!("Unsupported comparison `{op}`.")),
+    }
+}
+
+fn value_equal(left: &Value, right: &Value) -> bool {
+    match (left, right) {
+        (
+            Value::List { elements: left, .. },
+            Value::List {
+                elements: right, ..
+            },
+        ) => {
+            left.len() == right.len()
+                && left
+                    .iter()
+                    .zip(right)
+                    .all(|(left, right)| value_equal(left, right))
+        }
+        _ => left == right,
     }
 }
 
@@ -1249,5 +1385,109 @@ fn call_read_line_intrinsic(name: &str, args: Vec<Value>) -> Result<CallResult, 
     Ok(CallResult {
         value: Value::Text(String::new()),
         args: HashMap::new(),
+    })
+}
+
+fn call_len_intrinsic(name: &str, args: Vec<Value>) -> Result<CallResult, String> {
+    if args.len() != 1 {
+        return Err(format!(
+            "Function `{name}` expected 1 arguments, got {}.",
+            args.len()
+        ));
+    }
+    let mut args = args;
+    let list = args.pop().expect("length checked above");
+    let Value::List { elements, .. } = &list else {
+        return Err(format!(
+            "Function `{name}` argument 1 expected List<T>, got {list}."
+        ));
+    };
+    let len = elements.len() as i64;
+    let mut bindings = HashMap::new();
+    bindings.insert("list".to_string(), list);
+    Ok(CallResult {
+        value: Value::Int(len),
+        args: bindings,
+    })
+}
+
+fn call_contains_intrinsic(name: &str, args: Vec<Value>) -> Result<CallResult, String> {
+    if args.len() != 2 {
+        return Err(format!(
+            "Function `{name}` expected 2 arguments, got {}.",
+            args.len()
+        ));
+    }
+    let mut args = args;
+    let value = args.pop().expect("length checked above");
+    let list = args.pop().expect("length checked above");
+    let Value::List {
+        element_type,
+        elements,
+    } = &list
+    else {
+        return Err(format!(
+            "Function `{name}` argument 1 expected List<T>, got {list}."
+        ));
+    };
+    if let Some(element_type) = element_type {
+        let actual = value_type_name(&value);
+        if !type_accepts(&actual, element_type) {
+            return Err(format!(
+                "Function `{name}` argument 2 expected {element_type}, got {actual}."
+            ));
+        }
+    }
+    let result = elements.contains(&value);
+    let mut bindings = HashMap::new();
+    bindings.insert("list".to_string(), list);
+    bindings.insert("value".to_string(), value);
+    Ok(CallResult {
+        value: Value::Bool(result),
+        args: bindings,
+    })
+}
+
+fn call_push_intrinsic(name: &str, args: Vec<Value>) -> Result<CallResult, String> {
+    if args.len() != 2 {
+        return Err(format!(
+            "Function `{name}` expected 2 arguments, got {}.",
+            args.len()
+        ));
+    }
+    let mut args = args;
+    let value = args.pop().expect("length checked above");
+    let list = args.pop().expect("length checked above");
+    let Value::List {
+        element_type,
+        mut elements,
+    } = list.clone()
+    else {
+        return Err(format!(
+            "Function `{name}` argument 1 expected List<T>, got {list}."
+        ));
+    };
+    let value_type = value_type_name(&value);
+    let element_type = match element_type {
+        Some(element_type) => {
+            if !type_accepts(&value_type, &element_type) {
+                return Err(format!(
+                    "Function `{name}` argument 2 expected {element_type}, got {value_type}."
+                ));
+            }
+            element_type
+        }
+        None => value_type,
+    };
+    elements.push(value.clone());
+    let mut bindings = HashMap::new();
+    bindings.insert("list".to_string(), list);
+    bindings.insert("value".to_string(), value);
+    Ok(CallResult {
+        value: Value::List {
+            element_type: Some(element_type),
+            elements,
+        },
+        args: bindings,
     })
 }

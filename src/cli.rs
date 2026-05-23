@@ -3160,6 +3160,10 @@ fn ir_expr_json(expr: &IrExpr) -> String {
             json_string(type_name),
             json_string(variant)
         ),
+        IrExpr::ListLiteral { elements } => format!(
+            "{{\"elements\": {}, \"kind\": \"list_literal\"}}",
+            ir_exprs_json(elements)
+        ),
         IrExpr::Call {
             reference,
             target,

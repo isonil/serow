@@ -15,3 +15,4 @@ pub mod replay;
 pub mod rust_backend;
 mod sampling;
 mod typecheck;
+mod types;

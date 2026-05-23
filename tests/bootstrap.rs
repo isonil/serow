@@ -10107,7 +10107,7 @@ fn compile_rust_json_emits_supported_backend_source() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("let serow_result = serow_x + serow_y"),
+        stdout.contains("let serow_result: i64 = serow_x + serow_y"),
         "{stdout}"
     );
     assert!(
@@ -11838,6 +11838,215 @@ fn compile_rust_usage_json_detection_respects_path_separator() {
         "{stderr}"
     );
     assert!(stderr.contains("usage:"), "{stderr}");
+}
+
+#[test]
+fn homogeneous_lists_check_lower_and_compile_to_rust_vecs() {
+    let dir = unique_temp_dir("serow-homogeneous-lists");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("lists.serow");
+    fs::write(
+        &source,
+        r#"module test.lists
+
+type Pack = { items: List<Text> }
+
+pub fn empty_items() -> List<Text>
+  intent "Return an empty text inventory."
+  contract
+    ensures len(result) == 0
+    ensures len([]) == 0
+  examples
+    empty_items() == []
+    [] == []
+  properties
+    forall item: Text:
+      contains(push(empty_items(), item), item)
+  effects pure
+  impl
+    []
+
+pub fn starter_items() -> List<Text>
+  intent "Return the starter inventory."
+  contract
+    ensures len(result) == 2
+    ensures contains(result, "torch")
+  examples
+    starter_items() == ["torch", "potion"]
+  properties
+    forall item: Text:
+      contains(push(starter_items(), item), item)
+  effects pure
+  impl
+    ["torch", "potion"]
+
+pub fn add_item(items: List<Text>, item: Text) -> List<Text>
+  intent "Build a new collection by appending supplied text."
+  contract
+    ensures len(result) == len(items) + 1
+    ensures contains(result, item)
+  examples
+    add_item(["torch"], "potion") == ["torch", "potion"]
+  properties
+    forall item: Text:
+      contains(add_item([], item), item)
+  effects pure
+  impl
+    push(items, item)
+
+pub fn starter_pack() -> Pack
+  intent "Return a pack that stores list-valued items."
+  contract
+    ensures len(result.items) == 1
+  examples
+    starter_pack().items == ["torch"]
+  properties
+    forall item: Text:
+      contains(push(starter_pack().items, item), item)
+  effects pure
+  impl
+    Pack { items: ["torch"] }
+"#,
+    )
+    .expect("write list source");
+
+    let check = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["check", source.to_str().expect("utf8 path")])
+        .output()
+        .expect("run serow check for lists");
+    assert!(check.status.success(), "{check:#?}");
+
+    let ir = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "compile",
+            "ir",
+            source.to_str().expect("utf8 path"),
+            "--json",
+        ])
+        .output()
+        .expect("run compile ir for lists");
+    assert!(ir.status.success(), "{ir:#?}");
+    let stdout = String::from_utf8(ir.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"kind\": \"list_literal\""), "{stdout}");
+    assert!(
+        stdout.contains("\"target\": \"@serow.intrinsic.push.v1\""),
+        "{stdout}"
+    );
+
+    let rust = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["compile", "rust", source.to_str().expect("utf8 path")])
+        .output()
+        .expect("run compile rust for lists");
+    assert!(rust.status.success(), "{rust:#?}");
+    let stdout = String::from_utf8(rust.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("Vec<String>"), "{stdout}");
+    assert!(
+        stdout.contains("vec![String::from(\"torch\"), String::from(\"potion\")]"),
+        "{stdout}"
+    );
+    assert!(stdout.contains(".contains(&"), "{stdout}");
+    assert!(stdout.contains(".push("), "{stdout}");
+
+    let crate_dir = dir.join("generated");
+    let generated = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "compile",
+            "rust",
+            source.to_str().expect("utf8 path"),
+            "--out-dir",
+            crate_dir.to_str().expect("utf8 path"),
+        ])
+        .output()
+        .expect("generate rust crate for lists");
+    assert!(generated.status.success(), "{generated:#?}");
+    let cargo_test = Command::new("cargo")
+        .arg("test")
+        .current_dir(&crate_dir)
+        .output()
+        .expect("run generated cargo test for lists");
+    assert!(
+        cargo_test.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&cargo_test.stdout),
+        String::from_utf8_lossy(&cargo_test.stderr)
+    );
+}
+
+#[test]
+fn mixed_list_literals_are_rejected() {
+    let dir = unique_temp_dir("serow-mixed-list");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("bad_list.serow");
+    fs::write(
+        &source,
+        r#"module test.bad_list
+
+pub fn bad_items() -> List<Text>
+  intent "Return invalid mixed inventory."
+  contract
+    ensures len(result) == 2
+  examples
+    bad_items() == []
+  properties
+    forall item: Text:
+      contains(push([], item), item)
+  effects pure
+  impl
+    ["torch", 1]
+"#,
+    )
+    .expect("write mixed list source");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["check", source.to_str().expect("utf8 path"), "--json"])
+        .output()
+        .expect("run serow check for mixed list");
+    assert!(!output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(
+        stdout.contains("List literal elements must have one type"),
+        "{stdout}"
+    );
+}
+
+#[test]
+fn list_forall_sampling_is_reported_as_unsupported() {
+    let dir = unique_temp_dir("serow-list-sampling");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("list_sampling.serow");
+    fs::write(
+        &source,
+        r#"module test.list_sampling
+
+type Pack = { items: List<Text> }
+
+pub fn has_torch(pack: Pack) -> Bool
+  intent "Return whether a pack includes a torch."
+  contract
+    ensures result == contains(pack.items, "torch")
+  examples
+    has_torch(Pack { items: ["torch"] }) == true
+  properties
+    forall pack: Pack:
+      has_torch(pack) == contains(pack.items, "torch")
+  effects pure
+  impl
+    contains(pack.items, "torch")
+"#,
+    )
+    .expect("write list sampling source");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["check", source.to_str().expect("utf8 path"), "--json"])
+        .output()
+        .expect("run serow check for list sampling");
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("PropertyNotExecutable"), "{stdout}");
+    assert!(
+        stdout.contains("Pack: list samples unsupported for `List<Text>`"),
+        "{stdout}"
+    );
 }
 
 fn unique_temp_dir(prefix: &str) -> PathBuf {

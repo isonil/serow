@@ -48,6 +48,9 @@ pub enum IrExpr {
         type_name: String,
         variant: String,
     },
+    ListLiteral {
+        elements: Vec<IrExpr>,
+    },
     Call {
         reference: String,
         target: String,
@@ -790,8 +793,24 @@ impl<'a> IrParser<'a> {
                 self.expect(&Token::RParen)?;
                 Ok(expr)
             }
+            Token::LBracket => self.parse_list_literal(),
             _ => Err(format!("Unexpected token {:?}.", token)),
         }
+    }
+
+    fn parse_list_literal(&mut self) -> Result<IrExpr, String> {
+        self.expect(&Token::LBracket)?;
+        let mut elements = Vec::new();
+        if !self.consume(&Token::RBracket) {
+            loop {
+                elements.push(self.parse_expression()?);
+                if self.consume(&Token::RBracket) {
+                    break;
+                }
+                self.expect(&Token::Comma)?;
+            }
+        }
+        Ok(IrExpr::ListLiteral { elements })
     }
 
     fn parse_call(&mut self, reference: &str) -> Result<IrExpr, String> {
