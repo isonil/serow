@@ -2,6 +2,11 @@
 
 ## 2026-05-23
 
+- Chose v1 closure bookkeeping as the next task because Phase 0 bootstrap tooling and the first Phase 3 Rust backend slice are already implemented and verified, but the roadmap still presented them as open-ended "started" work.
+- Marked Phase 0 as closed for public v1 and Phase 3 IR/Rust backend work as done enough for the supported bootstrap subset, with remaining backend targets, recursive records, richer list/generic support, external effects, and semantic-embedding intent search explicitly deferred to v2/future scope.
+- Bumped `serow.project` to `0.4.110-rust-bootstrap` and updated README/current-state wording to describe the current codebase as a public v1 bootstrap baseline rather than an unclosed prototype.
+- Verification is recorded in the final run for this change.
+
 - Chose a finite `Float` primitive because Serow's AI-first standard library needs decimal quantities, geometry, and trigonometry rather than forcing every numeric API through `Int`.
 - Added Float literals, type checking, evaluation, deterministic samples, replay support, portable IR lowering, JSON IR output, Rust backend codegen to `f64`, binary entrypoint support, and Python reference support for the current sample corpus.
 - Added compiler-owned pure float math intrinsics for square root, power, trigonometry, inverse trigonometry, and constants, plus source-level `core.float` stdlib wrappers with contracts, executable examples, and sampled properties.

@@ -1,10 +1,10 @@
 # Current State
 
-Date: 2026-05-21
+Date: 2026-05-23
 
 ## Active Mode
 
-Cross-phase implementation.
+Cross-phase implementation with v1 closure tracking.
 
 Future invocations should choose the highest-leverage next step across all phases, not only the most recent phase. Phase 3 backend work is currently the most advanced active track, but earlier-phase gaps should be resumed whenever they are higher leverage, block later work, or are required before Serow can be considered complete.
 
@@ -14,6 +14,13 @@ Selection policy for generic implementation prompts:
 2. Inspect unfinished, deferred, and known-limit items across every phase.
 3. Pick the next task that most improves Serow toward completion, even when that task belongs to an earlier phase.
 4. Record the chosen focus and outcome in `Progress/implementationLog.md` or this file.
+
+## V1 Closure State
+
+- Phase 0 bootstrap tooling is closed for public v1. The dependency-free Rust CLI, parser/checker, executable examples, sampled properties/contracts, semantic ledger queries, and project manifest workflow are in place and verified by the normal gates.
+- The first production backend slice is done enough for public v1: portable IR plus dependency-free Rust source/crate generation for the supported bootstrap subset, generated metadata, artifact drift checks, runtime contract assertions, generated pure evidence tests, and binary entrypoint support are all implemented.
+- Remaining backend work such as WASM/TypeScript/Python backends, richer external effect boundaries, recursive record layout support, generic list indexing, list pattern matching, higher-order collection APIs, and semantic-embedding intent search is explicitly v2/future scope rather than blocking the public v1 bootstrap baseline.
+- The Python bootstrap remains reference-only. It should keep parity where cheap, but Rust is the source of truth for v1 behavior.
 
 ## Implemented
 
