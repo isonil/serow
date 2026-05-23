@@ -195,6 +195,7 @@ fn repair_action_issue(action: &RepairAction) -> Option<String> {
             &[
                 "callees",
                 "dependents",
+                "effects",
                 "impact",
                 "intent",
                 "symbol",

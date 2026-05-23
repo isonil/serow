@@ -3812,6 +3812,21 @@ fn repair_action_contract_validation_rejects_malformed_commands() {
             ],
         ),
         Diagnostic::warning(
+            "SyntheticEffectLookupRepair",
+            "Synthetic diagnostic with an effect lookup repair action.",
+            Some("test.target".to_string()),
+        )
+        .with_command_repair(
+            "Inspect effect requirements",
+            vec![
+                "bin/serow".to_string(),
+                "query".to_string(),
+                "effects".to_string(),
+                "@core.rpg.main.v1".to_string(),
+                "examples/rpg.serow".to_string(),
+            ],
+        ),
+        Diagnostic::warning(
             "SyntheticTypeLookupRepair",
             "Synthetic diagnostic with a type lookup repair action.",
             Some("test.target".to_string()),
