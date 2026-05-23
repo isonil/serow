@@ -1114,7 +1114,7 @@ fn validate_binary_entrypoint_shape(
             )
             .with_data(
                 "expected",
-                "pub fn main() -> Text | Int | Bool | Unit | <declared record or enum>",
+                "pub fn main() -> Text | Int | Float | Bool | Unit | <declared record or enum>",
             ),
         ]);
     };
@@ -1157,7 +1157,7 @@ fn validate_binary_entrypoint_shape(
             Diagnostic::error(
                 "RustBinaryUnsupportedEntrypointReturn",
                 format!(
-                    "Rust binary entrypoint `{}` returns unsupported type `{}`; expected Text, Int, Bool, Unit, or a declared record/enum type.",
+                    "Rust binary entrypoint `{}` returns unsupported type `{}`; expected Text, Int, Float, Bool, Unit, or a declared record/enum type.",
                     function.symbol(),
                     function.return_type
                 ),
@@ -1167,7 +1167,7 @@ fn validate_binary_entrypoint_shape(
             .with_data("return_type", function.return_type.clone())
             .with_data(
                 "supported_return_types",
-                "Text, Int, Bool, Unit, declared records, declared enums",
+                "Text, Int, Float, Bool, Unit, declared records, declared enums",
             ),
         );
     }
@@ -1182,7 +1182,7 @@ fn validate_binary_entrypoint_shape(
 }
 
 fn is_supported_binary_entrypoint_return(type_name: &str, program: &crate::model::Program) -> bool {
-    matches!(type_name, "Text" | "Int" | "Bool" | "Unit")
+    matches!(type_name, "Text" | "Int" | "Float" | "Bool" | "Unit")
         || program
             .types
             .iter()
@@ -1222,7 +1222,10 @@ fn resolve_binary_entrypoint(
 fn render_generated_main_rs(entrypoint: &BinaryEntrypoint) -> String {
     let body = if entrypoint.return_type == "Unit" {
         format!("    serow_generated::{}();\n", entrypoint.rust_name)
-    } else if matches!(entrypoint.return_type.as_str(), "Text" | "Int" | "Bool") {
+    } else if matches!(
+        entrypoint.return_type.as_str(),
+        "Text" | "Int" | "Float" | "Bool"
+    ) {
         format!(
             "    let result = serow_generated::{}();\n    println!(\"{{}}\", result);\n",
             entrypoint.rust_name
@@ -3151,6 +3154,7 @@ fn ir_properties_json(properties: &[crate::ir::IrProperty]) -> String {
 fn ir_expr_json(expr: &IrExpr) -> String {
     match expr {
         IrExpr::Int(value) => format!("{{\"kind\": \"int\", \"value\": {value}}}"),
+        IrExpr::Float(value) => format!("{{\"kind\": \"float\", \"value\": {value}}}"),
         IrExpr::Bool(value) => format!("{{\"kind\": \"bool\", \"value\": {value}}}"),
         IrExpr::Text(value) => format!("{{\"kind\": \"text\", \"value\": {}}}", json_string(value)),
         IrExpr::Unit => "{\"kind\": \"unit\"}".to_string(),
@@ -4543,7 +4547,7 @@ fn agent_json() -> String {
         str_array_json(&[
             "Properties are sampled, not proven; replay uses deterministic seeds for built-in, bounded declared-record, and declared-enum samples, and non-executable property diagnostics include unsupported-sample reasons such as recursive record cycles.",
             "Intent search is deterministic token ranking, not semantic embeddings.",
-            "Rust backend emission supports pure Int/Bool/Text/Unit functions, non-recursive declared records, nullary declared enums, and terminal io intrinsics, emits runtime asserts for Serow requires and ensures clauses, emits Rust tests for pure Serow examples and deterministic sampled properties, moves final record update bases when postconditions do not need the original value, rejects recursive record layouts with explicit diagnostics, records the Serow project version, aggregate/per-source Serow input fingerprints, plus type, source, binary entrypoint, and exact evidence-line metadata in generated Cargo manifests, README files, and serow-metadata.json sidecars, disables automatic Cargo target discovery in generated manifests, removes stale generated main.rs files when returning to library-only output, and can check generated crate artifacts for drift or unexpected optional artifacts.",
+            "Rust backend emission supports pure Int/Float/Bool/Text/Unit functions, non-recursive declared records, nullary declared enums, and terminal io intrinsics, emits runtime asserts for Serow requires and ensures clauses, emits Rust tests for pure Serow examples and deterministic sampled properties, moves final record update bases when postconditions do not need the original value, rejects recursive record layouts with explicit diagnostics, records the Serow project version, aggregate/per-source Serow input fingerprints, plus type, source, binary entrypoint, and exact evidence-line metadata in generated Cargo manifests, README files, and serow-metadata.json sidecars, disables automatic Cargo target discovery in generated manifests, removes stale generated main.rs files when returning to library-only output, and can check generated crate artifacts for drift or unexpected optional artifacts.",
             "Expression support is intentionally small and formatting does not preserve comments.",
             "JSON output is hand-written until external dependencies are accepted."
         ])
@@ -4744,7 +4748,7 @@ fn print_agent_bootstrap() {
     println!("  version (optional; unattended requires explicit vN)");
     println!("  intent, contract, examples, properties, effects, impl");
     println!("supported bootstrap types:");
-    println!("  Int, Bool, Text, Unit, declared records, declared enums");
+    println!("  Int, Float, Bool, Text, Unit, declared records, declared enums");
     println!("verification gates:");
     println!("  cargo fmt --check");
     println!("  cargo clippy -- -D warnings");
@@ -4761,11 +4765,11 @@ fn print_agent_bootstrap() {
     );
     println!("  intent search is token-ranked, not semantic embeddings");
     println!(
-        "  Rust backend emission supports pure Int/Bool/Text/Unit functions, non-recursive declared records, nullary declared enums, terminal io intrinsics, and ownership-aware final record updates"
+        "  Rust backend emission supports pure Int/Float/Bool/Text/Unit functions, non-recursive declared records, nullary declared enums, terminal io intrinsics, and ownership-aware final record updates"
     );
     println!("  Rust backend rejects recursive record layouts with explicit diagnostics");
     println!(
-        "  Rust binary emission requires pub fn main() -> Text | Int | Bool | Unit | declared record or enum"
+        "  Rust binary emission requires pub fn main() -> Text | Int | Float | Bool | Unit | declared record or enum"
     );
     println!("  Rust backend emits runtime asserts for Serow requires and ensures clauses");
     println!("  Rust backend emits Rust tests for pure Serow examples and sampled properties");
@@ -4808,7 +4812,7 @@ fn print_agent_diagnostics() {
     );
     println!("  typed holes report symbol, expected type, and implementation obligations");
     println!(
-        "  property samples cover boundary and representative Int, Bool, Text, Unit, bounded declared-record values, and declared enum variants; recursive record sample cycles are reported explicitly"
+        "  property samples cover boundary and representative Int, Float, Bool, Text, Unit, bounded declared-record values, and declared enum variants; recursive record sample cycles are reported explicitly"
     );
     println!("  unattended certification validates structured repair action commands");
     println!("plan json:");

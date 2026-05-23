@@ -1,4 +1,5 @@
 import ast as pyast
+import math
 import re
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
@@ -48,6 +49,39 @@ class Evaluator:
             return _call_get_intrinsic(name, args, "")
         if name in {"get_int", "@serow.intrinsic.get_int.v1", "serow.intrinsic.get_int"}:
             return _call_get_intrinsic(name, args, 0)
+        float_intrinsics = {
+            "float_sqrt": (1, math.sqrt),
+            "float_sin": (1, math.sin),
+            "float_cos": (1, math.cos),
+            "float_tan": (1, math.tan),
+            "float_asin": (1, math.asin),
+            "float_acos": (1, math.acos),
+            "float_atan": (1, math.atan),
+            "float_atan2": (2, math.atan2),
+            "float_pow": (2, math.pow),
+        }
+        for intrinsic_name, (arity, operation) in float_intrinsics.items():
+            if name in {intrinsic_name, f"@serow.intrinsic.{intrinsic_name}.v1", f"serow.intrinsic.{intrinsic_name}"}:
+                if len(args) != arity:
+                    raise EvaluationError(f"Function `{name}` expected {arity} arguments, got {len(args)}.")
+                if not all(isinstance(arg, float) for arg in args):
+                    raise EvaluationError(f"Function `{name}` expected Float arguments.")
+                result = operation(*args)
+                if not math.isfinite(result):
+                    raise EvaluationError(f"Float value must be finite, got {result}.")
+                if arity == 1:
+                    return CallResult(value=result, args={"value": args[0]})
+                return CallResult(value=result, args={"left": args[0], "right": args[1]})
+        float_constants = {
+            "float_pi": math.pi,
+            "float_tau": math.tau,
+            "float_e": math.e,
+        }
+        for intrinsic_name, value in float_constants.items():
+            if name in {intrinsic_name, f"@serow.intrinsic.{intrinsic_name}.v1", f"serow.intrinsic.{intrinsic_name}"}:
+                if args:
+                    raise EvaluationError(f"Function `{name}` expected 0 arguments, got {len(args)}.")
+                return CallResult(value=value, args={})
         if name in {"print", "@serow.intrinsic.print.v1", "serow.intrinsic.print"}:
             if len(args) != 1:
                 raise EvaluationError(f"Function `{name}` expected 1 arguments, got {len(args)}.")
@@ -253,7 +287,7 @@ class SafeExpressionEvaluator(pyast.NodeVisitor):
         self.enum_variants = enum_variants
 
     def visit_Constant(self, node: pyast.Constant) -> Any:
-        if node.value is None or isinstance(node.value, (int, bool, str)):
+        if node.value is None or isinstance(node.value, (int, float, bool, str)):
             return node.value
         raise EvaluationError(f"Unsupported literal `{node.value}`.")
 
@@ -286,6 +320,12 @@ class SafeExpressionEvaluator(pyast.NodeVisitor):
             return left * right
         if isinstance(node.op, pyast.FloorDiv):
             return _trunc_div(left, right)
+        if isinstance(node.op, pyast.Div):
+            if not isinstance(left, float) or not isinstance(right, float):
+                raise EvaluationError("Float division requires Float operands.")
+            if right == 0.0:
+                raise EvaluationError("Float division by zero.")
+            return left / right
         if isinstance(node.op, pyast.Mod):
             if right == 0:
                 raise EvaluationError("Modulo by zero.")
@@ -552,6 +592,18 @@ def _resolve_intrinsic(reference_text: str):
         "remove_first": ([Param("list", "List<T>"), Param("value", "T")], "List<T>", ["pure"]),
         "get_text": ([Param("list", "List<Text>"), Param("index", "Int")], "MaybeText", ["pure"]),
         "get_int": ([Param("list", "List<Int>"), Param("index", "Int")], "MaybeInt", ["pure"]),
+        "float_sqrt": ([Param("value", "Float")], "Float", ["pure"]),
+        "float_sin": ([Param("value", "Float")], "Float", ["pure"]),
+        "float_cos": ([Param("value", "Float")], "Float", ["pure"]),
+        "float_tan": ([Param("value", "Float")], "Float", ["pure"]),
+        "float_asin": ([Param("value", "Float")], "Float", ["pure"]),
+        "float_acos": ([Param("value", "Float")], "Float", ["pure"]),
+        "float_atan": ([Param("value", "Float")], "Float", ["pure"]),
+        "float_atan2": ([Param("left", "Float"), Param("right", "Float")], "Float", ["pure"]),
+        "float_pow": ([Param("left", "Float"), Param("right", "Float")], "Float", ["pure"]),
+        "float_pi": ([], "Float", ["pure"]),
+        "float_tau": ([], "Float", ["pure"]),
+        "float_e": ([], "Float", ["pure"]),
     }
     for name, (params, return_type, effects) in intrinsic_specs.items():
         if reference_text in {name, f"@serow.intrinsic.{name}.v1", f"serow.intrinsic.{name}"}:

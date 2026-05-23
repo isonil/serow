@@ -259,9 +259,9 @@ impl<'a> TypeParser<'a> {
                 }
                 "<" | "<=" | ">" | ">=" => {
                     require_same_type(&left, &right, op)?;
-                    if left != "Int" && left != "Text" {
+                    if left != "Int" && left != "Float" && left != "Text" {
                         return Err(format!(
-                            "`{op}` requires Int or Text operands, got {}.",
+                            "`{op}` requires Int, Float, or Text operands, got {}.",
                             left
                         ));
                     }
@@ -279,19 +279,19 @@ impl<'a> TypeParser<'a> {
                 let right = self.parse_mul()?;
                 if left == "Int" && right == "Int" {
                     left = "Int".to_string();
+                } else if left == "Float" && right == "Float" {
+                    left = "Float".to_string();
                 } else if left == "Text" && right == "Text" {
                     left = "Text".to_string();
                 } else {
                     return Err(format!(
-                        "`+` requires Int+Int or Text+Text, got {}+{}.",
+                        "`+` requires Int+Int, Float+Float, or Text+Text, got {}+{}.",
                         left, right
                     ));
                 }
             } else if self.consume(&Token::Minus) {
                 let right = self.parse_mul()?;
-                require_type(&left, "Int", "`-` left operand")?;
-                require_type(&right, "Int", "`-` right operand")?;
-                left = "Int".to_string();
+                left = require_numeric_pair(&left, &right, "`-` operands")?;
             } else {
                 return Ok(left);
             }
@@ -303,9 +303,12 @@ impl<'a> TypeParser<'a> {
         loop {
             if self.consume(&Token::Star) {
                 let right = self.parse_unary()?;
-                require_type(&left, "Int", "`*` left operand")?;
-                require_type(&right, "Int", "`*` right operand")?;
-                left = "Int".to_string();
+                left = require_numeric_pair(&left, &right, "`*` operands")?;
+            } else if self.consume(&Token::Slash) {
+                let right = self.parse_unary()?;
+                require_type(&left, "Float", "`/` left operand")?;
+                require_type(&right, "Float", "`/` right operand")?;
+                left = "Float".to_string();
             } else if self.consume(&Token::SlashSlash) {
                 let right = self.parse_unary()?;
                 require_type(&left, "Int", "`//` left operand")?;
@@ -325,8 +328,12 @@ impl<'a> TypeParser<'a> {
     fn parse_unary(&mut self) -> Result<String, String> {
         if self.consume(&Token::Minus) {
             let inner = self.parse_unary()?;
-            require_type(&inner, "Int", "unary `-` operand")?;
-            return Ok("Int".to_string());
+            if inner == "Int" || inner == "Float" {
+                return Ok(inner);
+            }
+            return Err(format!(
+                "unary `-` operand expected Int or Float, got {inner}."
+            ));
         }
         if self.consume(&Token::Not) {
             let inner = self.parse_unary()?;
@@ -360,6 +367,10 @@ impl<'a> TypeParser<'a> {
             Token::Int(_) => {
                 self.index += 1;
                 Ok("Int".to_string())
+            }
+            Token::Float(_) => {
+                self.index += 1;
+                Ok("Float".to_string())
             }
             Token::Text(_) => {
                 self.index += 1;
@@ -814,4 +825,16 @@ fn require_same_type(left: &str, right: &str, context: &str) -> Result<(), Strin
 
 fn require_compatible_type(left: &str, right: &str, context: &str) -> Result<(), String> {
     require_same_type(left, right, context)
+}
+
+fn require_numeric_pair(left: &str, right: &str, context: &str) -> Result<String, String> {
+    if left == "Int" && right == "Int" {
+        Ok("Int".to_string())
+    } else if left == "Float" && right == "Float" {
+        Ok("Float".to_string())
+    } else {
+        Err(format!(
+            "{context} require matching Int or Float operands, got {left} and {right}."
+        ))
+    }
 }

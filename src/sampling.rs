@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
 
-use crate::eval::{Evaluator, Value};
+use crate::eval::{Evaluator, FloatValue, Value};
 use crate::model::{Function, TypeDecl};
 use crate::types::is_list_type;
 
@@ -115,6 +115,16 @@ fn samples_for_type_result(
             Value::Int(2),
             Value::Int(-10),
             Value::Int(10),
+        ]),
+        "Float" => Ok(vec![
+            Value::Float(FloatValue::new(-2.0).expect("finite float sample")),
+            Value::Float(FloatValue::new(-1.0).expect("finite float sample")),
+            Value::Float(FloatValue::new(-0.5).expect("finite float sample")),
+            Value::Float(FloatValue::new(0.0).expect("finite float sample")),
+            Value::Float(FloatValue::new(0.5).expect("finite float sample")),
+            Value::Float(FloatValue::new(1.0).expect("finite float sample")),
+            Value::Float(FloatValue::new(2.0).expect("finite float sample")),
+            Value::Float(FloatValue::new(std::f64::consts::PI).expect("finite float sample")),
         ]),
         "Bool" => Ok(vec![Value::Bool(false), Value::Bool(true)]),
         "Text" => Ok(vec![
@@ -376,6 +386,7 @@ fn find_shrunk_property_case(
 fn value_complexity(value: &Value) -> usize {
     match value {
         Value::Int(value) => value.unsigned_abs() as usize,
+        Value::Float(value) => (value.get().abs() * 10.0).round() as usize,
         Value::Bool(value) => usize::from(*value),
         Value::Text(value) => value.chars().count(),
         Value::Record { fields, .. } => fields.values().map(value_complexity).sum(),

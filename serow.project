@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "0.4.108-rust-bootstrap",
+  "version": "0.4.109-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -104,6 +104,8 @@
     "property_replay_non_executable_repair_actions": true,
     "property_failure_shrinking": true,
     "expanded_property_sample_values": true,
+    "float_primitive_values": true,
+    "float_math_intrinsics": true,
     "declared_record_property_sample_values": true,
     "property_sampling_reports_recursive_record_cycles": true,
     "qualified_function_references": true,
@@ -159,6 +161,7 @@
     "plan_reports_impact_evidence_coverage": true,
     "portable_ir_backend": true,
     "rust_backend_codegen": true,
+    "rust_backend_float_codegen": true,
     "rust_backend_text_codegen": true,
     "rust_backend_crate_layout": true,
     "rust_backend_crate_tests": true,
@@ -199,6 +202,10 @@
         "may_depend_on": []
       },
       "core.int": {
+        "owner": "bootstrap",
+        "may_depend_on": []
+      },
+      "core.float": {
         "owner": "bootstrap",
         "may_depend_on": []
       },

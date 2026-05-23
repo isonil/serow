@@ -269,6 +269,374 @@ pub fn int_sign(value: Int) -> Int
   impl
     if value < 0 then -1 else if value > 0 then 1 else 0
 
+module core.float
+
+pub fn float_add(left: Float, right: Float) -> Float
+  intent "Accumulate decimal quantities."
+  version v1
+  contract
+    ensures result == left + right
+  examples
+    float_add(1.5, 2.25) == 3.75
+    float_add(-1.0, 1.0) == 0.0
+  properties
+    forall value: Float:
+      float_add(value, 0.0) == value
+  effects pure
+  impl
+    left + right
+
+pub fn float_sub(left: Float, right: Float) -> Float
+  intent "Measure signed decimal difference."
+  version v1
+  contract
+    ensures result == left - right
+  examples
+    float_sub(5.5, 2.0) == 3.5
+    float_sub(1.0, 4.0) == -3.0
+  properties
+    forall value: Float:
+      float_sub(value, 0.0) == value
+  effects pure
+  impl
+    left - right
+
+pub fn float_mul(left: Float, right: Float) -> Float
+  intent "Scale decimals by product."
+  version v1
+  contract
+    ensures result == left * right
+  examples
+    float_mul(1.5, 2.0) == 3.0
+    float_mul(-2.0, 4.0) == -8.0
+  properties
+    forall value: Float:
+      float_mul(value, 1.0) == value
+  effects pure
+  impl
+    left * right
+
+pub fn float_div(left: Float, right: Float) -> Float
+  intent "Form decimal quotient."
+  version v1
+  contract
+    requires right != 0.0
+    ensures result == left / right
+  examples
+    float_div(7.5, 2.5) == 3.0
+    float_div(-9.0, 3.0) == -3.0
+  properties
+    forall value: Float:
+      float_div(value, 1.0) == value
+  effects pure
+  impl
+    left / right
+
+pub fn float_neg(value: Float) -> Float
+  intent "Reverse polarity marker."
+  version v1
+  contract
+    ensures result == -value
+  examples
+    float_neg(2.5) == -2.5
+    float_neg(-2.5) == 2.5
+  properties
+    forall value: Float:
+      float_neg(float_neg(value)) == value
+  effects pure
+  impl
+    -value
+
+pub fn float_abs(value: Float) -> Float
+  intent "Return float magnitude."
+  version v1
+  contract
+    ensures result >= 0.0
+    ensures result == value or result == -value
+  examples
+    float_abs(2.5) == 2.5
+    float_abs(-2.5) == 2.5
+  properties
+    forall value: Float:
+      float_abs(value) >= 0.0
+  effects pure
+  impl
+    if value < 0.0 then -value else value
+
+pub fn float_min(left: Float, right: Float) -> Float
+  intent "Select earlier decimal ordering."
+  version v1
+  contract
+    ensures result <= left
+    ensures result <= right
+    ensures result == left or result == right
+  examples
+    float_min(3.5, 7.0) == 3.5
+    float_min(7.0, 3.5) == 3.5
+  properties
+    forall value: Float:
+      float_min(value, value) == value
+  effects pure
+  impl
+    if left < right then left else right
+
+pub fn float_max(left: Float, right: Float) -> Float
+  intent "Pick ceiling endpoint."
+  version v1
+  contract
+    ensures result >= left
+    ensures result >= right
+    ensures result == left or result == right
+  examples
+    float_max(3.5, 7.0) == 7.0
+    float_max(7.0, 3.5) == 7.0
+  properties
+    forall value: Float:
+      float_max(value, value) == value
+  effects pure
+  impl
+    if left > right then left else right
+
+pub fn float_clamp(value: Float, low: Float, high: Float) -> Float
+  intent "Limit decimal measurement to bracket."
+  version v1
+  contract
+    requires low <= high
+    ensures result >= low
+    ensures result <= high
+  examples
+    float_clamp(0.5, 0.0, 1.0) == 0.5
+    float_clamp(-0.5, 0.0, 1.0) == 0.0
+    float_clamp(1.5, 0.0, 1.0) == 1.0
+  properties
+    forall value: Float:
+      float_clamp(value, -1.0, 1.0) >= -1.0 and float_clamp(value, -1.0, 1.0) <= 1.0
+  effects pure
+  impl
+    if value < low then low else if value > high then high else value
+
+pub fn float_square(value: Float) -> Float
+  intent "Produce decimal second power."
+  version v1
+  contract
+    ensures result == value * value
+    ensures result >= 0.0
+  examples
+    float_square(2.5) == 6.25
+    float_square(-2.5) == 6.25
+  properties
+    forall value: Float:
+      float_square(value) >= 0.0
+  effects pure
+  impl
+    value * value
+
+pub fn float_near(left: Float, right: Float, tolerance: Float) -> Bool
+  intent "Compare floats within absolute tolerance."
+  version v1
+  contract
+    requires tolerance >= 0.0
+    ensures result == (float_abs(left - right) <= tolerance)
+  examples
+    float_near(1.0, 1.000001, 0.00001) == true
+    float_near(1.0, 1.1, 0.01) == false
+  properties
+    forall value: Float:
+      float_near(value, value, 0.0) == true
+  effects pure
+  impl
+    float_abs(left - right) <= tolerance
+
+pub fn float_sqrt(value: Float) -> Float
+  intent "Extract nonnegative decimal root."
+  version v1
+  contract
+    requires value >= 0.0
+    ensures result >= 0.0
+  examples
+    float_sqrt(4.0) == 2.0
+    float_sqrt(9.0) == 3.0
+  properties
+    forall value: Float:
+      float_near(float_sqrt(float_square(value)), float_abs(value), 0.000000001) == true
+  effects pure
+  impl
+    @serow.intrinsic.float_sqrt.v1(value)
+
+pub fn float_pow(left: Float, right: Float) -> Float
+  intent "Exponentiate decimal base."
+  version v1
+  contract
+    ensures result == @serow.intrinsic.float_pow.v1(left, right)
+  examples
+    float_pow(2.0, 3.0) == 8.0
+    float_pow(9.0, 0.5) == 3.0
+  properties
+    forall value: Float:
+      float_pow(value, 1.0) == value
+  effects pure
+  impl
+    @serow.intrinsic.float_pow.v1(left, right)
+
+pub fn float_pi() -> Float
+  intent "Return the circle constant pi."
+  version v1
+  contract
+    ensures result > 3.0
+    ensures result < 4.0
+  examples
+    float_near(float_pi(), 3.141592653589793, 0.0) == true
+  properties
+    forall value: Float:
+      float_pi() > value or float_pi() <= value
+  effects pure
+  impl
+    @serow.intrinsic.float_pi.v1()
+
+pub fn float_tau() -> Float
+  intent "Return full-turn radian constant."
+  version v1
+  contract
+    ensures result == float_pi() * 2.0
+  examples
+    float_near(float_tau(), 6.283185307179586, 0.0) == true
+  properties
+    forall value: Float:
+      float_tau() > value or float_tau() <= value
+  effects pure
+  impl
+    @serow.intrinsic.float_tau.v1()
+
+pub fn float_e() -> Float
+  intent "Return Euler's number."
+  version v1
+  contract
+    ensures result > 2.0
+    ensures result < 3.0
+  examples
+    float_near(float_e(), 2.718281828459045, 0.0) == true
+  properties
+    forall value: Float:
+      float_e() > value or float_e() <= value
+  effects pure
+  impl
+    @serow.intrinsic.float_e.v1()
+
+pub fn float_sin(value: Float) -> Float
+  intent "Find vertical circular projection."
+  version v1
+  contract
+    ensures result >= -1.0
+    ensures result <= 1.0
+  examples
+    float_sin(0.0) == 0.0
+    float_near(float_sin(float_pi() / 2.0), 1.0, 0.000000001) == true
+  properties
+    forall value: Float:
+      float_sin(value) >= -1.0 and float_sin(value) <= 1.0
+  effects pure
+  impl
+    @serow.intrinsic.float_sin.v1(value)
+
+pub fn float_cos(value: Float) -> Float
+  intent "Horizontal waveform ordinate."
+  version v1
+  contract
+    ensures result >= -1.0
+    ensures result <= 1.0
+  examples
+    float_cos(0.0) == 1.0
+    float_near(float_cos(float_pi()), -1.0, 0.000000001) == true
+  properties
+    forall value: Float:
+      float_cos(value) >= -1.0 and float_cos(value) <= 1.0
+  effects pure
+  impl
+    @serow.intrinsic.float_cos.v1(value)
+
+pub fn float_tan(value: Float) -> Float
+  intent "Calculate angular slope ratio."
+  version v1
+  contract
+    ensures result == @serow.intrinsic.float_tan.v1(value)
+  examples
+    float_tan(0.0) == 0.0
+    float_near(float_tan(float_pi() / 4.0), 1.0, 0.000000001) == true
+  properties
+    forall value: Float:
+      float_near(float_tan(value), float_sin(value) / float_cos(value), 0.000000001) == true
+  effects pure
+  impl
+    @serow.intrinsic.float_tan.v1(value)
+
+pub fn float_asin(value: Float) -> Float
+  intent "Invert sine ratio to angle."
+  version v1
+  contract
+    requires value >= -1.0
+    requires value <= 1.0
+    ensures result >= -float_pi() / 2.0
+    ensures result <= float_pi() / 2.0
+  examples
+    float_asin(0.0) == 0.0
+    float_near(float_asin(1.0), float_pi() / 2.0, 0.000000001) == true
+  properties
+    forall value: Float:
+      float_near(float_sin(float_asin(float_clamp(value, -1.0, 1.0))), float_clamp(value, -1.0, 1.0), 0.000000001) == true
+  effects pure
+  impl
+    @serow.intrinsic.float_asin.v1(value)
+
+pub fn float_acos(value: Float) -> Float
+  intent "Arccosine over normalized input."
+  version v1
+  contract
+    requires value >= -1.0
+    requires value <= 1.0
+    ensures result >= 0.0
+    ensures result <= float_pi()
+  examples
+    float_near(float_acos(1.0), 0.0, 0.000000001) == true
+    float_near(float_acos(0.0), float_pi() / 2.0, 0.000000001) == true
+  properties
+    forall value: Float:
+      float_near(float_cos(float_acos(float_clamp(value, -1.0, 1.0))), float_clamp(value, -1.0, 1.0), 0.000000001) == true
+  effects pure
+  impl
+    @serow.intrinsic.float_acos.v1(value)
+
+pub fn float_atan(value: Float) -> Float
+  intent "Recover angle from slope."
+  version v1
+  contract
+    ensures result > -float_pi() / 2.0
+    ensures result < float_pi() / 2.0
+  examples
+    float_atan(0.0) == 0.0
+    float_near(float_atan(1.0), float_pi() / 4.0, 0.000000001) == true
+  properties
+    forall value: Float:
+      float_near(float_tan(float_atan(value)), value, 0.000000001) == true
+  effects pure
+  impl
+    @serow.intrinsic.float_atan.v1(value)
+
+pub fn float_atan2(y: Float, x: Float) -> Float
+  intent "Resolve coordinate bearing angle."
+  version v1
+  contract
+    ensures result >= -float_pi()
+    ensures result <= float_pi()
+  examples
+    float_atan2(0.0, 1.0) == 0.0
+    float_near(float_atan2(1.0, 0.0), float_pi() / 2.0, 0.000000001) == true
+  properties
+    forall value: Float:
+      float_near(float_atan2(value, 1.0), float_atan(value), 0.000000001) == true
+  effects pure
+  impl
+    @serow.intrinsic.float_atan2.v1(y, x)
+
 module core.text
 
 pub fn text_is_empty(value: Text) -> Bool

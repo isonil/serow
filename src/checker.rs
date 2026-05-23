@@ -21,7 +21,7 @@ const REQUIRED_PUBLIC_SECTIONS: &[&str] = &[
     "effects",
     "impl",
 ];
-const SUPPORTED_TYPES: &[&str] = &["Int", "Bool", "Text", "Unit"];
+const SUPPORTED_TYPES: &[&str] = &["Int", "Float", "Bool", "Text", "Unit"];
 const NEAR_DUPLICATE_INTENT_SCORE: f64 = 0.75;
 const NEAR_DUPLICATE_INTENT_MIN_REASONS: usize = 2;
 

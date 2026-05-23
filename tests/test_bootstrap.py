@@ -12,9 +12,9 @@ class BootstrapTests(unittest.TestCase):
         program, parse_diagnostics = parse_files(["examples"])
         summary = check_program(program, parse_diagnostics)
         self.assertTrue(summary.ok, [diagnostic.to_dict() for diagnostic in summary.diagnostics])
-        self.assertEqual(summary.functions, 66)
-        self.assertEqual(summary.examples, 157)
-        self.assertEqual(summary.properties, 66)
+        self.assertEqual(summary.functions, 89)
+        self.assertEqual(summary.examples, 201)
+        self.assertEqual(summary.properties, 89)
 
     def test_explicit_missing_source_path_is_reported(self):
         with tempfile.TemporaryDirectory() as directory:

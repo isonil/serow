@@ -11,7 +11,7 @@ from .model import Function, Program, TypeDecl
 
 
 REQUIRED_PUBLIC_SECTIONS = ["intent", "contract", "examples", "properties", "effects", "impl"]
-SUPPORTED_TYPES = {"Int", "Bool", "Text", "Unit"}
+SUPPORTED_TYPES = {"Int", "Float", "Bool", "Text", "Unit"}
 HOLE_RE = re.compile(r"\bHOLE\s*\(")
 UNKNOWN_FUNCTION_RE = re.compile(r"^Unknown function `([^`]+)`\.$")
 NEAR_DUPLICATE_INTENT_SCORE = 0.75
@@ -1365,6 +1365,8 @@ def _samples_for_type(type_name: str, types: List[TypeDecl], active_records: Opt
         return _UnsupportedSample(_UnknownSampleType(type_name))
     if type_name == "Int":
         return [-2, -1, 0, 1, 2, -10, 10]
+    if type_name == "Float":
+        return [-2.0, -1.0, -0.5, 0.0, 0.5, 1.0, 2.0, 3.141592653589793]
     if type_name == "Bool":
         return [False, True]
     if type_name == "Text":

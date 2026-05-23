@@ -2,6 +2,13 @@
 
 ## 2026-05-23
 
+- Chose a finite `Float` primitive because Serow's AI-first standard library needs decimal quantities, geometry, and trigonometry rather than forcing every numeric API through `Int`.
+- Added Float literals, type checking, evaluation, deterministic samples, replay support, portable IR lowering, JSON IR output, Rust backend codegen to `f64`, binary entrypoint support, and Python reference support for the current sample corpus.
+- Added compiler-owned pure float math intrinsics for square root, power, trigonometry, inverse trigonometry, and constants, plus source-level `core.float` stdlib wrappers with contracts, executable examples, and sampled properties.
+- Updated generated Rust type derives so records containing Float derive `PartialEq` without invalid `Eq`, while Eq is still emitted when every field supports it.
+- Updated project metadata, README, language notes, current state notes, and sample-count regression coverage.
+- Verification is recorded in the final run for this change.
+
 - Chose a source-level standard library as the next cross-phase task because core helpers existed only as examples or compiler intrinsics, leaving common v1 APIs such as deterministic random, integer helpers, and list wrappers undiscoverable through normal symbol queries.
 - Added `examples/stdlib.serow` with `core.bool`, `core.int`, `core.text`, `core.list`, and `core.random` modules, each with explicit versions, contracts, executable examples, sampled properties, effects, and implementations.
 - Kept the v1 scope inside current bootstrap semantics: integer-only math, basic text composition, concrete list helpers over existing intrinsics, and seed-threaded deterministic RNG records instead of unsupported floats, slicing, maps, OS entropy, or nondeterministic effects.

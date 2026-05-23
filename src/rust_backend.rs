@@ -1,10 +1,13 @@
 use std::collections::HashMap;
 
 use crate::diagnostic::{Diagnostic, has_errors};
-use crate::eval::Value;
+use crate::eval::{Value, format_float};
 use crate::intrinsics::{
-    CONTAINS_SYMBOL, GET_INT_SYMBOL, GET_TEXT_SYMBOL, LEN_SYMBOL, PRINT_SYMBOL, PUSH_SYMBOL,
-    READ_LINE_SYMBOL, REMOVE_FIRST_SYMBOL, is_intrinsic_symbol,
+    CONTAINS_SYMBOL, FLOAT_ACOS_SYMBOL, FLOAT_ASIN_SYMBOL, FLOAT_ATAN_SYMBOL, FLOAT_ATAN2_SYMBOL,
+    FLOAT_COS_SYMBOL, FLOAT_E_SYMBOL, FLOAT_PI_SYMBOL, FLOAT_POW_SYMBOL, FLOAT_SIN_SYMBOL,
+    FLOAT_SQRT_SYMBOL, FLOAT_TAN_SYMBOL, FLOAT_TAU_SYMBOL, GET_INT_SYMBOL, GET_TEXT_SYMBOL,
+    LEN_SYMBOL, PRINT_SYMBOL, PUSH_SYMBOL, READ_LINE_SYMBOL, REMOVE_FIRST_SYMBOL,
+    is_intrinsic_symbol,
 };
 use crate::ir::{
     IrBinaryOp, IrExpr, IrFunction, IrProgram, IrSummary, IrUnaryOp, lower_checked_program,
@@ -139,7 +142,7 @@ fn generate_rust_program(ir: &IrProgram) -> Result<GeneratedRustProgram, Vec<Dia
             ));
             continue;
         };
-        match render_type_decl(type_decl, &rust_name, &type_names) {
+        match render_type_decl(type_decl, &rust_name, &type_names, &ir.types) {
             Ok(source) => {
                 rendered_types.push(source);
                 generated_types.push(GeneratedRustType {
@@ -273,7 +276,13 @@ fn render_type_decl(
     type_decl: &TypeDecl,
     rust_name: &str,
     type_names: &HashMap<String, String>,
+    types: &[TypeDecl],
 ) -> Result<String, String> {
+    let derives = if type_decl_supports_eq(type_decl, types) {
+        "Clone, Debug, PartialEq, Eq"
+    } else {
+        "Clone, Debug, PartialEq"
+    };
     if type_decl.is_enum() {
         let variants = type_decl
             .variants
@@ -281,7 +290,7 @@ fn render_type_decl(
             .map(|variant| format!("    {},", rust_variant_identifier(variant)))
             .collect::<Vec<_>>();
         return Ok(format!(
-            "#[derive(Clone, Debug, PartialEq, Eq)]\npub enum {rust_name} {{\n{}\n}}",
+            "#[derive({derives})]\npub enum {rust_name} {{\n{}\n}}",
             variants.join("\n")
         ));
     }
@@ -295,7 +304,7 @@ fn render_type_decl(
         ));
     }
     Ok(format!(
-        "#[derive(Clone, Debug, PartialEq, Eq)]\npub struct {rust_name} {{\n{}\n}}",
+        "#[derive({derives})]\npub struct {rust_name} {{\n{}\n}}",
         fields.join("\n")
     ))
 }
@@ -629,6 +638,7 @@ fn render_expr(
 ) -> Result<RenderedExpr, String> {
     match expr {
         IrExpr::Int(value) => Ok(rendered(value.to_string(), "Int")),
+        IrExpr::Float(value) => Ok(rendered(format_float(value.get()), "Float")),
         IrExpr::Bool(value) => Ok(rendered(value.to_string(), "Bool")),
         IrExpr::Text(value) => Ok(rendered(
             format!("String::from({})", rust_string_literal(value)),
@@ -925,7 +935,13 @@ fn render_expr(
                 IrUnaryOp::Not => "!",
             };
             let type_name = match op {
-                IrUnaryOp::Neg => "Int",
+                IrUnaryOp::Neg => {
+                    if expr.type_name == "Float" {
+                        "Float"
+                    } else {
+                        "Int"
+                    }
+                }
                 IrUnaryOp::Not => "Bool",
             };
             Ok(rendered(format!("({operator}{})", expr.code), type_name))
@@ -983,6 +999,7 @@ fn render_expr(
                 IrBinaryOp::Add => "+",
                 IrBinaryOp::Sub => "-",
                 IrBinaryOp::Mul => "*",
+                IrBinaryOp::Div => "/",
                 IrBinaryOp::DivTrunc => "/",
                 IrBinaryOp::Rem => "%",
                 IrBinaryOp::Eq => "==",
@@ -1001,8 +1018,14 @@ fn render_expr(
                         "Text",
                     ));
                 }
+                IrBinaryOp::Add if left.type_name == "Float" && right.type_name == "Float" => {
+                    "Float"
+                }
                 IrBinaryOp::Add => "Int",
-                IrBinaryOp::Sub | IrBinaryOp::Mul | IrBinaryOp::DivTrunc | IrBinaryOp::Rem => "Int",
+                IrBinaryOp::Sub | IrBinaryOp::Mul if left.type_name == "Float" => "Float",
+                IrBinaryOp::Sub | IrBinaryOp::Mul => "Int",
+                IrBinaryOp::Div => "Float",
+                IrBinaryOp::DivTrunc | IrBinaryOp::Rem => "Int",
                 IrBinaryOp::Eq
                 | IrBinaryOp::NotEq
                 | IrBinaryOp::Lt
@@ -1647,6 +1670,7 @@ fn ir_expr_references_var(expr: &IrExpr, name: &str) -> bool {
         }
         IrExpr::FieldAccess { base, .. } => ir_expr_references_var(base, name),
         IrExpr::Int(_)
+        | IrExpr::Float(_)
         | IrExpr::Bool(_)
         | IrExpr::Text(_)
         | IrExpr::Unit
@@ -1705,6 +1729,7 @@ fn ir_expr_assigns_to(expr: &IrExpr, name: &str) -> bool {
         }
         IrExpr::FieldAccess { base, .. } => ir_expr_assigns_to(base, name),
         IrExpr::Int(_)
+        | IrExpr::Float(_)
         | IrExpr::Bool(_)
         | IrExpr::Text(_)
         | IrExpr::Unit
@@ -1795,6 +1820,7 @@ fn rust_type(type_name: &str, type_names: &HashMap<String, String>) -> Result<St
     }
     match type_name {
         "Int" => Ok("i64".to_string()),
+        "Float" => Ok("f64".to_string()),
         "Bool" => Ok("bool".to_string()),
         "Text" => Ok("String".to_string()),
         "Unit" => Ok("()".to_string()),
@@ -1806,7 +1832,31 @@ fn rust_type(type_name: &str, type_names: &HashMap<String, String>) -> Result<St
 }
 
 fn type_needs_clone(type_name: &str) -> bool {
-    !matches!(type_name, "Int" | "Bool" | "Unit")
+    !matches!(type_name, "Int" | "Float" | "Bool" | "Unit")
+}
+
+fn type_decl_supports_eq(type_decl: &TypeDecl, types: &[TypeDecl]) -> bool {
+    type_decl.is_enum()
+        || type_decl
+            .fields
+            .iter()
+            .all(|field| type_supports_eq(&field.type_name, types))
+}
+
+fn type_supports_eq(type_name: &str, types: &[TypeDecl]) -> bool {
+    if type_name == "Float" {
+        return false;
+    }
+    if let Some(element_type) = list_element_type(type_name) {
+        return type_supports_eq(&element_type, types);
+    }
+    match type_name {
+        "Int" | "Bool" | "Text" | "Unit" | "Never" => true,
+        other => types
+            .iter()
+            .find(|type_decl| type_decl.name == other)
+            .is_some_and(|type_decl| type_decl_supports_eq(type_decl, types)),
+    }
 }
 
 fn record_type<'a>(type_name: &str, types: &'a [TypeDecl]) -> Result<&'a TypeDecl, String> {
@@ -1878,6 +1928,7 @@ fn render_sample_value(
 ) -> Result<String, String> {
     match value {
         Value::Int(value) => Ok(value.to_string()),
+        Value::Float(value) => Ok(format_float(value.get())),
         Value::Bool(value) => Ok(value.to_string()),
         Value::Text(value) => Ok(format!("String::from({})", rust_string_literal(value))),
         Value::Record { type_name, fields } => {
@@ -2210,8 +2261,97 @@ fn render_intrinsic_call(
             render_get_intrinsic_call(target, &args, context, "Text", "MaybeText", "String::new()")
         }
         GET_INT_SYMBOL => render_get_intrinsic_call(target, &args, context, "Int", "MaybeInt", "0"),
+        FLOAT_SQRT_SYMBOL => render_float_unary_intrinsic_call(target, &args, "sqrt"),
+        FLOAT_SIN_SYMBOL => render_float_unary_intrinsic_call(target, &args, "sin"),
+        FLOAT_COS_SYMBOL => render_float_unary_intrinsic_call(target, &args, "cos"),
+        FLOAT_TAN_SYMBOL => render_float_unary_intrinsic_call(target, &args, "tan"),
+        FLOAT_ASIN_SYMBOL => render_float_unary_intrinsic_call(target, &args, "asin"),
+        FLOAT_ACOS_SYMBOL => render_float_unary_intrinsic_call(target, &args, "acos"),
+        FLOAT_ATAN_SYMBOL => render_float_unary_intrinsic_call(target, &args, "atan"),
+        FLOAT_ATAN2_SYMBOL => render_float_binary_intrinsic_call(target, &args, "atan2"),
+        FLOAT_POW_SYMBOL => render_float_binary_intrinsic_call(target, &args, "powf"),
+        FLOAT_PI_SYMBOL => {
+            render_float_constant_intrinsic_call(target, &args, "std::f64::consts::PI")
+        }
+        FLOAT_TAU_SYMBOL => {
+            render_float_constant_intrinsic_call(target, &args, "std::f64::consts::TAU")
+        }
+        FLOAT_E_SYMBOL => {
+            render_float_constant_intrinsic_call(target, &args, "std::f64::consts::E")
+        }
         _ => Err(format!("Unsupported intrinsic `{target}`.")),
     }
+}
+
+fn render_float_unary_intrinsic_call(
+    target: &str,
+    args: &[RenderedExpr],
+    method: &str,
+) -> Result<RenderedExpr, String> {
+    if args.len() != 1 {
+        return Err(format!(
+            "Intrinsic `{target}` has {} lowered arguments, expected 1.",
+            args.len()
+        ));
+    }
+    if args[0].type_name != "Float" {
+        return Err(format!(
+            "Intrinsic `{target}` argument 1 lowered as {}, expected Float.",
+            args[0].type_name
+        ));
+    }
+    Ok(rendered(
+        format!("{}.{}()", strip_outer_parens(&args[0].code), method),
+        "Float",
+    ))
+}
+
+fn render_float_binary_intrinsic_call(
+    target: &str,
+    args: &[RenderedExpr],
+    method: &str,
+) -> Result<RenderedExpr, String> {
+    if args.len() != 2 {
+        return Err(format!(
+            "Intrinsic `{target}` has {} lowered arguments, expected 2.",
+            args.len()
+        ));
+    }
+    if args[0].type_name != "Float" {
+        return Err(format!(
+            "Intrinsic `{target}` argument 1 lowered as {}, expected Float.",
+            args[0].type_name
+        ));
+    }
+    if args[1].type_name != "Float" {
+        return Err(format!(
+            "Intrinsic `{target}` argument 2 lowered as {}, expected Float.",
+            args[1].type_name
+        ));
+    }
+    Ok(rendered(
+        format!(
+            "{}.{}({})",
+            strip_outer_parens(&args[0].code),
+            method,
+            strip_outer_parens(&args[1].code)
+        ),
+        "Float",
+    ))
+}
+
+fn render_float_constant_intrinsic_call(
+    target: &str,
+    args: &[RenderedExpr],
+    constant: &str,
+) -> Result<RenderedExpr, String> {
+    if !args.is_empty() {
+        return Err(format!(
+            "Intrinsic `{target}` has {} lowered arguments, expected 0.",
+            args.len()
+        ));
+    }
+    Ok(rendered(constant.to_string(), "Float"))
 }
 
 fn render_get_intrinsic_call(

@@ -1,8 +1,11 @@
 use std::collections::{BTreeMap, HashMap};
 
 use crate::intrinsics::{
-    CONTAINS_SYMBOL, GET_INT_SYMBOL, GET_TEXT_SYMBOL, LEN_SYMBOL, PRINT_SYMBOL, PUSH_SYMBOL,
-    READ_LINE_SYMBOL, REMOVE_FIRST_SYMBOL, intrinsic_functions,
+    CONTAINS_SYMBOL, FLOAT_ACOS_SYMBOL, FLOAT_ASIN_SYMBOL, FLOAT_ATAN_SYMBOL, FLOAT_ATAN2_SYMBOL,
+    FLOAT_COS_SYMBOL, FLOAT_E_SYMBOL, FLOAT_PI_SYMBOL, FLOAT_POW_SYMBOL, FLOAT_SIN_SYMBOL,
+    FLOAT_SQRT_SYMBOL, FLOAT_TAN_SYMBOL, FLOAT_TAU_SYMBOL, GET_INT_SYMBOL, GET_TEXT_SYMBOL,
+    LEN_SYMBOL, PRINT_SYMBOL, PUSH_SYMBOL, READ_LINE_SYMBOL, REMOVE_FIRST_SYMBOL,
+    intrinsic_functions,
 };
 use crate::model::{Function, TypeDecl};
 use crate::types::{EMPTY_LIST_TYPE, list_element_type, list_type, type_accepts};
@@ -49,9 +52,41 @@ impl CallReference {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct FloatValue(u64);
+
+impl FloatValue {
+    pub fn new(value: f64) -> Result<Self, String> {
+        if value.is_finite() {
+            Ok(Self(value.to_bits()))
+        } else {
+            Err(format!("Float value must be finite, got {value}."))
+        }
+    }
+
+    pub fn get(self) -> f64 {
+        f64::from_bits(self.0)
+    }
+}
+
+impl std::fmt::Display for FloatValue {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "{}", format_float(self.get()))
+    }
+}
+
+pub(crate) fn format_float(value: f64) -> String {
+    let mut rendered = value.to_string();
+    if !rendered.contains('.') && !rendered.contains('e') && !rendered.contains('E') {
+        rendered.push_str(".0");
+    }
+    rendered
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Value {
     Int(i64),
+    Float(FloatValue),
     Bool(bool),
     Text(String),
     Record {
@@ -73,6 +108,7 @@ impl std::fmt::Display for Value {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Value::Int(value) => write!(formatter, "{value}"),
+            Value::Float(value) => write!(formatter, "{value}"),
             Value::Bool(value) => write!(formatter, "{value}"),
             Value::Text(value) => write!(formatter, "{value:?}"),
             Value::Record { type_name, fields } => {
@@ -147,6 +183,42 @@ impl Evaluator {
         if function.symbol() == GET_INT_SYMBOL {
             return call_get_intrinsic(name, args, "Int", "MaybeInt", Value::Int(0));
         }
+        if function.symbol() == FLOAT_SQRT_SYMBOL {
+            return call_float_unary_intrinsic(name, args, f64::sqrt);
+        }
+        if function.symbol() == FLOAT_SIN_SYMBOL {
+            return call_float_unary_intrinsic(name, args, f64::sin);
+        }
+        if function.symbol() == FLOAT_COS_SYMBOL {
+            return call_float_unary_intrinsic(name, args, f64::cos);
+        }
+        if function.symbol() == FLOAT_TAN_SYMBOL {
+            return call_float_unary_intrinsic(name, args, f64::tan);
+        }
+        if function.symbol() == FLOAT_ASIN_SYMBOL {
+            return call_float_unary_intrinsic(name, args, f64::asin);
+        }
+        if function.symbol() == FLOAT_ACOS_SYMBOL {
+            return call_float_unary_intrinsic(name, args, f64::acos);
+        }
+        if function.symbol() == FLOAT_ATAN_SYMBOL {
+            return call_float_unary_intrinsic(name, args, f64::atan);
+        }
+        if function.symbol() == FLOAT_ATAN2_SYMBOL {
+            return call_float_binary_intrinsic(name, args, f64::atan2);
+        }
+        if function.symbol() == FLOAT_POW_SYMBOL {
+            return call_float_binary_intrinsic(name, args, f64::powf);
+        }
+        if function.symbol() == FLOAT_PI_SYMBOL {
+            return call_float_constant_intrinsic(name, args, std::f64::consts::PI);
+        }
+        if function.symbol() == FLOAT_TAU_SYMBOL {
+            return call_float_constant_intrinsic(name, args, std::f64::consts::TAU);
+        }
+        if function.symbol() == FLOAT_E_SYMBOL {
+            return call_float_constant_intrinsic(name, args, std::f64::consts::E);
+        }
         let Some(implementation) = &function.implementation else {
             return Err(format!("Function `{name}` has no implementation."));
         };
@@ -213,6 +285,7 @@ impl Evaluator {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Token {
     Int(i64),
+    Float(FloatValue),
     Text(String),
     Unit,
     Ident(String),
@@ -233,6 +306,7 @@ pub(crate) enum Token {
     Plus,
     Minus,
     Star,
+    Slash,
     SlashSlash,
     Percent,
     EqEq,
@@ -270,6 +344,43 @@ pub(crate) fn tokenize(expression: &str) -> Result<Vec<Token>, String> {
             index += 1;
             while index < chars.len() && chars[index].is_ascii_digit() {
                 index += 1;
+            }
+            let mut is_float = false;
+            if chars.get(index) == Some(&'.')
+                && chars
+                    .get(index + 1)
+                    .is_some_and(|next| next.is_ascii_digit())
+            {
+                is_float = true;
+                index += 1;
+                while index < chars.len() && chars[index].is_ascii_digit() {
+                    index += 1;
+                }
+            }
+            if matches!(chars.get(index), Some('e' | 'E')) {
+                let exponent_start = index;
+                let mut exponent_index = index + 1;
+                if matches!(chars.get(exponent_index), Some('+' | '-')) {
+                    exponent_index += 1;
+                }
+                let digit_start = exponent_index;
+                while exponent_index < chars.len() && chars[exponent_index].is_ascii_digit() {
+                    exponent_index += 1;
+                }
+                if exponent_index > digit_start {
+                    is_float = true;
+                    index = exponent_index;
+                } else {
+                    index = exponent_start;
+                }
+            }
+            if is_float {
+                let number = expression[start..index]
+                    .parse::<f64>()
+                    .map_err(|error| format!("Invalid float literal: {error}"))
+                    .and_then(FloatValue::new)?;
+                tokens.push(Token::Float(number));
+                continue;
             }
             let number = expression[start..index]
                 .parse::<i64>()
@@ -375,6 +486,7 @@ pub(crate) fn tokenize(expression: &str) -> Result<Vec<Token>, String> {
                 index += 1;
                 Token::SlashSlash
             }
+            '/' => Token::Slash,
             '=' if chars.get(index + 1) == Some(&'=') => {
                 index += 1;
                 Token::EqEq
@@ -834,14 +946,22 @@ impl<'a> ExprParser<'a> {
                 let right = self.parse_mul()?;
                 left = match (left, right) {
                     (Value::Int(left), Value::Int(right)) => Value::Int(left + right),
+                    (Value::Float(left), Value::Float(right)) => {
+                        Value::Float(float_value(left.get() + right.get())?)
+                    }
                     (Value::Text(left), Value::Text(right)) => {
                         Value::Text(format!("{left}{right}"))
                     }
-                    _ => return Err("`+` requires Int+Int or Text+Text.".to_string()),
+                    _ => return Err("`+` requires Int+Int, Float+Float, or Text+Text.".to_string()),
                 };
             } else if self.consume(&Token::Minus) {
                 let right = self.parse_mul()?;
-                left = Value::Int(as_int(left)? - as_int(right)?);
+                left = numeric_binary(
+                    left,
+                    right,
+                    |left, right| left - right,
+                    |left, right| left - right,
+                )?;
             } else {
                 return Ok(left);
             }
@@ -853,7 +973,19 @@ impl<'a> ExprParser<'a> {
         loop {
             if self.consume(&Token::Star) {
                 let right = self.parse_unary()?;
-                left = Value::Int(as_int(left)? * as_int(right)?);
+                left = numeric_binary(
+                    left,
+                    right,
+                    |left, right| left * right,
+                    |left, right| left * right,
+                )?;
+            } else if self.consume(&Token::Slash) {
+                let right = self.parse_unary()?;
+                let divisor = as_float(right)?;
+                if divisor == 0.0 {
+                    return Err("Float division by zero.".to_string());
+                }
+                left = Value::Float(float_value(as_float(left)? / divisor)?);
             } else if self.consume(&Token::SlashSlash) {
                 let right = self.parse_unary()?;
                 let divisor = as_int(right)?;
@@ -876,7 +1008,7 @@ impl<'a> ExprParser<'a> {
 
     fn parse_unary(&mut self) -> Result<Value, String> {
         if self.consume(&Token::Minus) {
-            return Ok(Value::Int(-as_int(self.parse_unary()?)?));
+            return numeric_neg(self.parse_unary()?);
         }
         if self.consume(&Token::Not) {
             return Ok(Value::Bool(!as_bool(self.parse_unary()?)?));
@@ -908,6 +1040,10 @@ impl<'a> ExprParser<'a> {
             Token::Int(value) => {
                 self.index += 1;
                 Ok(Value::Int(value))
+            }
+            Token::Float(value) => {
+                self.index += 1;
+                Ok(Value::Float(value))
             }
             Token::Text(value) => {
                 self.index += 1;
@@ -1195,6 +1331,13 @@ fn as_int(value: Value) -> Result<i64, String> {
     }
 }
 
+fn as_float(value: Value) -> Result<f64, String> {
+    match value {
+        Value::Float(value) => Ok(value.get()),
+        other => Err(format!("Expected Float, got {other}.")),
+    }
+}
+
 fn as_bool(value: Value) -> Result<bool, String> {
     match value {
         Value::Bool(value) => Ok(value),
@@ -1202,9 +1345,42 @@ fn as_bool(value: Value) -> Result<bool, String> {
     }
 }
 
+fn numeric_binary(
+    left: Value,
+    right: Value,
+    int_op: impl FnOnce(i64, i64) -> i64,
+    float_op: impl FnOnce(f64, f64) -> f64,
+) -> Result<Value, String> {
+    match (left, right) {
+        (Value::Int(left), Value::Int(right)) => Ok(Value::Int(int_op(left, right))),
+        (Value::Float(left), Value::Float(right)) => Ok(Value::Float(float_value(float_op(
+            left.get(),
+            right.get(),
+        ))?)),
+        (left, right) => Err(format!(
+            "Numeric operands must both be Int or both be Float, got {} and {}.",
+            value_type_name(&left),
+            value_type_name(&right)
+        )),
+    }
+}
+
+fn numeric_neg(value: Value) -> Result<Value, String> {
+    match value {
+        Value::Int(value) => Ok(Value::Int(-value)),
+        Value::Float(value) => Ok(Value::Float(float_value(-value.get())?)),
+        other => Err(format!("Unary `-` expects Int or Float, got {other}.")),
+    }
+}
+
+fn float_value(value: f64) -> Result<FloatValue, String> {
+    FloatValue::new(value)
+}
+
 fn same_value_type(left: &Value, right: &Value) -> bool {
     match (left, right) {
         (Value::Int(_), Value::Int(_))
+        | (Value::Float(_), Value::Float(_))
         | (Value::Bool(_), Value::Bool(_))
         | (Value::Text(_), Value::Text(_))
         | (Value::Unit, Value::Unit) => true,
@@ -1243,6 +1419,7 @@ fn same_value_type(left: &Value, right: &Value) -> bool {
 fn value_type_name(value: &Value) -> String {
     match value {
         Value::Int(_) => "Int".to_string(),
+        Value::Float(_) => "Float".to_string(),
         Value::Bool(_) => "Bool".to_string(),
         Value::Text(_) => "Text".to_string(),
         Value::Record { type_name, .. } => type_name.clone(),
@@ -1357,8 +1534,16 @@ fn as_ordered(
 ) -> Result<bool, String> {
     let ordering = match (left, right) {
         (Value::Int(left), Value::Int(right)) => left.cmp(right),
+        (Value::Float(left), Value::Float(right)) => left
+            .get()
+            .partial_cmp(&right.get())
+            .ok_or_else(|| "Ordered comparisons require finite Float values.".to_string())?,
         (Value::Text(left), Value::Text(right)) => left.cmp(right),
-        _ => return Err("Ordered comparisons require matching Int or Text values.".to_string()),
+        _ => {
+            return Err(
+                "Ordered comparisons require matching Int, Float, or Text values.".to_string(),
+            );
+        }
     };
     Ok(predicate(ordering))
 }
@@ -1609,5 +1794,68 @@ fn call_get_intrinsic(
             fields,
         },
         args: bindings,
+    })
+}
+
+fn call_float_unary_intrinsic(
+    name: &str,
+    args: Vec<Value>,
+    operation: impl FnOnce(f64) -> f64,
+) -> Result<CallResult, String> {
+    if args.len() != 1 {
+        return Err(format!(
+            "Function `{name}` expected 1 arguments, got {}.",
+            args.len()
+        ));
+    }
+    let mut args = args;
+    let value = args.pop().expect("length checked above");
+    let result = operation(as_float(value.clone())?);
+    let mut bindings = HashMap::new();
+    bindings.insert("value".to_string(), value);
+    Ok(CallResult {
+        value: Value::Float(float_value(result)?),
+        args: bindings,
+    })
+}
+
+fn call_float_binary_intrinsic(
+    name: &str,
+    args: Vec<Value>,
+    operation: impl FnOnce(f64, f64) -> f64,
+) -> Result<CallResult, String> {
+    if args.len() != 2 {
+        return Err(format!(
+            "Function `{name}` expected 2 arguments, got {}.",
+            args.len()
+        ));
+    }
+    let mut args = args;
+    let right = args.pop().expect("length checked above");
+    let left = args.pop().expect("length checked above");
+    let result = operation(as_float(left.clone())?, as_float(right.clone())?);
+    let mut bindings = HashMap::new();
+    bindings.insert("left".to_string(), left);
+    bindings.insert("right".to_string(), right);
+    Ok(CallResult {
+        value: Value::Float(float_value(result)?),
+        args: bindings,
+    })
+}
+
+fn call_float_constant_intrinsic(
+    name: &str,
+    args: Vec<Value>,
+    value: f64,
+) -> Result<CallResult, String> {
+    if !args.is_empty() {
+        return Err(format!(
+            "Function `{name}` expected 0 arguments, got {}.",
+            args.len()
+        ));
+    }
+    Ok(CallResult {
+        value: Value::Float(float_value(value)?),
+        args: HashMap::new(),
     })
 }

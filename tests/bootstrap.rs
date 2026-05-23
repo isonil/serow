@@ -24,10 +24,10 @@ fn sample_program_checks() {
             .map(|diagnostic| &diagnostic.code)
             .collect::<Vec<_>>()
     );
-    assert_eq!(summary.functions, 66);
-    assert_eq!(summary.examples, 157);
-    assert_eq!(summary.properties, 66);
-    assert_eq!(summary.contracts, 230);
+    assert_eq!(summary.functions, 89);
+    assert_eq!(summary.examples, 201);
+    assert_eq!(summary.properties, 89);
+    assert_eq!(summary.contracts, 294);
 }
 
 #[test]

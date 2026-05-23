@@ -40,6 +40,7 @@ pub struct IrProperty {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum IrExpr {
     Int(i64),
+    Float(crate::eval::FloatValue),
     Bool(bool),
     Text(String),
     Unit,
@@ -125,6 +126,7 @@ pub enum IrBinaryOp {
     Add,
     Sub,
     Mul,
+    Div,
     DivTrunc,
     Rem,
     Eq,
@@ -143,6 +145,7 @@ impl IrBinaryOp {
             IrBinaryOp::Add => "add",
             IrBinaryOp::Sub => "sub",
             IrBinaryOp::Mul => "mul",
+            IrBinaryOp::Div => "div",
             IrBinaryOp::DivTrunc => "div_trunc",
             IrBinaryOp::Rem => "rem",
             IrBinaryOp::Eq => "eq",
@@ -681,6 +684,9 @@ impl<'a> IrParser<'a> {
             if self.consume(&Token::Star) {
                 let right = self.parse_unary()?;
                 left = binary(IrBinaryOp::Mul, left, right);
+            } else if self.consume(&Token::Slash) {
+                let right = self.parse_unary()?;
+                left = binary(IrBinaryOp::Div, left, right);
             } else if self.consume(&Token::SlashSlash) {
                 let right = self.parse_unary()?;
                 left = binary(IrBinaryOp::DivTrunc, left, right);
@@ -736,6 +742,10 @@ impl<'a> IrParser<'a> {
             Token::Int(value) => {
                 self.index += 1;
                 Ok(IrExpr::Int(value))
+            }
+            Token::Float(value) => {
+                self.index += 1;
+                Ok(IrExpr::Float(value))
             }
             Token::Text(value) => {
                 self.index += 1;
