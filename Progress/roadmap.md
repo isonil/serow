@@ -2,13 +2,13 @@
 
 ## Active Mode: Cross-Phase Implementation
 
-Future generic implementation prompts should choose the highest-leverage next step across all phases. Phase 3 backend work is currently the most advanced active track, but earlier-phase gaps are not closed or forgotten merely because the project advanced. Work on earlier phases when they are higher leverage, block later work, or are required before Serow can be considered complete.
+Future generic implementation prompts should choose the highest-leverage next step across all phases. Phase 0, Phase 1, Phase 2.5 certification, and the first Phase 3 backend slice are closed or done enough for public v1. Prefer closing remaining Phase 2 agent workflow, Phase 2.6 unattended safety, release polish, and targeted v2 hardening gaps before expanding syntax beyond the v1 bootstrap subset.
 
 Selection policy:
 
 1. Inspect unfinished, deferred, and known-limit items across every phase.
 2. Prefer the task that most improves Serow toward completion, not simply the newest phase.
-3. If the selected task belongs to an inactive earlier phase, record why it outranks the current advanced track.
+3. If the selected task belongs to a previously closed or inactive phase, record why it outranks the current v1 closure focus.
 4. Keep `Progress/currentState.md` and `Progress/implementationLog.md` updated with the chosen focus and outcome.
 
 ## Phase 0: Bootstrap Tooling
@@ -23,14 +23,16 @@ Selection policy:
 
 ## Phase 1: Language Core
 
-- Stabilize the AST model and syntax grammar.
-- Add type checking beyond the current declared-type validation. _(Started: bootstrap expressions now have static type checking.)_
-- Add typed holes with structured repair diagnostics and compiler-generated obligations derived from contracts, examples, and properties.
-- Add module dependencies and architecture checks. _(Started: explicit `use <module>` declarations are checked against `serow.project` `may_depend_on` policies.)_
-- Infer module dependencies from function calls in executable expressions. _(Started: implementations, `requires`, `ensures`, examples, and sampled property bodies now contribute inferred cross-module dependencies.)_
-- Add effect validation. _(Started: bootstrap checking now requires direct callers to declare every concrete capability required by callees.)_
-- Infer the minimum required concrete capabilities for a function and surface declaration repairs while keeping source-level `effects` explicit.
-- Add deterministic formatting. _(Started: `bin/serow fmt` rewrites the bootstrap textual projection and `--check` reports drift.)_
+**V1 status: closed.** The public v1 language core is the documented bootstrap textual projection over the shared Rust AST model. It includes static expression checking for the supported expression subset, typed-hole obligations and repair actions, explicit and inferred module dependency checks, direct-call effect capability validation with suggested declarations, deterministic formatting, executable contracts/examples/properties, records, nullary enums, lists, floats, sequencing, local mutation, and checked loops. Future work such as comments-preserving formatting, payload variants, pattern matching beyond nullary enum matches, source-level generics, richer list APIs, effect polymorphism, custom generators, proofs, and a less hand-written JSON layer is v2+ hardening unless it blocks another phase.
+
+- Stabilize the AST model and syntax grammar. _(Done enough for v1: parser, checker, formatter, ledger, patch commands, IR lowering, and Rust backend all share the Rust AST model for the bootstrap textual projection.)_
+- Add type checking beyond the current declared-type validation. _(Done enough for v1: implementations, contracts, examples, and sampled properties are statically checked across the supported expression subset.)_
+- Add typed holes with structured repair diagnostics and compiler-generated obligations derived from contracts, examples, and properties. _(Done enough for v1: typed implementation holes report signature/evidence obligations and type-shape lookup repair actions; certification rejects remaining public holes.)_
+- Add module dependencies and architecture checks. _(Done enough for v1: explicit `use <module>` declarations are checked against `serow.project` `may_depend_on` policies.)_
+- Infer module dependencies from function calls in executable expressions. _(Done enough for v1: implementations, `requires`, `ensures`, examples, and sampled property bodies contribute inferred cross-module dependency checks.)_
+- Add effect validation. _(Done enough for v1: direct callers must declare every concrete capability required by resolved callees, including compiler-owned terminal intrinsics.)_
+- Infer the minimum required concrete capabilities for a function and surface declaration repairs while keeping source-level `effects` explicit. _(Done enough for v1: `query effects`, checker diagnostics, and `serow plan` expose direct-call capability requirements and `patch set-effects` repair actions.)_
+- Add deterministic formatting. _(Done enough for v1: `bin/serow fmt` rewrites the bootstrap textual projection and `--check` reports drift with targeted repair actions; comment preservation is v2 scope.)_
 
 ## Phase 2: Agent-Native Workflow
 

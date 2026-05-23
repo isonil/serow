@@ -4072,7 +4072,9 @@ fn agent_json_includes_compact_machine_readable_workflow() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("\"current_advanced_track\": \"Phase 3: Backends\""),
+        stdout.contains(
+            "\"current_advanced_track\": \"V1 closure: Phase 2 agent workflow and Phase 2.6 unattended safety\""
+        ),
         "{stdout}"
     );
     assert!(
@@ -4093,6 +4095,8 @@ fn agent_json_includes_compact_machine_readable_workflow() {
         stdout.contains("serow plan [paths...] [--json]"),
         "{stdout}"
     );
+    assert!(stdout.contains("\"Float\""), "{stdout}");
+    assert!(stdout.contains("\"List<T>\""), "{stdout}");
     assert!(stdout.contains("serow query intent <text>"), "{stdout}");
     assert!(
         stdout.contains("serow query type <type-or-shape>"),

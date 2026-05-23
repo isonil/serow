@@ -2,6 +2,11 @@
 
 ## 2026-05-23
 
+- Chose Phase 1 language-core closure because the compiler gates are warning-free and the implemented Rust bootstrap already covers the roadmap's v1 language-core items, while the roadmap still listed them as open "Started" work.
+- Marked Phase 1 closed for public v1, explicitly recording the supported bootstrap textual projection and deferring comments-preserving formatting, source-level generics, payload variants, richer pattern matching/list APIs, effect polymorphism, proofs, custom generators, and JSON-library cleanup to v2+ unless they block another phase.
+- Aligned the compact `bin/serow agent` bootstrap and project metadata with v1 closure mode, including the current focus and the v1 `Float`/`List<T>` type surface.
+- Bumped `serow.project` to `0.4.115-rust-bootstrap`; verification is recorded in the final run for this change.
+
 - Chose Phase 2.5 certification closure because the roadmap still treated repair-action consistency as an open certification task, while the implementation only validated structured repair actions in the unattended profile.
 - Moved structured repair-action command contract validation into every `bin/serow certify` profile while leaving `bin/serow check` as a normal checker-only command.
 - Marked the Phase 2.5 agent-certification tightening line done enough for public v1, bumped `serow.project` to `0.4.112-rust-bootstrap`, and updated CLI/progress documentation to describe certification-wide repair-action validation.

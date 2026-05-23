@@ -4618,7 +4618,7 @@ fn agent_json() -> String {
             "  \"language\": \"Serow\",\n",
             "  \"implementation\": \"dependency-free Rust bootstrap\",\n",
             "  \"phase\": \"Cross-phase implementation\",\n",
-            "  \"current_advanced_track\": \"Phase 3: Backends\",\n",
+            "  \"current_advanced_track\": \"V1 closure: Phase 2 agent workflow and Phase 2.6 unattended safety\",\n",
             "  \"selection_policy\": {},\n",
             "  \"source_default\": \"examples/\",\n",
             "  \"workflow\": {},\n",
@@ -4631,7 +4631,8 @@ fn agent_json() -> String {
         ),
         str_array_json(&[
             "Choose the highest-leverage next step across all phases.",
-            "Phase 3 backend work is currently the most advanced active track.",
+            "Phase 0, Phase 1, Phase 2.5 certification, and the first Phase 3 backend slice are closed or done enough for public v1.",
+            "Prefer closing agent workflow, unattended-safety, and release-polish gaps before expanding syntax beyond the v1 bootstrap subset.",
             "Resume earlier-phase gaps when they are higher leverage, block later work, or are required before Serow can be considered complete.",
             "Record the chosen focus and outcome in Progress/."
         ]),
@@ -4655,9 +4656,11 @@ fn agent_json() -> String {
         ]),
         str_array_json(&[
             "Int",
+            "Float",
             "Bool",
             "Text",
             "Unit",
+            "List<T>",
             "declared records",
             "declared enums",
         ]),
@@ -4854,10 +4857,18 @@ fn print_agent_bootstrap() {
     println!("language: Serow");
     println!("implementation: dependency-free Rust bootstrap");
     println!("phase: Cross-phase implementation");
-    println!("current advanced track: Phase 3: Backends");
+    println!(
+        "current advanced track: V1 closure: Phase 2 agent workflow and Phase 2.6 unattended safety"
+    );
     println!("selection policy:");
     println!("  choose the highest-leverage next step across all phases");
-    println!("  resume earlier-phase gaps when they outrank the current advanced track");
+    println!(
+        "  Phase 0, Phase 1, Phase 2.5 certification, and the first Phase 3 backend slice are closed or done enough for public v1"
+    );
+    println!(
+        "  prefer closing agent workflow, unattended-safety, and release-polish gaps before expanding syntax beyond the v1 bootstrap subset"
+    );
+    println!("  resume earlier-phase gaps when they outrank the current focus");
     println!("  record the chosen focus and outcome in Progress/");
     println!("source default: examples/");
     println!("workflow:");
