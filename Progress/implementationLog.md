@@ -2,6 +2,12 @@
 
 ## 2026-05-23
 
+- Chose a source-level standard library as the next cross-phase task because core helpers existed only as examples or compiler intrinsics, leaving common v1 APIs such as deterministic random, integer helpers, and list wrappers undiscoverable through normal symbol queries.
+- Added `examples/stdlib.serow` with `core.bool`, `core.int`, `core.text`, `core.list`, and `core.random` modules, each with explicit versions, contracts, executable examples, sampled properties, effects, and implementations.
+- Kept the v1 scope inside current bootstrap semantics: integer-only math, basic text composition, concrete list helpers over existing intrinsics, and seed-threaded deterministic RNG records instead of unsupported floats, slicing, maps, OS entropy, or nondeterministic effects.
+- Updated project metadata, README, current state notes, and sample-count regression coverage.
+- Verification is recorded in the final run for this change.
+
 - Added `remove_first(list, value)` as a compiler-owned pure list intrinsic, with checker/evaluator/Rust backend support for removing the first matching comparable value from homogeneous lists.
 - Migrated `examples/rpg.serow` inventory from a fixed `potion: Bool` field to enum-backed `inventory: List<Item>` state, using `push`, `contains`, and `remove_first` for take/drink behavior while keeping the terminal game flow intact.
 - Added temporary bootstrap safe list access through compiler-owned pure intrinsics `get_text(list: List<Text>, index: Int) -> MaybeText` and `get_int(list: List<Int>, index: Int) -> MaybeInt`.

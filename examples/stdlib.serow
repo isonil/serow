@@ -1,0 +1,741 @@
+module core.bool
+
+pub fn bool_not(value: Bool) -> Bool
+  intent "Invert a truth flag."
+  version v1
+  contract
+    ensures result != value
+  examples
+    bool_not(true) == false
+    bool_not(false) == true
+  properties
+    forall value: Bool:
+      bool_not(bool_not(value)) == value
+  effects pure
+  impl
+    not value
+
+pub fn bool_and(left: Bool, right: Bool) -> Bool
+  intent "Require both conditions simultaneously."
+  version v1
+  contract
+    ensures result == (left and right)
+  examples
+    bool_and(true, true) == true
+    bool_and(true, false) == false
+  properties
+    forall left: Bool, right: Bool:
+      bool_and(left, right) == bool_and(right, left)
+  effects pure
+  impl
+    left and right
+
+pub fn bool_or(left: Bool, right: Bool) -> Bool
+  intent "Accept either condition as sufficient."
+  version v1
+  contract
+    ensures result == (left or right)
+  examples
+    bool_or(false, false) == false
+    bool_or(true, false) == true
+  properties
+    forall left: Bool, right: Bool:
+      bool_or(left, right) == bool_or(right, left)
+  effects pure
+  impl
+    left or right
+
+pub fn bool_xor(left: Bool, right: Bool) -> Bool
+  intent "Detect exclusive alternatives."
+  version v1
+  contract
+    ensures result == ((left or right) and not (left and right))
+  examples
+    bool_xor(true, false) == true
+    bool_xor(true, true) == false
+    bool_xor(false, false) == false
+  properties
+    forall left: Bool, right: Bool:
+      bool_xor(left, right) == bool_xor(right, left)
+  effects pure
+  impl
+    (left or right) and not (left and right)
+
+pub fn bool_implies(when: Bool, then_value: Bool) -> Bool
+  intent "Model logical implication."
+  version v1
+  contract
+    ensures result == ((not when) or then_value)
+  examples
+    bool_implies(true, false) == false
+    bool_implies(false, false) == true
+    bool_implies(true, true) == true
+  properties
+    forall value: Bool:
+      bool_implies(value, value) == true
+  effects pure
+  impl
+    (not when) or then_value
+
+pub fn bool_equal(left: Bool, right: Bool) -> Bool
+  intent "Check biconditional equivalence."
+  version v1
+  contract
+    ensures result == (left == right)
+  examples
+    bool_equal(true, true) == true
+    bool_equal(true, false) == false
+  properties
+    forall left: Bool, right: Bool:
+      bool_equal(left, right) == bool_equal(right, left)
+  effects pure
+  impl
+    left == right
+
+module core.int
+
+pub fn int_sub(left: Int, right: Int) -> Int
+  intent "Subtract the second operand from the first."
+  version v1
+  contract
+    ensures result == left - right
+  examples
+    int_sub(7, 3) == 4
+    int_sub(3, 7) == -4
+  properties
+    forall value: Int:
+      int_sub(value, 0) == value
+  effects pure
+  impl
+    left - right
+
+pub fn int_mul(left: Int, right: Int) -> Int
+  intent "Multiply operands."
+  version v1
+  contract
+    ensures result == left * right
+  examples
+    int_mul(6, 7) == 42
+    int_mul(-3, 4) == -12
+  properties
+    forall left: Int, right: Int:
+      int_mul(left, right) == int_mul(right, left)
+  effects pure
+  impl
+    left * right
+
+pub fn int_neg(value: Int) -> Int
+  intent "Flip integer polarity."
+  version v1
+  contract
+    ensures result == -value
+  examples
+    int_neg(5) == -5
+    int_neg(-5) == 5
+  properties
+    forall value: Int:
+      int_neg(int_neg(value)) == value
+  effects pure
+  impl
+    -value
+
+pub fn int_min(left: Int, right: Int) -> Int
+  intent "Choose lower numeric operand."
+  version v1
+  contract
+    ensures result <= left
+    ensures result <= right
+    ensures result == left or result == right
+  examples
+    int_min(3, 7) == 3
+    int_min(7, 3) == 3
+  properties
+    forall left: Int, right: Int:
+      int_min(left, right) == int_min(right, left)
+  effects pure
+  impl
+    if left < right then left else right
+
+pub fn int_max(left: Int, right: Int) -> Int
+  intent "Select greater scalar."
+  version v1
+  contract
+    ensures result >= left
+    ensures result >= right
+    ensures result == left or result == right
+  examples
+    int_max(3, 7) == 7
+    int_max(7, 3) == 7
+  properties
+    forall left: Int, right: Int:
+      int_max(left, right) == int_max(right, left)
+  effects pure
+  impl
+    if left > right then left else right
+
+pub fn int_clamp(value: Int, low: Int, high: Int) -> Int
+  intent "Bound scalar inside inclusive limits."
+  version v1
+  contract
+    requires low <= high
+    ensures result >= low
+    ensures result <= high
+  examples
+    int_clamp(5, 0, 10) == 5
+    int_clamp(-5, 0, 10) == 0
+    int_clamp(15, 0, 10) == 10
+  properties
+    forall value: Int:
+      int_clamp(value, -2, 2) >= -2 and int_clamp(value, -2, 2) <= 2
+  effects pure
+  impl
+    if value < low then low else if value > high then high else value
+
+pub fn int_square(value: Int) -> Int
+  intent "Calculate quadratic self-product."
+  version v1
+  contract
+    ensures result == value * value
+    ensures result >= 0
+  examples
+    int_square(5) == 25
+    int_square(-5) == 25
+  properties
+    forall value: Int:
+      int_square(value) >= 0
+  effects pure
+  impl
+    value * value
+
+pub fn int_rem(left: Int, right: Int) -> Int
+  intent "Compute modulus residue for divisor."
+  version v1
+  contract
+    requires right != 0
+    ensures result == left % right
+  examples
+    int_rem(7, 3) == 1
+    int_rem(8, 4) == 0
+  properties
+    forall value: Int:
+      int_rem(value, 1) == 0
+  effects pure
+  impl
+    left % right
+
+pub fn int_is_even(value: Int) -> Bool
+  intent "Classify parity as even."
+  version v1
+  contract
+    ensures result == (value % 2 == 0)
+  examples
+    int_is_even(4) == true
+    int_is_even(5) == false
+  properties
+    forall value: Int:
+      int_is_even(value) != int_is_even(value + 1)
+  effects pure
+  impl
+    value % 2 == 0
+
+pub fn int_is_odd(value: Int) -> Bool
+  intent "Recognize remainder-one cases."
+  version v1
+  contract
+    ensures result == (value % 2 != 0)
+  examples
+    int_is_odd(4) == false
+    int_is_odd(5) == true
+  properties
+    forall value: Int:
+      int_is_odd(value) != int_is_even(value)
+  effects pure
+  impl
+    value % 2 != 0
+
+pub fn int_sign(value: Int) -> Int
+  intent "Map scalar direction to -1, 0, or 1."
+  version v1
+  contract
+    ensures result == -1 or result == 0 or result == 1
+  examples
+    int_sign(-5) == -1
+    int_sign(0) == 0
+    int_sign(5) == 1
+  properties
+    forall value: Int:
+      int_sign(value) == 0 or int_sign(value) * value > 0
+  effects pure
+  impl
+    if value < 0 then -1 else if value > 0 then 1 else 0
+
+module core.text
+
+pub fn text_is_empty(value: Text) -> Bool
+  intent "Test for blank text."
+  version v1
+  contract
+    ensures result == (value == "")
+  examples
+    text_is_empty("") == true
+    text_is_empty("serow") == false
+  properties
+    forall value: Text:
+      text_is_empty(value) == (value == "")
+  effects pure
+  impl
+    value == ""
+
+pub fn text_non_empty(value: Text) -> Bool
+  intent "Test for present characters."
+  version v1
+  contract
+    ensures result == (value != "")
+  examples
+    text_non_empty("") == false
+    text_non_empty("serow") == true
+  properties
+    forall value: Text:
+      text_non_empty(value) != text_is_empty(value)
+  effects pure
+  impl
+    value != ""
+
+pub fn text_append(left: Text, right: Text) -> Text
+  intent "Concatenate left then right text."
+  version v1
+  contract
+    ensures result == left + right
+  examples
+    text_append("sero", "w") == "serow"
+    text_append("", "core") == "core"
+  properties
+    forall value: Text:
+      text_append(value, "") == value
+  effects pure
+  impl
+    left + right
+
+pub fn text_prepend(prefix: Text, value: Text) -> Text
+  intent "Attach prefix before body."
+  version v1
+  contract
+    ensures result == prefix + value
+  examples
+    text_prepend("core.", "text") == "core.text"
+    text_prepend("", "value") == "value"
+  properties
+    forall value: Text:
+      text_prepend("", value) == value
+  effects pure
+  impl
+    prefix + value
+
+pub fn text_surround(prefix: Text, value: Text, suffix: Text) -> Text
+  intent "Wrap content with delimiters."
+  version v1
+  contract
+    ensures result == prefix + value + suffix
+  examples
+    text_surround("[", "ok", "]") == "[ok]"
+    text_surround("", "ok", "") == "ok"
+  properties
+    forall value: Text:
+      text_surround("", value, "") == value
+  effects pure
+  impl
+    prefix + value + suffix
+
+pub fn text_default(value: Text, fallback: Text) -> Text
+  intent "Substitute fallback for blank input."
+  version v1
+  contract
+    ensures if value == "" then result == fallback else result == value
+  examples
+    text_default("", "fallback") == "fallback"
+    text_default("value", "fallback") == "value"
+  properties
+    forall value: Text:
+      text_default(value, "") == value
+  effects pure
+  impl
+    if value == "" then fallback else value
+
+pub fn text_repeat2(value: Text) -> Text
+  intent "Duplicate text once."
+  version v1
+  contract
+    ensures result == value + value
+  examples
+    text_repeat2("ha") == "haha"
+    text_repeat2("") == ""
+  properties
+    forall value: Text:
+      text_repeat2(value) == text_append(value, value)
+  effects pure
+  impl
+    value + value
+
+pub fn text_repeat3(value: Text) -> Text
+  intent "Triplicate text."
+  version v1
+  contract
+    ensures result == value + value + value
+  examples
+    text_repeat3("ha") == "hahaha"
+    text_repeat3("") == ""
+  properties
+    forall value: Text:
+      text_repeat3(value) == text_append(text_repeat2(value), value)
+  effects pure
+  impl
+    value + value + value
+
+module core.list
+
+type MaybeBool = { found: Bool, value: Bool }
+
+pub fn list_int_count(items: List<Int>) -> Int
+  intent "Count numeric sequence entries."
+  version v1
+  contract
+    ensures result == len(items)
+    ensures result >= 0
+  examples
+    list_int_count([]) == 0
+    list_int_count([1]) == 1
+  properties
+    forall value: Int:
+      list_int_count([value]) == 1
+  effects pure
+  impl
+    len(items)
+
+pub fn list_text_count(items: List<Text>) -> Int
+  intent "Measure string collection size."
+  version v1
+  contract
+    ensures result == len(items)
+    ensures result >= 0
+  examples
+    list_text_count([]) == 0
+    list_text_count(["a"]) == 1
+  properties
+    forall value: Text:
+      list_text_count([value]) == 1
+  effects pure
+  impl
+    len(items)
+
+pub fn list_bool_count(items: List<Bool>) -> Int
+  intent "Tally truth-array length."
+  version v1
+  contract
+    ensures result == len(items)
+    ensures result >= 0
+  examples
+    list_bool_count([]) == 0
+    list_bool_count([true]) == 1
+  properties
+    forall value: Bool:
+      list_bool_count([value]) == 1
+  effects pure
+  impl
+    len(items)
+
+pub fn list_int_is_empty(items: List<Int>) -> Bool
+  intent "Report vacant numeric buffer."
+  version v1
+  contract
+    ensures result == (len(items) == 0)
+  examples
+    list_int_is_empty([]) == true
+    list_int_is_empty([1]) == false
+  properties
+    forall value: Int:
+      list_int_is_empty([value]) == false
+  effects pure
+  impl
+    len(items) == 0
+
+pub fn list_text_is_empty(items: List<Text>) -> Bool
+  intent "Recognize vacant text storage."
+  version v1
+  contract
+    ensures result == (len(items) == 0)
+  examples
+    list_text_is_empty([]) == true
+    list_text_is_empty(["x"]) == false
+  properties
+    forall value: Text:
+      list_text_is_empty([value]) == false
+  effects pure
+  impl
+    len(items) == 0
+
+pub fn list_bool_is_empty(items: List<Bool>) -> Bool
+  intent "Identify absent boolean entries."
+  version v1
+  contract
+    ensures result == (len(items) == 0)
+  examples
+    list_bool_is_empty([]) == true
+    list_bool_is_empty([true]) == false
+  properties
+    forall value: Bool:
+      list_bool_is_empty([value]) == false
+  effects pure
+  impl
+    len(items) == 0
+
+pub fn list_int_append(items: List<Int>, value: Int) -> List<Int>
+  intent "Append an Int payload."
+  version v1
+  contract
+    ensures len(result) == len(items) + 1
+    ensures contains(result, value) == true
+  examples
+    list_int_append([], 4) == [4]
+    len(list_int_append([1], 2)) == 2
+  properties
+    forall value: Int:
+      contains(list_int_append([], value), value) == true
+  effects pure
+  impl
+    push(items, value)
+
+pub fn list_text_append(items: List<Text>, value: Text) -> List<Text>
+  intent "Insert string payload at tail."
+  version v1
+  contract
+    ensures len(result) == len(items) + 1
+    ensures contains(result, value) == true
+  examples
+    list_text_append([], "a") == ["a"]
+    list_text_append(["a"], "b") == ["a", "b"]
+  properties
+    forall value: Text:
+      contains(list_text_append([], value), value) == true
+  effects pure
+  impl
+    push(items, value)
+
+pub fn list_bool_append(items: List<Bool>, value: Bool) -> List<Bool>
+  intent "Push Bool payload onto collection."
+  version v1
+  contract
+    ensures len(result) == len(items) + 1
+    ensures contains(result, value) == true
+  examples
+    list_bool_append([], true) == [true]
+    list_bool_append([true], false) == [true, false]
+  properties
+    forall value: Bool:
+      contains(list_bool_append([], value), value) == true
+  effects pure
+  impl
+    push(items, value)
+
+pub fn list_int_contains(items: List<Int>, value: Int) -> Bool
+  intent "Search ints for target."
+  version v1
+  contract
+    ensures result == contains(items, value)
+  examples
+    list_int_contains([1], 1) == true
+    list_int_contains([1], 3) == false
+  properties
+    forall value: Int:
+      list_int_contains([value], value) == true
+  effects pure
+  impl
+    contains(items, value)
+
+pub fn list_text_contains(items: List<Text>, value: Text) -> Bool
+  intent "Locate text member."
+  version v1
+  contract
+    ensures result == contains(items, value)
+  examples
+    list_text_contains(["a"], "a") == true
+    list_text_contains(["a"], "c") == false
+  properties
+    forall value: Text:
+      list_text_contains([value], value) == true
+  effects pure
+  impl
+    contains(items, value)
+
+pub fn list_bool_contains(items: List<Bool>, value: Bool) -> Bool
+  intent "Probe Bool membership."
+  version v1
+  contract
+    ensures result == contains(items, value)
+  examples
+    list_bool_contains([true], true) == true
+    list_bool_contains([true], false) == false
+  properties
+    forall value: Bool:
+      list_bool_contains([value], value) == true
+  effects pure
+  impl
+    contains(items, value)
+
+pub fn list_int_remove_first(items: List<Int>, target: Int) -> List<Int>
+  intent "Drop earliest numeric match."
+  version v1
+  contract
+    ensures len(result) == len(items) or len(result) + 1 == len(items)
+  examples
+    list_int_remove_first([1], 1) == []
+    list_int_remove_first([1], 3) == [1]
+  properties
+    forall value: Int:
+      list_int_remove_first([value], value) == []
+  effects pure
+  impl
+    remove_first(items, target)
+
+pub fn list_text_remove_first(items: List<Text>, target: Text) -> List<Text>
+  intent "Delete leading string occurrence."
+  version v1
+  contract
+    ensures len(result) == len(items) or len(result) + 1 == len(items)
+  examples
+    list_text_remove_first(["a"], "a") == []
+    list_text_remove_first(["a"], "c") == ["a"]
+  properties
+    forall value: Text:
+      list_text_remove_first([value], value) == []
+  effects pure
+  impl
+    remove_first(items, target)
+
+pub fn list_bool_remove_first(items: List<Bool>, target: Bool) -> List<Bool>
+  intent "Erase initial boolean match."
+  version v1
+  contract
+    ensures len(result) == len(items) or len(result) + 1 == len(items)
+  examples
+    list_bool_remove_first([true], true) == []
+    list_bool_remove_first([true], false) == [true]
+  properties
+    forall value: Bool:
+      list_bool_remove_first([value], value) == []
+  effects pure
+  impl
+    remove_first(items, target)
+
+module core.random
+
+type RandomInt = { seed: Int, value: Int }
+
+type RandomBool = { seed: Int, value: Bool }
+
+pub fn random_normalize_seed(seed: Int) -> Int
+  intent "Canonicalize RNG state into sixteen-bit space."
+  version v1
+  contract
+    ensures result >= 0
+    ensures result < 65536
+  examples
+    random_normalize_seed(0) == 0
+    random_normalize_seed(65536) == 0
+    random_normalize_seed(-1) == 65535
+  properties
+    forall seed: Int:
+      random_normalize_seed(seed) >= 0 and random_normalize_seed(seed) < 65536
+  effects pure
+  impl
+    let bounded = seed % 65536;
+    if bounded < 0 then bounded + 65536 else bounded
+
+pub fn random_next_seed(seed: Int) -> Int
+  intent "Step the RNG engine."
+  version v1
+  contract
+    ensures result >= 0
+    ensures result < 65536
+  examples
+    random_next_seed(0) == 13849
+    random_next_seed(1) == 39022
+    random_next_seed(-1) == 54212
+  properties
+    forall seed: Int:
+      random_next_seed(seed) >= 0 and random_next_seed(seed) < 65536
+  effects pure
+  impl
+    (random_normalize_seed(seed) * 25173 + 13849) % 65536
+
+pub fn random_int(seed: Int) -> RandomInt
+  intent "Draw raw RNG output with successor state."
+  version v1
+  contract
+    ensures result.seed == random_next_seed(seed)
+    ensures result.value == result.seed
+  examples
+    random_int(0).value == 13849
+    random_int(1).seed == 39022
+  properties
+    forall seed: Int:
+      random_int(seed).value == random_next_seed(seed)
+  effects pure
+  impl
+    let next = random_next_seed(seed);
+    RandomInt { seed: next, value: next }
+
+pub fn random_below(seed: Int, max: Int) -> RandomInt
+  intent "Bounded ceiling sample."
+  version v1
+  contract
+    requires max > 0
+    ensures result.seed == random_next_seed(seed)
+    ensures result.value >= 0
+    ensures result.value < max
+  examples
+    random_below(0, 10).value == 9
+    random_below(1, 10).value == 2
+  properties
+    forall seed: Int:
+      random_below(seed, 10).value >= 0 and random_below(seed, 10).value < 10
+  effects pure
+  impl
+    let next = random_next_seed(seed);
+    RandomInt { seed: next, value: next % max }
+
+pub fn random_between(seed: Int, low: Int, high: Int) -> RandomInt
+  intent "Sample inclusive integer interval from RNG."
+  version v1
+  contract
+    requires low <= high
+    ensures result.seed == random_next_seed(seed)
+    ensures result.value >= low
+    ensures result.value <= high
+  examples
+    random_between(0, 1, 6).value == 2
+    random_between(1, 1, 6).value == 5
+  properties
+    forall seed: Int:
+      random_between(seed, -2, 2).value >= -2 and random_between(seed, -2, 2).value <= 2
+  effects pure
+  impl
+    let span = high - low + 1;
+    let roll = random_below(seed, span);
+    RandomInt { seed: roll.seed, value: low + roll.value }
+
+pub fn random_bool(seed: Int) -> RandomBool
+  intent "Flip a deterministic coin."
+  version v1
+  contract
+    ensures result.seed == random_next_seed(seed)
+    ensures result.value == true or result.value == false
+  examples
+    random_bool(0).value == true
+    random_bool(1).value == false
+  properties
+    forall seed: Int:
+      random_bool(seed).seed == random_next_seed(seed)
+  effects pure
+  impl
+    let roll = random_below(seed, 2);
+    RandomBool { seed: roll.seed, value: roll.value == 1 }

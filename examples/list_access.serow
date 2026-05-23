@@ -1,6 +1,7 @@
 module core.list_access
 
 type MaybeText = { found: Bool, value: Text }
+
 type MaybeInt = { found: Bool, value: Int }
 
 pub fn get_text_at(items: List<Text>, index: Int) -> MaybeText

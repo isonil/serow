@@ -24,10 +24,10 @@ fn sample_program_checks() {
             .map(|diagnostic| &diagnostic.code)
             .collect::<Vec<_>>()
     );
-    assert_eq!(summary.functions, 20);
-    assert_eq!(summary.examples, 54);
-    assert_eq!(summary.properties, 20);
-    assert_eq!(summary.contracts, 105);
+    assert_eq!(summary.functions, 66);
+    assert_eq!(summary.examples, 157);
+    assert_eq!(summary.properties, 66);
+    assert_eq!(summary.contracts, 230);
 }
 
 #[test]
@@ -3189,9 +3189,16 @@ fn type_query_finds_functions_by_signature_shape() {
 
     let exact_matches = query_type(&program, "Int, Int -> Int", 10);
     assert!(!exact_matches.is_empty(), "{exact_matches:#?}");
-    assert_eq!(exact_matches[0].function.name, "add");
+    let exact_names = exact_matches
+        .iter()
+        .map(|query_match| query_match.function.name.as_str())
+        .collect::<Vec<_>>();
+    assert!(exact_names.contains(&"add"), "{exact_matches:#?}");
     assert!(
-        exact_matches[0]
+        exact_matches
+            .iter()
+            .find(|query_match| query_match.function.name == "add")
+            .expect("add match")
             .reasons
             .iter()
             .any(|reason| reason == "return:Int"),
@@ -11507,7 +11514,7 @@ fn compile_rust_rpg_json_emits_seeded_helpers_and_terminal_loop() {
         "{stdout}"
     );
     assert!(stdout.contains("\"generated_functions\": 9"), "{stdout}");
-    assert!(stdout.contains("\"generated_tests\": 65"), "{stdout}");
+    assert!(stdout.contains("\"generated_tests\": 70"), "{stdout}");
     assert!(
         stdout.contains("serow_test_core_rpg_next_random_v1_example_1"),
         "{stdout}"
@@ -11549,7 +11556,7 @@ fn compile_rust_rpg_emit_bin_runs_generated_crate_tests_and_scripted_win() {
         "{manifest}"
     );
     assert!(manifest.contains("generated_functions = 9"), "{manifest}");
-    assert!(manifest.contains("generated_tests = 65"), "{manifest}");
+    assert!(manifest.contains("generated_tests = 70"), "{manifest}");
 
     let cargo_test_output = Command::new("cargo")
         .args(["test", "--manifest-path"])

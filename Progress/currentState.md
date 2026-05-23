@@ -56,6 +56,12 @@ Selection policy for generic implementation prompts:
   - temporary safe access for current bootstrap types with `get_text(list: List<Text>, index: Int) -> MaybeText` and `get_int(list: List<Int>, index: Int) -> MaybeInt`
   - callers declare `MaybeText = { found: Bool, value: Text }` and `MaybeInt = { found: Bool, value: Int }` until generic payload enums can support `get(list, index) -> Option<T>`
   - negative, out-of-range, and empty-list accesses return `found: false` with a deterministic placeholder value rather than panicking
+- Source-level standard library in `examples/stdlib.serow`:
+  - `core.bool` boolean combinators
+  - `core.int` integer arithmetic, bounds, parity, and sign helpers
+  - `core.text` bootstrap text predicates and builders over the current `Text` subset
+  - `core.list` concrete `Int`/`Text`/`Bool` list helpers layered over list intrinsics
+  - `core.random` deterministic seed-threaded random records and range helpers
 - Source-level public symbol versions with `version vN`; omitted versions default to `v1` for compatibility.
 - Source-level function migration acknowledgements with `migration` records for `public-behavior-change`, `capability-expansion`, `evidence-weakening`, `implementation-change`, and `impact-review`.
 - Qualified function references in executable expressions:
@@ -224,6 +230,7 @@ Selection policy for generic implementation prompts:
 - `patch add-function` and `patch set-intent` reject exact normalized duplicate public intents before writing, returning a `PossibleDuplicate` diagnostic with a `query intent` repair action.
 - Structured patch commands that write single-line quoted metadata, including intents and migration notes, reject raw control characters before writing so generated source remains parseable.
 - Sample program in `examples/math.serow`.
+- Bootstrap standard library in `examples/stdlib.serow`.
 - Deterministic terminal RPG demo in `examples/rpg.serow`, including seed-threaded pure randomness helpers, enum-backed room, command, and item state, `List<Item>` inventory modeling, HP/gold state, win/loss/end states, and a `pub fn main() -> Unit` entrypoint for the Rust binary backend.
 - Rust unit/integration tests in `tests/bootstrap.rs`.
 - Earlier Python bootstrap remains in `serowlang/` as reference code.

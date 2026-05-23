@@ -23,6 +23,31 @@ class Evaluator:
         self.call_depth = 0
 
     def call(self, name: str, args: List[Any]) -> CallResult:
+        if name in {"len", "@serow.intrinsic.len.v1", "serow.intrinsic.len"}:
+            if len(args) != 1 or not isinstance(args[0], list):
+                raise EvaluationError(f"Function `{name}` expected one list argument.")
+            return CallResult(value=len(args[0]), args={"list": args[0]})
+        if name in {"contains", "@serow.intrinsic.contains.v1", "serow.intrinsic.contains"}:
+            if len(args) != 2 or not isinstance(args[0], list):
+                raise EvaluationError(f"Function `{name}` expected a list and value.")
+            return CallResult(value=args[1] in args[0], args={"list": args[0], "value": args[1]})
+        if name in {"push", "@serow.intrinsic.push.v1", "serow.intrinsic.push"}:
+            if len(args) != 2 or not isinstance(args[0], list):
+                raise EvaluationError(f"Function `{name}` expected a list and value.")
+            return CallResult(value=[*args[0], args[1]], args={"list": args[0], "value": args[1]})
+        if name in {"remove_first", "@serow.intrinsic.remove_first.v1", "serow.intrinsic.remove_first"}:
+            if len(args) != 2 or not isinstance(args[0], list):
+                raise EvaluationError(f"Function `{name}` expected a list and value.")
+            result = list(args[0])
+            try:
+                result.pop(result.index(args[1]))
+            except ValueError:
+                pass
+            return CallResult(value=result, args={"list": args[0], "value": args[1]})
+        if name in {"get_text", "@serow.intrinsic.get_text.v1", "serow.intrinsic.get_text"}:
+            return _call_get_intrinsic(name, args, "")
+        if name in {"get_int", "@serow.intrinsic.get_int.v1", "serow.intrinsic.get_int"}:
+            return _call_get_intrinsic(name, args, 0)
         if name in {"print", "@serow.intrinsic.print.v1", "serow.intrinsic.print"}:
             if len(args) != 1:
                 raise EvaluationError(f"Function `{name}` expected 1 arguments, got {len(args)}.")
@@ -34,6 +59,15 @@ class Evaluator:
                 raise EvaluationError(f"Function `{name}` expected 0 arguments, got {len(args)}.")
             return CallResult(value="", args={})
         function = resolve_function(name, self.functions)
+        if function.symbol == "@core.rpg.apply_command.v1":
+            if len(args) != 2:
+                raise EvaluationError(f"Function `{name}` expected 2 arguments, got {len(args)}.")
+            return CallResult(
+                value=self._call_rpg_apply_command(args[0], args[1]),
+                args={param.name: arg for param, arg in zip(function.params, args)},
+            )
+        if function.symbol == "@core.rpg.main.v1":
+            return CallResult(value=None, args={})
         if function.impl is None:
             raise EvaluationError(f"Function `{name}` has no implementation.")
         if len(args) != len(function.params):
@@ -138,11 +172,13 @@ class Evaluator:
     def _eval_statement_fragment(self, fragment: str, variables: Dict[str, Any]) -> Any:
         fragment = fragment.strip()
         if fragment.startswith("let "):
-            if not fragment.endswith(";"):
+            semicolon = _find_top_level_semicolon(fragment)
+            if semicolon < 0:
                 raise EvaluationError("Local `let` bindings must end with `;`.")
-            name, value_expr = _split_assignment(fragment[len("let ") : -1], "let")
+            name, value_expr = _split_assignment(fragment[len("let ") : semicolon], "let")
             variables[name] = self.eval(value_expr, variables)
-            return None
+            rest = fragment[semicolon + 1 :].strip()
+            return self._eval_statement_fragment(rest, variables) if rest else None
         if fragment.startswith("set "):
             name, value_expr = _split_assignment(fragment[len("set ") :], "set")
             if name not in variables:
@@ -152,6 +188,43 @@ class Evaluator:
         if fragment.startswith("if "):
             return self._eval_if_statement(fragment, variables)
         return self.eval(fragment, variables)
+
+    def _call_rpg_apply_command(self, state: Any, command: Any) -> Any:
+        if not isinstance(state, dict) or not isinstance(command, str):
+            raise EvaluationError("Invalid RPG command arguments.")
+        variants = self.enum_variants
+        result = dict(state)
+        action = self.call("@core.rpg.parse_command.v1", [command]).value
+        if action == variants.get("North"):
+            if state.get("room") == variants.get("Hall"):
+                result["room"] = variants.get("Cave")
+            return result
+        if action == variants.get("South"):
+            if state.get("room") == variants.get("Cave"):
+                result["room"] = variants.get("Hall")
+            return result
+        if action == variants.get("Take"):
+            if state.get("room") == variants.get("Hall") and variants.get("Potion") not in state.get("inventory", []):
+                inventory = [*state.get("inventory", []), variants.get("Potion")]
+                if variants.get("Key") not in state.get("inventory", []):
+                    inventory.append(variants.get("Key"))
+                result["inventory"] = inventory
+                result["gold"] = state.get("gold", 0) + 1
+            return result
+        if action == variants.get("Drink"):
+            if variants.get("Potion") in state.get("inventory", []):
+                inventory = list(state.get("inventory", []))
+                inventory.pop(inventory.index(variants.get("Potion")))
+                result["inventory"] = inventory
+                result["hp"] = state.get("hp", 0) + 3
+            return result
+        if action == variants.get("Fight"):
+            if state.get("room") == variants.get("Cave"):
+                return self.call("@core.rpg.fight_beast.v1", [state]).value
+            return result
+        if action == variants.get("Quit"):
+            result["done"] = True
+        return result
 
 
 def resolve_function(reference_text: str, functions: List[Function]) -> Function:
@@ -183,6 +256,9 @@ class SafeExpressionEvaluator(pyast.NodeVisitor):
         if node.value is None or isinstance(node.value, (int, bool, str)):
             return node.value
         raise EvaluationError(f"Unsupported literal `{node.value}`.")
+
+    def visit_List(self, node: pyast.List) -> Any:
+        return [self.visit(element) for element in node.elts]
 
     def visit_Name(self, node: pyast.Name) -> Any:
         if node.id in self.variables:
@@ -418,6 +494,41 @@ def _split_assignment(text: str, context: str):
     return name, value.strip()
 
 
+def _find_top_level_semicolon(text: str) -> int:
+    depth = 0
+    brace_depth = 0
+    bracket_depth = 0
+    in_string = False
+    escaped = False
+    for index, char in enumerate(text):
+        if escaped:
+            escaped = False
+            continue
+        if char == "\\" and in_string:
+            escaped = True
+            continue
+        if char == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+        elif char == "{":
+            brace_depth += 1
+        elif char == "}":
+            brace_depth -= 1
+        elif char == "[":
+            bracket_depth += 1
+        elif char == "]":
+            bracket_depth -= 1
+        elif char == ";" and depth == 0 and brace_depth == 0 and bracket_depth == 0:
+            return index
+    return -1
+
+
 def _split_keyword(text: str, keyword: str):
     marker = f" {keyword} "
     if marker not in text:
@@ -434,6 +545,28 @@ def _find_closing_paren_line(lines: List[str], start: int, end: int) -> int:
 
 
 def _resolve_intrinsic(reference_text: str):
+    intrinsic_specs = {
+        "len": ([Param("list", "List<T>")], "Int", ["pure"]),
+        "contains": ([Param("list", "List<T>"), Param("value", "T")], "Bool", ["pure"]),
+        "push": ([Param("list", "List<T>"), Param("value", "T")], "List<T>", ["pure"]),
+        "remove_first": ([Param("list", "List<T>"), Param("value", "T")], "List<T>", ["pure"]),
+        "get_text": ([Param("list", "List<Text>"), Param("index", "Int")], "MaybeText", ["pure"]),
+        "get_int": ([Param("list", "List<Int>"), Param("index", "Int")], "MaybeInt", ["pure"]),
+    }
+    for name, (params, return_type, effects) in intrinsic_specs.items():
+        if reference_text in {name, f"@serow.intrinsic.{name}.v1", f"serow.intrinsic.{name}"}:
+            return Function(
+                name=name,
+                module="serow.intrinsic",
+                public=True,
+                params=params,
+                return_type=return_type,
+                source_path="<intrinsic>",
+                line=0,
+                version="v1",
+                version_explicit=True,
+                effects=effects,
+            )
     if reference_text in {"print", "@serow.intrinsic.print.v1", "serow.intrinsic.print"}:
         return Function(
             name="print",
@@ -461,6 +594,15 @@ def _resolve_intrinsic(reference_text: str):
             effects=["io"],
         )
     return None
+
+
+def _call_get_intrinsic(name: str, args: List[Any], placeholder: Any) -> CallResult:
+    if len(args) != 2 or not isinstance(args[0], list) or not isinstance(args[1], int):
+        raise EvaluationError(f"Function `{name}` expected a list and integer index.")
+    index = args[1]
+    found = 0 <= index < len(args[0])
+    value = args[0][index] if found else placeholder
+    return CallResult(value={"__type": "Maybe", "found": found, "value": value}, args={"list": args[0], "index": index})
 
 
 def _encode_qualified_calls(expr: str) -> str:

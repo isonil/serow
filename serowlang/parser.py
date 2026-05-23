@@ -246,7 +246,7 @@ def _parse_type_decl(path: str, module: str, line: int, header: re.Match):
                     )
                 )
                 continue
-            if not IDENT_RE.match(type_name):
+            if not _is_valid_type_name(type_name):
                 diagnostics.append(
                     Diagnostic(
                         severity="error",
@@ -313,7 +313,7 @@ def _parse_function(path: str, module: str, line: int, header: re.Match, block: 
         line=line,
     )
     diagnostics: List[Diagnostic] = list(param_diagnostics)
-    if not IDENT_RE.match(function.return_type):
+    if not _is_valid_type_name(function.return_type):
         diagnostics.append(
             Diagnostic(
                 severity="error",
@@ -524,7 +524,7 @@ def _parse_params(text: str, path: str, line: int) -> Tuple[List[Param], List[Di
                 )
             )
             continue
-        if not IDENT_RE.match(type_name):
+        if not _is_valid_type_name(type_name):
             diagnostics.append(
                 Diagnostic(
                     severity="error",
@@ -558,6 +558,15 @@ def _parse_effects(text: str) -> List[str]:
         inner = text[1:-1].strip()
         return [effect.strip() for effect in inner.split(",") if effect.strip()]
     return [text]
+
+
+def _is_valid_type_name(type_name: str) -> bool:
+    type_name = type_name.strip()
+    if IDENT_RE.match(type_name):
+        return True
+    if type_name.startswith("List<") and type_name.endswith(">"):
+        return _is_valid_type_name(type_name[len("List<") : -1])
+    return False
 
 
 def _mark_section(seen_sections, section: str, diagnostics: List[Diagnostic], path: str, line: int) -> None:

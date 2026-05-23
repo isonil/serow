@@ -100,7 +100,7 @@ def _check_type_declarations(program: Program, summary: CheckSummary) -> None:
                 )
             else:
                 seen_fields.add(field.name)
-            if field.type_name not in known_types:
+            if not _is_known_type(field.type_name, known_types):
                 summary.diagnostics.append(
                     Diagnostic(
                         severity="warning",
@@ -370,7 +370,7 @@ def _check_function_shape(function: Function, program: Program, summary: CheckSu
 
     known_types = SUPPORTED_TYPES | {type_decl.name for type_decl in program.types}
     for param in function.params:
-        if param.type_name not in known_types:
+        if not _is_known_type(param.type_name, known_types):
             summary.diagnostics.append(
                 Diagnostic(
                     severity="warning",
@@ -379,7 +379,7 @@ def _check_function_shape(function: Function, program: Program, summary: CheckSu
                     target=function.target,
                 )
             )
-    if function.return_type not in known_types:
+    if not _is_known_type(function.return_type, known_types):
         summary.diagnostics.append(
             Diagnostic(
                 severity="warning",
@@ -1361,6 +1361,8 @@ class _UnsupportedSample:
 
 
 def _samples_for_type(type_name: str, types: List[TypeDecl], active_records: Optional[List[str]] = None):
+    if _is_list_type(type_name):
+        return _UnsupportedSample(_UnknownSampleType(type_name))
     if type_name == "Int":
         return [-2, -1, 0, 1, 2, -10, 10]
     if type_name == "Bool":
@@ -1420,6 +1422,24 @@ def _unsupported_sample_reason_text(reason: object) -> str:
     if isinstance(reason, _UnknownSampleType):
         return f"unknown type `{reason.type_name}`"
     return "unknown type"
+
+
+def _is_known_type(type_name: str, known_types: set) -> bool:
+    if type_name in known_types:
+        return True
+    element_type = _list_element_type(type_name)
+    return element_type is not None and _is_known_type(element_type, known_types)
+
+
+def _is_list_type(type_name: str) -> bool:
+    return _list_element_type(type_name) is not None
+
+
+def _list_element_type(type_name: str) -> Optional[str]:
+    type_name = type_name.strip()
+    if type_name.startswith("List<") and type_name.endswith(">"):
+        return type_name[len("List<") : -1].strip()
+    return None
 
 
 def _extract_single_call(example: str, function: Function):
