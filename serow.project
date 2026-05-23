@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "0.4.110-rust-bootstrap",
+  "version": "0.4.111-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -53,6 +53,7 @@
     "plan": "bin/serow plan <paths...>",
     "query_callees": "bin/serow query callees \"<symbol-or-name>\"",
     "query_dependents": "bin/serow query dependents \"<symbol-or-name>\"",
+    "query_effects": "bin/serow query effects \"<symbol-or-name>\"",
     "query_impact": "bin/serow query impact \"<symbol-or-name>\"",
     "query_intent": "bin/serow query intent \"<description>\"",
     "query_symbol": "bin/serow query symbol \"<name>\"",
@@ -80,6 +81,7 @@
     "duplicate_intent_diagnostics_report_term_differences": true,
     "near_duplicate_public_intents_warned": true,
     "type_shape_ledger_queries": true,
+    "effect_ledger_queries": true,
     "duplicate_evidence_warned": true,
     "duplicate_property_variables_rejected": true,
     "duplicate_migrations_warned": true,

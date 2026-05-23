@@ -6,8 +6,9 @@ use crate::diagnostic::{Diagnostic, has_errors, validate_repair_actions};
 use crate::formatter::{FormatSummary, format_paths};
 use crate::ir::{IrExpr, IrFunction, IrProgram, IrSummary, lower_checked_program};
 use crate::ledger::{
-    Callee, Dependent, ImpactDependent, SymbolMatch, SymbolQueryMatch, query_callees,
-    query_dependents, query_impact, query_intent, query_symbol, query_type, symbols,
+    Callee, Dependent, EffectQueryRow, ImpactDependent, SymbolMatch, SymbolQueryMatch,
+    query_callees, query_dependents, query_effects, query_impact, query_intent, query_symbol,
+    query_type, symbols,
 };
 use crate::model::Function;
 use crate::parser::{discover_sources, parse_paths};
@@ -2056,6 +2057,23 @@ fn run_query(args: &[String]) -> i32 {
             }
             0
         }
+        "effects" => {
+            let Some(mut parsed) = parse_text_query_args(&query_args[1..]) else {
+                return text_query_usage_error("effects", json_requested);
+            };
+            parsed.json_output |= json_requested;
+            let (program, parse_diagnostics) = parse_paths(&parsed.paths);
+            if emit_query_parse_errors("effects", parsed.json_output, &parse_diagnostics) {
+                return 1;
+            }
+            let effects = query_effects(&program, &parsed.text);
+            if parsed.json_output {
+                println!("{}", effects_json(&effects));
+            } else {
+                print_effects(&effects);
+            }
+            0
+        }
         "impact" => {
             let Some(mut parsed) = parse_text_query_args(&query_args[1..]) else {
                 return text_query_usage_error("impact", json_requested);
@@ -2770,6 +2788,49 @@ fn print_callees(callees: &[Callee]) {
         println!("  source: {}:{}", row.target.source_path, row.target.line);
         for call_site in &row.call_sites {
             println!("  {}: {}", call_site.context, call_site.expression);
+        }
+    }
+}
+
+fn print_effects(rows: &[EffectQueryRow]) {
+    if rows.is_empty() {
+        println!("no matches");
+        return;
+    }
+    for row in rows {
+        println!("{}", row.function.symbol());
+        println!("  {}", row.function.signature());
+        println!(
+            "  source: {}:{}",
+            row.function.source_path, row.function.line
+        );
+        println!("  declared_effects: {}", human_list(&row.declared_effects));
+        println!(
+            "  declared_capabilities: {}",
+            human_list(&row.declared_capabilities)
+        );
+        println!(
+            "  required_by_direct_callees: {}",
+            human_list(&row.required_by_direct_callees)
+        );
+        println!(
+            "  missing_for_direct_callees: {}",
+            human_list(&row.missing_for_direct_callees)
+        );
+        println!(
+            "  unused_for_direct_callees: {}",
+            human_list(&row.unused_for_direct_callees)
+        );
+        println!("  suggested_effects: {}", row.suggested_effects);
+        for callee in &row.callees {
+            println!(
+                "  callee {} effects={}",
+                callee.function.symbol(),
+                human_list(&callee.declared_effects)
+            );
+            for call_site in &callee.call_sites {
+                println!("    {}: {}", call_site.context, call_site.expression);
+            }
         }
     }
 }
@@ -4103,6 +4164,62 @@ fn callees_json(callees: &[Callee]) -> String {
     format!("{{\n  \"ok\": true,\n  \"results\": [\n    {rows}\n  ]\n}}")
 }
 
+fn effects_json(rows: &[EffectQueryRow]) -> String {
+    let rows = rows
+        .iter()
+        .map(|row| {
+            format!(
+                concat!(
+                    "{{\n",
+                    "      \"callees\": {},\n",
+                    "      \"declared_capabilities\": {},\n",
+                    "      \"declared_effects\": {},\n",
+                    "      \"function\": {},\n",
+                    "      \"missing_for_direct_callees\": {},\n",
+                    "      \"required_by_direct_callees\": {},\n",
+                    "      \"suggested_effects\": {},\n",
+                    "      \"unused_for_direct_callees\": {}\n",
+                    "    }}"
+                ),
+                effect_callees_json(&row.callees),
+                string_array_json(&row.declared_capabilities),
+                string_array_json(&row.declared_effects),
+                function_ref_json(&row.function),
+                string_array_json(&row.missing_for_direct_callees),
+                string_array_json(&row.required_by_direct_callees),
+                json_string(&row.suggested_effects),
+                string_array_json(&row.unused_for_direct_callees),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",\n    ");
+    format!("{{\n  \"ok\": true,\n  \"results\": [\n    {rows}\n  ]\n}}")
+}
+
+fn effect_callees_json(callees: &[crate::ledger::EffectCallee]) -> String {
+    let rows = callees
+        .iter()
+        .map(|callee| {
+            format!(
+                concat!(
+                    "{{",
+                    "\"call_sites\": {}, ",
+                    "\"declared_capabilities\": {}, ",
+                    "\"declared_effects\": {}, ",
+                    "\"function\": {}",
+                    "}}"
+                ),
+                call_sites_json(&callee.call_sites),
+                string_array_json(&callee.declared_capabilities),
+                string_array_json(&callee.declared_effects),
+                function_ref_json(&callee.function),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("[{rows}]")
+}
+
 fn impact_json(impact: &[ImpactDependent]) -> String {
     format!(
         "{{\n  \"ok\": true,\n  \"results\": {}\n}}",
@@ -4448,6 +4565,11 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
         "query dependents",
         "serow query dependents <symbol-or-name> [paths...] [--json]",
         "List direct dependents discovered from resolved function calls.",
+    ),
+    (
+        "query effects",
+        "serow query effects <symbol-or-name> [paths...] [--json]",
+        "Report declared effects, inferred direct-call capability requirements, and direct callees.",
     ),
     (
         "query impact",
@@ -4883,6 +5005,7 @@ fn print_usage() {
     eprintln!("  serow plan [paths...] [--json]");
     eprintln!("  serow query callees <symbol-or-name> [paths...] [--json]");
     eprintln!("  serow query dependents <symbol-or-name> [paths...] [--json]");
+    eprintln!("  serow query effects <symbol-or-name> [paths...] [--json]");
     eprintln!("  serow query impact <symbol-or-name> [paths...] [--json]");
     eprintln!("  serow query intent <text> [paths...] [--json]");
     eprintln!("  serow query symbol <text> [paths...] [--json]");
@@ -4955,6 +5078,7 @@ fn print_query_usage() {
     eprintln!("usage:");
     eprintln!("  serow query callees <symbol-or-name> [paths...] [--json]");
     eprintln!("  serow query dependents <symbol-or-name> [paths...] [--json]");
+    eprintln!("  serow query effects <symbol-or-name> [paths...] [--json]");
     eprintln!("  serow query impact <symbol-or-name> [paths...] [--json]");
     eprintln!("  serow query intent <text> [paths...] [--json]");
     eprintln!("  serow query symbol <text> [paths...] [--json]");

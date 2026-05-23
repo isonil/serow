@@ -7,7 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serow::checker::check_program;
 use serow::diagnostic::{Diagnostic, RepairAction, validate_repair_actions};
 use serow::formatter::format_paths;
-use serow::ledger::{SymbolMatch, query_intent, query_symbol, query_type, symbols};
+use serow::ledger::{SymbolMatch, query_effects, query_intent, query_symbol, query_type, symbols};
 use serow::parser::{discover_sources, parse_paths};
 use serow::project::{parse_architecture, parse_project_version};
 
@@ -3350,6 +3350,7 @@ fn text_query_commands_reject_json_flag_without_query_text() {
     for query_command in [
         "callees",
         "dependents",
+        "effects",
         "impact",
         "intent",
         "symbol",
@@ -4113,6 +4114,7 @@ fn agent_commands_json_includes_full_command_catalog() {
     assert!(stdout.contains("serow patch rename-type"), "{stdout}");
     assert!(stdout.contains("serow patch set-use"), "{stdout}");
     assert!(stdout.contains("serow query callees"), "{stdout}");
+    assert!(stdout.contains("serow query effects"), "{stdout}");
     assert!(stdout.contains("serow query symbols"), "{stdout}");
     assert!(stdout.contains("serow replay property"), "{stdout}");
 }
@@ -4596,6 +4598,114 @@ pub fn round_trip(x: Int) -> Int
     assert!(stdout.contains("\"callee\""), "{stdout}");
     assert!(stdout.contains("\"context\": \"impl\""), "{stdout}");
     assert!(stdout.contains("\"context\": \"property\""), "{stdout}");
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn effects_query_reports_declared_and_required_capabilities() {
+    let dir = unique_temp_dir("serow-effects-query");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("effects.serow");
+    fs::write(
+        &source,
+        r#"module app.terminal
+
+pub fn shout(text: Text) -> Unit
+  intent "Print text to the terminal."
+  contract
+    requires text != ""
+  examples
+    shout("hello") == unit
+  properties
+    forall text: Text:
+      text != "" => shout(text) == unit
+  effects [io]
+  impl
+    print(text)
+
+pub fn quiet(text: Text) -> Text
+  intent "Return text without terminal output."
+  contract
+    ensures result == text
+  examples
+    quiet("hello") == "hello"
+  properties
+    forall text: Text:
+      quiet(text) == text
+  effects pure
+  impl
+    text
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    assert!(parse_diagnostics.is_empty(), "{parse_diagnostics:#?}");
+    let rows = query_effects(&program, "shout");
+    assert_eq!(rows.len(), 1, "{rows:#?}");
+    assert_eq!(rows[0].function.symbol(), "@app.terminal.shout.v1");
+    assert_eq!(rows[0].declared_effects, vec!["io".to_string()]);
+    assert_eq!(rows[0].declared_capabilities, vec!["io".to_string()]);
+    assert_eq!(rows[0].required_by_direct_callees, vec!["io".to_string()]);
+    assert!(rows[0].missing_for_direct_callees.is_empty(), "{rows:#?}");
+    assert!(rows[0].unused_for_direct_callees.is_empty(), "{rows:#?}");
+    assert_eq!(rows[0].suggested_effects, "[io]");
+    assert!(
+        rows[0].callees.iter().any(|callee| callee.function.symbol()
+            == "@serow.intrinsic.print.v1"
+            && callee.declared_capabilities == ["io"]),
+        "{rows:#?}"
+    );
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "query",
+            "effects",
+            "@app.terminal.shout.v1",
+            source.to_str().expect("utf8 path"),
+            "--json",
+        ])
+        .output()
+        .expect("run serow query effects");
+
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(
+        stdout.contains("\"symbol\": \"@app.terminal.shout.v1\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"declared_effects\": [\"io\"]"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"required_by_direct_callees\": [\"io\"]"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"symbol\": \"@serow.intrinsic.print.v1\""),
+        "{stdout}"
+    );
+    assert!(stdout.contains("\"context\": \"impl\""), "{stdout}");
+
+    let text_output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "query",
+            "effects",
+            "quiet",
+            source.to_str().expect("utf8 path"),
+        ])
+        .output()
+        .expect("run serow query effects text");
+
+    assert!(text_output.status.success(), "{text_output:#?}");
+    let stdout = String::from_utf8(text_output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("@app.terminal.quiet.v1"), "{stdout}");
+    assert!(stdout.contains("declared_effects: pure"), "{stdout}");
+    assert!(
+        stdout.contains("required_by_direct_callees: none"),
+        "{stdout}"
+    );
     let _ = fs::remove_dir_all(dir);
 }
 

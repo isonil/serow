@@ -63,6 +63,26 @@ pub struct ImpactDependent {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EffectQueryRow {
+    pub function: Function,
+    pub declared_effects: Vec<String>,
+    pub declared_capabilities: Vec<String>,
+    pub required_by_direct_callees: Vec<String>,
+    pub missing_for_direct_callees: Vec<String>,
+    pub unused_for_direct_callees: Vec<String>,
+    pub suggested_effects: String,
+    pub callees: Vec<EffectCallee>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EffectCallee {
+    pub function: Function,
+    pub declared_effects: Vec<String>,
+    pub declared_capabilities: Vec<String>,
+    pub call_sites: Vec<CallSite>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 struct CallEdge {
     caller: Function,
     callee: Function,
@@ -430,6 +450,101 @@ pub fn query_impact(program: &Program, text: &str) -> Vec<ImpactDependent> {
     results
 }
 
+pub fn query_effects(program: &Program, text: &str) -> Vec<EffectQueryRow> {
+    let targets = queryable_functions(program)
+        .into_iter()
+        .filter(|function| function.symbol() == text || function.name == text)
+        .cloned()
+        .collect::<Vec<_>>();
+    if targets.is_empty() {
+        return Vec::new();
+    }
+
+    let mut rows = targets
+        .into_iter()
+        .map(|function| {
+            let declared_effects = normalized_effects(&function.effects);
+            let declared_capabilities = sorted_capabilities(effect_capabilities(&declared_effects));
+            let mut direct_callees: HashMap<String, EffectCallee> = HashMap::new();
+            let mut required_by_direct_callees = HashSet::<String>::new();
+
+            for (context, expression) in function_expressions(&function) {
+                let Ok(call_references) = called_functions(&expression) else {
+                    continue;
+                };
+                for call_reference in call_references {
+                    let Ok(callee) = resolve_function(&call_reference.raw, &program.functions)
+                    else {
+                        continue;
+                    };
+                    if callee.symbol() == function.symbol() {
+                        continue;
+                    }
+                    let callee_effects = normalized_effects(&callee.effects);
+                    let callee_capabilities =
+                        sorted_capabilities(effect_capabilities(&callee_effects));
+                    required_by_direct_callees.extend(callee_capabilities.iter().cloned());
+                    let entry =
+                        direct_callees
+                            .entry(callee.symbol())
+                            .or_insert_with(|| EffectCallee {
+                                function: callee.clone(),
+                                declared_effects: callee_effects,
+                                declared_capabilities: callee_capabilities,
+                                call_sites: Vec::new(),
+                            });
+                    if !entry
+                        .call_sites
+                        .iter()
+                        .any(|site| site.context == context && site.expression == expression)
+                    {
+                        entry.call_sites.push(CallSite {
+                            context: context.to_string(),
+                            expression: expression.clone(),
+                        });
+                    }
+                }
+            }
+
+            let declared_set = declared_capabilities
+                .iter()
+                .cloned()
+                .collect::<HashSet<_>>();
+            let required_set = required_by_direct_callees;
+            let required_by_direct_callees = sorted_capabilities(required_set.clone());
+            let missing_for_direct_callees =
+                sorted_capabilities(required_set.difference(&declared_set).cloned().collect());
+            let unused_for_direct_callees = if required_set.is_empty() {
+                Vec::new()
+            } else {
+                sorted_capabilities(declared_set.difference(&required_set).cloned().collect())
+            };
+            let suggested_capabilities = if required_set.is_empty()
+                || (missing_for_direct_callees.is_empty() && unused_for_direct_callees.is_empty())
+            {
+                declared_set
+            } else {
+                required_set
+            };
+            let mut callees = direct_callees.into_values().collect::<Vec<_>>();
+            callees.sort_by_key(|callee| callee.function.symbol());
+
+            EffectQueryRow {
+                function,
+                declared_effects,
+                declared_capabilities,
+                required_by_direct_callees,
+                missing_for_direct_callees,
+                unused_for_direct_callees,
+                suggested_effects: effect_declaration_from_capabilities(suggested_capabilities),
+                callees,
+            }
+        })
+        .collect::<Vec<_>>();
+    rows.sort_by_key(|row| row.function.symbol());
+    rows
+}
+
 fn reverse_call_edges(program: &Program) -> HashMap<String, Vec<CallEdge>> {
     let mut edge_map: HashMap<(String, String), CallEdge> = HashMap::new();
     for function in &program.functions {
@@ -475,6 +590,41 @@ fn reverse_call_edges(program: &Program) -> HashMap<String, Vec<CallEdge>> {
         edges.sort_by_key(|edge| edge.caller.symbol());
     }
     reverse_edges
+}
+
+fn normalized_effects(effects: &[String]) -> Vec<String> {
+    let mut normalized = effects
+        .iter()
+        .map(|effect| effect.trim().to_string())
+        .collect::<Vec<_>>();
+    normalized.retain(|effect| !effect.is_empty());
+    normalized.sort();
+    normalized.dedup();
+    normalized
+}
+
+fn effect_capabilities(effects: &[String]) -> HashSet<String> {
+    effects
+        .iter()
+        .filter(|effect| effect.as_str() != "pure")
+        .cloned()
+        .collect()
+}
+
+fn sorted_capabilities(capabilities: HashSet<String>) -> Vec<String> {
+    let mut capabilities = capabilities.into_iter().collect::<Vec<_>>();
+    capabilities.sort();
+    capabilities.dedup();
+    capabilities
+}
+
+fn effect_declaration_from_capabilities(capabilities: HashSet<String>) -> String {
+    let capabilities = sorted_capabilities(capabilities);
+    if capabilities.is_empty() {
+        "pure".to_string()
+    } else {
+        format!("[{}]", capabilities.join(", "))
+    }
 }
 
 fn tokens(text: &str) -> HashSet<String> {

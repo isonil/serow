@@ -107,6 +107,7 @@ Selection policy for generic implementation prompts:
   - `bin/serow query type "<type-or-shape>"`
   - `bin/serow query symbols` for public function and declared type symbols
   - `bin/serow query callees "<symbol-or-name>"`
+  - `bin/serow query effects "<symbol-or-name>"` for declared effects, inferred direct-call capability requirements, missing/unused capability deltas, and contributing direct callees
   - `bin/serow query dependents "<symbol-or-name>"`
   - `bin/serow query impact "<symbol-or-name>"` with direct and transitive dependent paths
 - Function symbol, full symbol-list, intent, and type query JSON expose source-level version metadata separately from the canonical symbol string; type symbol query rows expose record/enum shape metadata.

@@ -15,7 +15,7 @@ The language and compiler are intentionally small, but usable for the supported 
 - explicit and inferred module dependencies checked against `serow.project`
 - executable examples and deterministic sampled properties over built-in values, declared records, and enum variants
 - structured JSON diagnostics with machine-readable repair actions where available
-- semantic ledger queries for intent search, symbol lookup, type-shape lookup, callees, dependents, and impact paths
+- semantic ledger queries for intent search, symbol lookup, type-shape lookup, callees, effects, dependents, and impact paths
 - machine-readable change plans and certification gates for public behavior, implementation evidence, capability changes, impact coverage, and migration acknowledgements
 - canonical formatting and structured source patches
 - portable IR emission and a first Rust backend for the supported bootstrap subset
@@ -59,6 +59,7 @@ bin/serow query symbol add
 bin/serow query symbols
 bin/serow query type "Int, Int -> Int"
 bin/serow query callees @core.math.add.v1
+bin/serow query effects @core.math.add.v1
 bin/serow query dependents @core.math.add.v1
 bin/serow query impact @core.math.add.v1
 ```
