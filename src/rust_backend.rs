@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use crate::diagnostic::{Diagnostic, has_errors};
 use crate::eval::Value;
 use crate::intrinsics::{
-    CONTAINS_SYMBOL, LEN_SYMBOL, PRINT_SYMBOL, PUSH_SYMBOL, READ_LINE_SYMBOL, is_intrinsic_symbol,
+    CONTAINS_SYMBOL, GET_INT_SYMBOL, GET_TEXT_SYMBOL, LEN_SYMBOL, PRINT_SYMBOL, PUSH_SYMBOL,
+    READ_LINE_SYMBOL, is_intrinsic_symbol,
 };
 use crate::ir::{
     IrBinaryOp, IrExpr, IrFunction, IrProgram, IrSummary, IrUnaryOp, lower_checked_program,
@@ -2149,6 +2150,61 @@ fn render_intrinsic_call(
                 type_name: result_type,
             })
         }
+        GET_TEXT_SYMBOL => {
+            render_get_intrinsic_call(target, &args, context, "Text", "MaybeText", "String::new()")
+        }
+        GET_INT_SYMBOL => render_get_intrinsic_call(target, &args, context, "Int", "MaybeInt", "0"),
         _ => Err(format!("Unsupported intrinsic `{target}`.")),
     }
+}
+
+fn render_get_intrinsic_call(
+    target: &str,
+    args: &[RenderedExpr],
+    context: RenderContext<'_>,
+    element_type: &str,
+    result_type: &str,
+    fallback_value: &str,
+) -> Result<RenderedExpr, String> {
+    if args.len() != 2 {
+        return Err(format!(
+            "Intrinsic `{target}` has {} lowered arguments, expected 2.",
+            args.len()
+        ));
+    }
+    let expected_list = list_type(element_type);
+    let Some(actual_element_type) = list_element_type(&args[0].type_name) else {
+        return Err(format!(
+            "Intrinsic `{target}` argument 1 lowered as {}, expected {expected_list}.",
+            args[0].type_name
+        ));
+    };
+    if actual_element_type != "Never" && actual_element_type != element_type {
+        return Err(format!(
+            "Intrinsic `{target}` argument 1 lowered as {}, expected {expected_list}.",
+            args[0].type_name
+        ));
+    }
+    if args[1].type_name != "Int" {
+        return Err(format!(
+            "Intrinsic `{target}` argument 2 lowered as {}, expected Int.",
+            args[1].type_name
+        ));
+    }
+    let rust_result_type = rust_type(result_type, context.type_names)?;
+    let found_field = rust_field_identifier("found");
+    let value_field = rust_field_identifier("value");
+    let list_code = if args[0].type_name == EMPTY_LIST_TYPE {
+        render_empty_list_as(&expected_list, context.type_names)?.code
+    } else {
+        strip_outer_parens(&args[0].code).to_string()
+    };
+    Ok(RenderedExpr {
+        code: format!(
+            "{{ let serow_list = {}; let serow_index = {}; if serow_index >= 0 {{ match serow_list.get(serow_index as usize) {{ Some(serow_value) => {rust_result_type} {{ {found_field}: true, {value_field}: serow_value.clone() }}, None => {rust_result_type} {{ {found_field}: false, {value_field}: {fallback_value} }} }} }} else {{ {rust_result_type} {{ {found_field}: false, {value_field}: {fallback_value} }} }} }}",
+            list_code,
+            strip_outer_parens(&args[1].code)
+        ),
+        type_name: result_type.to_string(),
+    })
 }

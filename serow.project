@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "0.4.106-rust-bootstrap",
+  "version": "0.4.107-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -181,7 +181,8 @@
     "rust_backend_generated_readme": true,
     "rust_backend_artifact_drift_check": true,
     "rust_backend_unexpected_artifact_check": true,
-    "rust_backend_recursive_record_rejection": true
+    "rust_backend_recursive_record_rejection": true,
+    "safe_list_access_intrinsics": true
   },
   "source_roots": [
     "examples"

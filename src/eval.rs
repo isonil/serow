@@ -1,7 +1,8 @@
 use std::collections::{BTreeMap, HashMap};
 
 use crate::intrinsics::{
-    CONTAINS_SYMBOL, LEN_SYMBOL, PRINT_SYMBOL, PUSH_SYMBOL, READ_LINE_SYMBOL, intrinsic_functions,
+    CONTAINS_SYMBOL, GET_INT_SYMBOL, GET_TEXT_SYMBOL, LEN_SYMBOL, PRINT_SYMBOL, PUSH_SYMBOL,
+    READ_LINE_SYMBOL, intrinsic_functions,
 };
 use crate::model::{Function, TypeDecl};
 use crate::types::{EMPTY_LIST_TYPE, list_element_type, list_type, type_accepts};
@@ -136,6 +137,12 @@ impl Evaluator {
         }
         if function.symbol() == PUSH_SYMBOL {
             return call_push_intrinsic(name, args);
+        }
+        if function.symbol() == GET_TEXT_SYMBOL {
+            return call_get_intrinsic(name, args, "Text", "MaybeText", Value::Text(String::new()));
+        }
+        if function.symbol() == GET_INT_SYMBOL {
+            return call_get_intrinsic(name, args, "Int", "MaybeInt", Value::Int(0));
         }
         let Some(implementation) = &function.implementation else {
             return Err(format!("Function `{name}` has no implementation."));
@@ -1487,6 +1494,71 @@ fn call_push_intrinsic(name: &str, args: Vec<Value>) -> Result<CallResult, Strin
         value: Value::List {
             element_type: Some(element_type),
             elements,
+        },
+        args: bindings,
+    })
+}
+
+fn call_get_intrinsic(
+    name: &str,
+    args: Vec<Value>,
+    expected_element_type: &str,
+    result_type: &str,
+    fallback_value: Value,
+) -> Result<CallResult, String> {
+    if args.len() != 2 {
+        return Err(format!(
+            "Function `{name}` expected 2 arguments, got {}.",
+            args.len()
+        ));
+    }
+    let mut args = args;
+    let index = args.pop().expect("length checked above");
+    let list = args.pop().expect("length checked above");
+    let Value::Int(index_value) = index else {
+        return Err(format!(
+            "Function `{name}` argument 2 expected Int, got {index}."
+        ));
+    };
+    let Value::List {
+        element_type,
+        elements,
+    } = &list
+    else {
+        return Err(format!(
+            "Function `{name}` argument 1 expected List<{expected_element_type}>, got {list}."
+        ));
+    };
+    if let Some(element_type) = element_type
+        && element_type != expected_element_type
+    {
+        return Err(format!(
+            "Function `{name}` argument 1 expected List<{expected_element_type}>, got List<{element_type}>."
+        ));
+    }
+
+    let value = usize::try_from(index_value)
+        .ok()
+        .and_then(|index| elements.get(index).cloned());
+    let mut fields = BTreeMap::new();
+    match value {
+        Some(value) => {
+            fields.insert("found".to_string(), Value::Bool(true));
+            fields.insert("value".to_string(), value);
+        }
+        None => {
+            fields.insert("found".to_string(), Value::Bool(false));
+            fields.insert("value".to_string(), fallback_value);
+        }
+    }
+
+    let mut bindings = HashMap::new();
+    bindings.insert("list".to_string(), list);
+    bindings.insert("index".to_string(), Value::Int(index_value));
+    Ok(CallResult {
+        value: Value::Record {
+            type_name: result_type.to_string(),
+            fields,
         },
         args: bindings,
     })

@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
 use crate::eval::{Token, find_match_body_start, resolve_function, tokenize};
-use crate::intrinsics::{CONTAINS_SYMBOL, LEN_SYMBOL, PUSH_SYMBOL};
+use crate::intrinsics::{
+    CONTAINS_SYMBOL, GET_INT_SYMBOL, GET_TEXT_SYMBOL, LEN_SYMBOL, PUSH_SYMBOL,
+};
 use crate::model::{Function, TypeDecl};
 use crate::types::{
     EMPTY_LIST_TYPE, comparable_type, is_list_type, list_element_type, list_type, type_accepts,
@@ -466,6 +468,8 @@ impl<'a> TypeParser<'a> {
             LEN_SYMBOL => return self.parse_len_call(name, &args),
             CONTAINS_SYMBOL => return self.parse_contains_call(name, &args),
             PUSH_SYMBOL => return self.parse_push_call(name, &args),
+            GET_TEXT_SYMBOL => return self.parse_get_call(name, &args, "Text", "MaybeText"),
+            GET_INT_SYMBOL => return self.parse_get_call(name, &args, "Int", "MaybeInt"),
             _ => {}
         }
         if args.len() != function.params.len() {
@@ -555,6 +559,36 @@ impl<'a> TypeParser<'a> {
         } else {
             &element_type
         }))
+    }
+
+    fn parse_get_call(
+        &self,
+        name: &str,
+        args: &[String],
+        element_type: &str,
+        return_type: &str,
+    ) -> Result<String, String> {
+        if args.len() != 2 {
+            return Err(format!(
+                "Function `{name}` expected 2 arguments, got {}.",
+                args.len()
+            ));
+        }
+        let expected_list = list_type(element_type);
+        let Some(actual_element_type) = list_element_type(&args[0]) else {
+            return Err(format!(
+                "Function `{name}` argument 1 expected {expected_list}, got {}.",
+                args[0]
+            ));
+        };
+        if actual_element_type != "Never" && actual_element_type != element_type {
+            return Err(format!(
+                "Function `{name}` argument 1 expected {expected_list}, got {}.",
+                args[0]
+            ));
+        }
+        require_type(&args[1], "Int", &format!("Function `{name}` argument 2"))?;
+        Ok(return_type.to_string())
     }
 
     fn parse_name_parts(&mut self, first: String) -> Result<Vec<String>, String> {

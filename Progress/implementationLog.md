@@ -1,5 +1,12 @@
 # Implementation Log
 
+## 2026-05-23
+
+- Added temporary bootstrap safe list access through compiler-owned pure intrinsics `get_text(list: List<Text>, index: Int) -> MaybeText` and `get_int(list: List<Int>, index: Int) -> MaybeInt`.
+- Chose the explicit `MaybeText`/`MaybeInt` record result path because generic payload enums are not yet in the source language; callers declare `{ found, value }` records until `get(list, index) -> Option<T>` is feasible.
+- Updated the checker, evaluator, IR lowering path, Rust backend, examples, and docs so negative, out-of-range, and empty-list access returns `found: false` instead of panicking.
+- Verification is recorded in the final run for this change.
+
 ## 2026-05-21
 
 - Chose compile CLI JSON usage consistency as a small agent-protocol hardening fix because malformed top-level `serow compile ... --json` commands still emitted plain usage text while related command families return structured diagnostics.

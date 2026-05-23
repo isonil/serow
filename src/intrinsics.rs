@@ -7,6 +7,8 @@ pub const READ_LINE_SYMBOL: &str = "@serow.intrinsic.read_line.v1";
 pub const LEN_SYMBOL: &str = "@serow.intrinsic.len.v1";
 pub const CONTAINS_SYMBOL: &str = "@serow.intrinsic.contains.v1";
 pub const PUSH_SYMBOL: &str = "@serow.intrinsic.push.v1";
+pub const GET_TEXT_SYMBOL: &str = "@serow.intrinsic.get_text.v1";
+pub const GET_INT_SYMBOL: &str = "@serow.intrinsic.get_int.v1";
 
 static INTRINSICS: LazyLock<Vec<Function>> = LazyLock::new(|| {
     vec![
@@ -141,6 +143,72 @@ static INTRINSICS: LazyLock<Vec<Function>> = LazyLock::new(|| {
             effects: vec!["pure".to_string()],
             implementation: None,
         },
+        Function {
+            name: "get_text".to_string(),
+            module: "serow.intrinsic".to_string(),
+            public: true,
+            version: "v1".to_string(),
+            version_explicit: true,
+            params: vec![
+                Param {
+                    name: "list".to_string(),
+                    type_name: "List<Text>".to_string(),
+                },
+                Param {
+                    name: "index".to_string(),
+                    type_name: "Int".to_string(),
+                },
+            ],
+            return_type: "MaybeText".to_string(),
+            source_path: "<intrinsic>".to_string(),
+            line: 0,
+            intent: Some(
+                "Return a safe text-list access record without panicking for missing indexes."
+                    .to_string(),
+            ),
+            requires: Vec::new(),
+            contracts: Vec::new(),
+            examples: Vec::new(),
+            example_lines: Vec::new(),
+            properties: Vec::new(),
+            property_lines: Vec::new(),
+            migrations: Vec::new(),
+            effects: vec!["pure".to_string()],
+            implementation: None,
+        },
+        Function {
+            name: "get_int".to_string(),
+            module: "serow.intrinsic".to_string(),
+            public: true,
+            version: "v1".to_string(),
+            version_explicit: true,
+            params: vec![
+                Param {
+                    name: "list".to_string(),
+                    type_name: "List<Int>".to_string(),
+                },
+                Param {
+                    name: "index".to_string(),
+                    type_name: "Int".to_string(),
+                },
+            ],
+            return_type: "MaybeInt".to_string(),
+            source_path: "<intrinsic>".to_string(),
+            line: 0,
+            intent: Some(
+                "Return a safe int-list access record without panicking for missing indexes."
+                    .to_string(),
+            ),
+            requires: Vec::new(),
+            contracts: Vec::new(),
+            examples: Vec::new(),
+            example_lines: Vec::new(),
+            properties: Vec::new(),
+            property_lines: Vec::new(),
+            migrations: Vec::new(),
+            effects: vec!["pure".to_string()],
+            implementation: None,
+        },
     ]
 });
 
@@ -151,6 +219,12 @@ pub fn intrinsic_functions() -> &'static [Function] {
 pub fn is_intrinsic_symbol(symbol: &str) -> bool {
     matches!(
         symbol,
-        PRINT_SYMBOL | READ_LINE_SYMBOL | LEN_SYMBOL | CONTAINS_SYMBOL | PUSH_SYMBOL
+        PRINT_SYMBOL
+            | READ_LINE_SYMBOL
+            | LEN_SYMBOL
+            | CONTAINS_SYMBOL
+            | PUSH_SYMBOL
+            | GET_TEXT_SYMBOL
+            | GET_INT_SYMBOL
     )
 }

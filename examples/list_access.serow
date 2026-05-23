@@ -1,0 +1,40 @@
+module core.list_access
+
+type MaybeText = { found: Bool, value: Text }
+type MaybeInt = { found: Bool, value: Int }
+
+pub fn get_text_at(items: List<Text>, index: Int) -> MaybeText
+  intent "Fetch optional inventory text by position."
+  version v1
+  contract
+    ensures result == get_text(items, index)
+  examples
+    get_text_at(["torch", "potion"], 1).found == true
+    get_text_at(["torch", "potion"], 1).value == "potion"
+    get_text_at(["torch"], 1).found == false
+    get_text_at(["torch"], -1).found == false
+    get_text_at([], 0).found == false
+  properties
+    forall value: Text:
+      get_text_at([value], 0).value == value
+  effects pure
+  impl
+    get_text(items, index)
+
+pub fn get_int_at(items: List<Int>, index: Int) -> MaybeInt
+  intent "Select optional numeric sample by offset."
+  version v1
+  contract
+    ensures result == get_int(items, index)
+  examples
+    get_int_at([10, 20], 0).found == true
+    get_int_at([10, 20], 0).value == 10
+    get_int_at([10], 1).found == false
+    get_int_at([10], -1).found == false
+    get_int_at([], 0).found == false
+  properties
+    forall value: Int:
+      get_int_at([value], 0).value == value
+  effects pure
+  impl
+    get_int(items, index)

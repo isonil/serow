@@ -24,9 +24,9 @@ fn sample_program_checks() {
             .map(|diagnostic| &diagnostic.code)
             .collect::<Vec<_>>()
     );
-    assert_eq!(summary.functions, 18);
-    assert_eq!(summary.examples, 44);
-    assert_eq!(summary.properties, 18);
+    assert_eq!(summary.functions, 20);
+    assert_eq!(summary.examples, 54);
+    assert_eq!(summary.properties, 20);
     assert_eq!(summary.contracts, 105);
 }
 
@@ -11850,6 +11850,8 @@ fn homogeneous_lists_check_lower_and_compile_to_rust_vecs() {
         r#"module test.lists
 
 type Pack = { items: List<Text> }
+type MaybeText = { found: Bool, value: Text }
+type MaybeInt = { found: Bool, value: Int }
 
 pub fn empty_items() -> List<Text>
   intent "Return an empty text inventory."
@@ -11906,6 +11908,40 @@ pub fn starter_pack() -> Pack
   effects pure
   impl
     Pack { items: ["torch"] }
+
+pub fn get_text_at(items: List<Text>, index: Int) -> MaybeText
+  intent "Fetch optional inventory text by position."
+  contract
+    ensures result == get_text(items, index)
+  examples
+    get_text_at(["torch", "potion"], 1).found == true
+    get_text_at(["torch", "potion"], 1).value == "potion"
+    get_text_at(["torch"], 1).found == false
+    get_text_at(["torch"], -1).found == false
+    get_text_at([], 0).found == false
+  properties
+    forall value: Text:
+      get_text_at([value], 0).value == value
+  effects pure
+  impl
+    get_text(items, index)
+
+pub fn get_int_at(items: List<Int>, index: Int) -> MaybeInt
+  intent "Select optional numeric sample by offset."
+  contract
+    ensures result == get_int(items, index)
+  examples
+    get_int_at([10, 20], 0).found == true
+    get_int_at([10, 20], 0).value == 10
+    get_int_at([10], 1).found == false
+    get_int_at([10], -1).found == false
+    get_int_at([], 0).found == false
+  properties
+    forall value: Int:
+      get_int_at([value], 0).value == value
+  effects pure
+  impl
+    get_int(items, index)
 "#,
     )
     .expect("write list source");
@@ -11932,6 +11968,14 @@ pub fn starter_pack() -> Pack
         stdout.contains("\"target\": \"@serow.intrinsic.push.v1\""),
         "{stdout}"
     );
+    assert!(
+        stdout.contains("\"target\": \"@serow.intrinsic.get_text.v1\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"target\": \"@serow.intrinsic.get_int.v1\""),
+        "{stdout}"
+    );
 
     let rust = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args(["compile", "rust", source.to_str().expect("utf8 path")])
@@ -11940,12 +11984,22 @@ pub fn starter_pack() -> Pack
     assert!(rust.status.success(), "{rust:#?}");
     let stdout = String::from_utf8(rust.stdout).expect("stdout is utf8");
     assert!(stdout.contains("Vec<String>"), "{stdout}");
+    assert!(stdout.contains("Vec<i64>"), "{stdout}");
+    assert!(
+        stdout.contains("pub struct SerowTestListsMaybeText"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("pub struct SerowTestListsMaybeInt"),
+        "{stdout}"
+    );
     assert!(
         stdout.contains("vec![String::from(\"torch\"), String::from(\"potion\")]"),
         "{stdout}"
     );
     assert!(stdout.contains(".contains(&"), "{stdout}");
     assert!(stdout.contains(".push("), "{stdout}");
+    assert!(stdout.contains(".get(serow_index as usize)"), "{stdout}");
 
     let crate_dir = dir.join("generated");
     let generated = Command::new(env!("CARGO_BIN_EXE_serow"))

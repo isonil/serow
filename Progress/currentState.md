@@ -51,6 +51,11 @@ Selection policy for generic implementation prompts:
   - `print(text: Text) -> Unit`
   - `read_line() -> Text`
   - both require `io`, are available without source-level `use serow.intrinsic`, and use a non-interactive checker model so examples/properties do not perform terminal I/O
+- Compiler-owned pure list intrinsics:
+  - `len(list: List<T>) -> Int`, `contains(list: List<T>, value: T) -> Bool`, and `push(list: List<T>, value: T) -> List<T>`
+  - temporary safe access for current bootstrap types with `get_text(list: List<Text>, index: Int) -> MaybeText` and `get_int(list: List<Int>, index: Int) -> MaybeInt`
+  - callers declare `MaybeText = { found: Bool, value: Text }` and `MaybeInt = { found: Bool, value: Int }` until generic payload enums can support `get(list, index) -> Option<T>`
+  - negative, out-of-range, and empty-list accesses return `found: false` with a deterministic placeholder value rather than panicking
 - Source-level public symbol versions with `version vN`; omitted versions default to `v1` for compatibility.
 - Source-level function migration acknowledgements with `migration` records for `public-behavior-change`, `capability-expansion`, `evidence-weakening`, `implementation-change`, and `impact-review`.
 - Qualified function references in executable expressions:
@@ -120,7 +125,7 @@ Selection policy for generic implementation prompts:
   - emits `serow.ir.v0` JSON for checked public implementations in the bootstrap expression subset
   - includes type declaration source path and line provenance plus public symbol identity, function source path and line provenance, signature, effects, parameters, return type, lowered `requires` preconditions, lowered `ensures` postconditions, lowered executable examples, lowered sampled properties, expression tree, and canonical resolved call targets
   - carries executable example source lines and sampled-property source lines through IR so backend evidence metadata can point at the evidence itself
-  - lowers enum variant values, exhaustive enum `match`, record construction, field access, record copy-update, local `let` bindings, local assignments, checked while loops, and ordered sequences in the public expression tree
+  - lowers enum variant values, exhaustive enum `match`, list literals and safe list access calls, record construction, field access, record copy-update, local `let` bindings, local assignments, checked while loops, and ordered sequences in the public expression tree
 - Phase 3 Rust backend:
   - `bin/serow compile rust [paths...] [--out-dir <dir>] [--check-out-dir] [--emit-bin|--bin] [--crate-name <name>] [--json]`
   - runs the checked IR lowering path first and refuses to emit Rust when checker or IR lowering errors are present
@@ -133,7 +138,7 @@ Selection policy for generic implementation prompts:
   - writes deterministic `serow-metadata.json` sidecar metadata for generated Rust crates, mirroring backend, Serow project manifest version, input, generated-source, type, function, binary entrypoint, and evidence-test provenance in JSON
   - writes a runnable Rust binary crate entrypoint with `src/main.rs` when passed `--emit-bin`/`--bin`, requiring exactly one public zero-argument `main` returning `Text`, `Int`, `Bool`, `Unit`, or a declared record/enum type; scalar and declared-type values are printed deterministically and `Unit` entrypoints rely on explicit effects
   - records deterministic `package.metadata.serow` manifest rows for the backend id, IR version, Serow project manifest version, aggregate Serow input fingerprint, per-source input paths/fingerprints/byte counts, generated source fingerprint, generated type/function/test counts, source-location-aware type and function symbol-to-Rust-name mappings, binary entrypoint symbol/Rust-name/source-location metadata, and source-location-aware example/property evidence-to-test mappings in generated crates
-  - supports pure public functions over `Int`, `Bool`, `Text`, `Unit`, declared record types, and nullary enum types in the current expression subset, including arithmetic, text concatenation, comparisons, boolean operators, `if`, exhaustive enum `match`, unary operators, resolved function calls, enum variant values, record construction, field access, record copy-update, and runtime assertions for `requires` preconditions and `ensures` postconditions
+  - supports pure public functions over `Int`, `Bool`, `Text`, `Unit`, homogeneous `List<T>` values, declared record types, and nullary enum types in the current expression subset, including arithmetic, text concatenation, comparisons, boolean operators, `if`, exhaustive enum `match`, unary operators, resolved function calls, enum variant values, list literals, list equality, `len`, `contains`, `push`, `get_text`, `get_int`, record construction, field access, record copy-update, and runtime assertions for `requires` preconditions and `ensures` postconditions
   - emits generated Rust structs for Serow record declarations and generated Rust enums for Serow enum declarations, all deriving `Clone`, `Debug`, `PartialEq`, and `Eq`
   - rejects recursive record layout cycles with `RustBackendRecursiveRecordType` diagnostics instead of emitting invalid Rust structs
   - avoids whole-record clones for direct field reads from local record variables, lowers same-variable record state updates such as `set state = state with { hp: state.hp - 1 }` to in-place Rust field assignments after evaluating update values, and moves final-position record update bases into returned records when generated postcondition checks do not need the original value
