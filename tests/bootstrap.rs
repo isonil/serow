@@ -76,6 +76,7 @@ fn source_path_separator_allows_json_looking_paths() {
 
 pub fn identity(x: Int) -> Int
   intent "Return x unchanged."
+  version v1
   contract
     ensures result == x
   examples
@@ -121,6 +122,45 @@ pub fn identity(x: Int) -> Int
     assert!(ir.status.success(), "{ir:#?}");
     let stdout = String::from_utf8(ir.stdout).expect("stdout is utf8");
     assert!(stdout.contains("serow compile ir: ok"), "{stdout}");
+    assert!(
+        !stdout.trim_start().starts_with('{'),
+        "path after `--` should not enable JSON output: {stdout}"
+    );
+
+    let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let release_check_source_dir = repo.join("--json");
+    let _ = fs::remove_dir_all(&release_check_source_dir);
+    fs::create_dir_all(&release_check_source_dir).expect("create release-check source dir");
+    fs::write(
+        release_check_source_dir.join("main.serow"),
+        r#"module cli.release_separator
+
+pub fn identity(x: Int) -> Int
+  intent "Return x unchanged."
+  version v1
+  contract
+    ensures result == x
+  examples
+    identity(2) == 2
+  properties
+    forall x: Int:
+      identity(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write release-check fixture");
+
+    let release_check = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&repo)
+        .args(["release-check", "--", "--json"])
+        .output()
+        .expect("run serow release-check with json-looking path");
+    let _ = fs::remove_dir_all(&release_check_source_dir);
+    assert!(release_check.status.success(), "{release_check:#?}");
+    let stdout = String::from_utf8(release_check.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("serow release-check: ok"), "{stdout}");
     assert!(
         !stdout.trim_start().starts_with('{'),
         "path after `--` should not enable JSON output: {stdout}"
@@ -4547,6 +4587,32 @@ fn release_check_runs_serow_owned_public_release_gates() {
     assert!(
         text_stdout.contains("unattended certify: ok"),
         "{text_stdout}"
+    );
+}
+
+#[test]
+fn release_check_rejects_unknown_json_options_as_usage_errors() {
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["release-check", "--bogus", "--json"])
+        .output()
+        .expect("run serow release-check with unknown option");
+
+    assert_eq!(output.status.code(), Some(2), "{output:#?}");
+    assert!(output.stderr.is_empty(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"ok\": false"), "{stdout}");
+    assert!(stdout.contains("\"code\": \"UsageError\""), "{stdout}");
+    assert!(
+        stdout.contains("Unknown serow release-check option `--bogus`."),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("Use `serow release-check [paths...] [--json]`."),
+        "{stdout}"
+    );
+    assert!(
+        !stdout.contains("SourceNotFound"),
+        "unknown option should not be treated as a source path: {stdout}"
     );
 }
 

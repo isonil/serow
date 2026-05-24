@@ -2,6 +2,10 @@
 
 ## 2026-05-24
 
+- Chose `release-check` JSON usage consistency as a public v1 patch hardening task because unknown option-looking arguments such as `--bogus` were being treated as source paths, producing `SourceNotFound` diagnostics instead of the structured `UsageError` protocol used by neighboring commands.
+- Added release-check-specific option validation that still preserves `--` path separator behavior, covered the JSON usage error and separator path behavior, and bumped Serow to `1.0.2-rust-bootstrap` / crate `1.0.2`.
+- Verification is recorded in the final run for this change.
+
 - Chose structured repair-action command allowlist parity as a v1 patch-release hardening task because certification validates repair actions, while the validator still rejected the advertised read-only `docs`, `help`, and `version` discovery commands if a diagnostic used them as command actions.
 - Accepted `docs`, `help`, and `version` repair actions in the certification contract validator, added focused regression coverage, and bumped Serow to `1.0.1-rust-bootstrap` / crate `1.0.1`.
 - Verification is recorded in the final run for this change.
