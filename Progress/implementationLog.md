@@ -2,6 +2,11 @@
 
 ## 2026-05-24
 
+- Chose Phase 2.5 roadmap closure and CLI reference polish because current state already treated the agent-safe language core as v1 done enough, while the roadmap still described several implemented capabilities as open "Started" work and the CLI query examples omitted the public `query effects` command.
+- Marked Phase 2.5 done enough for public v1, explicitly deferring semantic embeddings, richer stable node identity, comments-preserving edits, deeper patch coverage, and broader semantic delta classification to v2 hardening unless they block release polish.
+- Updated current-state/public docs for `remove_first` and `query effects`, and bumped `serow.project` to `0.4.119-rust-bootstrap`.
+- Verification is recorded in the final run for this change.
+
 - Chose Phase 2.6 unattended-safety closure because the strict profile and plan surface now cover the v1 safety gates for evidence weakening, public versioning, capability expansion, implementation evidence, stale migrations, impact coverage, sampled-property replay, low-signal evidence, and repair-action validation.
 - Marked Phase 2.6 done enough for public v1, explicitly deferring semantic-embedding reuse search, richer custom generators, proof-based property checking, mutation testing beyond HEAD replay, effect polymorphism, and lower-false-positive intent/implementation analysis to v2+ hardening.
 - Updated the compact agent bootstrap's current track to focus future invocations on release polish and targeted v2 hardening, and bumped `serow.project` to `0.4.118-rust-bootstrap`.

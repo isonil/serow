@@ -135,11 +135,12 @@ bin/serow query symbol add
 bin/serow query symbols
 bin/serow query type "Int, Int -> Int"
 bin/serow query callees @core.math.add.v1
+bin/serow query effects @core.math.add.v1
 bin/serow query dependents @core.math.add.v1
 bin/serow query impact @core.math.add.v1
 ```
 
-`query symbol` searches public functions, declared record and enum types, and enum variant names. `query symbols` lists all public function and declared type symbols in the parsed source set. `query type` accepts exact bootstrap type shapes such as `Int, Int -> Int`, wildcard shapes such as `_ -> Int`, simple type-token queries such as `Text`, and declared record type names that appear in public signatures.
+`query symbol` searches public functions, declared record and enum types, and enum variant names. `query symbols` lists all public function and declared type symbols in the parsed source set. `query effects` reports declared effects, inferred direct-call capability requirements, missing or unused direct-call capability deltas, suggested declarations, and contributing direct callees. `query type` accepts exact bootstrap type shapes such as `Int, Int -> Int`, wildcard shapes such as `_ -> Int`, simple type-token queries such as `Text`, and declared record type names that appear in public signatures.
 
 ## Replay
 

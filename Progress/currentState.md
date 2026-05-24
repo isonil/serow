@@ -63,7 +63,7 @@ Selection policy for generic implementation prompts:
   - `read_line() -> Text`
   - both require `io`, are available without source-level `use serow.intrinsic`, and use a non-interactive checker model so examples/properties do not perform terminal I/O
 - Compiler-owned pure list intrinsics:
-  - `len(list: List<T>) -> Int`, `contains(list: List<T>, value: T) -> Bool`, and `push(list: List<T>, value: T) -> List<T>`
+  - `len(list: List<T>) -> Int`, `contains(list: List<T>, value: T) -> Bool`, `push(list: List<T>, value: T) -> List<T>`, and `remove_first(list: List<T>, value: T) -> List<T>`
   - temporary safe access for current bootstrap types with `get_text(list: List<Text>, index: Int) -> MaybeText` and `get_int(list: List<Int>, index: Int) -> MaybeInt`
   - callers declare `MaybeText = { found: Bool, value: Text }` and `MaybeInt = { found: Bool, value: Int }` until generic payload enums can support `get(list, index) -> Option<T>`
   - negative, out-of-range, and empty-list accesses return `found: false` with a deterministic placeholder value rather than panicking
