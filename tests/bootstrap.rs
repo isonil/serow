@@ -3580,7 +3580,7 @@ fn version_command_reports_project_version() {
     assert!(text_output.status.success(), "{text_output:#?}");
     assert!(text_output.stderr.is_empty(), "{text_output:#?}");
     let stdout = String::from_utf8(text_output.stdout).expect("stdout is utf8");
-    assert_eq!(stdout.trim(), "Serow 0.4.127-rust-bootstrap");
+    assert_eq!(stdout.trim(), "Serow 0.4.128-rust-bootstrap");
 
     let flag_output = Command::new(env!("CARGO_BIN_EXE_serow"))
         .arg("--version")
@@ -3589,7 +3589,7 @@ fn version_command_reports_project_version() {
     assert!(flag_output.status.success(), "{flag_output:#?}");
     assert!(flag_output.stderr.is_empty(), "{flag_output:#?}");
     let stdout = String::from_utf8(flag_output.stdout).expect("stdout is utf8");
-    assert_eq!(stdout.trim(), "Serow 0.4.127-rust-bootstrap");
+    assert_eq!(stdout.trim(), "Serow 0.4.128-rust-bootstrap");
 
     let json_output = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args(["--json", "--version"])
@@ -3601,7 +3601,7 @@ fn version_command_reports_project_version() {
     assert!(stdout.trim_start().starts_with('{'), "{stdout}");
     assert!(stdout.contains("\"ok\": true"), "{stdout}");
     assert!(
-        stdout.contains("\"version\": \"0.4.127-rust-bootstrap\""),
+        stdout.contains("\"version\": \"0.4.128-rust-bootstrap\""),
         "{stdout}"
     );
 
@@ -4251,6 +4251,21 @@ fn agent_usage_errors_respect_json_flag() {
     );
     assert!(
         stdout.contains("serow agent [commands|diagnostics]"),
+        "{stdout}"
+    );
+}
+
+#[test]
+fn agent_text_includes_supported_bootstrap_types() {
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .arg("agent")
+        .output()
+        .expect("run serow agent");
+
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(
+        stdout.contains("Int, Float, Bool, Text, Unit, List<T>, declared records, declared enums"),
         "{stdout}"
     );
 }

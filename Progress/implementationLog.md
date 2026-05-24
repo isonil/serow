@@ -2,6 +2,10 @@
 
 ## 2026-05-24
 
+- Chose compact agent bootstrap type-surface parity as release polish because the JSON bootstrap, README, and language docs advertised `List<T>`, while the human `bin/serow agent` output omitted it from supported bootstrap types.
+- Updated the text agent bootstrap to include `List<T>`, added a focused regression, and bumped `serow.project` to `0.4.128-rust-bootstrap`.
+- Verification is recorded in the final run for this change.
+
 - Chose CLI version reporting as release polish because `serow.project` is the canonical release metadata source but the public CLI had no direct version entrypoint.
 - Added `bin/serow version [--json]` plus `bin/serow --version`, exposed it through agent command discovery and docs, and bumped `serow.project` to `0.4.127-rust-bootstrap`.
 - Verification is recorded in the final run for this change.

@@ -4988,7 +4988,7 @@ fn print_agent_bootstrap() {
     println!("  version (optional; unattended requires explicit vN)");
     println!("  intent, contract, examples, properties, effects, impl");
     println!("supported bootstrap types:");
-    println!("  Int, Float, Bool, Text, Unit, declared records, declared enums");
+    println!("  Int, Float, Bool, Text, Unit, List<T>, declared records, declared enums");
     println!("verification gates:");
     println!("  cargo fmt --check");
     println!("  cargo clippy -- -D warnings");
