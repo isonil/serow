@@ -4416,6 +4416,11 @@ const CORE_AGENT_COMMANDS: &[AgentCommand] = &[
         "Print compact bootstrap data or explicit reference material.",
     ),
     (
+        "help",
+        "serow help [--json]",
+        "Print text usage or return the full command catalog as JSON.",
+    ),
+    (
         "check",
         "serow check [paths...] [--json]",
         "Parse and check Serow source, defaulting to examples/.",
@@ -4472,6 +4477,11 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
         "agent",
         "serow agent [commands|diagnostics] [--json]",
         "Print compact bootstrap data or explicit reference material.",
+    ),
+    (
+        "help",
+        "serow help [--json]",
+        "Print text usage or return the full command catalog as JSON.",
     ),
     (
         "check",
@@ -5075,6 +5085,7 @@ fn print_agent_diagnostics() {
 fn print_usage() {
     eprintln!("usage:");
     eprintln!("  serow agent [commands|diagnostics] [--json]");
+    eprintln!("  serow help [--json]");
     eprintln!("  serow check [paths...] [--json]");
     eprintln!("  {CERTIFY_USAGE}");
     eprintln!("  serow compile ir [paths...] [--json]");

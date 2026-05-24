@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "0.4.128-rust-bootstrap",
+  "version": "0.4.129-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -14,6 +14,7 @@
     "agent": "bin/serow agent [--json]",
     "agent_commands": "bin/serow agent commands [--json]",
     "agent_diagnostics": "bin/serow agent diagnostics [--json]",
+    "help": "bin/serow help [--json]",
     "check": "bin/serow check",
     "certify": "bin/serow certify [--profile <standard|unattended>]",
     "certify_unattended": "bin/serow certify --profile unattended",

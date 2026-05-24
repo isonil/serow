@@ -20,7 +20,7 @@ bin/serow agent diagnostics
 bin/serow agent diagnostics --json
 ```
 
-`agent commands` is the full CLI catalog, including structured patch commands, extended ledger queries, replay, and backend commands. `agent diagnostics` describes the detailed JSON diagnostic and plan protocols.
+`agent commands` is the full CLI catalog, including top-level help, structured patch commands, extended ledger queries, replay, and backend commands. `agent diagnostics` describes the detailed JSON diagnostic and plan protocols.
 
 Top-level help also honors JSON requests by returning the full command catalog:
 
@@ -38,6 +38,7 @@ Print the Serow project version from `serow.project`:
 bin/serow version
 bin/serow version --json
 bin/serow --version
+bin/serow --version --json
 ```
 
 ## Check

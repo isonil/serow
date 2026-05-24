@@ -4,7 +4,7 @@
 
 Future generic implementation prompts should choose the highest-leverage next step across all phases. Phase 0, Phase 1, Phase 2 agent workflow, Phase 2.5 certification, Phase 2.6 unattended safety, and the first Phase 3 backend slice are closed for public v1. Prefer release polish and targeted v2 hardening gaps before expanding syntax beyond the v1 bootstrap subset.
 
-Latest release-polish closure: the compact text `bin/serow agent` bootstrap now advertises `List<T>` in its supported v1 type surface, matching the JSON bootstrap, README, and language docs.
+Latest release-polish closure: top-level JSON help now lists `serow help [--json]` in the same full command catalog it returns, and text usage/project metadata advertise the help entrypoint consistently.
 
 Selection policy:
 

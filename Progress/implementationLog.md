@@ -2,6 +2,10 @@
 
 ## 2026-05-24
 
+- Chose top-level help catalog parity as release polish because `bin/serow help --json` returns the full command catalog, but that catalog did not list the help command itself.
+- Added `serow help [--json]` to compact/full command discovery, text usage, README/CLI docs, and project metadata; covered the JSON help catalog with a focused regression.
+- Bumped `serow.project` to `0.4.129-rust-bootstrap`; verification is recorded in the final run for this change.
+
 - Chose compact agent bootstrap type-surface parity as release polish because the JSON bootstrap, README, and language docs advertised `List<T>`, while the human `bin/serow agent` output omitted it from supported bootstrap types.
 - Updated the text agent bootstrap to include `List<T>`, added a focused regression, and bumped `serow.project` to `0.4.128-rust-bootstrap`.
 - Verification is recorded in the final run for this change.

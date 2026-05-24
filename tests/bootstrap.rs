@@ -3573,6 +3573,7 @@ fn top_level_usage_errors_respect_json_flag() {
 
 #[test]
 fn version_command_reports_project_version() {
+    let project_version = current_project_version_for_test();
     let text_output = Command::new(env!("CARGO_BIN_EXE_serow"))
         .arg("version")
         .output()
@@ -3580,7 +3581,7 @@ fn version_command_reports_project_version() {
     assert!(text_output.status.success(), "{text_output:#?}");
     assert!(text_output.stderr.is_empty(), "{text_output:#?}");
     let stdout = String::from_utf8(text_output.stdout).expect("stdout is utf8");
-    assert_eq!(stdout.trim(), "Serow 0.4.128-rust-bootstrap");
+    assert_eq!(stdout.trim(), format!("Serow {project_version}"));
 
     let flag_output = Command::new(env!("CARGO_BIN_EXE_serow"))
         .arg("--version")
@@ -3589,7 +3590,7 @@ fn version_command_reports_project_version() {
     assert!(flag_output.status.success(), "{flag_output:#?}");
     assert!(flag_output.stderr.is_empty(), "{flag_output:#?}");
     let stdout = String::from_utf8(flag_output.stdout).expect("stdout is utf8");
-    assert_eq!(stdout.trim(), "Serow 0.4.128-rust-bootstrap");
+    assert_eq!(stdout.trim(), format!("Serow {project_version}"));
 
     let json_output = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args(["--json", "--version"])
@@ -3601,7 +3602,7 @@ fn version_command_reports_project_version() {
     assert!(stdout.trim_start().starts_with('{'), "{stdout}");
     assert!(stdout.contains("\"ok\": true"), "{stdout}");
     assert!(
-        stdout.contains("\"version\": \"0.4.128-rust-bootstrap\""),
+        stdout.contains(&format!("\"version\": \"{project_version}\"")),
         "{stdout}"
     );
 
@@ -4359,6 +4360,20 @@ fn agent_commands_json_includes_full_command_catalog() {
     assert!(stdout.contains("serow query effects"), "{stdout}");
     assert!(stdout.contains("serow query symbols"), "{stdout}");
     assert!(stdout.contains("serow replay property"), "{stdout}");
+}
+
+#[test]
+fn top_level_help_json_lists_help_command() {
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["help", "--json"])
+        .output()
+        .expect("run serow help --json");
+
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"ok\": true"), "{stdout}");
+    assert!(stdout.contains("\"name\": \"help\""), "{stdout}");
+    assert!(stdout.contains("serow help [--json]"), "{stdout}");
 }
 
 #[test]
