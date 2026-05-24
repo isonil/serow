@@ -4494,6 +4494,7 @@ fn docs_command_lists_and_checks_public_references() {
     assert!(text_stdout.contains("serow docs: ok"), "{text_stdout}");
     assert!(text_stdout.contains("docs/language.md"), "{text_stdout}");
     assert!(text_stdout.contains("docs/cli.md"), "{text_stdout}");
+    assert!(text_stdout.contains("docs/stdlib.md"), "{text_stdout}");
     assert!(text_stdout.contains("docs/backends.md"), "{text_stdout}");
     assert!(text_stdout.contains("exists: true"), "{text_stdout}");
 
@@ -4508,6 +4509,10 @@ fn docs_command_lists_and_checks_public_references() {
     assert!(json_stdout.contains("\"docs\""), "{json_stdout}");
     assert!(
         json_stdout.contains("\"path\": \"docs/language.md\""),
+        "{json_stdout}"
+    );
+    assert!(
+        json_stdout.contains("\"path\": \"docs/stdlib.md\""),
         "{json_stdout}"
     );
     assert!(

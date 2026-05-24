@@ -173,7 +173,7 @@ Callers declare `MaybeText = { found: Bool, value: Text }` and `MaybeInt = { fou
 
 Pure float math intrinsics include square root, powers, trigonometry, and constants through `float_sqrt`, `float_pow`, `float_sin`, `float_cos`, `float_tan`, `float_asin`, `float_acos`, `float_atan`, `float_atan2`, `float_pi`, `float_tau`, and `float_e`.
 
-The source-level standard library in `examples/stdlib.serow` provides public helpers for booleans, integers, finite floats, text, concrete lists, and deterministic seed-threaded random values.
+The source-level standard library in `examples/stdlib.serow` provides public helpers for booleans, integers, finite floats, text, concrete lists, and deterministic seed-threaded random values. See [Standard Library Reference](stdlib.md) for the public v1 catalog.
 
 ## Formatting And Patches
 

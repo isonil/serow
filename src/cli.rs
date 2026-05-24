@@ -4758,6 +4758,11 @@ const DOC_REFERENCES: &[DocReference] = &[
         "Checker, formatter, structured patches, ledger queries, replay, planning, and certification.",
     ),
     (
+        "standard library",
+        "docs/stdlib.md",
+        "Public v1 source-level standard library modules, functions, records, usage, and limits.",
+    ),
+    (
         "backends",
         "docs/backends.md",
         "Portable IR, Rust backend support, generated crate layout, metadata, drift checks, and runtime behavior.",
