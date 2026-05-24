@@ -69,6 +69,7 @@ pub fn main(args: impl Iterator<Item = String>) -> i32 {
         "patch" => run_patch(&args[1..]),
         "plan" => run_plan(&args[1..]),
         "query" => run_query(&args[1..]),
+        "release-check" => run_release_check(&args[1..]),
         "replay" => run_replay(&args[1..]),
         "version" | "--version" | "-V" => run_version(&args[1..]),
         "-h" | "--help" | "help" => {
@@ -293,6 +294,89 @@ fn run_docs(args: &[String]) -> i32 {
         print_docs(check, &missing);
     }
     i32::from(check && !ok)
+}
+
+#[derive(Clone, Debug)]
+struct ReleaseCheckSummary {
+    missing_docs: Vec<&'static str>,
+    format: FormatSummary,
+    standard: CheckSummary,
+    unattended: CheckSummary,
+}
+
+impl ReleaseCheckSummary {
+    fn docs_ok(&self) -> bool {
+        self.missing_docs.is_empty()
+    }
+
+    fn standard_ok(&self) -> bool {
+        self.standard.diagnostics.is_empty()
+    }
+
+    fn unattended_ok(&self) -> bool {
+        self.unattended.diagnostics.is_empty()
+    }
+
+    fn ok(&self) -> bool {
+        self.docs_ok() && self.format.ok() && self.standard_ok() && self.unattended_ok()
+    }
+}
+
+fn run_release_check(args: &[String]) -> i32 {
+    let (paths, json_output) = split_paths_and_json(args);
+    let summary = release_check_summary(&paths);
+    if json_output {
+        println!("{}", release_check_json(&summary));
+    } else {
+        print_release_check_summary(&summary);
+    }
+    i32::from(!summary.ok())
+}
+
+fn release_check_summary(paths: &[String]) -> ReleaseCheckSummary {
+    ReleaseCheckSummary {
+        missing_docs: missing_doc_references(),
+        format: format_paths(paths, true),
+        standard: certification_summary(paths, CertifyProfile::Standard),
+        unattended: certification_summary(paths, CertifyProfile::Unattended),
+    }
+}
+
+fn certification_summary(paths: &[String], profile: CertifyProfile) -> CheckSummary {
+    let (program, parse_diagnostics) = parse_paths(paths);
+    let mut summary = check_program(&program, parse_diagnostics);
+    if profile == CertifyProfile::Unattended {
+        enforce_unattended_profile(&program, &mut summary);
+        summary
+            .diagnostics
+            .extend(unattended_evidence_weakening_diagnostics(paths));
+        summary
+            .diagnostics
+            .extend(unattended_public_behavior_change_diagnostics(paths));
+        summary
+            .diagnostics
+            .extend(unattended_capability_expansion_diagnostics(paths));
+        summary
+            .diagnostics
+            .extend(unattended_implementation_change_diagnostics(paths));
+        summary
+            .diagnostics
+            .extend(unattended_implementation_evidence_drift_diagnostics(paths));
+        summary
+            .diagnostics
+            .extend(unattended_unchecked_impact_diagnostics(paths));
+        summary
+            .diagnostics
+            .extend(unattended_uncovered_impact_evidence_diagnostics(paths));
+        summary
+            .diagnostics
+            .extend(unattended_stale_migration_diagnostics(paths));
+        summary
+            .diagnostics
+            .extend(unattended_removed_public_symbol_diagnostics(paths));
+    }
+    enforce_certification_repair_action_contracts(&mut summary);
+    summary
 }
 
 fn docs_usage_error(json_output: bool, message: String) -> i32 {
@@ -4073,6 +4157,81 @@ fn format_json(summary: &FormatSummary) -> String {
     )
 }
 
+fn release_check_json(summary: &ReleaseCheckSummary) -> String {
+    format!(
+        concat!(
+            "{{\n",
+            "  \"docs\": {{\"missing\": {}, \"ok\": {}}},\n",
+            "  \"format\": {},\n",
+            "  \"gates\": {},\n",
+            "  \"ok\": {},\n",
+            "  \"standard_certify\": {},\n",
+            "  \"unattended_certify\": {}\n",
+            "}}"
+        ),
+        str_array_json(&summary.missing_docs),
+        summary.docs_ok(),
+        format_json(&summary.format),
+        release_gate_rows_json(summary),
+        summary.ok(),
+        release_certify_json(
+            &summary.standard,
+            CertifyProfile::Standard,
+            summary.standard_ok()
+        ),
+        release_certify_json(
+            &summary.unattended,
+            CertifyProfile::Unattended,
+            summary.unattended_ok()
+        )
+    )
+}
+
+fn release_gate_rows_json(summary: &ReleaseCheckSummary) -> String {
+    let rows = [
+        release_gate_json("docs", summary.docs_ok()),
+        release_gate_json("format", summary.format.ok()),
+        release_gate_json("standard_certify", summary.standard_ok()),
+        release_gate_json("unattended_certify", summary.unattended_ok()),
+    ];
+    format!("[{}]", rows.join(", "))
+}
+
+fn release_gate_json(name: &str, ok: bool) -> String {
+    format!("{{\"name\": {}, \"ok\": {ok}}}", json_string(name))
+}
+
+fn release_certify_json(
+    summary: &CheckSummary,
+    profile: CertifyProfile,
+    release_gate_ok: bool,
+) -> String {
+    format!(
+        concat!(
+            "{{",
+            "\"diagnostics\": {}, ",
+            "\"ok\": {}, ",
+            "\"profile\": {}, ",
+            "\"summary\": {{",
+            "\"contracts\": {}, ",
+            "\"examples\": {}, ",
+            "\"functions\": {}, ",
+            "\"holes\": {}, ",
+            "\"properties\": {}",
+            "}}",
+            "}}"
+        ),
+        diagnostics_array_json(&summary.diagnostics),
+        release_gate_ok,
+        json_string(profile.as_str()),
+        summary.contracts,
+        summary.examples,
+        summary.functions,
+        summary.holes,
+        summary.properties
+    )
+}
+
 fn patch_json(summary: &PatchSummary) -> String {
     format!(
         "{{\n  \"changed\": {},\n  \"diagnostics\": {},\n  \"ok\": {}\n}}",
@@ -4442,6 +4601,7 @@ type DocReference = (&'static str, &'static str, &'static str);
 const COMPILE_RUST_USAGE: &str = "serow compile rust [paths...] [--out-dir <dir>] [--check-out-dir] [--emit-bin|--bin] [--crate-name <name>] [--json]";
 const CERTIFY_USAGE: &str = "serow certify [paths...] [--profile <standard|unattended>] [--json]";
 const DOCS_USAGE: &str = "serow docs [--check] [--json]";
+const RELEASE_CHECK_USAGE: &str = "serow release-check [paths...] [--json]";
 
 const DOC_REFERENCES: &[DocReference] = &[
     (
@@ -4513,6 +4673,11 @@ const CORE_AGENT_COMMANDS: &[AgentCommand] = &[
         "Rewrite or verify canonical Serow source formatting.",
     ),
     (
+        "release-check",
+        RELEASE_CHECK_USAGE,
+        "Run Serow-owned public release gates: docs references, canonical formatting, standard certification, and unattended certification.",
+    ),
+    (
         "version",
         "serow version [--json] | serow --version",
         "Print the Serow project version from serow.project.",
@@ -4579,6 +4744,11 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
         "fmt",
         "serow fmt [paths...] [--check] [--json]",
         "Rewrite or verify canonical Serow source formatting.",
+    ),
+    (
+        "release-check",
+        RELEASE_CHECK_USAGE,
+        "Run Serow-owned public release gates: docs references, canonical formatting, standard certification, and unattended certification.",
     ),
     (
         "version",
@@ -4856,6 +5026,7 @@ fn agent_json() -> String {
             "bin/serow check --json",
             "bin/serow certify --json",
             "bin/serow certify --profile unattended --json",
+            "bin/serow release-check --json",
             "bin/serow plan --json"
         ]),
         str_array_json(&[
@@ -5119,6 +5290,7 @@ fn print_agent_bootstrap() {
     println!("  bin/serow check --json");
     println!("  bin/serow certify --json");
     println!("  bin/serow certify --profile unattended --json");
+    println!("  bin/serow release-check --json");
     println!("  bin/serow plan --json");
     println!("known limits:");
     println!(
@@ -5176,6 +5348,61 @@ fn print_docs(check: bool, missing: &[&str]) {
     }
 }
 
+fn print_release_check_summary(summary: &ReleaseCheckSummary) {
+    let status = if summary.ok() { "ok" } else { "failed" };
+    println!("serow release-check: {status}");
+    println!("docs: {}", if summary.docs_ok() { "ok" } else { "failed" });
+    if !summary.missing_docs.is_empty() {
+        println!("  missing: {}", summary.missing_docs.join(", "));
+    }
+    println!(
+        "format: {} ({} files checked, {} with drift)",
+        if summary.format.ok() { "ok" } else { "failed" },
+        summary.format.files,
+        summary.format.changed
+    );
+    print_release_check_diagnostics("format", &summary.format.diagnostics);
+    println!(
+        "standard certify: {} ({} functions, {} diagnostics)",
+        if summary.standard_ok() {
+            "ok"
+        } else {
+            "failed"
+        },
+        summary.standard.functions,
+        summary.standard.diagnostics.len()
+    );
+    print_release_check_diagnostics("standard certify", &summary.standard.diagnostics);
+    println!(
+        "unattended certify: {} ({} functions, {} diagnostics)",
+        if summary.unattended_ok() {
+            "ok"
+        } else {
+            "failed"
+        },
+        summary.unattended.functions,
+        summary.unattended.diagnostics.len()
+    );
+    print_release_check_diagnostics("unattended certify", &summary.unattended.diagnostics);
+}
+
+fn print_release_check_diagnostics(gate: &str, diagnostics: &[Diagnostic]) {
+    for diagnostic in diagnostics {
+        let target = diagnostic
+            .target
+            .as_ref()
+            .map(|target| format!(" {target}"))
+            .unwrap_or_default();
+        println!(
+            "  {gate}: {}: {}:{} {}",
+            diagnostic.severity.as_str(),
+            diagnostic.code,
+            target,
+            diagnostic.message
+        );
+    }
+}
+
 fn print_agent_diagnostics() {
     println!("serow agent diagnostics: ok");
     println!("diagnostic json:");
@@ -5227,6 +5454,7 @@ fn print_usage() {
     eprintln!("  serow compile ir [paths...] [--json]");
     eprintln!("  {COMPILE_RUST_USAGE}");
     eprintln!("  serow fmt [paths...] [--check] [--json]");
+    eprintln!("  {RELEASE_CHECK_USAGE}");
     eprintln!("  serow version [--json] | serow --version");
     eprintln!(
         "  serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]"

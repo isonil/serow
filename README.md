@@ -40,6 +40,7 @@ bin/serow agent commands
 bin/serow agent commands --json
 bin/serow agent diagnostics
 bin/serow agent diagnostics --json
+bin/serow release-check --json
 ```
 
 Print the compiler/project version:
@@ -82,6 +83,7 @@ bin/serow plan --json
 bin/serow certify
 bin/serow certify --profile standard
 bin/serow certify --profile unattended
+bin/serow release-check
 ```
 
 Compile checked Serow source:

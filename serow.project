@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "0.4.131-rust-bootstrap",
+  "version": "0.4.132-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -16,6 +16,7 @@
     "agent_diagnostics": "bin/serow agent diagnostics [--json]",
     "docs": "bin/serow docs [--check] [--json]",
     "help": "bin/serow help [--json]",
+    "release_check": "bin/serow release-check [paths...] [--json]",
     "check": "bin/serow check",
     "certify": "bin/serow certify [--profile <standard|unattended>]",
     "certify_unattended": "bin/serow certify --profile unattended",
@@ -71,6 +72,7 @@
     "agent_diagnostics_subcommand_has_verbose_protocols": true,
     "docs_command_lists_public_references": true,
     "docs_command_checks_public_references": true,
+    "release_check_runs_public_v1_gates": true,
     "public_required_sections": [
       "intent",
       "contract",

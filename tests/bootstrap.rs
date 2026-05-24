@@ -4302,6 +4302,10 @@ fn agent_json_includes_compact_machine_readable_workflow() {
     );
     assert!(stdout.contains("serow docs [--check] [--json]"), "{stdout}");
     assert!(
+        stdout.contains("serow release-check [paths...] [--json]"),
+        "{stdout}"
+    );
+    assert!(
         stdout.contains(
             "serow compile rust [paths...] [--out-dir <dir>] [--check-out-dir] [--emit-bin|--bin] [--crate-name <name>] [--json]"
         ),
@@ -4351,6 +4355,10 @@ fn agent_commands_json_includes_full_command_catalog() {
         "{stdout}"
     );
     assert!(stdout.contains("serow version [--json]"), "{stdout}");
+    assert!(
+        stdout.contains("serow release-check [paths...] [--json]"),
+        "{stdout}"
+    );
     assert!(stdout.contains("serow docs [--check] [--json]"), "{stdout}");
     assert!(stdout.contains("serow patch qualify-call"), "{stdout}");
     assert!(stdout.contains("serow patch add-module"), "{stdout}");
@@ -4379,6 +4387,11 @@ fn top_level_help_json_lists_help_command() {
     assert!(stdout.contains("serow help [--json]"), "{stdout}");
     assert!(stdout.contains("\"name\": \"docs\""), "{stdout}");
     assert!(stdout.contains("serow docs [--check] [--json]"), "{stdout}");
+    assert!(stdout.contains("\"name\": \"release-check\""), "{stdout}");
+    assert!(
+        stdout.contains("serow release-check [paths...] [--json]"),
+        "{stdout}"
+    );
 }
 
 #[test]
@@ -4434,6 +4447,59 @@ fn docs_command_lists_and_checks_public_references() {
         "{check_stdout}"
     );
     assert!(check_stdout.contains("\"missing\": []"), "{check_stdout}");
+}
+
+#[test]
+fn release_check_runs_serow_owned_public_release_gates() {
+    let json_output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["release-check", "--json"])
+        .output()
+        .expect("run serow release-check --json");
+
+    assert!(json_output.status.success(), "{json_output:#?}");
+    assert!(json_output.stderr.is_empty(), "{json_output:#?}");
+    let json_stdout = String::from_utf8(json_output.stdout).expect("stdout is utf8");
+    assert!(json_stdout.contains("\"ok\": true"), "{json_stdout}");
+    assert!(json_stdout.contains("\"name\": \"docs\""), "{json_stdout}");
+    assert!(
+        json_stdout.contains("\"name\": \"format\""),
+        "{json_stdout}"
+    );
+    assert!(
+        json_stdout.contains("\"name\": \"standard_certify\""),
+        "{json_stdout}"
+    );
+    assert!(
+        json_stdout.contains("\"name\": \"unattended_certify\""),
+        "{json_stdout}"
+    );
+    assert!(
+        json_stdout.contains("\"profile\": \"unattended\""),
+        "{json_stdout}"
+    );
+    assert!(json_stdout.contains("\"changed\": 0"), "{json_stdout}");
+    assert!(json_stdout.contains("\"missing\": []"), "{json_stdout}");
+
+    let text_output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .arg("release-check")
+        .output()
+        .expect("run serow release-check");
+
+    assert!(text_output.status.success(), "{text_output:#?}");
+    let text_stdout = String::from_utf8(text_output.stdout).expect("stdout is utf8");
+    assert!(
+        text_stdout.contains("serow release-check: ok"),
+        "{text_stdout}"
+    );
+    assert!(text_stdout.contains("docs: ok"), "{text_stdout}");
+    assert!(
+        text_stdout.contains("standard certify: ok"),
+        "{text_stdout}"
+    );
+    assert!(
+        text_stdout.contains("unattended certify: ok"),
+        "{text_stdout}"
+    );
 }
 
 #[test]

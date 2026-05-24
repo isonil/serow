@@ -18,6 +18,7 @@ bin/serow agent commands
 bin/serow agent commands --json
 bin/serow agent diagnostics
 bin/serow agent diagnostics --json
+bin/serow release-check --json
 ```
 
 `agent commands` is the full CLI catalog, including top-level help, docs discovery, structured patch commands, extended ledger queries, replay, and backend commands. `agent diagnostics` describes the detailed JSON diagnostic and plan protocols.
@@ -39,6 +40,16 @@ bin/serow docs --json
 `docs --check` exits non-zero if any advertised local documentation path is missing. JSON output includes an `exists` field per reference plus top-level `references_ok` and `missing` fields.
 
 For commands with JSON output, `--json` may appear before the command or inside the command arguments before any `--` path separator.
+
+Run the Serow-owned public release gates:
+
+```sh
+bin/serow release-check
+bin/serow release-check --json
+bin/serow release-check examples/math.serow --json
+```
+
+`release-check` validates advertised docs, checks canonical formatting, runs standard certification, and runs unattended certification over the selected source paths. It does not wrap repository-level Rust or Python test commands.
 
 ## Version
 
@@ -198,6 +209,7 @@ Certify the current sample program:
 bin/serow certify
 bin/serow certify --profile standard
 bin/serow certify --profile unattended
+bin/serow release-check
 ```
 
 The default certification profile is `standard`; `--profile standard` is accepted as an explicit spelling for agents that need profile names in command plans. All certification modes validate machine-readable diagnostic `repair_actions`, rejecting malformed command actions so agents can trust repair commands as a narrow protocol rather than prose.
