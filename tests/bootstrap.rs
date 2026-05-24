@@ -3696,6 +3696,27 @@ fn version_command_reports_project_version() {
         stdout.contains("`serow version` does not accept positional arguments."),
         "{stdout}"
     );
+
+    let invalid_option_json = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["version", "--bogus", "--json"])
+        .output()
+        .expect("run serow version with unknown option");
+    assert_eq!(
+        invalid_option_json.status.code(),
+        Some(2),
+        "{invalid_option_json:#?}"
+    );
+    assert!(
+        invalid_option_json.stderr.is_empty(),
+        "{invalid_option_json:#?}"
+    );
+    let stdout = String::from_utf8(invalid_option_json.stdout).expect("stdout is utf8");
+    assert!(stdout.trim_start().starts_with('{'), "{stdout}");
+    assert!(stdout.contains("\"code\": \"UsageError\""), "{stdout}");
+    assert!(
+        stdout.contains("Unknown serow version option `--bogus`."),
+        "{stdout}"
+    );
 }
 
 #[test]
@@ -4577,6 +4598,27 @@ fn docs_command_lists_and_checks_public_references() {
         "{check_stdout}"
     );
     assert!(check_stdout.contains("\"missing\": []"), "{check_stdout}");
+
+    let invalid_option_json = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["docs", "--bogus", "--json"])
+        .output()
+        .expect("run serow docs with unknown option");
+    assert_eq!(
+        invalid_option_json.status.code(),
+        Some(2),
+        "{invalid_option_json:#?}"
+    );
+    assert!(
+        invalid_option_json.stderr.is_empty(),
+        "{invalid_option_json:#?}"
+    );
+    let stdout = String::from_utf8(invalid_option_json.stdout).expect("stdout is utf8");
+    assert!(stdout.trim_start().starts_with('{'), "{stdout}");
+    assert!(stdout.contains("\"code\": \"UsageError\""), "{stdout}");
+    assert!(
+        stdout.contains("Unknown serow docs option `--bogus`."),
+        "{stdout}"
+    );
 }
 
 #[test]

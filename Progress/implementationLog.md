@@ -2,6 +2,10 @@
 
 ## 2026-05-24
 
+- Chose discovery-command usage classification as a public v1 patch-hardening task because `docs` and `version` returned structured usage diagnostics, but unknown option-looking arguments were still described as positional extras unlike neighboring discovery commands.
+- Updated `docs` and `version` usage handling to report unknown options explicitly while preserving positional-extra diagnostics, covered both JSON paths with focused regressions, and bumped Serow to `1.0.7-rust-bootstrap` / crate `1.0.7`.
+- Verification is recorded in the final run for this change.
+
 - Chose structured enum type replacement as a targeted v1 patch-hardening task because `patch add-type`, `patch remove-type`, and `patch rename-type` already handled enum declarations, while `patch set-type` still rejected enum variants and told agents to edit manually.
 - Extended `patch set-type` to replace either record fields or nullary enum variants, while rejecting declaration/name mismatches and record/enum kind changes so renames and deliberate type-kind changes remain explicit structured operations.
 - Bumped Serow to `1.0.6-rust-bootstrap` / crate `1.0.6`; verification is recorded in the final run for this change.

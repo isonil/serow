@@ -127,10 +127,12 @@ fn help_usage_error(json_output: bool, message: String) -> i32 {
 fn run_version(args: &[String]) -> i32 {
     let (rest, json_output) = split_flag_before_separator(args, "--json");
     if !rest.is_empty() {
-        return version_usage_error(
-            json_output,
-            "`serow version` does not accept positional arguments.".to_string(),
-        );
+        let message = if rest[0].starts_with('-') {
+            format!("Unknown serow version option `{}`.", rest[0])
+        } else {
+            "`serow version` does not accept positional arguments.".to_string()
+        };
+        return version_usage_error(json_output, message);
     }
     let version = load_project_version();
     if json_output {
@@ -297,10 +299,12 @@ fn run_docs(args: &[String]) -> i32 {
     let (args, check) = split_flag(args, "--check");
     let (rest, json_output) = split_flag(&args, "--json");
     if !rest.is_empty() {
-        return docs_usage_error(
-            json_output,
-            "`serow docs` does not accept positional arguments.".to_string(),
-        );
+        let message = if rest[0].starts_with('-') {
+            format!("Unknown serow docs option `{}`.", rest[0])
+        } else {
+            "`serow docs` does not accept positional arguments.".to_string()
+        };
+        return docs_usage_error(json_output, message);
     }
     let missing = missing_doc_references();
     let ok = missing.is_empty();
