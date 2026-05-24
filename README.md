@@ -38,6 +38,13 @@ bin/serow agent diagnostics
 bin/serow agent diagnostics --json
 ```
 
+Print the compiler/project version:
+
+```sh
+bin/serow version
+bin/serow version --json
+```
+
 Run the checker:
 
 ```sh

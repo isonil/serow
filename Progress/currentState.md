@@ -25,7 +25,7 @@ Selection policy for generic implementation prompts:
 - Phase 3's first production backend slice is closed for public v1: portable IR plus dependency-free Rust source/crate generation for the supported bootstrap subset, generated metadata, artifact drift checks, runtime contract assertions, generated pure evidence tests, and binary entrypoint support are all implemented.
 - Remaining backend work such as WASM/TypeScript/Python backends, richer external effect boundaries, recursive record layout support, generic list indexing, list pattern matching, higher-order collection APIs, and semantic-embedding intent search is explicitly v2/future scope rather than blocking the public v1 bootstrap baseline.
 - The Python bootstrap remains reference-only. It should keep parity where cheap, but Rust is the source of truth for v1 behavior.
-- Latest release-polish closure: a leading top-level `--json` is now normalized before command dispatch, so invocations such as `serow --json check` and `serow --json query symbol add` reach their intended command while preserving `--` path-separator behavior.
+- Latest release-polish closure: `bin/serow version [--json]` and `bin/serow --version` now expose the canonical `serow.project` version through the CLI and command catalog.
 
 ## Implemented
 
@@ -122,6 +122,10 @@ Selection policy for generic implementation prompts:
   - compact default output with core commands, backend entry points, workflow, requirements, gates, and known limits
   - `bin/serow agent commands [--json]` for the full command catalog
   - `bin/serow agent diagnostics [--json]` for detailed diagnostic and plan JSON protocol notes
+- Version command:
+  - `bin/serow version [--json]`
+  - `bin/serow --version`
+  - reports the canonical version loaded from `serow.project`
 - Machine-readable change planning:
   - `bin/serow plan [paths...] [--json]`
   - explicit paths are treated as the change set

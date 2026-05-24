@@ -3572,6 +3572,55 @@ fn top_level_usage_errors_respect_json_flag() {
 }
 
 #[test]
+fn version_command_reports_project_version() {
+    let text_output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .arg("version")
+        .output()
+        .expect("run serow version");
+    assert!(text_output.status.success(), "{text_output:#?}");
+    assert!(text_output.stderr.is_empty(), "{text_output:#?}");
+    let stdout = String::from_utf8(text_output.stdout).expect("stdout is utf8");
+    assert_eq!(stdout.trim(), "Serow 0.4.127-rust-bootstrap");
+
+    let flag_output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .arg("--version")
+        .output()
+        .expect("run serow --version");
+    assert!(flag_output.status.success(), "{flag_output:#?}");
+    assert!(flag_output.stderr.is_empty(), "{flag_output:#?}");
+    let stdout = String::from_utf8(flag_output.stdout).expect("stdout is utf8");
+    assert_eq!(stdout.trim(), "Serow 0.4.127-rust-bootstrap");
+
+    let json_output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["--json", "--version"])
+        .output()
+        .expect("run serow --version with leading json");
+    assert!(json_output.status.success(), "{json_output:#?}");
+    assert!(json_output.stderr.is_empty(), "{json_output:#?}");
+    let stdout = String::from_utf8(json_output.stdout).expect("stdout is utf8");
+    assert!(stdout.trim_start().starts_with('{'), "{stdout}");
+    assert!(stdout.contains("\"ok\": true"), "{stdout}");
+    assert!(
+        stdout.contains("\"version\": \"0.4.127-rust-bootstrap\""),
+        "{stdout}"
+    );
+
+    let invalid_json = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["version", "extra", "--json"])
+        .output()
+        .expect("run invalid serow version usage");
+    assert_eq!(invalid_json.status.code(), Some(2), "{invalid_json:#?}");
+    assert!(invalid_json.stderr.is_empty(), "{invalid_json:#?}");
+    let stdout = String::from_utf8(invalid_json.stdout).expect("stdout is utf8");
+    assert!(stdout.trim_start().starts_with('{'), "{stdout}");
+    assert!(stdout.contains("\"code\": \"UsageError\""), "{stdout}");
+    assert!(
+        stdout.contains("`serow version` does not accept positional arguments."),
+        "{stdout}"
+    );
+}
+
+#[test]
 fn replay_usage_errors_respect_json_flag() {
     let missing_command = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args(["replay", "--json"])
@@ -4244,6 +4293,7 @@ fn agent_json_includes_compact_machine_readable_workflow() {
         stdout.contains("serow certify [paths...] [--profile <standard|unattended>] [--json]"),
         "{stdout}"
     );
+    assert!(stdout.contains("serow version [--json]"), "{stdout}");
     assert!(
         stdout.contains("serow plan [paths...] [--json]"),
         "{stdout}"
@@ -4282,6 +4332,7 @@ fn agent_commands_json_includes_full_command_catalog() {
         stdout.contains("serow certify [paths...] [--profile <standard|unattended>] [--json]"),
         "{stdout}"
     );
+    assert!(stdout.contains("serow version [--json]"), "{stdout}");
     assert!(stdout.contains("serow patch qualify-call"), "{stdout}");
     assert!(stdout.contains("serow patch add-module"), "{stdout}");
     assert!(stdout.contains("serow patch remove-function"), "{stdout}");

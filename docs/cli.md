@@ -30,6 +30,16 @@ bin/serow help --json
 
 For commands with JSON output, `--json` may appear before the command or inside the command arguments before any `--` path separator.
 
+## Version
+
+Print the Serow project version from `serow.project`:
+
+```sh
+bin/serow version
+bin/serow version --json
+bin/serow --version
+```
+
 ## Check
 
 Run the current checker:

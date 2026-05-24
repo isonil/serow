@@ -69,6 +69,7 @@ pub fn main(args: impl Iterator<Item = String>) -> i32 {
         "plan" => run_plan(&args[1..]),
         "query" => run_query(&args[1..]),
         "replay" => run_replay(&args[1..]),
+        "version" | "--version" | "-V" => run_version(&args[1..]),
         "-h" | "--help" | "help" => {
             print_usage();
             0
@@ -104,6 +105,42 @@ fn top_level_usage_error(json_output: bool, message: String) -> i32 {
     if json_output {
         let diagnostic = Diagnostic::error("UsageError", message, None)
             .with_repair("Use `serow <command> ... [--json]`.");
+        println!("{}", diagnostics_json(false, &[diagnostic]));
+    } else {
+        eprintln!("{message}");
+        print_usage();
+    }
+    2
+}
+
+fn run_version(args: &[String]) -> i32 {
+    let (rest, json_output) = split_flag_before_separator(args, "--json");
+    if !rest.is_empty() {
+        return version_usage_error(
+            json_output,
+            "`serow version` does not accept positional arguments.".to_string(),
+        );
+    }
+    let version = load_project_version();
+    if json_output {
+        println!("{}", version_json(version.as_deref()));
+    } else {
+        println!("Serow {}", version.as_deref().unwrap_or("unknown"));
+    }
+    0
+}
+
+fn version_json(version: Option<&str>) -> String {
+    format!(
+        "{{\n  \"ok\": true,\n  \"language\": \"Serow\",\n  \"version\": {}\n}}",
+        option_string_json(version)
+    )
+}
+
+fn version_usage_error(json_output: bool, message: String) -> i32 {
+    if json_output {
+        let diagnostic = Diagnostic::error("UsageError", message, None)
+            .with_repair("Use `serow version [--json]` or `serow --version`.");
         println!("{}", diagnostics_json(false, &[diagnostic]));
     } else {
         eprintln!("{message}");
@@ -4404,6 +4441,11 @@ const CORE_AGENT_COMMANDS: &[AgentCommand] = &[
         "Rewrite or verify canonical Serow source formatting.",
     ),
     (
+        "version",
+        "serow version [--json] | serow --version",
+        "Print the Serow project version from serow.project.",
+    ),
+    (
         "plan",
         "serow plan [paths...] [--json]",
         "Summarize changed public symbols, semantic change labels, evidence coverage, impact, and residual risk.",
@@ -4455,6 +4497,11 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
         "fmt",
         "serow fmt [paths...] [--check] [--json]",
         "Rewrite or verify canonical Serow source formatting.",
+    ),
+    (
+        "version",
+        "serow version [--json] | serow --version",
+        "Print the Serow project version from serow.project.",
     ),
     (
         "patch add-contract",
@@ -5033,6 +5080,7 @@ fn print_usage() {
     eprintln!("  serow compile ir [paths...] [--json]");
     eprintln!("  {COMPILE_RUST_USAGE}");
     eprintln!("  serow fmt [paths...] [--check] [--json]");
+    eprintln!("  serow version [--json] | serow --version");
     eprintln!(
         "  serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]"
     );
