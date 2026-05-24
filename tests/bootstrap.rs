@@ -4217,6 +4217,7 @@ fn agent_command_prints_bootstrap_contract() {
     assert!(stdout.contains("serow agent: ok"), "{stdout}");
     assert!(stdout.contains("bin/serow check after edits"), "{stdout}");
     assert!(stdout.contains("bin/serow certify"), "{stdout}");
+    assert!(stdout.contains("serow docs [--json]"), "{stdout}");
     assert!(stdout.contains("serow agent commands [--json]"), "{stdout}");
     assert!(!stdout.contains("serow patch qualify-call"), "{stdout}");
 }
@@ -4299,6 +4300,7 @@ fn agent_json_includes_compact_machine_readable_workflow() {
         stdout.contains("serow compile ir [paths...] [--json]"),
         "{stdout}"
     );
+    assert!(stdout.contains("serow docs [--json]"), "{stdout}");
     assert!(
         stdout.contains(
             "serow compile rust [paths...] [--out-dir <dir>] [--check-out-dir] [--emit-bin|--bin] [--crate-name <name>] [--json]"
@@ -4349,6 +4351,7 @@ fn agent_commands_json_includes_full_command_catalog() {
         "{stdout}"
     );
     assert!(stdout.contains("serow version [--json]"), "{stdout}");
+    assert!(stdout.contains("serow docs [--json]"), "{stdout}");
     assert!(stdout.contains("serow patch qualify-call"), "{stdout}");
     assert!(stdout.contains("serow patch add-module"), "{stdout}");
     assert!(stdout.contains("serow patch remove-function"), "{stdout}");
@@ -4374,6 +4377,41 @@ fn top_level_help_json_lists_help_command() {
     assert!(stdout.contains("\"ok\": true"), "{stdout}");
     assert!(stdout.contains("\"name\": \"help\""), "{stdout}");
     assert!(stdout.contains("serow help [--json]"), "{stdout}");
+    assert!(stdout.contains("\"name\": \"docs\""), "{stdout}");
+    assert!(stdout.contains("serow docs [--json]"), "{stdout}");
+}
+
+#[test]
+fn docs_command_lists_public_references() {
+    let text_output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .arg("docs")
+        .output()
+        .expect("run serow docs");
+
+    assert!(text_output.status.success(), "{text_output:#?}");
+    let text_stdout = String::from_utf8(text_output.stdout).expect("stdout is utf8");
+    assert!(text_stdout.contains("serow docs: ok"), "{text_stdout}");
+    assert!(text_stdout.contains("docs/language.md"), "{text_stdout}");
+    assert!(text_stdout.contains("docs/cli.md"), "{text_stdout}");
+    assert!(text_stdout.contains("docs/backends.md"), "{text_stdout}");
+
+    let json_output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["docs", "--json"])
+        .output()
+        .expect("run serow docs --json");
+
+    assert!(json_output.status.success(), "{json_output:#?}");
+    let json_stdout = String::from_utf8(json_output.stdout).expect("stdout is utf8");
+    assert!(json_stdout.contains("\"ok\": true"), "{json_stdout}");
+    assert!(json_stdout.contains("\"docs\""), "{json_stdout}");
+    assert!(
+        json_stdout.contains("\"path\": \"docs/language.md\""),
+        "{json_stdout}"
+    );
+    assert!(
+        json_stdout.contains("\"path\": \"AGENTS.md\""),
+        "{json_stdout}"
+    );
 }
 
 #[test]

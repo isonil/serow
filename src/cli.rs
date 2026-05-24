@@ -64,6 +64,7 @@ pub fn main(args: impl Iterator<Item = String>) -> i32 {
         "check" => run_check(&args[1..], false),
         "certify" => run_check(&args[1..], true),
         "compile" => run_compile(&args[1..]),
+        "docs" => run_docs(&args[1..]),
         "fmt" => run_fmt(&args[1..]),
         "patch" => run_patch(&args[1..]),
         "plan" => run_plan(&args[1..]),
@@ -271,6 +272,34 @@ fn agent_usage_error(json_output: bool, message: String) -> i32 {
     } else {
         eprintln!("{message}");
         print_agent_usage();
+    }
+    2
+}
+
+fn run_docs(args: &[String]) -> i32 {
+    let (rest, json_output) = split_flag(args, "--json");
+    if !rest.is_empty() {
+        return docs_usage_error(
+            json_output,
+            "`serow docs` does not accept positional arguments.".to_string(),
+        );
+    }
+    if json_output {
+        println!("{}", docs_json());
+    } else {
+        print_docs();
+    }
+    0
+}
+
+fn docs_usage_error(json_output: bool, message: String) -> i32 {
+    if json_output {
+        let diagnostic = Diagnostic::error("UsageError", message, None)
+            .with_repair("Use `serow docs [--json]`.");
+        println!("{}", diagnostics_json(false, &[diagnostic]));
+    } else {
+        eprintln!("{message}");
+        print_docs_usage();
     }
     2
 }
@@ -4405,9 +4434,39 @@ fn symbol_path(functions: &[Function]) -> String {
 }
 
 type AgentCommand = (&'static str, &'static str, &'static str);
+type DocReference = (&'static str, &'static str, &'static str);
 
 const COMPILE_RUST_USAGE: &str = "serow compile rust [paths...] [--out-dir <dir>] [--check-out-dir] [--emit-bin|--bin] [--crate-name <name>] [--json]";
 const CERTIFY_USAGE: &str = "serow certify [paths...] [--profile <standard|unattended>] [--json]";
+const DOCS_USAGE: &str = "serow docs [--json]";
+
+const DOC_REFERENCES: &[DocReference] = &[
+    (
+        "language",
+        "docs/language.md",
+        "Public v1 source shape, types, expressions, evidence, effects, planning, and limits.",
+    ),
+    (
+        "cli",
+        "docs/cli.md",
+        "Checker, formatter, structured patches, ledger queries, replay, planning, and certification.",
+    ),
+    (
+        "backends",
+        "docs/backends.md",
+        "Portable IR, Rust backend support, generated crate layout, metadata, drift checks, and runtime behavior.",
+    ),
+    (
+        "agent instructions",
+        "AGENTS.md",
+        "Repository workflow rules for coding agents.",
+    ),
+    (
+        "progress",
+        "Progress/currentState.md",
+        "Current implementation mode, closure state, implemented behavior, and remaining future scope.",
+    ),
+];
 
 const CORE_AGENT_COMMANDS: &[AgentCommand] = &[
     (
@@ -4419,6 +4478,11 @@ const CORE_AGENT_COMMANDS: &[AgentCommand] = &[
         "help",
         "serow help [--json]",
         "Print text usage or return the full command catalog as JSON.",
+    ),
+    (
+        "docs",
+        DOCS_USAGE,
+        "List stable local documentation references.",
     ),
     (
         "check",
@@ -4482,6 +4546,11 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
         "help",
         "serow help [--json]",
         "Print text usage or return the full command catalog as JSON.",
+    ),
+    (
+        "docs",
+        DOCS_USAGE,
+        "List stable local documentation references.",
     ),
     (
         "check",
@@ -4818,6 +4887,22 @@ fn agent_command_rows_json(commands: &[AgentCommand]) -> String {
         .join(", ")
 }
 
+fn docs_json() -> String {
+    let rows = DOC_REFERENCES
+        .iter()
+        .map(|(name, path, purpose)| {
+            format!(
+                "{{\"name\": {}, \"path\": {}, \"purpose\": {}}}",
+                json_string(name),
+                json_string(path),
+                json_string(purpose)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("{{\n  \"ok\": true,\n  \"docs\": [{rows}]\n}}")
+}
+
 fn agent_diagnostics_json() -> String {
     concat!(
         "{\n",
@@ -5041,6 +5126,15 @@ fn print_agent_commands() {
     }
 }
 
+fn print_docs() {
+    println!("serow docs: ok");
+    for (name, path, purpose) in DOC_REFERENCES {
+        println!("{name}:");
+        println!("  path: {path}");
+        println!("  purpose: {purpose}");
+    }
+}
+
 fn print_agent_diagnostics() {
     println!("serow agent diagnostics: ok");
     println!("diagnostic json:");
@@ -5086,6 +5180,7 @@ fn print_usage() {
     eprintln!("usage:");
     eprintln!("  serow agent [commands|diagnostics] [--json]");
     eprintln!("  serow help [--json]");
+    eprintln!("  {DOCS_USAGE}");
     eprintln!("  serow check [paths...] [--json]");
     eprintln!("  {CERTIFY_USAGE}");
     eprintln!("  serow compile ir [paths...] [--json]");
@@ -5158,6 +5253,11 @@ fn print_agent_usage() {
     eprintln!("  serow agent [--json]");
     eprintln!("  serow agent commands [--json]");
     eprintln!("  serow agent diagnostics [--json]");
+}
+
+fn print_docs_usage() {
+    eprintln!("usage:");
+    eprintln!("  {DOCS_USAGE}");
 }
 
 fn print_patch_usage() {

@@ -20,12 +20,19 @@ bin/serow agent diagnostics
 bin/serow agent diagnostics --json
 ```
 
-`agent commands` is the full CLI catalog, including top-level help, structured patch commands, extended ledger queries, replay, and backend commands. `agent diagnostics` describes the detailed JSON diagnostic and plan protocols.
+`agent commands` is the full CLI catalog, including top-level help, docs discovery, structured patch commands, extended ledger queries, replay, and backend commands. `agent diagnostics` describes the detailed JSON diagnostic and plan protocols.
 
 Top-level help also honors JSON requests by returning the full command catalog:
 
 ```sh
 bin/serow help --json
+```
+
+List stable local documentation references:
+
+```sh
+bin/serow docs
+bin/serow docs --json
 ```
 
 For commands with JSON output, `--json` may appear before the command or inside the command arguments before any `--` path separator.

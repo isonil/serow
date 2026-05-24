@@ -962,3 +962,8 @@
 - Linked the language reference from the README and recorded the release-documentation closure in the roadmap and current-state notes.
 - Bumped `serow.project` to `0.4.122-rust-bootstrap`.
 - Verified with `bin/serow check --json`, `bin/serow certify --json`, `bin/serow fmt --check --json`, `git diff --check`, `bin/serow certify --profile unattended --json`, `bin/serow plan --json`, `cargo fmt --check`, `cargo test`, `cargo clippy -- -D warnings`, and `python3 -m unittest discover -s tests`.
+- Chose CLI documentation discovery as a release-polish closure because stable public references now live in `docs/`, but command discovery did not provide a direct docs entrypoint.
+- Added `bin/serow docs [--json]`, listing the stable local language, CLI, backend, agent-instruction, and progress references in text or machine-readable form.
+- Updated top-level help, compact/full agent command discovery, README, CLI docs, `serow.project`, and Progress notes to advertise the docs entrypoint.
+- Bumped `serow.project` to `0.4.130-rust-bootstrap`.
+- Verified with `bin/serow query intent "list public documentation references from the CLI" --json`, `bin/serow query symbol docs --json`, `cargo fmt --check`, targeted CLI command discovery tests, `bin/serow docs --json`, `python3 -m unittest discover -s tests`, `bin/serow fmt --check --json`, `bin/serow check --json`, `bin/serow certify --json`, `bin/serow certify --profile unattended --json`, `bin/serow plan --json`, `bin/serow agent --json`, `bin/serow compile rust examples/math.serow --json`, `cargo test`, `cargo clippy -- -D warnings`, and `git diff --check`.
