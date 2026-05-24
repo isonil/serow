@@ -28,6 +28,8 @@ Top-level help also honors JSON requests by returning the full command catalog:
 bin/serow help --json
 ```
 
+For commands with JSON output, `--json` may appear before the command or inside the command arguments before any `--` path separator.
+
 ## Check
 
 Run the current checker:

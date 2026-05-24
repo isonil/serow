@@ -37,8 +37,9 @@ use crate::rust_backend::{
 };
 
 pub fn main(args: impl Iterator<Item = String>) -> i32 {
-    let args = args.collect::<Vec<_>>();
-    let json_requested = json_flag_requested(&args);
+    let raw_args = args.collect::<Vec<_>>();
+    let json_requested = json_flag_requested(&raw_args);
+    let args = normalize_top_level_json_flag(&raw_args);
     if !args.is_empty() && args.iter().all(|arg| arg == "--json") {
         return top_level_usage_error(
             true,
@@ -74,6 +75,18 @@ pub fn main(args: impl Iterator<Item = String>) -> i32 {
         }
         other => top_level_usage_error(json_requested, format!("Unknown serow command `{other}`.")),
     }
+}
+
+fn normalize_top_level_json_flag(args: &[String]) -> Vec<String> {
+    let (mut normalized, json_requested) = split_flag_before_separator(args, "--json");
+    if json_requested {
+        let insert_at = normalized
+            .iter()
+            .position(|arg| arg == "--")
+            .unwrap_or(normalized.len());
+        normalized.insert(insert_at, "--json".to_string());
+    }
+    normalized
 }
 
 fn top_level_help_requested(args: &[String]) -> bool {

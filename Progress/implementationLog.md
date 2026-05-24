@@ -2,6 +2,10 @@
 
 ## 2026-05-24
 
+- Chose top-level CLI JSON flag normalization as a release-polish closure because the dispatcher detected `--json` globally for errors, but `serow --json check` and other leading-flag invocations still treated `--json` as the command name.
+- Normalized leading/pre-separator top-level `--json` into the selected command's option area while preserving `--` path-separator behavior, covered leading JSON check/query/unknown-command regressions, and bumped `serow.project` to `0.4.126-rust-bootstrap`.
+- Verification is recorded in the final run for this change.
+
 - Chose top-level CLI JSON help polish because the public command catalog was available through `agent commands --json`, while `serow help --json` still printed plain usage text and `serow --json` treated the global JSON request as an unknown command.
 - Added a JSON help path that returns the full command catalog, changed JSON-only invocation to a structured missing-command `UsageError`, covered both with focused CLI regressions, and bumped `serow.project` to `0.4.125-rust-bootstrap`.
 - Verification is recorded in the final run for this change.

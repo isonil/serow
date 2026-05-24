@@ -103,6 +103,16 @@ pub fn identity(x: Int) -> Int
         "path after `--` should not enable JSON output: {stdout}"
     );
 
+    let global_json_check = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args(["--json", "check", "--", "--json"])
+        .output()
+        .expect("run leading-json serow check with json-looking path");
+    assert!(global_json_check.status.success(), "{global_json_check:#?}");
+    let stdout = String::from_utf8(global_json_check.stdout).expect("stdout is utf8");
+    assert!(stdout.trim_start().starts_with('{'), "{stdout}");
+    assert!(stdout.contains("\"ok\": true"), "{stdout}");
+
     let ir = Command::new(env!("CARGO_BIN_EXE_serow"))
         .current_dir(&dir)
         .args(["compile", "ir", "--", "--json"])
@@ -3460,6 +3470,55 @@ fn top_level_usage_errors_respect_json_flag() {
     );
     assert!(
         !stdout.contains("Unknown serow command `--json`."),
+        "{stdout}"
+    );
+
+    let global_json_check = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["--json", "check"])
+        .output()
+        .expect("run serow check with leading json flag");
+    assert!(global_json_check.status.success(), "{global_json_check:#?}");
+    assert!(
+        global_json_check.stderr.is_empty(),
+        "{global_json_check:#?}"
+    );
+    let stdout = String::from_utf8(global_json_check.stdout).expect("stdout is utf8");
+    assert!(stdout.trim_start().starts_with('{'), "{stdout}");
+    assert!(stdout.contains("\"ok\": true"), "{stdout}");
+    assert!(stdout.contains("\"functions\""), "{stdout}");
+
+    let global_json_query = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["--json", "query", "symbol", "add"])
+        .output()
+        .expect("run serow query with leading json flag");
+    assert!(global_json_query.status.success(), "{global_json_query:#?}");
+    assert!(
+        global_json_query.stderr.is_empty(),
+        "{global_json_query:#?}"
+    );
+    let stdout = String::from_utf8(global_json_query.stdout).expect("stdout is utf8");
+    assert!(stdout.trim_start().starts_with('{'), "{stdout}");
+    assert!(stdout.contains("\"ok\": true"), "{stdout}");
+    assert!(stdout.contains("@core.math.add.v1"), "{stdout}");
+
+    let leading_json_unknown = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["--json", "unknown-top-level"])
+        .output()
+        .expect("run leading-json unknown serow top-level command");
+    assert_eq!(
+        leading_json_unknown.status.code(),
+        Some(2),
+        "{leading_json_unknown:#?}"
+    );
+    assert!(
+        leading_json_unknown.stderr.is_empty(),
+        "{leading_json_unknown:#?}"
+    );
+    let stdout = String::from_utf8(leading_json_unknown.stdout).expect("stdout is utf8");
+    assert!(stdout.trim_start().starts_with('{'), "{stdout}");
+    assert!(stdout.contains("\"code\": \"UsageError\""), "{stdout}");
+    assert!(
+        stdout.contains("Unknown serow command `unknown-top-level`."),
         "{stdout}"
     );
 
