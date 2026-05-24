@@ -153,7 +153,8 @@ fn repair_action_issue(action: &RepairAction) -> Option<String> {
         return Some("missing Serow subcommand".to_string());
     };
     match command {
-        "agent" | "certify" | "check" | "fmt" | "plan" | "release-check" => None,
+        "agent" | "certify" | "check" | "docs" | "fmt" | "help" | "plan" | "release-check"
+        | "version" => None,
         "patch" => validate_nested_command(
             action,
             &[

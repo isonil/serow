@@ -4071,6 +4071,46 @@ fn repair_action_contract_validation_rejects_malformed_commands() {
                 "Point = { x: Int, y: Int }".to_string(),
             ],
         ),
+        Diagnostic::warning(
+            "SyntheticDocsRepair",
+            "Synthetic diagnostic with a docs discovery repair action.",
+            Some("test.target".to_string()),
+        )
+        .with_command_repair(
+            "Inspect public documentation references",
+            vec![
+                "bin/serow".to_string(),
+                "docs".to_string(),
+                "--check".to_string(),
+                "--json".to_string(),
+            ],
+        ),
+        Diagnostic::warning(
+            "SyntheticHelpRepair",
+            "Synthetic diagnostic with a help catalog repair action.",
+            Some("test.target".to_string()),
+        )
+        .with_command_repair(
+            "Inspect command catalog",
+            vec![
+                "bin/serow".to_string(),
+                "help".to_string(),
+                "--json".to_string(),
+            ],
+        ),
+        Diagnostic::warning(
+            "SyntheticVersionRepair",
+            "Synthetic diagnostic with a version repair action.",
+            Some("test.target".to_string()),
+        )
+        .with_command_repair(
+            "Inspect project version",
+            vec![
+                "bin/serow".to_string(),
+                "version".to_string(),
+                "--json".to_string(),
+            ],
+        ),
     ];
     assert!(validate_repair_actions(&diagnostics).is_empty());
 

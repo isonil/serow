@@ -25,7 +25,7 @@ Selection policy for generic implementation prompts:
 - Phase 3's first production backend slice is closed for public v1: portable IR plus dependency-free Rust source/crate generation for the supported bootstrap subset, generated metadata, artifact drift checks, runtime contract assertions, generated pure evidence tests, and binary entrypoint support are all implemented.
 - Remaining backend work such as WASM/TypeScript/Python backends, richer external effect boundaries, recursive record layout support, generic list indexing, list pattern matching, higher-order collection APIs, and semantic-embedding intent search is explicitly v2/future scope rather than blocking the public v1 bootstrap baseline.
 - The Python bootstrap remains reference-only. It should keep parity where cheap, but Rust is the source of truth for v1 behavior.
-- Latest closure: Serow is promoted to `1.0.0-rust-bootstrap` as the public v1 release baseline. `bin/serow release-check [paths...] [--json]` runs the Serow-owned public v1 release gates in one command: documentation reference validation, canonical formatting, standard certification, and unattended certification.
+- Latest closure: Serow is at `1.0.1-rust-bootstrap` after a public v1 patch release that aligns structured repair-action certification with the advertised read-only discovery commands. `bin/serow release-check [paths...] [--json]` runs the Serow-owned public v1 release gates in one command: documentation reference validation, canonical formatting, standard certification, and unattended certification.
 
 ## Implemented
 

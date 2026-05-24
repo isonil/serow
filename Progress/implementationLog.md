@@ -2,6 +2,10 @@
 
 ## 2026-05-24
 
+- Chose structured repair-action command allowlist parity as a v1 patch-release hardening task because certification validates repair actions, while the validator still rejected the advertised read-only `docs`, `help`, and `version` discovery commands if a diagnostic used them as command actions.
+- Accepted `docs`, `help`, and `version` repair actions in the certification contract validator, added focused regression coverage, and bumped Serow to `1.0.1-rust-bootstrap` / crate `1.0.1`.
+- Verification is recorded in the final run for this change.
+
 - Chose public v1 release-baseline closure because all roadmap phases required for the supported bootstrap subset are closed and `bin/serow release-check --json` passes the Serow-owned release gates.
 - Promoted `serow.project` to `1.0.0-rust-bootstrap`, bumped the Rust crate manifest to `1.0.0`, updated compact agent/bootstrap wording from backend-closure mode to public v1 release-baseline mode, and recorded targeted v2 hardening as the next implementation posture.
 - Verification is recorded in the final run for this change.
