@@ -918,3 +918,10 @@
 - Added regression coverage proving `MissingRequiredSection` repair commands can create a missing `effects pure` declaration and a typed-hole `impl` section without raw source editing.
 - Updated CLI/language/progress documentation to state that `patch set-effects` creates missing effect declarations as well as replacing existing declarations, marked missing-section patch coverage done enough for v1, and bumped `serow.project` to `0.4.114-rust-bootstrap`.
 - Verification is recorded in the final run for this change.
+
+## 2026-05-24
+
+- Chose Phase 3 backend closure as the next v1 task because the implemented portable IR and Rust backend slice now has runtime contracts, generated evidence tests, metadata sidecars, artifact drift checks, and binary entrypoint support.
+- Marked the first Phase 3 backend slice closed for public v1 in the roadmap and current-state notes, with unsupported future backend targets and broader language constructs explicitly scoped to v2+.
+- Updated `serow.project`, README, and the compact `bin/serow agent` bootstrap text/JSON so project metadata and agent discovery now agree that public v1 backend closure is complete.
+- Verified with `bin/serow query intent "close v1 release polish backend certification generated Rust artifacts"`, `bin/serow query symbol agent --json`, `cargo fmt --check`, targeted compact-agent regression, `cargo clippy -- -D warnings`, `cargo test`, `python3 -m unittest discover -s tests`, `bin/serow fmt --check --json`, `bin/serow check --json`, `bin/serow certify --json`, `bin/serow certify --profile unattended --json`, `bin/serow plan --json`, `bin/serow agent --json`, `bin/serow compile rust examples/math.serow --json`, and `git diff --check`.

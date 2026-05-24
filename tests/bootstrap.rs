@@ -4073,7 +4073,7 @@ fn agent_json_includes_compact_machine_readable_workflow() {
     );
     assert!(
         stdout.contains(
-            "\"current_advanced_track\": \"V1 closure: release polish and targeted v2 hardening\""
+            "\"current_advanced_track\": \"Public v1 backend closure complete; release polish and targeted v2 hardening\""
         ),
         "{stdout}"
     );
