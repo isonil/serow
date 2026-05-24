@@ -2,6 +2,10 @@
 
 ## 2026-05-24
 
+- Chose v1 release-polish CLI diagnostics because invalid `serow check --profile ... --json` already returned structured JSON but suggested the `certify` command in its repair text.
+- Split check/certify usage repair hints so `serow check` usage errors point back to `serow check`, while certification profile errors keep the profile-aware `serow certify` repair.
+- Bumped `serow.project` to `0.4.121-rust-bootstrap`; verification is recorded in the final run for this change.
+
 - Chose Phase 2.5 roadmap closure and CLI reference polish because current state already treated the agent-safe language core as v1 done enough, while the roadmap still described several implemented capabilities as open "Started" work and the CLI query examples omitted the public `query effects` command.
 - Marked Phase 2.5 done enough for public v1, explicitly deferring semantic embeddings, richer stable node identity, comments-preserving edits, deeper patch coverage, and broader semantic delta classification to v2 hardening unless they block release polish.
 - Updated current-state/public docs for `remove_first` and `query effects`, and bumped `serow.project` to `0.4.119-rust-bootstrap`.

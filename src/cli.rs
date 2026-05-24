@@ -1863,7 +1863,7 @@ fn run_check(args: &[String], certify: bool) -> i32 {
         json_output,
     } = match parse_check_args(args, certify) {
         Ok(parsed) => parsed,
-        Err((json_output, message)) => return check_usage_error(json_output, message),
+        Err((json_output, message)) => return check_usage_error(json_output, message, certify),
     };
     let (program, parse_diagnostics) = parse_paths(&paths);
     let mut summary = check_program(&program, parse_diagnostics);
@@ -2007,10 +2007,14 @@ fn json_flag_requested(args: &[String]) -> bool {
         .any(|arg| arg == "--json")
 }
 
-fn check_usage_error(json_output: bool, message: String) -> i32 {
+fn check_usage_error(json_output: bool, message: String, certify: bool) -> i32 {
     if json_output {
-        let diagnostic = Diagnostic::error("UsageError", message, None)
-            .with_repair("Use `serow certify [paths...] --profile unattended [--json]`.");
+        let repair = if certify {
+            "Use `serow certify [paths...] --profile unattended [--json]`."
+        } else {
+            "Use `serow check [paths...] [--json]`."
+        };
+        let diagnostic = Diagnostic::error("UsageError", message, None).with_repair(repair);
         println!("{}", diagnostics_json(false, &[diagnostic]));
     } else {
         eprintln!("{message}");

@@ -3568,6 +3568,14 @@ fn check_and_certify_usage_errors_respect_json_flag() {
         stdout.contains("only supported by `serow certify`"),
         "{stdout}"
     );
+    assert!(
+        stdout.contains("Use `serow check [paths...] [--json]`."),
+        "{stdout}"
+    );
+    assert!(
+        !stdout.contains("Use `serow certify [paths...] --profile unattended [--json]`."),
+        "{stdout}"
+    );
 
     let certify_output = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args(["certify", "--profile", "strict", "--json"])
@@ -3580,6 +3588,10 @@ fn check_and_certify_usage_errors_respect_json_flag() {
     assert!(stdout.contains("\"code\": \"UsageError\""), "{stdout}");
     assert!(
         stdout.contains("Unknown certification profile `strict`"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("Use `serow certify [paths...] --profile unattended [--json]`."),
         "{stdout}"
     );
 }
