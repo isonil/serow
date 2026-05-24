@@ -38,6 +38,7 @@ use crate::rust_backend::{
 
 pub fn main(args: impl Iterator<Item = String>) -> i32 {
     let args = args.collect::<Vec<_>>();
+    let json_requested = json_flag_requested(&args);
     let Some(command) = args.first().map(String::as_str) else {
         print_usage();
         return 2;
@@ -57,12 +58,20 @@ pub fn main(args: impl Iterator<Item = String>) -> i32 {
             print_usage();
             0
         }
-        other => {
-            eprintln!("unknown command `{other}`");
-            print_usage();
-            2
-        }
+        other => top_level_usage_error(json_requested, format!("Unknown serow command `{other}`.")),
     }
+}
+
+fn top_level_usage_error(json_output: bool, message: String) -> i32 {
+    if json_output {
+        let diagnostic = Diagnostic::error("UsageError", message, None)
+            .with_repair("Use `serow <command> ... [--json]`.");
+        println!("{}", diagnostics_json(false, &[diagnostic]));
+    } else {
+        eprintln!("{message}");
+        print_usage();
+    }
+    2
 }
 
 fn run_replay(args: &[String]) -> i32 {

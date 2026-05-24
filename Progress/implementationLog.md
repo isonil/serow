@@ -2,6 +2,10 @@
 
 ## 2026-05-24
 
+- Chose top-level CLI JSON usage consistency as a small release-polish closure because subcommand usage failures already returned structured diagnostics under `--json`, while unknown top-level commands still printed plain text.
+- Added a top-level `UsageError` JSON path for unknown commands when `--json` is requested, covered the text/JSON behavior with a focused CLI regression, and bumped `serow.project` to `0.4.124-rust-bootstrap`.
+- Verification is recorded in the final run for this change.
+
 - Chose certification CLI profile polish because `certify --profile standard` was accepted and invalid-profile diagnostics named both supported profiles, but usage output, agent command catalogs, README, and CLI docs only advertised `--profile unattended`.
 - Added a shared certification usage string with `--profile <standard|unattended>`, updated the JSON usage repair hint plus public docs/project metadata, and covered the catalog output with focused CLI regressions.
 - Bumped `serow.project` to `0.4.123-rust-bootstrap`; verification is recorded in the final run for this change.

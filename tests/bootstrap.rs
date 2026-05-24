@@ -3437,6 +3437,42 @@ fn query_usage_errors_respect_json_flag() {
 }
 
 #[test]
+fn top_level_usage_errors_respect_json_flag() {
+    let text_output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .arg("unknown-top-level")
+        .output()
+        .expect("run unknown serow top-level command");
+    assert_eq!(text_output.status.code(), Some(2), "{text_output:#?}");
+    let stderr = String::from_utf8(text_output.stderr).expect("stderr is utf8");
+    assert!(
+        stderr.contains("Unknown serow command `unknown-top-level`."),
+        "{stderr}"
+    );
+    assert!(
+        stderr.contains("serow agent [commands|diagnostics]"),
+        "{stderr}"
+    );
+
+    let json_output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["unknown-top-level", "--json"])
+        .output()
+        .expect("run unknown serow top-level command as json");
+    assert_eq!(json_output.status.code(), Some(2), "{json_output:#?}");
+    assert!(json_output.stderr.is_empty(), "{json_output:#?}");
+    let stdout = String::from_utf8(json_output.stdout).expect("stdout is utf8");
+    assert!(stdout.trim_start().starts_with('{'), "{stdout}");
+    assert!(stdout.contains("\"code\": \"UsageError\""), "{stdout}");
+    assert!(
+        stdout.contains("Unknown serow command `unknown-top-level`."),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("Use `serow <command> ... [--json]`."),
+        "{stdout}"
+    );
+}
+
+#[test]
 fn replay_usage_errors_respect_json_flag() {
     let missing_command = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args(["replay", "--json"])
