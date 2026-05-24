@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "1.0.5-rust-bootstrap",
+  "version": "1.0.6-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -141,6 +141,7 @@
     "structured_property_rewrites": true,
     "structured_type_insertion": true,
     "structured_enum_type_insertion": true,
+    "structured_enum_type_rewrites": true,
     "structured_type_removal": true,
     "structured_function_renames": true,
     "structured_module_renames": true,

@@ -663,21 +663,12 @@ pub fn set_type(path: &str, module: &str, name: &str, declaration: &str) -> Patc
                 format!("Invalid type declaration `{declaration}`."),
                 Some(path.to_string()),
             )
-            .with_repair("Use a record declaration like `Player = { hp: Int, gold: Int }`."),
+            .with_repair(
+                "Use a record declaration like `Player = { hp: Int, gold: Int }` or an enum declaration like `Room = Hall | Cave`.",
+            ),
         );
         return summary;
     };
-    if declaration.is_enum() {
-        summary.diagnostics.push(
-            Diagnostic::error(
-                "InvalidPatchTarget",
-                format!("Invalid record type declaration `{}`.", declaration.name),
-                Some(path.to_string()),
-            )
-            .with_repair("Use a record declaration like `Player = { hp: Int, gold: Int }`."),
-        );
-        return summary;
-    }
     if declaration.name != name {
         summary.diagnostics.push(
             Diagnostic::error(
@@ -737,28 +728,46 @@ pub fn set_type(path: &str, module: &str, name: &str, declaration: &str) -> Patc
                     .collect::<Vec<_>>()
                     .join(", "),
             )
-            .with_repair("Set only an existing record type declaration."),
+            .with_repair("Set only an existing type declaration."),
         );
         return summary;
     };
 
-    if program.modules[module_index].types[type_index].is_enum() {
+    let existing_is_enum = program.modules[module_index].types[type_index].is_enum();
+    if existing_is_enum != declaration.is_enum() {
+        let existing_kind = if existing_is_enum { "enum" } else { "record" };
+        let replacement_kind = if declaration.is_enum() {
+            "enum"
+        } else {
+            "record"
+        };
+        let existing_article = if existing_is_enum { "an" } else { "a" };
+        let replacement_article = if declaration.is_enum() { "an" } else { "a" };
         summary.diagnostics.push(
             Diagnostic::error(
                 "PatchConflict",
-                format!("Type `{name}` is an enum; `set-type` currently replaces record fields."),
+                format!(
+                    "Type `{name}` is {existing_article} {existing_kind}; replacement declaration is {replacement_article} {replacement_kind}."
+                ),
                 Some(program.modules[module_index].types[type_index].target()),
             )
-            .with_repair("Edit enum variants manually until structured enum replacement exists."),
+            .with_repair("Use `patch remove-type` and `patch add-type` for deliberate record/enum kind changes."),
         );
         return summary;
     }
 
-    if program.modules[module_index].types[type_index].fields == declaration.fields {
-        return summary;
+    if existing_is_enum {
+        if program.modules[module_index].types[type_index].variants == declaration.variants {
+            return summary;
+        }
+        program.modules[module_index].types[type_index].variants = declaration.variants;
+    } else {
+        if program.modules[module_index].types[type_index].fields == declaration.fields {
+            return summary;
+        }
+        program.modules[module_index].types[type_index].fields = declaration.fields;
     }
 
-    program.modules[module_index].types[type_index].fields = declaration.fields;
     rebuild_type_index(&mut program);
 
     let formatted = format_program(&program);

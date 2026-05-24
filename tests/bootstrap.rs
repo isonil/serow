@@ -7906,6 +7906,150 @@ pub fn score(x: Int) -> Int
         "{invalid_stdout}"
     );
 
+    let kind_change = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-type",
+            source.to_str().expect("utf8 path"),
+            "app.main",
+            "Player",
+            "Player = Human | Robot",
+            "--json",
+        ])
+        .output()
+        .expect("run rejected record-to-enum serow patch set-type");
+    assert!(!kind_change.status.success(), "{kind_change:#?}");
+    let kind_change_stdout = String::from_utf8(kind_change.stdout).expect("stdout is utf8");
+    assert!(
+        kind_change_stdout.contains("replacement declaration is an enum"),
+        "{kind_change_stdout}"
+    );
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn patch_set_type_replaces_enum_variants() {
+    let dir = unique_temp_dir("serow-patch-set-enum-type");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("enum_type.serow");
+    fs::write(
+        &source,
+        r#"module app.main
+
+type Room = Hall | Cave
+
+pub fn start_room() -> Room
+  intent "Return the starting room."
+  version v1
+  contract
+    ensures result == Hall
+  examples
+    start_room() == Hall
+  properties
+    forall flag: Bool:
+      if flag then start_room() == Hall else start_room() != Cave
+  effects pure
+  impl
+    Hall
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-type",
+            source.to_str().expect("utf8 path"),
+            "app.main",
+            "Room",
+            "type Room = Hall | Cave | Tower",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch set-type enum");
+
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"changed\": 1"), "{stdout}");
+    let updated = fs::read_to_string(&source).expect("read updated fixture");
+    assert!(
+        updated.contains("type Room = Hall | Cave | Tower"),
+        "{updated}"
+    );
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let room = program
+        .types
+        .iter()
+        .find(|type_decl| type_decl.symbol() == "@app.main.Room")
+        .expect("room type");
+    assert_eq!(
+        room.variants,
+        ["Hall".to_string(), "Cave".to_string(), "Tower".to_string()],
+        "{room:#?}"
+    );
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(summary.ok(), "{:#?}", summary.diagnostics);
+
+    let renamed = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-type",
+            source.to_str().expect("utf8 path"),
+            "app.main",
+            "Room",
+            "Place = Hall | Cave",
+            "--json",
+        ])
+        .output()
+        .expect("run rejected renamed serow patch set-type enum");
+    assert!(!renamed.status.success(), "{renamed:#?}");
+    let renamed_stdout = String::from_utf8(renamed.stdout).expect("stdout is utf8");
+    assert!(renamed_stdout.contains("PatchConflict"), "{renamed_stdout}");
+    assert!(
+        renamed_stdout.contains("Use `patch rename-type` for renames"),
+        "{renamed_stdout}"
+    );
+
+    let invalid = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-type",
+            source.to_str().expect("utf8 path"),
+            "app.main",
+            "Room",
+            "Room = Hall | Hall",
+            "--json",
+        ])
+        .output()
+        .expect("run rejected invalid serow patch set-type enum");
+    assert!(!invalid.status.success(), "{invalid:#?}");
+    let invalid_stdout = String::from_utf8(invalid.stdout).expect("stdout is utf8");
+    assert!(
+        invalid_stdout.contains("InvalidPatchTarget"),
+        "{invalid_stdout}"
+    );
+
+    let kind_change = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-type",
+            source.to_str().expect("utf8 path"),
+            "app.main",
+            "Room",
+            "Room = { name: Text }",
+            "--json",
+        ])
+        .output()
+        .expect("run rejected enum-to-record serow patch set-type");
+    assert!(!kind_change.status.success(), "{kind_change:#?}");
+    let kind_change_stdout = String::from_utf8(kind_change.stdout).expect("stdout is utf8");
+    assert!(
+        kind_change_stdout.contains("replacement declaration is a record"),
+        "{kind_change_stdout}"
+    );
+
     let _ = fs::remove_dir_all(dir);
 }
 

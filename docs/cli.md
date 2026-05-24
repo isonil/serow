@@ -125,7 +125,7 @@ bin/serow patch set-version examples/math.serow @core.math.add.v1 v1
 
 `patch add-type` inserts one record or nullary enum type declaration into an existing module. It accepts a single quoted declaration with or without the `type` prefix, rejects duplicate type names plus duplicate record fields or enum variants before writing, and rewrites the file canonically.
 
-`patch set-type` replaces the fields of one existing record type declaration. The replacement declaration must keep the same type name; use `patch rename-type` for renames. Field-level fallout remains visible through `serow check`, `serow plan`, and unattended certification.
+`patch set-type` replaces the fields of one existing record type declaration or the variants of one existing nullary enum type declaration. The replacement declaration must keep the same type name and type kind; use `patch rename-type` for renames, or `patch remove-type` plus `patch add-type` for deliberate record/enum kind changes. Field- or variant-level fallout remains visible through `serow check`, `serow plan`, and unattended certification.
 
 `patch remove-type` removes one existing type declaration from a module through the structured patch interface and rewrites the file canonically. Removing a type that is still referenced is allowed as a source edit, and `serow check` reports the resulting type errors.
 

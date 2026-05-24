@@ -2,6 +2,10 @@
 
 ## 2026-05-24
 
+- Chose structured enum type replacement as a targeted v1 patch-hardening task because `patch add-type`, `patch remove-type`, and `patch rename-type` already handled enum declarations, while `patch set-type` still rejected enum variants and told agents to edit manually.
+- Extended `patch set-type` to replace either record fields or nullary enum variants, while rejecting declaration/name mismatches and record/enum kind changes so renames and deliberate type-kind changes remain explicit structured operations.
+- Bumped Serow to `1.0.6-rust-bootstrap` / crate `1.0.6`; verification is recorded in the final run for this change.
+
 - Chose top-level help usage consistency as a public v1 patch hardening task because `serow help --json` returned the command catalog correctly, while `serow help --bogus --json` still exited successfully with text usage instead of the structured `UsageError` protocol used by neighboring discovery commands.
 - Added a dedicated help command path that preserves `help --json` and leading `--json help`, rejects extra help arguments with JSON diagnostics when requested, covered the behavior with focused regressions, and bumped Serow to `1.0.5-rust-bootstrap` / crate `1.0.5`.
 - Verification is recorded in the final run for this change.

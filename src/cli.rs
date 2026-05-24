@@ -5055,7 +5055,7 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "patch set-type",
         "serow patch set-type <path> <module> <type-name> <type-declaration> [--json]",
-        "Replace one existing record type declaration's fields through the structured patch interface.",
+        "Replace one existing record type's fields or enum type's variants through the structured patch interface.",
     ),
     (
         "patch set-use",
