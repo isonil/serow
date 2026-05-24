@@ -4617,6 +4617,85 @@ fn release_check_rejects_unknown_json_options_as_usage_errors() {
 }
 
 #[test]
+fn path_taking_commands_reject_unknown_json_options_as_usage_errors() {
+    let cases: &[(&[&str], &str, &str)] = &[
+        (
+            &["check", "--bogus", "--json"],
+            "Unknown serow check option `--bogus`.",
+            "Use `serow check [paths...] [--json]`.",
+        ),
+        (
+            &["certify", "--bogus", "--json"],
+            "Unknown serow certify option `--bogus`.",
+            "Use `serow certify [paths...] [--profile <standard|unattended>] [--json]`.",
+        ),
+        (
+            &["fmt", "--bogus", "--json"],
+            "Unknown serow fmt option `--bogus`.",
+            "Use `serow fmt [paths...] [--check] [--json]`.",
+        ),
+        (
+            &["plan", "--bogus", "--json"],
+            "Unknown serow plan option `--bogus`.",
+            "Use `serow plan [paths...] [--json]`.",
+        ),
+        (
+            &["compile", "ir", "--bogus", "--json"],
+            "Unknown serow compile ir option `--bogus`.",
+            "Use `serow compile <ir|rust> ... [--json]`.",
+        ),
+        (
+            &["compile", "rust", "-x", "--json"],
+            "unknown `compile rust` flag `-x`.",
+            "serow compile rust [paths...] [--out-dir <dir>] [--check-out-dir] [--emit-bin|--bin] [--crate-name <name>] [--json]",
+        ),
+        (
+            &["query", "symbols", "--bogus", "--json"],
+            "Unknown serow query symbols option `--bogus`.",
+            "Use `serow query <command> ... [--json]`.",
+        ),
+        (
+            &["query", "intent", "add", "--bogus", "--json"],
+            "Unknown serow query intent option `--bogus`.",
+            "Use `serow query <command> ... [--json]`.",
+        ),
+        (
+            &[
+                "replay",
+                "property",
+                "@missing.v1#property:1#sample:1",
+                "--bogus",
+                "--json",
+            ],
+            "Unknown serow replay property option `--bogus`.",
+            "Use `serow replay property <sample-seed> [paths...] [--json]`.",
+        ),
+    ];
+
+    for (args, message, repair) in cases {
+        let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+            .args(*args)
+            .output()
+            .expect("run serow command with unknown option");
+        assert_eq!(output.status.code(), Some(2), "{args:?}: {output:#?}");
+        assert!(output.stderr.is_empty(), "{args:?}: {output:#?}");
+        let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+        assert!(stdout.trim_start().starts_with('{'), "{args:?}: {stdout}");
+        assert!(stdout.contains("\"ok\": false"), "{args:?}: {stdout}");
+        assert!(
+            stdout.contains("\"code\": \"UsageError\""),
+            "{args:?}: {stdout}"
+        );
+        assert!(stdout.contains(message), "{args:?}: {stdout}");
+        assert!(stdout.contains(repair), "{args:?}: {stdout}");
+        assert!(
+            !stdout.contains("SourceNotFound"),
+            "unknown option should not be treated as a source path for {args:?}: {stdout}"
+        );
+    }
+}
+
+#[test]
 fn agent_diagnostics_subcommand_prints_protocol_reference() {
     let json_output = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args(["agent", "diagnostics", "--json"])

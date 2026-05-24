@@ -177,7 +177,14 @@ fn run_replay_property(args: &[String], inherited_json_output: bool) -> i32 {
             "`serow replay property` requires a sample seed.".to_string(),
         );
     };
-    let (paths, path_json_output) = split_paths_and_json(&args[1..]);
+    let path_args = match parse_paths_and_json(&args[1..], "replay property") {
+        Ok(parsed) => parsed,
+        Err((path_json_output, message)) => {
+            return replay_usage_error(json_output || path_json_output, message);
+        }
+    };
+    let paths = path_args.paths;
+    let path_json_output = path_args.json_output;
     json_output |= path_json_output;
     let (program, parse_diagnostics) = parse_paths(&paths);
     if has_errors(&parse_diagnostics) {
@@ -429,7 +436,10 @@ fn docs_usage_error(json_output: bool, message: String) -> i32 {
 
 fn run_fmt(args: &[String]) -> i32 {
     let (args, check) = split_flag_before_separator(args, "--check");
-    let (paths, json_output) = split_paths_and_json(&args);
+    let PathArgs { paths, json_output } = match parse_paths_and_json(&args, "fmt") {
+        Ok(parsed) => parsed,
+        Err((json_output, message)) => return fmt_usage_error(json_output, message),
+    };
     let summary = format_paths(&paths, check);
     if json_output {
         println!("{}", format_json(&summary));
@@ -437,6 +447,18 @@ fn run_fmt(args: &[String]) -> i32 {
         print_format_summary(&summary, check);
     }
     i32::from(!summary.ok())
+}
+
+fn fmt_usage_error(json_output: bool, message: String) -> i32 {
+    if json_output {
+        let diagnostic = Diagnostic::error("UsageError", message, None)
+            .with_repair("Use `serow fmt [paths...] [--check] [--json]`.");
+        println!("{}", diagnostics_json(false, &[diagnostic]));
+    } else {
+        eprintln!("{message}");
+        print_usage();
+    }
+    2
 }
 
 fn run_compile(args: &[String]) -> i32 {
@@ -470,7 +492,15 @@ fn compile_usage_error(json_output: bool, message: String) -> i32 {
 }
 
 fn run_compile_ir(args: &[String], inherited_json_output: bool) -> i32 {
-    let (paths, mut json_output) = split_paths_and_json(args);
+    let PathArgs {
+        paths,
+        mut json_output,
+    } = match parse_paths_and_json(args, "compile ir") {
+        Ok(parsed) => parsed,
+        Err((json_output, message)) => {
+            return compile_usage_error(json_output || inherited_json_output, message);
+        }
+    };
     json_output |= inherited_json_output;
     let (program, parse_diagnostics) = parse_paths(&paths);
     let summary = lower_checked_program(&program, parse_diagnostics);
@@ -641,7 +671,7 @@ fn parse_compile_rust_args(args: &[String]) -> Result<CompileRustArgs, String> {
                 paths.extend(args[index + 1..].iter().cloned());
                 break;
             }
-            _ if arg.starts_with("--") => {
+            _ if arg.starts_with('-') => {
                 return Err(format!("unknown `compile rust` flag `{arg}`."));
             }
             _ => paths.push(arg.clone()),
@@ -1528,7 +1558,10 @@ fn toml_string_literal(value: &str) -> String {
 }
 
 fn run_plan(args: &[String]) -> i32 {
-    let (paths, json_output) = split_paths_and_json(args);
+    let PathArgs { paths, json_output } = match parse_paths_and_json(args, "plan") {
+        Ok(parsed) => parsed,
+        Err((json_output, message)) => return plan_usage_error(json_output, message),
+    };
     let plan = plan_paths(&paths);
     if json_output {
         println!("{}", plan_json(&plan));
@@ -1536,6 +1569,18 @@ fn run_plan(args: &[String]) -> i32 {
         print_plan(&plan);
     }
     i32::from(!plan.ok)
+}
+
+fn plan_usage_error(json_output: bool, message: String) -> i32 {
+    if json_output {
+        let diagnostic = Diagnostic::error("UsageError", message, None)
+            .with_repair("Use `serow plan [paths...] [--json]`.");
+        println!("{}", diagnostics_json(false, &[diagnostic]));
+    } else {
+        eprintln!("{message}");
+        print_usage();
+    }
+    2
 }
 
 fn run_patch(args: &[String]) -> i32 {
@@ -2227,6 +2272,13 @@ fn parse_check_args(args: &[String], certify: bool) -> Result<CheckArgs, (bool, 
                 _ => {}
             }
         }
+        if parsing_options && arg.starts_with('-') {
+            let command = if certify { "certify" } else { "check" };
+            return Err((
+                json_output,
+                format!("Unknown serow {command} option `{arg}`."),
+            ));
+        }
         paths.push(arg.clone());
         index += 1;
     }
@@ -2270,8 +2322,12 @@ fn run_query(args: &[String]) -> i32 {
 
     match query_command {
         "callees" => {
-            let Some(mut parsed) = parse_text_query_args(&query_args[1..]) else {
-                return text_query_usage_error("callees", json_requested);
+            let mut parsed = match parse_text_query_args(&query_args[1..], "callees") {
+                Ok(Some(parsed)) => parsed,
+                Ok(None) => return text_query_usage_error("callees", json_requested),
+                Err((json_output, message)) => {
+                    return query_usage_error(json_output || json_requested, message);
+                }
             };
             parsed.json_output |= json_requested;
             let (program, parse_diagnostics) = parse_paths(&parsed.paths);
@@ -2287,8 +2343,12 @@ fn run_query(args: &[String]) -> i32 {
             0
         }
         "dependents" => {
-            let Some(mut parsed) = parse_text_query_args(&query_args[1..]) else {
-                return text_query_usage_error("dependents", json_requested);
+            let mut parsed = match parse_text_query_args(&query_args[1..], "dependents") {
+                Ok(Some(parsed)) => parsed,
+                Ok(None) => return text_query_usage_error("dependents", json_requested),
+                Err((json_output, message)) => {
+                    return query_usage_error(json_output || json_requested, message);
+                }
             };
             parsed.json_output |= json_requested;
             let (program, parse_diagnostics) = parse_paths(&parsed.paths);
@@ -2304,8 +2364,12 @@ fn run_query(args: &[String]) -> i32 {
             0
         }
         "effects" => {
-            let Some(mut parsed) = parse_text_query_args(&query_args[1..]) else {
-                return text_query_usage_error("effects", json_requested);
+            let mut parsed = match parse_text_query_args(&query_args[1..], "effects") {
+                Ok(Some(parsed)) => parsed,
+                Ok(None) => return text_query_usage_error("effects", json_requested),
+                Err((json_output, message)) => {
+                    return query_usage_error(json_output || json_requested, message);
+                }
             };
             parsed.json_output |= json_requested;
             let (program, parse_diagnostics) = parse_paths(&parsed.paths);
@@ -2321,8 +2385,12 @@ fn run_query(args: &[String]) -> i32 {
             0
         }
         "impact" => {
-            let Some(mut parsed) = parse_text_query_args(&query_args[1..]) else {
-                return text_query_usage_error("impact", json_requested);
+            let mut parsed = match parse_text_query_args(&query_args[1..], "impact") {
+                Ok(Some(parsed)) => parsed,
+                Ok(None) => return text_query_usage_error("impact", json_requested),
+                Err((json_output, message)) => {
+                    return query_usage_error(json_output || json_requested, message);
+                }
             };
             parsed.json_output |= json_requested;
             let (program, parse_diagnostics) = parse_paths(&parsed.paths);
@@ -2338,8 +2406,12 @@ fn run_query(args: &[String]) -> i32 {
             0
         }
         "intent" => {
-            let Some(mut parsed) = parse_text_query_args(&query_args[1..]) else {
-                return text_query_usage_error("intent", json_requested);
+            let mut parsed = match parse_text_query_args(&query_args[1..], "intent") {
+                Ok(Some(parsed)) => parsed,
+                Ok(None) => return text_query_usage_error("intent", json_requested),
+                Err((json_output, message)) => {
+                    return query_usage_error(json_output || json_requested, message);
+                }
             };
             parsed.json_output |= json_requested;
             let (program, parse_diagnostics) = parse_paths(&parsed.paths);
@@ -2355,8 +2427,12 @@ fn run_query(args: &[String]) -> i32 {
             0
         }
         "symbol" => {
-            let Some(mut parsed) = parse_text_query_args(&query_args[1..]) else {
-                return text_query_usage_error("symbol", json_requested);
+            let mut parsed = match parse_text_query_args(&query_args[1..], "symbol") {
+                Ok(Some(parsed)) => parsed,
+                Ok(None) => return text_query_usage_error("symbol", json_requested),
+                Err((json_output, message)) => {
+                    return query_usage_error(json_output || json_requested, message);
+                }
             };
             parsed.json_output |= json_requested;
             let (program, parse_diagnostics) = parse_paths(&parsed.paths);
@@ -2372,8 +2448,12 @@ fn run_query(args: &[String]) -> i32 {
             0
         }
         "type" => {
-            let Some(mut parsed) = parse_text_query_args(&query_args[1..]) else {
-                return text_query_usage_error("type", json_requested);
+            let mut parsed = match parse_text_query_args(&query_args[1..], "type") {
+                Ok(Some(parsed)) => parsed,
+                Ok(None) => return text_query_usage_error("type", json_requested),
+                Err((json_output, message)) => {
+                    return query_usage_error(json_output || json_requested, message);
+                }
             };
             parsed.json_output |= json_requested;
             let (program, parse_diagnostics) = parse_paths(&parsed.paths);
@@ -2403,16 +2483,24 @@ struct TextQueryArgs {
     json_output: bool,
 }
 
-fn parse_text_query_args(args: &[String]) -> Option<TextQueryArgs> {
+fn parse_text_query_args(
+    args: &[String],
+    query_command: &str,
+) -> Result<Option<TextQueryArgs>, (bool, String)> {
     let (args, mut json_output) = split_flag_before_separator(args, "--json");
-    let text = args.first()?.clone();
-    let (paths, path_json_output) = split_paths_and_json(&args[1..]);
+    let Some(text) = args.first().cloned() else {
+        return Ok(None);
+    };
+    let command_label = format!("query {query_command}");
+    let path_args = parse_paths_and_json(&args[1..], &command_label)?;
+    let paths = path_args.paths;
+    let path_json_output = path_args.json_output;
     json_output |= path_json_output;
-    Some(TextQueryArgs {
+    Ok(Some(TextQueryArgs {
         text,
         paths,
         json_output,
-    })
+    }))
 }
 
 fn query_usage_error(json_output: bool, message: String) -> i32 {
@@ -2443,7 +2531,15 @@ fn text_query_usage_error(query_command: &str, json_output: bool) -> i32 {
 }
 
 fn run_symbols_query(args: &[String], inherited_json_output: bool) -> i32 {
-    let (paths, mut json_output) = split_paths_and_json(args);
+    let PathArgs {
+        paths,
+        mut json_output,
+    } = match parse_paths_and_json(args, "query symbols") {
+        Ok(parsed) => parsed,
+        Err((json_output, message)) => {
+            return query_usage_error(json_output || inherited_json_output, message);
+        }
+    };
     json_output |= inherited_json_output;
     let (program, parse_diagnostics) = parse_paths(&paths);
     if emit_query_parse_errors("symbols", json_output, &parse_diagnostics) {
@@ -2478,7 +2574,13 @@ fn emit_query_parse_errors(
     true
 }
 
-fn split_paths_and_json(args: &[String]) -> (Vec<String>, bool) {
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct PathArgs {
+    paths: Vec<String>,
+    json_output: bool,
+}
+
+fn parse_paths_and_json(args: &[String], command_label: &str) -> Result<PathArgs, (bool, String)> {
     let mut paths = Vec::new();
     let mut json_output = false;
     let mut parsing_options = true;
@@ -2487,11 +2589,16 @@ fn split_paths_and_json(args: &[String]) -> (Vec<String>, bool) {
             parsing_options = false;
         } else if parsing_options && arg == "--json" {
             json_output = true;
+        } else if parsing_options && arg.starts_with('-') {
+            return Err((
+                json_output || json_flag_requested(args),
+                format!("Unknown serow {command_label} option `{arg}`."),
+            ));
         } else {
             paths.push(arg.clone());
         }
     }
-    (paths, json_output)
+    Ok(PathArgs { paths, json_output })
 }
 
 fn split_flag(args: &[String], flag: &str) -> (Vec<String>, bool) {

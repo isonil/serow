@@ -2,6 +2,10 @@
 
 ## 2026-05-24
 
+- Chose path-taking CLI option validation as a public v1 patch hardening task because `release-check` already rejected unknown option-looking arguments, while neighboring path-taking commands such as `check`, `fmt`, `plan`, `compile ir`, `query`, and `replay property` still let `--bogus` flow into source discovery as `SourceNotFound`.
+- Added shared path argument parsing that reports structured `UsageError` diagnostics for unknown options before `--`, preserved literal dash-prefixed paths after `--`, covered the public command surface with regressions, and bumped Serow to `1.0.3-rust-bootstrap` / crate `1.0.3`.
+- Verification is recorded in the final run for this change.
+
 - Chose `release-check` JSON usage consistency as a public v1 patch hardening task because unknown option-looking arguments such as `--bogus` were being treated as source paths, producing `SourceNotFound` diagnostics instead of the structured `UsageError` protocol used by neighboring commands.
 - Added release-check-specific option validation that still preserves `--` path separator behavior, covered the JSON usage error and separator path behavior, and bumped Serow to `1.0.2-rust-bootstrap` / crate `1.0.2`.
 - Verification is recorded in the final run for this change.
