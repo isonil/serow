@@ -3438,6 +3438,46 @@ fn query_usage_errors_respect_json_flag() {
 
 #[test]
 fn top_level_usage_errors_respect_json_flag() {
+    let missing_command_json = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .arg("--json")
+        .output()
+        .expect("run serow with only json flag");
+    assert_eq!(
+        missing_command_json.status.code(),
+        Some(2),
+        "{missing_command_json:#?}"
+    );
+    assert!(
+        missing_command_json.stderr.is_empty(),
+        "{missing_command_json:#?}"
+    );
+    let stdout = String::from_utf8(missing_command_json.stdout).expect("stdout is utf8");
+    assert!(stdout.trim_start().starts_with('{'), "{stdout}");
+    assert!(stdout.contains("\"code\": \"UsageError\""), "{stdout}");
+    assert!(
+        stdout.contains("`serow` requires a command when `--json` is provided."),
+        "{stdout}"
+    );
+    assert!(
+        !stdout.contains("Unknown serow command `--json`."),
+        "{stdout}"
+    );
+
+    let help_json = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["help", "--json"])
+        .output()
+        .expect("run top-level serow help as json");
+    assert!(help_json.status.success(), "{help_json:#?}");
+    assert!(help_json.stderr.is_empty(), "{help_json:#?}");
+    let stdout = String::from_utf8(help_json.stdout).expect("stdout is utf8");
+    assert!(stdout.trim_start().starts_with('{'), "{stdout}");
+    assert!(stdout.contains("\"ok\": true"), "{stdout}");
+    assert!(stdout.contains("\"commands\""), "{stdout}");
+    assert!(
+        stdout.contains("\"usage\": \"serow check [paths...] [--json]\""),
+        "{stdout}"
+    );
+
     let text_output = Command::new(env!("CARGO_BIN_EXE_serow"))
         .arg("unknown-top-level")
         .output()

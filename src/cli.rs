@@ -39,6 +39,20 @@ use crate::rust_backend::{
 pub fn main(args: impl Iterator<Item = String>) -> i32 {
     let args = args.collect::<Vec<_>>();
     let json_requested = json_flag_requested(&args);
+    if !args.is_empty() && args.iter().all(|arg| arg == "--json") {
+        return top_level_usage_error(
+            true,
+            "`serow` requires a command when `--json` is provided.".to_string(),
+        );
+    }
+    if top_level_help_requested(&args) {
+        if json_requested {
+            println!("{}", agent_commands_json());
+        } else {
+            print_usage();
+        }
+        return 0;
+    }
     let Some(command) = args.first().map(String::as_str) else {
         print_usage();
         return 2;
@@ -60,6 +74,17 @@ pub fn main(args: impl Iterator<Item = String>) -> i32 {
         }
         other => top_level_usage_error(json_requested, format!("Unknown serow command `{other}`.")),
     }
+}
+
+fn top_level_help_requested(args: &[String]) -> bool {
+    let mut meaningful_args = args
+        .iter()
+        .map(String::as_str)
+        .filter(|arg| *arg != "--json");
+    let Some(command) = meaningful_args.next() else {
+        return false;
+    };
+    meaningful_args.next().is_none() && matches!(command, "-h" | "--help" | "help")
 }
 
 fn top_level_usage_error(json_output: bool, message: String) -> i32 {

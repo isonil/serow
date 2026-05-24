@@ -4,7 +4,7 @@
 
 Future generic implementation prompts should choose the highest-leverage next step across all phases. Phase 0, Phase 1, Phase 2 agent workflow, Phase 2.5 certification, Phase 2.6 unattended safety, and the first Phase 3 backend slice are closed for public v1. Prefer release polish and targeted v2 hardening gaps before expanding syntax beyond the v1 bootstrap subset.
 
-Latest release-polish closure: top-level unknown-command usage failures now honor `--json` with the same structured `UsageError` envelope used by subcommand usage diagnostics.
+Latest release-polish closure: top-level help now honors `--json` by returning the command catalog, and `serow --json` reports a structured missing-command `UsageError` instead of treating `--json` as an unknown command.
 
 Selection policy:
 

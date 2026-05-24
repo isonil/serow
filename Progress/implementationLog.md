@@ -2,6 +2,10 @@
 
 ## 2026-05-24
 
+- Chose top-level CLI JSON help polish because the public command catalog was available through `agent commands --json`, while `serow help --json` still printed plain usage text and `serow --json` treated the global JSON request as an unknown command.
+- Added a JSON help path that returns the full command catalog, changed JSON-only invocation to a structured missing-command `UsageError`, covered both with focused CLI regressions, and bumped `serow.project` to `0.4.125-rust-bootstrap`.
+- Verification is recorded in the final run for this change.
+
 - Chose top-level CLI JSON usage consistency as a small release-polish closure because subcommand usage failures already returned structured diagnostics under `--json`, while unknown top-level commands still printed plain text.
 - Added a top-level `UsageError` JSON path for unknown commands when `--json` is requested, covered the text/JSON behavior with a focused CLI regression, and bumped `serow.project` to `0.4.124-rust-bootstrap`.
 - Verification is recorded in the final run for this change.
