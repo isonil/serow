@@ -3573,7 +3573,8 @@ fn check_and_certify_usage_errors_respect_json_flag() {
         "{stdout}"
     );
     assert!(
-        !stdout.contains("Use `serow certify [paths...] --profile unattended [--json]`."),
+        !stdout
+            .contains("Use `serow certify [paths...] [--profile <standard|unattended>] [--json]`."),
         "{stdout}"
     );
 
@@ -3591,7 +3592,8 @@ fn check_and_certify_usage_errors_respect_json_flag() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("Use `serow certify [paths...] --profile unattended [--json]`."),
+        stdout
+            .contains("Use `serow certify [paths...] [--profile <standard|unattended>] [--json]`."),
         "{stdout}"
     );
 }
@@ -4104,6 +4106,10 @@ fn agent_json_includes_compact_machine_readable_workflow() {
         "{stdout}"
     );
     assert!(
+        stdout.contains("serow certify [paths...] [--profile <standard|unattended>] [--json]"),
+        "{stdout}"
+    );
+    assert!(
         stdout.contains("serow plan [paths...] [--json]"),
         "{stdout}"
     );
@@ -4135,6 +4141,10 @@ fn agent_commands_json_includes_full_command_catalog() {
         stdout.contains(
             "serow compile rust [paths...] [--out-dir <dir>] [--check-out-dir] [--emit-bin|--bin] [--crate-name <name>] [--json]"
         ),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("serow certify [paths...] [--profile <standard|unattended>] [--json]"),
         "{stdout}"
     );
     assert!(stdout.contains("serow patch qualify-call"), "{stdout}");

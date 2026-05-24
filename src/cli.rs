@@ -2010,7 +2010,7 @@ fn json_flag_requested(args: &[String]) -> bool {
 fn check_usage_error(json_output: bool, message: String, certify: bool) -> i32 {
     if json_output {
         let repair = if certify {
-            "Use `serow certify [paths...] --profile unattended [--json]`."
+            "Use `serow certify [paths...] [--profile <standard|unattended>] [--json]`."
         } else {
             "Use `serow check [paths...] [--json]`."
         };
@@ -4323,6 +4323,7 @@ fn symbol_path(functions: &[Function]) -> String {
 type AgentCommand = (&'static str, &'static str, &'static str);
 
 const COMPILE_RUST_USAGE: &str = "serow compile rust [paths...] [--out-dir <dir>] [--check-out-dir] [--emit-bin|--bin] [--crate-name <name>] [--json]";
+const CERTIFY_USAGE: &str = "serow certify [paths...] [--profile <standard|unattended>] [--json]";
 
 const CORE_AGENT_COMMANDS: &[AgentCommand] = &[
     (
@@ -4337,7 +4338,7 @@ const CORE_AGENT_COMMANDS: &[AgentCommand] = &[
     ),
     (
         "certify",
-        "serow certify [paths...] [--profile unattended] [--json]",
+        CERTIFY_USAGE,
         "Require a warning-free and error-free checker result plus structured repair-action consistency, with an optional stricter unattended profile.",
     ),
     (
@@ -4390,7 +4391,7 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
     ),
     (
         "certify",
-        "serow certify [paths...] [--profile unattended] [--json]",
+        CERTIFY_USAGE,
         "Require a warning-free and error-free checker result plus structured repair-action consistency, with an optional stricter unattended profile.",
     ),
     (
@@ -4981,7 +4982,7 @@ fn print_usage() {
     eprintln!("usage:");
     eprintln!("  serow agent [commands|diagnostics] [--json]");
     eprintln!("  serow check [paths...] [--json]");
-    eprintln!("  serow certify [paths...] [--profile unattended] [--json]");
+    eprintln!("  {CERTIFY_USAGE}");
     eprintln!("  serow compile ir [paths...] [--json]");
     eprintln!("  {COMPILE_RUST_USAGE}");
     eprintln!("  serow fmt [paths...] [--check] [--json]");

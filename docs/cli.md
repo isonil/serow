@@ -167,9 +167,10 @@ Certify the current sample program:
 
 ```sh
 bin/serow certify
+bin/serow certify --profile standard
 bin/serow certify --profile unattended
 ```
 
-All certification modes validate machine-readable diagnostic `repair_actions`, rejecting malformed command actions so agents can trust repair commands as a narrow protocol rather than prose.
+The default certification profile is `standard`; `--profile standard` is accepted as an explicit spelling for agents that need profile names in command plans. All certification modes validate machine-readable diagnostic `repair_actions`, rejecting malformed command actions so agents can trust repair commands as a narrow protocol rather than prose.
 
 The unattended certification profile is stricter than normal local certification. It requires public functions to declare explicit source-level versions instead of relying on the bootstrap `v1` default, fails when changed tracked public symbols modify their public contract surface without a new symbol version, rejects removed public symbols that do not have a same-name replacement version, rejects capability expansion without a `capability-expansion` migration record, rejects same-version implementation changes that add no executable evidence, rejects added implementation evidence that does not call the changed function or would still pass against the HEAD implementation, rejects patches that change implementation and executable evidence together without an `implementation-change` migration record, fails when executable evidence is removed or narrowed compared with Git `HEAD`, rejects changed public symbols with transitive dependents outside the certified change set, rejects impacted dependent call edges that lack executable example or sampled property coverage, and rejects stale migration acknowledgements left on changed symbols. Standard certification also fails on warnings, including duplicate evidence warnings and conservative `UnusedEffectCapability` diagnostics for capabilities not required by resolved non-self direct callees. A source-level `migration` record can explicitly acknowledge intentional public behavior, capability expansion, evidence weakening, implementation, or impact-review decisions; it records a decision, not a proof.

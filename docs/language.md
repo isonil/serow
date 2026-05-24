@@ -185,7 +185,7 @@ Structured patch commands cover common safe edits: modules, dependencies, functi
 
 `bin/serow plan [paths...] --json` summarizes selected public changes, semantic change labels, evidence coverage, capability changes, implementation drift, migration acknowledgements, impacted dependents, impact-edge coverage, checker diagnostics, and residual risks.
 
-`bin/serow certify` requires warning-free, error-free checking, executable examples and properties, no remaining public typed holes, and valid structured repair-action commands. `bin/serow certify --profile unattended` adds strict public-change gates for explicit versions, public contract-surface changes, symbol removal, capability expansion, implementation evidence, implementation/evidence drift, evidence weakening, stale migrations, unchecked impact, and uncovered impacted call edges.
+`bin/serow certify` requires warning-free, error-free checking, executable examples and properties, no remaining public typed holes, and valid structured repair-action commands. `bin/serow certify --profile standard` is the explicit spelling of the default profile. `bin/serow certify --profile unattended` adds strict public-change gates for explicit versions, public contract-surface changes, symbol removal, capability expansion, implementation evidence, implementation/evidence drift, evidence weakening, stale migrations, unchecked impact, and uncovered impacted call edges.
 
 ## Backend Boundary
 

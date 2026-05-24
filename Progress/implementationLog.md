@@ -2,6 +2,10 @@
 
 ## 2026-05-24
 
+- Chose certification CLI profile polish because `certify --profile standard` was accepted and invalid-profile diagnostics named both supported profiles, but usage output, agent command catalogs, README, and CLI docs only advertised `--profile unattended`.
+- Added a shared certification usage string with `--profile <standard|unattended>`, updated the JSON usage repair hint plus public docs/project metadata, and covered the catalog output with focused CLI regressions.
+- Bumped `serow.project` to `0.4.123-rust-bootstrap`; verification is recorded in the final run for this change.
+
 - Chose v1 release-polish CLI diagnostics because invalid `serow check --profile ... --json` already returned structured JSON but suggested the `certify` command in its repair text.
 - Split check/certify usage repair hints so `serow check` usage errors point back to `serow check`, while certification profile errors keep the profile-aware `serow certify` repair.
 - Bumped `serow.project` to `0.4.121-rust-bootstrap`; verification is recorded in the final run for this change.

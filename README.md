@@ -69,6 +69,7 @@ Plan and certify changes:
 ```sh
 bin/serow plan --json
 bin/serow certify
+bin/serow certify --profile standard
 bin/serow certify --profile unattended
 ```
 
