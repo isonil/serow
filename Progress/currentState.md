@@ -1,12 +1,12 @@
 # Current State
 
-Date: 2026-05-23
+Date: 2026-05-24
 
 ## Active Mode
 
 Cross-phase implementation with v1 closure tracking.
 
-Future invocations should choose the highest-leverage next step across all phases, not only the most recent phase. Phase 0, Phase 1, Phase 2.5 certification, and the first Phase 3 backend slice are closed or done enough for public v1. Prefer closing remaining Phase 2 agent workflow, Phase 2.6 unattended safety, release polish, and targeted v2 hardening gaps before expanding syntax beyond the v1 bootstrap subset.
+Future invocations should choose the highest-leverage next step across all phases, not only the most recent phase. Phase 0, Phase 1, Phase 2 agent workflow, Phase 2.5 certification, and the first Phase 3 backend slice are closed or done enough for public v1. Prefer closing remaining Phase 2.6 unattended safety, release polish, and targeted v2 hardening gaps before expanding syntax beyond the v1 bootstrap subset.
 
 Selection policy for generic implementation prompts:
 
@@ -19,6 +19,7 @@ Selection policy for generic implementation prompts:
 
 - Phase 0 bootstrap tooling is closed for public v1. The dependency-free Rust CLI, parser/checker, executable examples, sampled properties/contracts, semantic ledger queries, and project manifest workflow are in place and verified by the normal gates.
 - Phase 1 language core is closed for public v1. The stable v1 surface is the documented bootstrap textual projection over the Rust AST model, with static checking, typed-hole obligations, module dependency checks, direct-call effects, deterministic formatting, records, nullary enums, lists, floats, sequencing, local mutation, checked loops, and executable evidence. Comments-preserving formatting, source-level generics, payload variants, richer pattern matching, richer list APIs, effect polymorphism, proofs, custom generators, and the hand-written JSON cleanup are v2+ scope.
+- Phase 2 agent-native workflow is done enough for public v1. The stable v1 agent surface includes compact bootstrap discovery, full command and diagnostic protocol discovery, semantic queries, source-level versions, dependent/impact queries, broad structured patch coverage for common source edits, duplicate-intent protections, and machine-readable repair actions validated by certification. Semantic embeddings, comment-preserving rewrites, richer AST node identity, and additional repair-action coverage are v2 hardening unless they block unattended safety or release polish.
 - Phase 2.5 agent-certification tightening is done enough for public v1: standard certification is warning-free/error-free over the normal identity, dependency, effect, intent, and evidence diagnostics, and all certification profiles validate structured repair-action command contracts before accepting diagnostic output.
 - The first production backend slice is done enough for public v1: portable IR plus dependency-free Rust source/crate generation for the supported bootstrap subset, generated metadata, artifact drift checks, runtime contract assertions, generated pure evidence tests, and binary entrypoint support are all implemented.
 - Remaining backend work such as WASM/TypeScript/Python backends, richer external effect boundaries, recursive record layout support, generic list indexing, list pattern matching, higher-order collection APIs, and semantic-embedding intent search is explicitly v2/future scope rather than blocking the public v1 bootstrap baseline.
@@ -1973,9 +1974,9 @@ git diff --check
 
 ## Current Strategic Direction
 
-The roadmap is now in cross-phase implementation mode with v1 closure tracking. Phase 0, Phase 1, Phase 2.5 certification, and the first Phase 3 backend slice are closed or done enough for public v1. Future invocations should choose across the remaining open Phase 2 and Phase 2.6 safety work, v1 release polish, or v2 hardening when it unblocks a public language workflow.
+The roadmap is now in cross-phase implementation mode with v1 closure tracking. Phase 0, Phase 1, Phase 2 agent workflow, Phase 2.5 certification, and the first Phase 3 backend slice are closed or done enough for public v1. Future invocations should choose across the remaining open Phase 2.6 safety work, v1 release polish, or v2 hardening when it unblocks a public language workflow.
 
 - keep the checker/interpreter responsible for compile-time evidence
 - preserve `serow.ir.v0` as the stable bootstrap backend boundary until a deliberate v2 IR revision is needed
 - keep generated backend artifacts separate from `.serow` source of truth
-- prefer closing agent workflow and unattended-safety gaps before expanding syntax beyond the v1 bootstrap subset
+- prefer closing unattended-safety and release-polish gaps before expanding syntax beyond the v1 bootstrap subset

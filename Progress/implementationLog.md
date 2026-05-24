@@ -1,5 +1,12 @@
 # Implementation Log
 
+## 2026-05-24
+
+- Chose Phase 2 agent-native workflow closure because the remaining roadmap text still treated the agent bootstrap, structured patch coverage, duplicate-intent protection, version/dependent queries, and repair-action diagnostics as open "Started" work even though the v1 tool surface is implemented and discoverable through `bin/serow agent`.
+- Marked Phase 2 agent-native workflow done enough for public v1, explicitly deferring semantic embeddings, comment-preserving rewrites, richer AST node identity, and additional repair-action coverage to v2 hardening unless they block unattended safety or release polish.
+- Updated the compact agent bootstrap's current track to focus future invocations on Phase 2.6 unattended safety and release polish, and bumped `serow.project` to `0.4.116-rust-bootstrap`.
+- Verification is recorded in the final run for this change.
+
 ## 2026-05-23
 
 - Chose Phase 1 language-core closure because the compiler gates are warning-free and the implemented Rust bootstrap already covers the roadmap's v1 language-core items, while the roadmap still listed them as open "Started" work.

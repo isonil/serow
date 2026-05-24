@@ -2,7 +2,7 @@
 
 ## Active Mode: Cross-Phase Implementation
 
-Future generic implementation prompts should choose the highest-leverage next step across all phases. Phase 0, Phase 1, Phase 2.5 certification, and the first Phase 3 backend slice are closed or done enough for public v1. Prefer closing remaining Phase 2 agent workflow, Phase 2.6 unattended safety, release polish, and targeted v2 hardening gaps before expanding syntax beyond the v1 bootstrap subset.
+Future generic implementation prompts should choose the highest-leverage next step across all phases. Phase 0, Phase 1, Phase 2 agent workflow, Phase 2.5 certification, and the first Phase 3 backend slice are closed or done enough for public v1. Prefer closing remaining Phase 2.6 unattended safety, release polish, and targeted v2 hardening gaps before expanding syntax beyond the v1 bootstrap subset.
 
 Selection policy:
 
@@ -36,11 +36,13 @@ Selection policy:
 
 ## Phase 2: Agent-Native Workflow
 
-- Add a stable agent bootstrap command, likely `bin/serow agent --json`, so new AI sessions can discover the current language contract, workflow, commands, verification gates, and known limits from one conventional entry point. _(Started: `bin/serow agent [--json]` now prints the compact bootstrap contract; `bin/serow agent commands [--json]` and `bin/serow agent diagnostics [--json]` expose verbose reference material explicitly.)_
-- Add structured patch commands and make common agent-safe edits possible without falling back to raw text mutation. _(Started: `bin/serow patch add-use <path> <module> <dependency> [--json]`, `bin/serow patch remove-use <path> <module> <dependency> [--json]`, and `bin/serow patch set-use <path> <module> <old-dependency> <new-dependency> [--json]` apply canonical module dependency patches, and `bin/serow patch add-function <path> <module> <signature> <intent> [--json]` inserts safe public function skeletons.)_
-- Require duplicate-intent checks before creating public symbols. _(Started: the checker rejects exact normalized duplicate public intents with `PossibleDuplicate` diagnostics that point agents back to `query intent`, and `patch add-function` rejects exact duplicate public intents before writing.)_
-- Track symbol versions and dependents. _(Started: source can declare `version vN`, omitted versions default to `v1`, ledger JSON exposes version metadata, `bin/serow query dependents <symbol-or-name> [--json]` reports direct dependents, and `bin/serow query impact <symbol-or-name> [--json]` reports direct and transitive dependent paths.)_
-- Add richer JSON diagnostics with repair actions. _(Started: diagnostics can now emit command-style `repair_actions` alongside legacy repair strings for known CLI-driven fixes.)_
+**V1 status: done enough.** The public v1 agent workflow now has a stable compact bootstrap command, an explicit full command catalog, diagnostic protocol notes, broad structured patch coverage for common source edits, duplicate-intent checks before and during public symbol creation, source-level versions, dependent/impact queries, and machine-readable repair actions for the high-value diagnostics used by the v1 gates. Future work such as semantic embeddings, comment-preserving rewrites, richer AST node identity, and additional repair-action coverage is v2 hardening unless it blocks unattended safety or release polish.
+
+- Add a stable agent bootstrap command, likely `bin/serow agent --json`, so new AI sessions can discover the current language contract, workflow, commands, verification gates, and known limits from one conventional entry point. _(Done enough for v1: `bin/serow agent [--json]` prints the compact bootstrap contract; `bin/serow agent commands [--json]` and `bin/serow agent diagnostics [--json]` expose verbose reference material explicitly.)_
+- Add structured patch commands and make common agent-safe edits possible without falling back to raw text mutation. _(Done enough for v1: patch commands cover module declarations/dependencies, public function skeletons/removal/renames/signatures/versions, type declarations, intents, contracts, examples, properties, effects, implementations, migrations, and call qualification through canonical formatting.)_
+- Require duplicate-intent checks before creating public symbols. _(Done enough for v1: the checker rejects exact normalized duplicate public intents with `PossibleDuplicate` diagnostics that point agents back to `query intent`, warns on near duplicates, and structured function/intent patch commands reject exact duplicate public intents before writing.)_
+- Track symbol versions and dependents. _(Done enough for v1: source can declare `version vN`, omitted versions default to `v1`, ledger JSON exposes version metadata, `bin/serow query dependents <symbol-or-name> [--json]` reports direct dependents, and `bin/serow query impact <symbol-or-name> [--json]` reports direct and transitive dependent paths.)_
+- Add richer JSON diagnostics with repair actions. _(Done enough for v1: diagnostics can emit argv-style `repair_actions` alongside legacy repair strings, and certification validates structured command contracts before accepting diagnostic output.)_
 
 ## Phase 2.5: Agent-Safe Language Core
 
