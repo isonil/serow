@@ -25,7 +25,7 @@ Selection policy for generic implementation prompts:
 - Phase 3's first production backend slice is closed for public v1: portable IR plus dependency-free Rust source/crate generation for the supported bootstrap subset, generated metadata, artifact drift checks, runtime contract assertions, generated pure evidence tests, and binary entrypoint support are all implemented.
 - Remaining backend work such as WASM/TypeScript/Python backends, richer external effect boundaries, recursive record layout support, generic list indexing, list pattern matching, higher-order collection APIs, and semantic-embedding intent search is explicitly v2/future scope rather than blocking the public v1 bootstrap baseline.
 - The Python bootstrap remains reference-only. It should keep parity where cheap, but Rust is the source of truth for v1 behavior.
-- Latest closure: Serow is at `1.0.7-rust-bootstrap` after a public v1 patch release that makes `docs` and `version` distinguish unknown option flags from positional extras in structured usage diagnostics.
+- Latest closure: Serow is at `1.0.8-rust-bootstrap` after a public v1 patch release that makes `docs --check` validate local Markdown links in the public documentation set.
 
 ## Implemented
 
@@ -128,7 +128,7 @@ Selection policy for generic implementation prompts:
   - reports the canonical version loaded from `serow.project`
 - Documentation discovery command:
   - `bin/serow docs [--check] [--json]`
-  - lists the stable local language, CLI, standard library, backend, agent-instruction, and progress references in text or machine-readable form, and can fail CI-style when an advertised reference is missing
+  - lists the stable local language, CLI, standard library, backend, agent-instruction, and progress references in text or machine-readable form, and can fail CI-style when an advertised reference is missing or a public local Markdown link points at a missing file
 - Machine-readable change planning:
   - `bin/serow plan [paths...] [--json]`
   - explicit paths are treated as the change set

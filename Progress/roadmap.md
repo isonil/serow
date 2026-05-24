@@ -4,7 +4,7 @@
 
 Future generic implementation prompts should choose the highest-leverage next step across all phases. Phase 0, Phase 1, Phase 2 agent workflow, Phase 2.5 certification, Phase 2.6 unattended safety, and the first Phase 3 backend slice are released for public v1. Prefer targeted v2 hardening gaps before expanding syntax beyond the v1 bootstrap subset.
 
-Latest closure: Serow is at `1.0.7-rust-bootstrap` after a v1 patch release that makes `docs` and `version` distinguish unknown option flags from positional extras in structured usage diagnostics.
+Latest closure: Serow is at `1.0.8-rust-bootstrap` after a v1 patch release that makes `docs --check` validate local Markdown links in the public documentation set.
 
 Selection policy:
 

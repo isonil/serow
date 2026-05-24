@@ -307,11 +307,12 @@ fn run_docs(args: &[String]) -> i32 {
         return docs_usage_error(json_output, message);
     }
     let missing = missing_doc_references();
-    let ok = missing.is_empty();
+    let broken_links = broken_doc_links();
+    let ok = missing.is_empty() && broken_links.is_empty();
     if json_output {
-        println!("{}", docs_json(check, &missing));
+        println!("{}", docs_json(check, &missing, &broken_links));
     } else {
-        print_docs(check, &missing);
+        print_docs(check, &missing, &broken_links);
     }
     i32::from(check && !ok)
 }
@@ -319,6 +320,7 @@ fn run_docs(args: &[String]) -> i32 {
 #[derive(Clone, Debug)]
 struct ReleaseCheckSummary {
     missing_docs: Vec<&'static str>,
+    broken_doc_links: Vec<DocLinkIssue>,
     format: FormatSummary,
     standard: CheckSummary,
     unattended: CheckSummary,
@@ -326,7 +328,7 @@ struct ReleaseCheckSummary {
 
 impl ReleaseCheckSummary {
     fn docs_ok(&self) -> bool {
-        self.missing_docs.is_empty()
+        self.missing_docs.is_empty() && self.broken_doc_links.is_empty()
     }
 
     fn standard_ok(&self) -> bool {
@@ -392,6 +394,7 @@ fn release_check_usage_error(json_output: bool, message: String) -> i32 {
 fn release_check_summary(paths: &[String]) -> ReleaseCheckSummary {
     ReleaseCheckSummary {
         missing_docs: missing_doc_references(),
+        broken_doc_links: broken_doc_links(),
         format: format_paths(paths, true),
         standard: certification_summary(paths, CertifyProfile::Standard),
         unattended: certification_summary(paths, CertifyProfile::Unattended),
@@ -4317,7 +4320,7 @@ fn release_check_json(summary: &ReleaseCheckSummary) -> String {
     format!(
         concat!(
             "{{\n",
-            "  \"docs\": {{\"missing\": {}, \"ok\": {}}},\n",
+            "  \"docs\": {{\"broken_links\": {}, \"markdown_links_ok\": {}, \"missing\": {}, \"ok\": {}}},\n",
             "  \"format\": {},\n",
             "  \"gates\": {},\n",
             "  \"ok\": {},\n",
@@ -4325,6 +4328,8 @@ fn release_check_json(summary: &ReleaseCheckSummary) -> String {
             "  \"unattended_certify\": {}\n",
             "}}"
         ),
+        doc_link_issues_json(&summary.broken_doc_links),
+        summary.broken_doc_links.is_empty(),
         str_array_json(&summary.missing_docs),
         summary.docs_ok(),
         format_json(&summary.format),
@@ -4759,6 +4764,16 @@ const CERTIFY_USAGE: &str = "serow certify [paths...] [--profile <standard|unatt
 const DOCS_USAGE: &str = "serow docs [--check] [--json]";
 const RELEASE_CHECK_USAGE: &str = "serow release-check [paths...] [--json]";
 
+const DOC_LINK_SOURCES: &[&str] = &[
+    "README.md",
+    "docs/language.md",
+    "docs/cli.md",
+    "docs/stdlib.md",
+    "docs/backends.md",
+    "AGENTS.md",
+    "Progress/currentState.md",
+];
+
 const DOC_REFERENCES: &[DocReference] = &[
     (
         "language",
@@ -4806,7 +4821,7 @@ const CORE_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "docs",
         DOCS_USAGE,
-        "List or validate stable local documentation references.",
+        "List or validate stable local documentation references and local Markdown links.",
     ),
     (
         "check",
@@ -4836,7 +4851,7 @@ const CORE_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "release-check",
         RELEASE_CHECK_USAGE,
-        "Run Serow-owned public release gates: docs references, canonical formatting, standard certification, and unattended certification.",
+        "Run Serow-owned public release gates: docs references and links, canonical formatting, standard certification, and unattended certification.",
     ),
     (
         "version",
@@ -4879,7 +4894,7 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "docs",
         DOCS_USAGE,
-        "List or validate stable local documentation references.",
+        "List or validate stable local documentation references and local Markdown links.",
     ),
     (
         "check",
@@ -4909,7 +4924,7 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "release-check",
         RELEASE_CHECK_USAGE,
-        "Run Serow-owned public release gates: docs references, canonical formatting, standard certification, and unattended certification.",
+        "Run Serow-owned public release gates: docs references and links, canonical formatting, standard certification, and unattended certification.",
     ),
     (
         "version",
@@ -5229,7 +5244,109 @@ fn missing_doc_references() -> Vec<&'static str> {
         .collect()
 }
 
-fn docs_json(check: bool, missing: &[&str]) -> String {
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct DocLinkIssue {
+    source_path: String,
+    line: usize,
+    target: String,
+    resolved_path: String,
+}
+
+fn broken_doc_links() -> Vec<DocLinkIssue> {
+    let mut broken = Vec::new();
+    for source_path in DOC_LINK_SOURCES {
+        let Ok(source) = fs::read_to_string(source_path) else {
+            continue;
+        };
+        let source_parent = Path::new(source_path)
+            .parent()
+            .unwrap_or_else(|| Path::new(""));
+        for (line_index, line) in source.lines().enumerate() {
+            for target in markdown_link_targets(line) {
+                if is_external_or_fragment_link(target) {
+                    continue;
+                }
+                let Some(local_target) = local_link_path(target) else {
+                    continue;
+                };
+                let resolved = source_parent.join(local_target);
+                if !resolved.exists() {
+                    broken.push(DocLinkIssue {
+                        source_path: (*source_path).to_string(),
+                        line: line_index + 1,
+                        target: target.to_string(),
+                        resolved_path: normalized_path_display(&resolved),
+                    });
+                }
+            }
+        }
+    }
+    broken
+}
+
+fn markdown_link_targets(line: &str) -> Vec<&str> {
+    let mut targets = Vec::new();
+    let mut rest = line;
+    while let Some(open_index) = rest.find("](") {
+        let target_start = open_index + 2;
+        let after_open = &rest[target_start..];
+        let Some(close_index) = after_open.find(')') else {
+            break;
+        };
+        let target = after_open[..close_index].trim();
+        if !target.is_empty() {
+            targets.push(target);
+        }
+        rest = &after_open[close_index + 1..];
+    }
+    targets
+}
+
+fn is_external_or_fragment_link(target: &str) -> bool {
+    target.starts_with('#')
+        || target.contains("://")
+        || target.starts_with("mailto:")
+        || target.starts_with("tel:")
+}
+
+fn local_link_path(target: &str) -> Option<&str> {
+    let without_fragment = target.split('#').next().unwrap_or(target);
+    let without_query = without_fragment
+        .split('?')
+        .next()
+        .unwrap_or(without_fragment);
+    let local = without_query.trim();
+    (!local.is_empty()).then_some(local)
+}
+
+fn normalized_path_display(path: &Path) -> String {
+    use std::path::Component;
+
+    let mut parts = Vec::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if !parts.is_empty() {
+                    parts.pop();
+                } else {
+                    parts.push("..".to_string());
+                }
+            }
+            Component::Normal(part) => parts.push(part.to_string_lossy().to_string()),
+            Component::RootDir | Component::Prefix(_) => {
+                return path.to_string_lossy().replace('\\', "/");
+            }
+        }
+    }
+    if parts.is_empty() {
+        ".".to_string()
+    } else {
+        parts.join("/")
+    }
+}
+
+fn docs_json(check: bool, missing: &[&str], broken_links: &[DocLinkIssue]) -> String {
     let rows = DOC_REFERENCES
         .iter()
         .map(|(name, path, purpose)| {
@@ -5250,15 +5367,36 @@ fn docs_json(check: bool, missing: &[&str]) -> String {
             "  \"checked\": {},\n",
             "  \"references_ok\": {},\n",
             "  \"missing\": {},\n",
+            "  \"markdown_links_ok\": {},\n",
+            "  \"broken_links\": {},\n",
             "  \"docs\": [{}]\n",
             "}}"
         ),
-        !check || missing.is_empty(),
+        !check || (missing.is_empty() && broken_links.is_empty()),
         check,
         missing.is_empty(),
         str_array_json(missing),
+        broken_links.is_empty(),
+        doc_link_issues_json(broken_links),
         rows
     )
+}
+
+fn doc_link_issues_json(issues: &[DocLinkIssue]) -> String {
+    let rows = issues
+        .iter()
+        .map(|issue| {
+            format!(
+                "{{\"line\": {}, \"resolved_path\": {}, \"source\": {}, \"target\": {}}}",
+                issue.line,
+                json_string(&issue.resolved_path),
+                json_string(&issue.source_path),
+                json_string(&issue.target)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("[{rows}]")
 }
 
 fn agent_diagnostics_json() -> String {
@@ -5481,9 +5619,9 @@ fn print_agent_commands() {
     }
 }
 
-fn print_docs(check: bool, missing: &[&str]) {
+fn print_docs(check: bool, missing: &[&str], broken_links: &[DocLinkIssue]) {
     if check {
-        if missing.is_empty() {
+        if missing.is_empty() && broken_links.is_empty() {
             println!("serow docs --check: ok");
         } else {
             println!("serow docs --check: failed");
@@ -5503,6 +5641,15 @@ fn print_docs(check: bool, missing: &[&str]) {
             println!("  {path}");
         }
     }
+    if !broken_links.is_empty() {
+        println!("broken markdown links:");
+        for issue in broken_links {
+            println!(
+                "  {}:{}: {} -> {}",
+                issue.source_path, issue.line, issue.target, issue.resolved_path
+            );
+        }
+    }
 }
 
 fn print_release_check_summary(summary: &ReleaseCheckSummary) {
@@ -5511,6 +5658,12 @@ fn print_release_check_summary(summary: &ReleaseCheckSummary) {
     println!("docs: {}", if summary.docs_ok() { "ok" } else { "failed" });
     if !summary.missing_docs.is_empty() {
         println!("  missing: {}", summary.missing_docs.join(", "));
+    }
+    for issue in &summary.broken_doc_links {
+        println!(
+            "  broken link: {}:{}: {} -> {}",
+            issue.source_path, issue.line, issue.target, issue.resolved_path
+        );
     }
     println!(
         "format: {} ({} files checked, {} with drift)",

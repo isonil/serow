@@ -4582,6 +4582,14 @@ fn docs_command_lists_and_checks_public_references() {
         json_stdout.contains("\"references_ok\": true"),
         "{json_stdout}"
     );
+    assert!(
+        json_stdout.contains("\"markdown_links_ok\": true"),
+        "{json_stdout}"
+    );
+    assert!(
+        json_stdout.contains("\"broken_links\": []"),
+        "{json_stdout}"
+    );
     assert!(json_stdout.contains("\"exists\": true"), "{json_stdout}");
 
     let check_output = Command::new(env!("CARGO_BIN_EXE_serow"))
@@ -4597,7 +4605,15 @@ fn docs_command_lists_and_checks_public_references() {
         check_stdout.contains("\"references_ok\": true"),
         "{check_stdout}"
     );
+    assert!(
+        check_stdout.contains("\"markdown_links_ok\": true"),
+        "{check_stdout}"
+    );
     assert!(check_stdout.contains("\"missing\": []"), "{check_stdout}");
+    assert!(
+        check_stdout.contains("\"broken_links\": []"),
+        "{check_stdout}"
+    );
 
     let invalid_option_json = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args(["docs", "--bogus", "--json"])
@@ -4619,6 +4635,53 @@ fn docs_command_lists_and_checks_public_references() {
         stdout.contains("Unknown serow docs option `--bogus`."),
         "{stdout}"
     );
+}
+
+#[test]
+fn docs_check_reports_broken_local_markdown_links() {
+    let dir = unique_temp_dir("serow-docs-broken-links");
+    fs::create_dir_all(dir.join("docs")).expect("create docs dir");
+    fs::create_dir_all(dir.join("Progress")).expect("create progress dir");
+    fs::write(
+        dir.join("README.md"),
+        "- [Language Reference](docs/language.md)\n",
+    )
+    .expect("write readme");
+    fs::write(
+        dir.join("docs/language.md"),
+        "See [Missing](missing.md) and [CLI](cli.md).\n",
+    )
+    .expect("write language doc");
+    fs::write(dir.join("docs/cli.md"), "# CLI\n").expect("write cli doc");
+    fs::write(dir.join("docs/stdlib.md"), "# Stdlib\n").expect("write stdlib doc");
+    fs::write(dir.join("docs/backends.md"), "# Backends\n").expect("write backend doc");
+    fs::write(dir.join("AGENTS.md"), "# Agents\n").expect("write agents doc");
+    fs::write(dir.join("Progress/currentState.md"), "# State\n").expect("write state doc");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args(["docs", "--check", "--json"])
+        .output()
+        .expect("run serow docs --check with broken local link");
+
+    assert_eq!(output.status.code(), Some(1), "{output:#?}");
+    assert!(output.stderr.is_empty(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.trim_start().starts_with('{'), "{stdout}");
+    assert!(stdout.contains("\"ok\": false"), "{stdout}");
+    assert!(stdout.contains("\"references_ok\": true"), "{stdout}");
+    assert!(stdout.contains("\"markdown_links_ok\": false"), "{stdout}");
+    assert!(
+        stdout.contains("\"source\": \"docs/language.md\""),
+        "{stdout}"
+    );
+    assert!(stdout.contains("\"target\": \"missing.md\""), "{stdout}");
+    assert!(
+        stdout.contains("\"resolved_path\": \"docs/missing.md\""),
+        "{stdout}"
+    );
+
+    let _ = fs::remove_dir_all(dir);
 }
 
 #[test]
@@ -4651,6 +4714,14 @@ fn release_check_runs_serow_owned_public_release_gates() {
     );
     assert!(json_stdout.contains("\"changed\": 0"), "{json_stdout}");
     assert!(json_stdout.contains("\"missing\": []"), "{json_stdout}");
+    assert!(
+        json_stdout.contains("\"markdown_links_ok\": true"),
+        "{json_stdout}"
+    );
+    assert!(
+        json_stdout.contains("\"broken_links\": []"),
+        "{json_stdout}"
+    );
 
     let text_output = Command::new(env!("CARGO_BIN_EXE_serow"))
         .arg("release-check")

@@ -2,6 +2,10 @@
 
 ## 2026-05-24
 
+- Chose public documentation link validation as a v1 release-hardening task because `docs --check` verified advertised files existed but did not catch broken local Markdown links inside the public docs set.
+- Extended `bin/serow docs --check` and `bin/serow release-check` to validate local Markdown links, added JSON `markdown_links_ok` and `broken_links` fields, covered the failing-link case with an integration regression, and bumped Serow to `1.0.8-rust-bootstrap` / crate `1.0.8`.
+- Verification is recorded in the final run for this change.
+
 - Chose discovery-command usage classification as a public v1 patch-hardening task because `docs` and `version` returned structured usage diagnostics, but unknown option-looking arguments were still described as positional extras unlike neighboring discovery commands.
 - Updated `docs` and `version` usage handling to report unknown options explicitly while preserving positional-extra diagnostics, covered both JSON paths with focused regressions, and bumped Serow to `1.0.7-rust-bootstrap` / crate `1.0.7`.
 - Verification is recorded in the final run for this change.
