@@ -145,6 +145,7 @@ pub struct ImpactEvidenceCoverage {
     pub edge_target: Function,
     pub target: Function,
     pub depth: usize,
+    pub path: Vec<Function>,
     pub covered: bool,
     pub coverage: Vec<CallSite>,
     pub reason: String,
@@ -810,6 +811,15 @@ pub fn unattended_uncovered_impact_evidence_diagnostics(paths: &[String]) -> Vec
                     .with_data("edge_target", coverage.edge_target.symbol())
                     .with_data("target", coverage.target.symbol())
                     .with_data("depth", coverage.depth.to_string())
+                    .with_data(
+                        "path",
+                        coverage
+                            .path
+                            .iter()
+                            .map(Function::symbol)
+                            .collect::<Vec<_>>()
+                            .join(" -> "),
+                    )
                     .with_data("reason", coverage.reason)
                     .with_command_repair(
                         "Review impact coverage",
@@ -2059,6 +2069,7 @@ fn impact_evidence_coverage(
         edge_target,
         target: impact.target.clone(),
         depth: impact.depth,
+        path: impact.path.clone(),
         covered,
         coverage,
         reason,

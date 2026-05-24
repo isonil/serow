@@ -4959,6 +4959,10 @@ pub fn bump(x: Int) -> Int
     assert!(stdout.contains("\"impact_coverage\""), "{stdout}");
     assert!(stdout.contains("\"covered\": true"), "{stdout}");
     assert!(
+        stdout.contains("\"path\": [{\"module\": \"app.main\""),
+        "{stdout}"
+    );
+    assert!(
         stdout.contains("Executable evidence in `@app.main.bump.v1` exercises the call edge"),
         "{stdout}"
     );
@@ -5022,6 +5026,10 @@ pub fn bump(x: Int) -> Int
     let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
     assert!(stdout.contains("\"impact_coverage\""), "{stdout}");
     assert!(stdout.contains("\"covered\": false"), "{stdout}");
+    assert!(
+        stdout.contains("\"path\": [{\"module\": \"app.main\""),
+        "{stdout}"
+    );
     assert!(
         stdout.contains("No executable example or sampled property in `@app.main.bump.v1`"),
         "{stdout}"
@@ -6608,6 +6616,10 @@ pub fn bump(x: Int) -> Int
     assert!(!stdout.contains("UncheckedImpact"), "{stdout}");
     assert!(stdout.contains("@core.math.inc.v1"), "{stdout}");
     assert!(stdout.contains("@app.main.bump.v1"), "{stdout}");
+    assert!(
+        stdout.contains("\"path\": \"@app.main.bump.v1 -> @core.math.inc.v1\""),
+        "{stdout}"
+    );
     assert!(
         stdout.contains("without executable evidence covering the changed call edge"),
         "{stdout}"

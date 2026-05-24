@@ -2,6 +2,10 @@
 
 ## 2026-05-24
 
+- Chose Phase 2.6 impact-coverage protocol closure because uncovered dependent-edge diagnostics exposed dependent/target symbols but not the full versioned call path agents need to review transitive impact without reconstructing separate plan rows.
+- Added versioned dependent-to-target `path` data to `serow plan --json` `impact_coverage` rows and to `UncoveredImpactEvidence` diagnostics, updated agent diagnostic protocol notes, and marked the impacted-edge coverage roadmap item done enough for v1.
+- Bumped `serow.project` to `0.4.117-rust-bootstrap`; verification is recorded in the final run for this change.
+
 - Chose Phase 2 agent-native workflow closure because the remaining roadmap text still treated the agent bootstrap, structured patch coverage, duplicate-intent protection, version/dependent queries, and repair-action diagnostics as open "Started" work even though the v1 tool surface is implemented and discoverable through `bin/serow agent`.
 - Marked Phase 2 agent-native workflow done enough for public v1, explicitly deferring semantic embeddings, comment-preserving rewrites, richer AST node identity, and additional repair-action coverage to v2 hardening unless they block unattended safety or release polish.
 - Updated the compact agent bootstrap's current track to focus future invocations on Phase 2.6 unattended safety and release polish, and bumped `serow.project` to `0.4.116-rust-bootstrap`.

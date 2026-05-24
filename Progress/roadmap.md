@@ -91,7 +91,7 @@ This phase exists because the original Serow premise is not only "AI-first synta
 - Enforce change-impact gates:
   - expose direct and transitive dependents for changed public symbols
   - make certification fail when changed public behavior has unchecked dependents _(Started: `certify --profile unattended` now emits `UncheckedImpact` when a changed tracked public symbol has transitive dependents outside the certified change set.)_
-  - report whether each affected dependent has executable evidence covering the changed call edge _(Started: `serow plan` now emits `impact_coverage` rows showing whether examples/properties cover impacted dependent call edges, and `certify --profile unattended` now rejects uncovered impacted call edges as `UncoveredImpactEvidence`.)_
+  - report whether each affected dependent has executable evidence covering the changed call edge _(Done enough for v1: `serow plan` emits `impact_coverage` rows showing whether examples/properties cover impacted dependent call edges, includes the versioned dependent-to-target path for each row, and `certify --profile unattended` rejects uncovered impacted call edges as `UncoveredImpactEvidence` with the same path data.)_
 - Strengthen public versioning policy:
   - require public behavior changes to preserve compatibility or bump `version vN` _(Started: `serow plan` reports same-symbol public contract-surface changes against `HEAD`, and `certify --profile unattended` rejects them as `PublicBehaviorChangeNeedsVersion`.)_
   - detect changed contracts/examples/properties without a corresponding version or migration decision _(Started: requires, ensures, examples, properties, effects, and signature changes are compared for tracked changed symbols.)_

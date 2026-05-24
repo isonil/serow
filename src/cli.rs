@@ -3923,6 +3923,7 @@ fn impact_coverage_json(coverage: &[ImpactEvidenceCoverage]) -> String {
                     "      \"dependent\": {},\n",
                     "      \"depth\": {},\n",
                     "      \"edge_target\": {},\n",
+                    "      \"path\": {},\n",
                     "      \"reason\": {},\n",
                     "      \"target\": {}\n",
                     "    }}"
@@ -3932,6 +3933,7 @@ fn impact_coverage_json(coverage: &[ImpactEvidenceCoverage]) -> String {
                 function_ref_json(&row.dependent),
                 row.depth,
                 function_ref_json(&row.edge_target),
+                function_ref_array_json(&row.path),
                 json_string(&row.reason),
                 function_ref_json(&row.target),
             )
@@ -4712,7 +4714,7 @@ fn agent_diagnostics_json() -> String {
         "{\n",
         "  \"ok\": true,\n",
         "  \"diagnostic_json\": {\"repairs\": \"legacy human-readable repair strings\", \"repair_actions\": \"machine-readable command actions when available\", \"certification\": \"certify validates structured repair action command contracts before accepting diagnostics\", \"missing_sections\": \"MissingRequiredSection diagnostics include safe set-effects/set-impl patch command actions when those non-evidence sections are absent\", \"typed_holes\": \"TypedHole diagnostics include symbol, signature, hole_type, expected_type, obligations data, and a query type command action for the declared signature shape\", \"unknown_function_type_errors\": \"TypeError diagnostics for unknown function calls include the missing function name and a query symbol command action\", \"architecture\": \"MissingModuleDependency and declared ArchitectureViolation diagnostics include add-use or remove-use patch command actions when the repair is exact\", \"ambiguous_calls\": \"AmbiguousUnqualifiedCall diagnostics include candidate symbols and a query symbol command action\", \"intent_reuse\": \"PossibleDuplicate and NearDuplicateIntent include shared_terms, new_only_terms, and candidate_only_terms data\", \"duplicate_evidence\": \"Duplicate evidence diagnostics include indexed remove-example, remove-contract, or remove-property patch command actions\", \"duplicate_migrations\": \"DuplicateMigration includes indexed remove-migration patch command actions\", \"low_signal_examples\": \"ShallowExample includes indexed remove-example patch command actions\", \"low_signal_properties\": \"VacuousProperty, ShallowProperty, and PropertyNotExecutable include indexed remove-property patch command actions plus unsupported_reasons when sampling fails\", \"property_replay\": \"PropertyFailed and PropertyEvaluationError include property_index, sample_index, sample_seed, bindings, and a replay command action; replayed PropertyNotExecutable diagnostics include unsupported_reasons and indexed remove-property repair actions\", \"property_shrinking\": \"PropertyFailed and PropertyEvaluationError include shrunk_sample_index, shrunk_sample_seed, and shrunk_bindings when a simpler failing or erroring sampled binding is found\"},\n",
-        "  \"plan_json\": {\"semantic_changes\": \"changed symbols include deterministic labels with acknowledgement state and details for public deltas\", \"removed_symbols\": \"changed tracked files include removed public canonical symbols and same-name replacement candidates\", \"property_coverage\": \"changed symbols include sampled-property sample counts, direct-call flags, vacuous flags, unsupported generator types, unsupported reasons, and recursive record sample cycles after built-in and bounded declared-record sampling\", \"intent_implementation_risks\": \"changed symbols include advisory lexical arithmetic intent/implementation mismatch risks\", \"stale_migrations\": \"changed symbols include indexed migration acknowledgements that no current unattended gate requires\"}\n",
+        "  \"plan_json\": {\"semantic_changes\": \"changed symbols include deterministic labels with acknowledgement state and details for public deltas\", \"removed_symbols\": \"changed tracked files include removed public canonical symbols and same-name replacement candidates\", \"impact_coverage\": \"changed symbols include impacted dependent call-edge coverage rows with versioned dependent-to-target paths\", \"property_coverage\": \"changed symbols include sampled-property sample counts, direct-call flags, vacuous flags, unsupported generator types, unsupported reasons, and recursive record sample cycles after built-in and bounded declared-record sampling\", \"intent_implementation_risks\": \"changed symbols include advisory lexical arithmetic intent/implementation mismatch risks\", \"stale_migrations\": \"changed symbols include indexed migration acknowledgements that no current unattended gate requires\"}\n",
         "}"
     )
     .to_string()
@@ -4956,6 +4958,9 @@ fn print_agent_diagnostics() {
     println!("  semantic_changes include deterministic labels with acknowledgement state");
     println!(
         "  removed_symbols report removed public canonical symbols and replacement candidates"
+    );
+    println!(
+        "  impact_coverage reports impacted dependent call-edge coverage with versioned dependent-to-target paths"
     );
     println!(
         "  property_coverage reports sample counts, direct-call flags, vacuous flags, unsupported generator types, unsupported reasons, and recursive record sample cycles"
