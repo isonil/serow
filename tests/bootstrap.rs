@@ -3577,6 +3577,43 @@ fn top_level_usage_errors_respect_json_flag() {
         "{stdout}"
     );
 
+    let leading_help_json = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["--json", "help"])
+        .output()
+        .expect("run top-level serow help with leading json");
+    assert!(leading_help_json.status.success(), "{leading_help_json:#?}");
+    assert!(
+        leading_help_json.stderr.is_empty(),
+        "{leading_help_json:#?}"
+    );
+    let stdout = String::from_utf8(leading_help_json.stdout).expect("stdout is utf8");
+    assert!(stdout.trim_start().starts_with('{'), "{stdout}");
+    assert!(stdout.contains("\"ok\": true"), "{stdout}");
+    assert!(stdout.contains("\"commands\""), "{stdout}");
+
+    let invalid_help_json = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["help", "--bogus", "--json"])
+        .output()
+        .expect("run invalid serow help usage as json");
+    assert_eq!(
+        invalid_help_json.status.code(),
+        Some(2),
+        "{invalid_help_json:#?}"
+    );
+    assert!(
+        invalid_help_json.stderr.is_empty(),
+        "{invalid_help_json:#?}"
+    );
+    let stdout = String::from_utf8(invalid_help_json.stdout).expect("stdout is utf8");
+    assert!(stdout.trim_start().starts_with('{'), "{stdout}");
+    assert!(stdout.contains("\"ok\": false"), "{stdout}");
+    assert!(stdout.contains("\"code\": \"UsageError\""), "{stdout}");
+    assert!(
+        stdout.contains("Unknown serow help option `--bogus`."),
+        "{stdout}"
+    );
+    assert!(stdout.contains("Use `serow help [--json]`."), "{stdout}");
+
     let text_output = Command::new(env!("CARGO_BIN_EXE_serow"))
         .arg("unknown-top-level")
         .output()

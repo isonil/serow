@@ -46,14 +46,6 @@ pub fn main(args: impl Iterator<Item = String>) -> i32 {
             "`serow` requires a command when `--json` is provided.".to_string(),
         );
     }
-    if top_level_help_requested(&args) {
-        if json_requested {
-            println!("{}", agent_commands_json());
-        } else {
-            print_usage();
-        }
-        return 0;
-    }
     let Some(command) = args.first().map(String::as_str) else {
         print_usage();
         return 2;
@@ -72,10 +64,7 @@ pub fn main(args: impl Iterator<Item = String>) -> i32 {
         "release-check" => run_release_check(&args[1..]),
         "replay" => run_replay(&args[1..]),
         "version" | "--version" | "-V" => run_version(&args[1..]),
-        "-h" | "--help" | "help" => {
-            print_usage();
-            0
-        }
+        "-h" | "--help" | "help" => run_help(&args[1..], json_requested),
         other => top_level_usage_error(json_requested, format!("Unknown serow command `{other}`.")),
     }
 }
@@ -92,21 +81,41 @@ fn normalize_top_level_json_flag(args: &[String]) -> Vec<String> {
     normalized
 }
 
-fn top_level_help_requested(args: &[String]) -> bool {
-    let mut meaningful_args = args
-        .iter()
-        .map(String::as_str)
-        .filter(|arg| *arg != "--json");
-    let Some(command) = meaningful_args.next() else {
-        return false;
-    };
-    meaningful_args.next().is_none() && matches!(command, "-h" | "--help" | "help")
-}
-
 fn top_level_usage_error(json_output: bool, message: String) -> i32 {
     if json_output {
         let diagnostic = Diagnostic::error("UsageError", message, None)
             .with_repair("Use `serow <command> ... [--json]`.");
+        println!("{}", diagnostics_json(false, &[diagnostic]));
+    } else {
+        eprintln!("{message}");
+        print_usage();
+    }
+    2
+}
+
+fn run_help(args: &[String], inherited_json_output: bool) -> i32 {
+    let (rest, json_output) = split_flag_before_separator(args, "--json");
+    let json_output = json_output || inherited_json_output;
+    if let Some(arg) = rest.first() {
+        let message = if arg.starts_with('-') {
+            format!("Unknown serow help option `{arg}`.")
+        } else {
+            "`serow help` does not accept positional arguments.".to_string()
+        };
+        return help_usage_error(json_output, message);
+    }
+    if json_output {
+        println!("{}", agent_commands_json());
+    } else {
+        print_usage();
+    }
+    0
+}
+
+fn help_usage_error(json_output: bool, message: String) -> i32 {
+    if json_output {
+        let diagnostic = Diagnostic::error("UsageError", message, None)
+            .with_repair("Use `serow help [--json]`.");
         println!("{}", diagnostics_json(false, &[diagnostic]));
     } else {
         eprintln!("{message}");

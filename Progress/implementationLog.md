@@ -2,6 +2,10 @@
 
 ## 2026-05-24
 
+- Chose top-level help usage consistency as a public v1 patch hardening task because `serow help --json` returned the command catalog correctly, while `serow help --bogus --json` still exited successfully with text usage instead of the structured `UsageError` protocol used by neighboring discovery commands.
+- Added a dedicated help command path that preserves `help --json` and leading `--json help`, rejects extra help arguments with JSON diagnostics when requested, covered the behavior with focused regressions, and bumped Serow to `1.0.5-rust-bootstrap` / crate `1.0.5`.
+- Verification is recorded in the final run for this change.
+
 - Chose path-taking CLI option validation as a public v1 patch hardening task because `release-check` already rejected unknown option-looking arguments, while neighboring path-taking commands such as `check`, `fmt`, `plan`, `compile ir`, `query`, and `replay property` still let `--bogus` flow into source discovery as `SourceNotFound`.
 - Added shared path argument parsing that reports structured `UsageError` diagnostics for unknown options before `--`, preserved literal dash-prefixed paths after `--`, covered the public command surface with regressions, and bumped Serow to `1.0.3-rust-bootstrap` / crate `1.0.3`.
 - Verification is recorded in the final run for this change.
