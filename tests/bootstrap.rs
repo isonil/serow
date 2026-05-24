@@ -4288,12 +4288,20 @@ fn agent_json_includes_compact_machine_readable_workflow() {
     );
     assert!(
         stdout.contains(
-            "\"current_advanced_track\": \"Public v1 backend closure complete; release polish and targeted v2 hardening\""
+            "\"current_advanced_track\": \"Public v1 release baseline; targeted v2 hardening\""
         ),
         "{stdout}"
     );
     assert!(
         stdout.contains("Choose the highest-leverage next step across all phases"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("the first Phase 3 backend slice are released for public v1"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("Prefer targeted hardening before expanding syntax"),
         "{stdout}"
     );
     assert!(

@@ -4,9 +4,9 @@ Date: 2026-05-24
 
 ## Active Mode
 
-Cross-phase implementation with public v1 backend closure complete.
+Cross-phase implementation with public v1 release baseline complete.
 
-Future invocations should choose the highest-leverage next step across all phases, not only the most recent phase. Phase 0, Phase 1, Phase 2 agent workflow, Phase 2.5 certification, Phase 2.6 unattended safety, and the first Phase 3 backend slice are closed for public v1. Prefer release polish and targeted v2 hardening gaps before expanding syntax beyond the v1 bootstrap subset.
+Future invocations should choose the highest-leverage next step across all phases, not only the most recent phase. Phase 0, Phase 1, Phase 2 agent workflow, Phase 2.5 certification, Phase 2.6 unattended safety, and the first Phase 3 backend slice are released for public v1. Prefer targeted v2 hardening gaps before expanding syntax beyond the v1 bootstrap subset.
 
 Selection policy for generic implementation prompts:
 
@@ -25,7 +25,7 @@ Selection policy for generic implementation prompts:
 - Phase 3's first production backend slice is closed for public v1: portable IR plus dependency-free Rust source/crate generation for the supported bootstrap subset, generated metadata, artifact drift checks, runtime contract assertions, generated pure evidence tests, and binary entrypoint support are all implemented.
 - Remaining backend work such as WASM/TypeScript/Python backends, richer external effect boundaries, recursive record layout support, generic list indexing, list pattern matching, higher-order collection APIs, and semantic-embedding intent search is explicitly v2/future scope rather than blocking the public v1 bootstrap baseline.
 - The Python bootstrap remains reference-only. It should keep parity where cheap, but Rust is the source of truth for v1 behavior.
-- Latest release-polish closure: `bin/serow release-check [paths...] [--json]` now runs the Serow-owned public v1 release gates in one command: documentation reference validation, canonical formatting, standard certification, and unattended certification.
+- Latest closure: Serow is promoted to `1.0.0-rust-bootstrap` as the public v1 release baseline. `bin/serow release-check [paths...] [--json]` runs the Serow-owned public v1 release gates in one command: documentation reference validation, canonical formatting, standard certification, and unattended certification.
 
 ## Implemented
 
@@ -1983,9 +1983,9 @@ git diff --check
 
 ## Current Strategic Direction
 
-The roadmap is now in cross-phase implementation mode with public v1 backend closure complete. Phase 0, Phase 1, Phase 2 agent workflow, Phase 2.5 certification, Phase 2.6 unattended safety, and the first Phase 3 backend slice are closed for public v1. Future invocations should choose across release polish or targeted v2 hardening when it unblocks a public language workflow.
+The roadmap is now in cross-phase implementation mode with the public v1 release baseline complete. Phase 0, Phase 1, Phase 2 agent workflow, Phase 2.5 certification, Phase 2.6 unattended safety, and the first Phase 3 backend slice are released for public v1. Future invocations should choose targeted v2 hardening when it unblocks a public language workflow.
 
 - keep the checker/interpreter responsible for compile-time evidence
 - preserve `serow.ir.v0` as the stable bootstrap backend boundary until a deliberate v2 IR revision is needed
 - keep generated backend artifacts separate from `.serow` source of truth
-- prefer release polish and targeted hardening before expanding syntax beyond the v1 bootstrap subset
+- prefer targeted hardening before expanding syntax beyond the v1 bootstrap subset

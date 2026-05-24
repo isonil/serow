@@ -1,14 +1,14 @@
 {
   "language": "Serow",
-  "version": "0.4.132-rust-bootstrap",
+  "version": "1.0.0-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
   },
   "active_mode": {
     "name": "Cross-phase implementation",
-    "current_advanced_track": "Public v1 backend closure complete; release polish and targeted v2 hardening",
-    "selection_policy": "Choose the highest-leverage next step across all phases; Phase 0, Phase 1, Phase 2 agent workflow, Phase 2.5 certification, Phase 2.6 unattended safety, and the first Phase 3 backend slice are closed for public v1; prefer release polish and targeted hardening before expanding syntax beyond the v1 bootstrap subset."
+    "current_advanced_track": "Public v1 release baseline; targeted v2 hardening",
+    "selection_policy": "Choose the highest-leverage next step across all phases; Phase 0, Phase 1, Phase 2 agent workflow, Phase 2.5 certification, Phase 2.6 unattended safety, and the first Phase 3 backend slice are released for public v1; prefer targeted hardening before expanding syntax beyond the v1 bootstrap subset."
   },
   "agent_interface": {
     "agent": "bin/serow agent [--json]",

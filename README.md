@@ -4,7 +4,7 @@ Serow is an experimental AI-first programming language.
 
 The current implementation is a public v1 bootstrap baseline written in dependency-free Rust. It focuses on the core language workflow rather than performance: spec-first public functions, mandatory executable examples, contracts, properties, source-level versions, structured diagnostics, semantic queries, change planning, certification, and Rust backend generation.
 
-The language and compiler are intentionally small, but usable for the supported bootstrap subset. Active state and next steps are tracked under `Progress/`. The current implementation mode is cross-phase with public v1 backend closure complete: future work should choose the highest-leverage next step across all phases, with release polish and targeted v2 hardening ahead of broad syntax expansion.
+The language and compiler are intentionally small, but usable for the supported bootstrap subset. Active state and next steps are tracked under `Progress/`. The current implementation mode is the public v1 release baseline: future work should choose the highest-leverage next step across all phases, with targeted v2 hardening ahead of broad syntax expansion.
 
 ## Current Capabilities
 

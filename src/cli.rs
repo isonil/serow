@@ -4971,7 +4971,7 @@ fn agent_json() -> String {
             "  \"language\": \"Serow\",\n",
             "  \"implementation\": \"dependency-free Rust bootstrap\",\n",
             "  \"phase\": \"Cross-phase implementation\",\n",
-            "  \"current_advanced_track\": \"Public v1 backend closure complete; release polish and targeted v2 hardening\",\n",
+            "  \"current_advanced_track\": \"Public v1 release baseline; targeted v2 hardening\",\n",
             "  \"selection_policy\": {},\n",
             "  \"source_default\": \"examples/\",\n",
             "  \"workflow\": {},\n",
@@ -4984,8 +4984,8 @@ fn agent_json() -> String {
         ),
         str_array_json(&[
             "Choose the highest-leverage next step across all phases.",
-            "Phase 0, Phase 1, Phase 2 agent workflow, Phase 2.5 certification, Phase 2.6 unattended safety, and the first Phase 3 backend slice are closed for public v1.",
-            "Prefer release polish and targeted hardening before expanding syntax beyond the v1 bootstrap subset.",
+            "Phase 0, Phase 1, Phase 2 agent workflow, Phase 2.5 certification, Phase 2.6 unattended safety, and the first Phase 3 backend slice are released for public v1.",
+            "Prefer targeted hardening before expanding syntax beyond the v1 bootstrap subset.",
             "Resume earlier-phase gaps when they are higher leverage, block later work, or are required before Serow can be considered complete.",
             "Record the chosen focus and outcome in Progress/."
         ]),
@@ -5250,17 +5250,13 @@ fn print_agent_bootstrap() {
     println!("language: Serow");
     println!("implementation: dependency-free Rust bootstrap");
     println!("phase: Cross-phase implementation");
-    println!(
-        "current advanced track: Public v1 backend closure complete; release polish and targeted v2 hardening"
-    );
+    println!("current advanced track: Public v1 release baseline; targeted v2 hardening");
     println!("selection policy:");
     println!("  choose the highest-leverage next step across all phases");
     println!(
-        "  Phase 0, Phase 1, Phase 2 agent workflow, Phase 2.5 certification, Phase 2.6 unattended safety, and the first Phase 3 backend slice are closed for public v1"
+        "  Phase 0, Phase 1, Phase 2 agent workflow, Phase 2.5 certification, Phase 2.6 unattended safety, and the first Phase 3 backend slice are released for public v1"
     );
-    println!(
-        "  prefer release polish and targeted hardening before expanding syntax beyond the v1 bootstrap subset"
-    );
+    println!("  prefer targeted hardening before expanding syntax beyond the v1 bootstrap subset");
     println!("  resume earlier-phase gaps when they outrank the current focus");
     println!("  record the chosen focus and outcome in Progress/");
     println!("source default: examples/");

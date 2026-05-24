@@ -2,6 +2,10 @@
 
 ## 2026-05-24
 
+- Chose public v1 release-baseline closure because all roadmap phases required for the supported bootstrap subset are closed and `bin/serow release-check --json` passes the Serow-owned release gates.
+- Promoted `serow.project` to `1.0.0-rust-bootstrap`, bumped the Rust crate manifest to `1.0.0`, updated compact agent/bootstrap wording from backend-closure mode to public v1 release-baseline mode, and recorded targeted v2 hardening as the next implementation posture.
+- Verification is recorded in the final run for this change.
+
 - Chose top-level help catalog parity as release polish because `bin/serow help --json` returns the full command catalog, but that catalog did not list the help command itself.
 - Added `serow help [--json]` to compact/full command discovery, text usage, README/CLI docs, and project metadata; covered the JSON help catalog with a focused regression.
 - Bumped `serow.project` to `0.4.129-rust-bootstrap`; verification is recorded in the final run for this change.

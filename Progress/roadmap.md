@@ -2,9 +2,9 @@
 
 ## Active Mode: Cross-Phase Implementation
 
-Future generic implementation prompts should choose the highest-leverage next step across all phases. Phase 0, Phase 1, Phase 2 agent workflow, Phase 2.5 certification, Phase 2.6 unattended safety, and the first Phase 3 backend slice are closed for public v1. Prefer release polish and targeted v2 hardening gaps before expanding syntax beyond the v1 bootstrap subset.
+Future generic implementation prompts should choose the highest-leverage next step across all phases. Phase 0, Phase 1, Phase 2 agent workflow, Phase 2.5 certification, Phase 2.6 unattended safety, and the first Phase 3 backend slice are released for public v1. Prefer targeted v2 hardening gaps before expanding syntax beyond the v1 bootstrap subset.
 
-Latest release-polish closure: `bin/serow release-check [paths...] [--json]` now runs the Serow-owned public v1 release gates in one command: documentation reference validation, canonical formatting, standard certification, and unattended certification.
+Latest closure: Serow is promoted to `1.0.0-rust-bootstrap` as the public v1 release baseline after `bin/serow release-check --json` passed the Serow-owned public v1 release gates.
 
 Selection policy:
 
