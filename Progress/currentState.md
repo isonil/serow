@@ -25,7 +25,7 @@ Selection policy for generic implementation prompts:
 - Phase 3's first production backend slice is closed for public v1: portable IR plus dependency-free Rust source/crate generation for the supported bootstrap subset, generated metadata, artifact drift checks, runtime contract assertions, generated pure evidence tests, and binary entrypoint support are all implemented.
 - Remaining backend work such as WASM/TypeScript/Python backends, richer external effect boundaries, recursive record layout support, generic list indexing, list pattern matching, higher-order collection APIs, and semantic-embedding intent search is explicitly v2/future scope rather than blocking the public v1 bootstrap baseline.
 - The Python bootstrap remains reference-only. It should keep parity where cheap, but Rust is the source of truth for v1 behavior.
-- Latest release-polish closure: `bin/serow docs [--json]` now exposes stable local documentation references from the CLI, and help/agent command discovery plus project metadata advertise the docs entrypoint consistently.
+- Latest release-polish closure: `bin/serow docs --check [--json]` now validates stable local documentation references from the CLI, and help/agent command discovery plus project metadata advertise the docs entrypoint consistently.
 
 ## Implemented
 
@@ -127,8 +127,8 @@ Selection policy for generic implementation prompts:
   - `bin/serow --version`
   - reports the canonical version loaded from `serow.project`
 - Documentation discovery command:
-  - `bin/serow docs [--json]`
-  - lists the stable local language, CLI, backend, agent-instruction, and progress references in text or machine-readable form
+  - `bin/serow docs [--check] [--json]`
+  - lists the stable local language, CLI, backend, agent-instruction, and progress references in text or machine-readable form, and can fail CI-style when an advertised reference is missing
 - Machine-readable change planning:
   - `bin/serow plan [paths...] [--json]`
   - explicit paths are treated as the change set

@@ -4217,7 +4217,7 @@ fn agent_command_prints_bootstrap_contract() {
     assert!(stdout.contains("serow agent: ok"), "{stdout}");
     assert!(stdout.contains("bin/serow check after edits"), "{stdout}");
     assert!(stdout.contains("bin/serow certify"), "{stdout}");
-    assert!(stdout.contains("serow docs [--json]"), "{stdout}");
+    assert!(stdout.contains("serow docs [--check] [--json]"), "{stdout}");
     assert!(stdout.contains("serow agent commands [--json]"), "{stdout}");
     assert!(!stdout.contains("serow patch qualify-call"), "{stdout}");
 }
@@ -4300,7 +4300,7 @@ fn agent_json_includes_compact_machine_readable_workflow() {
         stdout.contains("serow compile ir [paths...] [--json]"),
         "{stdout}"
     );
-    assert!(stdout.contains("serow docs [--json]"), "{stdout}");
+    assert!(stdout.contains("serow docs [--check] [--json]"), "{stdout}");
     assert!(
         stdout.contains(
             "serow compile rust [paths...] [--out-dir <dir>] [--check-out-dir] [--emit-bin|--bin] [--crate-name <name>] [--json]"
@@ -4351,7 +4351,7 @@ fn agent_commands_json_includes_full_command_catalog() {
         "{stdout}"
     );
     assert!(stdout.contains("serow version [--json]"), "{stdout}");
-    assert!(stdout.contains("serow docs [--json]"), "{stdout}");
+    assert!(stdout.contains("serow docs [--check] [--json]"), "{stdout}");
     assert!(stdout.contains("serow patch qualify-call"), "{stdout}");
     assert!(stdout.contains("serow patch add-module"), "{stdout}");
     assert!(stdout.contains("serow patch remove-function"), "{stdout}");
@@ -4378,11 +4378,11 @@ fn top_level_help_json_lists_help_command() {
     assert!(stdout.contains("\"name\": \"help\""), "{stdout}");
     assert!(stdout.contains("serow help [--json]"), "{stdout}");
     assert!(stdout.contains("\"name\": \"docs\""), "{stdout}");
-    assert!(stdout.contains("serow docs [--json]"), "{stdout}");
+    assert!(stdout.contains("serow docs [--check] [--json]"), "{stdout}");
 }
 
 #[test]
-fn docs_command_lists_public_references() {
+fn docs_command_lists_and_checks_public_references() {
     let text_output = Command::new(env!("CARGO_BIN_EXE_serow"))
         .arg("docs")
         .output()
@@ -4394,6 +4394,7 @@ fn docs_command_lists_public_references() {
     assert!(text_stdout.contains("docs/language.md"), "{text_stdout}");
     assert!(text_stdout.contains("docs/cli.md"), "{text_stdout}");
     assert!(text_stdout.contains("docs/backends.md"), "{text_stdout}");
+    assert!(text_stdout.contains("exists: true"), "{text_stdout}");
 
     let json_output = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args(["docs", "--json"])
@@ -4412,6 +4413,27 @@ fn docs_command_lists_public_references() {
         json_stdout.contains("\"path\": \"AGENTS.md\""),
         "{json_stdout}"
     );
+    assert!(json_stdout.contains("\"checked\": false"), "{json_stdout}");
+    assert!(
+        json_stdout.contains("\"references_ok\": true"),
+        "{json_stdout}"
+    );
+    assert!(json_stdout.contains("\"exists\": true"), "{json_stdout}");
+
+    let check_output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["docs", "--check", "--json"])
+        .output()
+        .expect("run serow docs --check --json");
+
+    assert!(check_output.status.success(), "{check_output:#?}");
+    let check_stdout = String::from_utf8(check_output.stdout).expect("stdout is utf8");
+    assert!(check_stdout.contains("\"ok\": true"), "{check_stdout}");
+    assert!(check_stdout.contains("\"checked\": true"), "{check_stdout}");
+    assert!(
+        check_stdout.contains("\"references_ok\": true"),
+        "{check_stdout}"
+    );
+    assert!(check_stdout.contains("\"missing\": []"), "{check_stdout}");
 }
 
 #[test]

@@ -277,25 +277,28 @@ fn agent_usage_error(json_output: bool, message: String) -> i32 {
 }
 
 fn run_docs(args: &[String]) -> i32 {
-    let (rest, json_output) = split_flag(args, "--json");
+    let (args, check) = split_flag(args, "--check");
+    let (rest, json_output) = split_flag(&args, "--json");
     if !rest.is_empty() {
         return docs_usage_error(
             json_output,
             "`serow docs` does not accept positional arguments.".to_string(),
         );
     }
+    let missing = missing_doc_references();
+    let ok = missing.is_empty();
     if json_output {
-        println!("{}", docs_json());
+        println!("{}", docs_json(check, &missing));
     } else {
-        print_docs();
+        print_docs(check, &missing);
     }
-    0
+    i32::from(check && !ok)
 }
 
 fn docs_usage_error(json_output: bool, message: String) -> i32 {
     if json_output {
         let diagnostic = Diagnostic::error("UsageError", message, None)
-            .with_repair("Use `serow docs [--json]`.");
+            .with_repair("Use `serow docs [--check] [--json]`.");
         println!("{}", diagnostics_json(false, &[diagnostic]));
     } else {
         eprintln!("{message}");
@@ -4438,7 +4441,7 @@ type DocReference = (&'static str, &'static str, &'static str);
 
 const COMPILE_RUST_USAGE: &str = "serow compile rust [paths...] [--out-dir <dir>] [--check-out-dir] [--emit-bin|--bin] [--crate-name <name>] [--json]";
 const CERTIFY_USAGE: &str = "serow certify [paths...] [--profile <standard|unattended>] [--json]";
-const DOCS_USAGE: &str = "serow docs [--json]";
+const DOCS_USAGE: &str = "serow docs [--check] [--json]";
 
 const DOC_REFERENCES: &[DocReference] = &[
     (
@@ -4482,7 +4485,7 @@ const CORE_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "docs",
         DOCS_USAGE,
-        "List stable local documentation references.",
+        "List or validate stable local documentation references.",
     ),
     (
         "check",
@@ -4550,7 +4553,7 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "docs",
         DOCS_USAGE,
-        "List stable local documentation references.",
+        "List or validate stable local documentation references.",
     ),
     (
         "check",
@@ -4887,12 +4890,20 @@ fn agent_command_rows_json(commands: &[AgentCommand]) -> String {
         .join(", ")
 }
 
-fn docs_json() -> String {
+fn missing_doc_references() -> Vec<&'static str> {
+    DOC_REFERENCES
+        .iter()
+        .filter_map(|(_, path, _)| (!Path::new(path).is_file()).then_some(*path))
+        .collect()
+}
+
+fn docs_json(check: bool, missing: &[&str]) -> String {
     let rows = DOC_REFERENCES
         .iter()
         .map(|(name, path, purpose)| {
             format!(
-                "{{\"name\": {}, \"path\": {}, \"purpose\": {}}}",
+                "{{\"exists\": {}, \"name\": {}, \"path\": {}, \"purpose\": {}}}",
+                Path::new(path).is_file(),
                 json_string(name),
                 json_string(path),
                 json_string(purpose)
@@ -4900,7 +4911,22 @@ fn docs_json() -> String {
         })
         .collect::<Vec<_>>()
         .join(", ");
-    format!("{{\n  \"ok\": true,\n  \"docs\": [{rows}]\n}}")
+    format!(
+        concat!(
+            "{{\n",
+            "  \"ok\": {},\n",
+            "  \"checked\": {},\n",
+            "  \"references_ok\": {},\n",
+            "  \"missing\": {},\n",
+            "  \"docs\": [{}]\n",
+            "}}"
+        ),
+        !check || missing.is_empty(),
+        check,
+        missing.is_empty(),
+        str_array_json(missing),
+        rows
+    )
 }
 
 fn agent_diagnostics_json() -> String {
@@ -5126,12 +5152,27 @@ fn print_agent_commands() {
     }
 }
 
-fn print_docs() {
-    println!("serow docs: ok");
+fn print_docs(check: bool, missing: &[&str]) {
+    if check {
+        if missing.is_empty() {
+            println!("serow docs --check: ok");
+        } else {
+            println!("serow docs --check: failed");
+        }
+    } else {
+        println!("serow docs: ok");
+    }
     for (name, path, purpose) in DOC_REFERENCES {
         println!("{name}:");
         println!("  path: {path}");
+        println!("  exists: {}", Path::new(path).is_file());
         println!("  purpose: {purpose}");
+    }
+    if !missing.is_empty() {
+        println!("missing:");
+        for path in missing {
+            println!("  {path}");
+        }
     }
 }
 

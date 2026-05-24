@@ -33,6 +33,7 @@ Print explicit reference material that is omitted from the compact bootstrap:
 
 ```sh
 bin/serow docs
+bin/serow docs --check
 bin/serow docs --json
 bin/serow help --json
 bin/serow agent commands

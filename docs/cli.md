@@ -28,12 +28,15 @@ Top-level help also honors JSON requests by returning the full command catalog:
 bin/serow help --json
 ```
 
-List stable local documentation references:
+List or validate stable local documentation references:
 
 ```sh
 bin/serow docs
+bin/serow docs --check
 bin/serow docs --json
 ```
+
+`docs --check` exits non-zero if any advertised local documentation path is missing. JSON output includes an `exists` field per reference plus top-level `references_ok` and `missing` fields.
 
 For commands with JSON output, `--json` may appear before the command or inside the command arguments before any `--` path separator.
 
