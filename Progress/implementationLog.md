@@ -2,6 +2,11 @@
 
 ## 2026-05-24
 
+- Chose Phase 2.6 unattended-safety closure because the strict profile and plan surface now cover the v1 safety gates for evidence weakening, public versioning, capability expansion, implementation evidence, stale migrations, impact coverage, sampled-property replay, low-signal evidence, and repair-action validation.
+- Marked Phase 2.6 done enough for public v1, explicitly deferring semantic-embedding reuse search, richer custom generators, proof-based property checking, mutation testing beyond HEAD replay, effect polymorphism, and lower-false-positive intent/implementation analysis to v2+ hardening.
+- Updated the compact agent bootstrap's current track to focus future invocations on release polish and targeted v2 hardening, and bumped `serow.project` to `0.4.118-rust-bootstrap`.
+- Verification is recorded in the final run for this change.
+
 - Chose Phase 2.6 impact-coverage protocol closure because uncovered dependent-edge diagnostics exposed dependent/target symbols but not the full versioned call path agents need to review transitive impact without reconstructing separate plan rows.
 - Added versioned dependent-to-target `path` data to `serow plan --json` `impact_coverage` rows and to `UncoveredImpactEvidence` diagnostics, updated agent diagnostic protocol notes, and marked the impacted-edge coverage roadmap item done enough for v1.
 - Bumped `serow.project` to `0.4.117-rust-bootstrap`; verification is recorded in the final run for this change.
