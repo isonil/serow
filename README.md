@@ -89,6 +89,7 @@ cargo run --manifest-path generated/serow_rpg/Cargo.toml
 
 ## References
 
+- [Language Reference](docs/language.md): public v1 source shape, types, expressions, evidence, effects, planning, and limits.
 - [CLI Reference](docs/cli.md): checker, formatter, structured patches, ledger queries, replay, planning, and certification.
 - [Backend Reference](docs/backends.md): portable IR, Rust backend support, generated crate layout, metadata, drift checks, runtime behavior, and current backend limits.
 - [Agent Instructions](AGENTS.md): compact repository rules for coding agents.

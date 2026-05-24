@@ -4,6 +4,8 @@
 
 Future generic implementation prompts should choose the highest-leverage next step across all phases. Phase 0, Phase 1, Phase 2 agent workflow, Phase 2.5 certification, Phase 2.6 unattended safety, and the first Phase 3 backend slice are closed for public v1. Prefer release polish and targeted v2 hardening gaps before expanding syntax beyond the v1 bootstrap subset.
 
+Latest release-polish closure: the public v1 language surface is now documented in `docs/language.md`, so users do not need to read `Progress/` notes to find the stable bootstrap source shape, expression subset, evidence model, effect rules, planning/certification gates, backend boundary, and v1 limits.
+
 Selection policy:
 
 1. Inspect unfinished, deferred, and known-limit items across every phase.
