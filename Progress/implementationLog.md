@@ -2,6 +2,10 @@
 
 ## 2026-05-25
 
+- Chose titled inline Markdown link validation as a public v1 release-hardening task because `docs --check` validated inline local Markdown links and reference-style links with titles, but valid inline links with optional titles were treated as paths containing the title text.
+- Updated inline Markdown link destination parsing to ignore optional titles, including angle-bracket destinations, covered valid and broken titled-link cases with a focused regression, and bumped Serow to `1.0.18-rust-bootstrap` / crate `1.0.18`.
+- Verification is recorded in the final run for this change.
+
 - Chose reference-style documentation link validation as a public v1 release-hardening task because `docs --check` validated inline local Markdown links and anchors, but reference-style link definitions could still point at missing local files or headings.
 - Extended the docs link scanner to validate reference-style local Markdown link definitions, including angle-bracket destinations with titles, covered missing-file and missing-anchor cases with a focused regression, and bumped Serow to `1.0.17-rust-bootstrap` / crate `1.0.17`.
 - Verification is recorded in the final run for this change.

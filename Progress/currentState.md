@@ -25,7 +25,7 @@ Selection policy for generic implementation prompts:
 - Phase 3's first production backend slice is closed for public v1: portable IR plus dependency-free Rust source/crate generation for the supported bootstrap subset, generated metadata, artifact drift checks, runtime contract assertions, generated pure evidence tests, and binary entrypoint support are all implemented.
 - Remaining backend work such as WASM/TypeScript/Python backends, richer external effect boundaries, recursive record layout support, generic list indexing, list pattern matching, higher-order collection APIs, and semantic-embedding intent search is explicitly v2/future scope rather than blocking the public v1 bootstrap baseline.
 - The Python bootstrap remains reference-only. It should keep parity where cheap, but Rust is the source of truth for v1 behavior.
-- Latest closure: Serow is at `1.0.17-rust-bootstrap` after a public v1 patch release that makes `bin/serow docs --check` validate reference-style local Markdown link definitions as well as inline links.
+- Latest closure: Serow is at `1.0.18-rust-bootstrap` after a public v1 patch release that makes `bin/serow docs --check` validate local inline Markdown links that use optional titles.
 
 ## Implemented
 
@@ -128,7 +128,7 @@ Selection policy for generic implementation prompts:
   - reports the canonical version loaded from `serow.project`
 - Documentation discovery command:
   - `bin/serow docs [--check] [--json]`
-  - lists the stable local project overview, language, CLI, standard library, backend, agent-instruction, and progress references in text or machine-readable form, and can fail CI-style when an advertised reference is missing or a public inline/reference-style local Markdown link points at a missing file or missing heading anchor
+  - lists the stable local project overview, language, CLI, standard library, backend, agent-instruction, and progress references in text or machine-readable form, and can fail CI-style when an advertised reference is missing or a public inline/reference-style local Markdown link points at a missing file or missing heading anchor, including links that use normal Markdown titles
 - Public release gate aggregation:
   - `bin/serow release-check [paths...] [--json]`
   - validates release metadata consistency between `serow.project` and `Cargo.toml`, advertised docs and local Markdown links/anchors, canonical formatting, standard certification, and unattended certification over the selected source paths

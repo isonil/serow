@@ -5491,8 +5491,7 @@ fn markdown_link_targets(line: &str) -> Vec<&str> {
         let Some(close_index) = after_open.find(')') else {
             break;
         };
-        let target = after_open[..close_index].trim();
-        if !target.is_empty() {
+        if let Some(target) = markdown_inline_link_target(&after_open[..close_index]) {
             targets.push(target);
         }
         rest = &after_open[close_index + 1..];
@@ -5501,6 +5500,21 @@ fn markdown_link_targets(line: &str) -> Vec<&str> {
         targets.push(target);
     }
     targets
+}
+
+fn markdown_inline_link_target(raw_target: &str) -> Option<&str> {
+    let target = raw_target.trim();
+    if target.is_empty() {
+        return None;
+    }
+    if let Some(rest) = target.strip_prefix('<') {
+        let close_index = rest.find('>')?;
+        let target = rest[..close_index].trim();
+        return (!target.is_empty()).then_some(target);
+    }
+    let end = target.find(char::is_whitespace).unwrap_or(target.len());
+    let target = &target[..end];
+    (!target.is_empty()).then_some(target)
 }
 
 fn markdown_reference_definition_target(line: &str) -> Option<&str> {
