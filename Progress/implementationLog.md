@@ -2,6 +2,10 @@
 
 ## 2026-05-25
 
+- Chose inline-code reference definition handling as a public v1 release-hardening task because `docs --check` ignored link usages and targets inside inline code spans, but reference-style definitions inside inline code could still satisfy real full/collapsed reference usages.
+- Updated reference-label collection to strip inline code spans before accepting Markdown reference definitions, covered the missing-definition bypass with a focused regression, and bumped Serow to `1.0.20-rust-bootstrap` / crate `1.0.20`.
+- Verification is recorded in the final run for this change.
+
 - Chose reference-style Markdown usage validation as a public v1 release-hardening task because `docs --check` validated inline links and reference definition targets, but full/collapsed reference usages could still point at missing definitions.
 - Added missing-definition detection for full and collapsed reference-style Markdown link usages outside code spans/fences, covered valid and broken usages with a focused regression, and bumped Serow to `1.0.19-rust-bootstrap` / crate `1.0.19`.
 - Verification is recorded in the final run for this change.

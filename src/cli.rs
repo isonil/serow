@@ -5441,7 +5441,8 @@ fn markdown_reference_definition_labels(source: &str) -> HashSet<String> {
         if fence.is_some() {
             continue;
         }
-        if let Some(label) = markdown_reference_definition_label(line) {
+        let link_source = markdown_without_inline_code_spans(line);
+        if let Some(label) = markdown_reference_definition_label(&link_source) {
             labels.insert(label);
         }
     }
