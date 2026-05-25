@@ -2,6 +2,10 @@
 
 ## 2026-05-24
 
+- Chose nested command-family usage classification as a public v1 patch-hardening task because `agent`, `compile`, `query`, `replay`, and `patch` returned structured usage diagnostics, but option-looking values in the subcommand/target slot were still described as unknown subcommands.
+- Updated those command-family dispatchers to classify `--...` values as unknown options while preserving unknown subcommand/target wording for ordinary words, covered the JSON protocol with focused regressions, and bumped Serow to `1.0.9-rust-bootstrap` / crate `1.0.9`.
+- Verification is recorded in the final run for this change.
+
 - Chose public documentation link validation as a v1 release-hardening task because `docs --check` verified advertised files existed but did not catch broken local Markdown links inside the public docs set.
 - Extended `bin/serow docs --check` and `bin/serow release-check` to validate local Markdown links, added JSON `markdown_links_ok` and `broken_links` fields, covered the failing-link case with an integration regression, and bumped Serow to `1.0.8-rust-bootstrap` / crate `1.0.8`.
 - Verification is recorded in the final run for this change.

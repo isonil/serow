@@ -172,10 +172,10 @@ fn run_replay(args: &[String]) -> i32 {
     };
     match replay_command {
         "property" => run_replay_property(&replay_args[1..], json_requested),
-        _ => replay_usage_error(
-            json_requested,
-            format!("Unknown serow replay command `{replay_command}`."),
-        ),
+        _ => {
+            let message = unknown_subcommand_message("replay", "command", replay_command);
+            replay_usage_error(json_requested, message)
+        }
     }
 }
 
@@ -269,10 +269,10 @@ fn run_agent(args: &[String]) -> i32 {
             }
             0
         }
-        [command] => agent_usage_error(
-            json_output,
-            format!("Unknown serow agent command `{command}`."),
-        ),
+        [command] => {
+            let message = unknown_subcommand_message("agent", "command", command);
+            agent_usage_error(json_output, message)
+        }
         _ => {
             let rendered = rest.join(" ");
             agent_usage_error(
@@ -488,10 +488,10 @@ fn run_compile(args: &[String]) -> i32 {
     match compile_command {
         "ir" => run_compile_ir(&compile_args[1..], json_requested),
         "rust" => run_compile_rust(&compile_args[1..], json_requested),
-        _ => compile_usage_error(
-            json_requested,
-            format!("Unknown serow compile target `{compile_command}`."),
-        ),
+        _ => {
+            let message = unknown_subcommand_message("compile", "target", compile_command);
+            compile_usage_error(json_requested, message)
+        }
     }
 }
 
@@ -1640,10 +1640,10 @@ fn run_patch(args: &[String]) -> i32 {
         "set-type" => run_patch_set_type(&command_args),
         "set-use" => run_patch_set_use(&command_args),
         "set-version" => run_patch_set_version(&command_args),
-        _ => patch_command_usage_error(
-            json_output,
-            format!("Unknown serow patch command `{patch_command}`."),
-        ),
+        _ => {
+            let message = unknown_subcommand_message("patch", "command", patch_command);
+            patch_command_usage_error(json_output, message)
+        }
     }
 }
 
@@ -2485,10 +2485,10 @@ fn run_query(args: &[String]) -> i32 {
             0
         }
         "symbols" => run_symbols_query(&query_args[1..], json_requested),
-        _ => query_usage_error(
-            json_requested,
-            format!("Unknown serow query command `{query_command}`."),
-        ),
+        _ => {
+            let message = unknown_subcommand_message("query", "command", query_command);
+            query_usage_error(json_requested, message)
+        }
     }
 }
 
@@ -2615,6 +2615,14 @@ fn parse_paths_and_json(args: &[String], command_label: &str) -> Result<PathArgs
         }
     }
     Ok(PathArgs { paths, json_output })
+}
+
+fn unknown_subcommand_message(command: &str, noun: &str, value: &str) -> String {
+    if value.starts_with('-') {
+        format!("Unknown serow {command} option `{value}`.")
+    } else {
+        format!("Unknown serow {command} {noun} `{value}`.")
+    }
 }
 
 fn split_flag(args: &[String], flag: &str) -> (Vec<String>, bool) {

@@ -4851,6 +4851,75 @@ fn path_taking_commands_reject_unknown_json_options_as_usage_errors() {
 }
 
 #[test]
+fn command_family_usage_errors_classify_option_like_subcommands() {
+    let cases: &[(&[&str], &str, &str)] = &[
+        (
+            &["agent", "--bogus", "--json"],
+            "Unknown serow agent option `--bogus`.",
+            "Use `serow agent [commands|diagnostics] [--json]`.",
+        ),
+        (
+            &["compile", "--bogus", "--json"],
+            "Unknown serow compile option `--bogus`.",
+            "Use `serow compile <ir|rust> ... [--json]`.",
+        ),
+        (
+            &["query", "--bogus", "--json"],
+            "Unknown serow query option `--bogus`.",
+            "Use `serow query <command> ... [--json]`.",
+        ),
+        (
+            &["replay", "--bogus", "--json"],
+            "Unknown serow replay option `--bogus`.",
+            "Use `serow replay property <sample-seed> [paths...] [--json]`.",
+        ),
+        (
+            &["patch", "--bogus", "--json"],
+            "Unknown serow patch option `--bogus`.",
+            "Use `serow patch <command> ... [--json]`",
+        ),
+    ];
+
+    for (args, message, repair) in cases {
+        let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+            .args(*args)
+            .output()
+            .expect("run serow command family with unknown option-looking subcommand");
+        assert_eq!(output.status.code(), Some(2), "{args:?}: {output:#?}");
+        assert!(output.stderr.is_empty(), "{args:?}: {output:#?}");
+        let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+        assert!(stdout.trim_start().starts_with('{'), "{args:?}: {stdout}");
+        assert!(stdout.contains("\"ok\": false"), "{args:?}: {stdout}");
+        assert!(
+            stdout.contains("\"code\": \"UsageError\""),
+            "{args:?}: {stdout}"
+        );
+        assert!(stdout.contains(message), "{args:?}: {stdout}");
+        assert!(stdout.contains(repair), "{args:?}: {stdout}");
+        assert!(
+            !stdout.contains("Unknown serow agent command `--bogus`."),
+            "{args:?}: {stdout}"
+        );
+        assert!(
+            !stdout.contains("Unknown serow compile target `--bogus`."),
+            "{args:?}: {stdout}"
+        );
+        assert!(
+            !stdout.contains("Unknown serow query command `--bogus`."),
+            "{args:?}: {stdout}"
+        );
+        assert!(
+            !stdout.contains("Unknown serow replay command `--bogus`."),
+            "{args:?}: {stdout}"
+        );
+        assert!(
+            !stdout.contains("Unknown serow patch command `--bogus`."),
+            "{args:?}: {stdout}"
+        );
+    }
+}
+
+#[test]
 fn agent_diagnostics_subcommand_prints_protocol_reference() {
     let json_output = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args(["agent", "diagnostics", "--json"])
