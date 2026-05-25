@@ -5680,7 +5680,19 @@ fn markdown_anchor_exists(path: &Path, fragment: &str) -> bool {
 fn markdown_heading_anchors(source: &str) -> HashSet<String> {
     let mut anchors = HashSet::new();
     let mut counts = HashMap::new();
+    let mut fence = None;
     for line in source.lines() {
+        if let Some(marker) = markdown_fence_marker(line) {
+            if fence == Some(marker) {
+                fence = None;
+            } else if fence.is_none() {
+                fence = Some(marker);
+            }
+            continue;
+        }
+        if fence.is_some() {
+            continue;
+        }
         let Some(heading) = markdown_heading_text(line) else {
             continue;
         };

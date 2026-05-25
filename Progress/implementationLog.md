@@ -2,6 +2,10 @@
 
 ## 2026-05-25
 
+- Chose fenced-code heading-anchor handling as a public v1 release-hardening task because `docs --check` ignored link syntax inside fenced code blocks, but still treated heading-like lines inside those blocks as real Markdown anchors.
+- Updated Markdown anchor collection to skip fenced code blocks, covered the anchor false-positive with a focused regression, and bumped Serow to `1.0.21-rust-bootstrap` / crate `1.0.21`.
+- Verification is recorded in the final run for this change.
+
 - Chose inline-code reference definition handling as a public v1 release-hardening task because `docs --check` ignored link usages and targets inside inline code spans, but reference-style definitions inside inline code could still satisfy real full/collapsed reference usages.
 - Updated reference-label collection to strip inline code spans before accepting Markdown reference definitions, covered the missing-definition bypass with a focused regression, and bumped Serow to `1.0.20-rust-bootstrap` / crate `1.0.20`.
 - Verification is recorded in the final run for this change.

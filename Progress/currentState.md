@@ -25,7 +25,7 @@ Selection policy for generic implementation prompts:
 - Phase 3's first production backend slice is closed for public v1: portable IR plus dependency-free Rust source/crate generation for the supported bootstrap subset, generated metadata, artifact drift checks, runtime contract assertions, generated pure evidence tests, and binary entrypoint support are all implemented.
 - Remaining backend work such as WASM/TypeScript/Python backends, richer external effect boundaries, recursive record layout support, generic list indexing, list pattern matching, higher-order collection APIs, and semantic-embedding intent search is explicitly v2/future scope rather than blocking the public v1 bootstrap baseline.
 - The Python bootstrap remains reference-only. It should keep parity where cheap, but Rust is the source of truth for v1 behavior.
-- Latest closure: Serow is at `1.0.20-rust-bootstrap` after a public v1 patch release that makes `bin/serow docs --check` ignore reference-style Markdown definitions inside inline code spans.
+- Latest closure: Serow is at `1.0.21-rust-bootstrap` after a public v1 patch release that makes `bin/serow docs --check` ignore Markdown heading-like lines inside fenced code blocks when validating heading anchors.
 
 ## Implemented
 
@@ -129,6 +129,7 @@ Selection policy for generic implementation prompts:
 - Documentation discovery command:
   - `bin/serow docs [--check] [--json]`
   - lists the stable local project overview, language, CLI, standard library, backend, agent-instruction, and progress references in text or machine-readable form, and can fail CI-style when an advertised reference is missing, a public inline/reference-style local Markdown link points at a missing file or missing heading anchor, or a full/collapsed reference-style link usage has no definition, including links that use normal Markdown titles
+  - ignores Markdown link/reference syntax and heading-like anchor text inside fenced code blocks, and ignores inline link/reference syntax inside inline backtick code spans
 - Public release gate aggregation:
   - `bin/serow release-check [paths...] [--json]`
   - validates release metadata consistency between `serow.project` and `Cargo.toml`, advertised docs and local Markdown links/anchors, canonical formatting, standard certification, and unattended certification over the selected source paths
