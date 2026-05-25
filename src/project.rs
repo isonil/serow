@@ -33,6 +33,36 @@ pub fn parse_project_version(source: &str) -> Option<String> {
     top_level_string_value(source, "version")
 }
 
+pub fn load_crate_version() -> Option<String> {
+    fs::read_to_string("Cargo.toml")
+        .ok()
+        .and_then(|source| parse_cargo_manifest_version(&source))
+}
+
+pub fn parse_cargo_manifest_version(source: &str) -> Option<String> {
+    let mut in_package = false;
+    for line in source.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('[') {
+            in_package = trimmed == "[package]";
+            continue;
+        }
+        if !in_package {
+            continue;
+        }
+        let Some(rest) = trimmed.strip_prefix("version") else {
+            continue;
+        };
+        let rest = rest.trim_start();
+        if !rest.starts_with('=') {
+            continue;
+        }
+        let value = rest[1..].trim_start();
+        return parse_toml_string_value(value);
+    }
+    None
+}
+
 pub fn parse_architecture(source: &str) -> Architecture {
     let Some(architecture) = object_field_value(source, "architecture") else {
         return Architecture::default();
@@ -174,6 +204,19 @@ fn read_string(text: &str, start: usize) -> Option<(String, usize)> {
         index += char.len_utf8();
     }
     None
+}
+
+fn parse_toml_string_value(value: &str) -> Option<String> {
+    if !value.starts_with('"') {
+        return None;
+    }
+    let (parsed, end) = read_string(value, 0)?;
+    let trailing = value[end..].trim_start();
+    if trailing.is_empty() || trailing.starts_with('#') {
+        Some(parsed)
+    } else {
+        None
+    }
 }
 
 fn read_hex_escape(text: &str, start: usize) -> Option<u32> {

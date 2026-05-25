@@ -31,7 +31,7 @@ use crate::plan::{
     unattended_stale_migration_diagnostics, unattended_unchecked_impact_diagnostics,
     unattended_uncovered_impact_evidence_diagnostics,
 };
-use crate::project::load_project_version;
+use crate::project::{load_crate_version, load_project_version};
 use crate::replay::{PropertyReplaySummary, replay_property};
 use crate::rust_backend::{
     GeneratedRustProgram, GeneratedRustTest, RustBackendSummary, generate_checked_rust,
@@ -334,6 +334,7 @@ fn run_docs(args: &[String]) -> i32 {
 struct ReleaseCheckSummary {
     missing_docs: Vec<&'static str>,
     broken_doc_links: Vec<DocLinkIssue>,
+    metadata: ReleaseMetadataSummary,
     format: FormatSummary,
     standard: CheckSummary,
     unattended: CheckSummary,
@@ -342,6 +343,10 @@ struct ReleaseCheckSummary {
 impl ReleaseCheckSummary {
     fn docs_ok(&self) -> bool {
         self.missing_docs.is_empty() && self.broken_doc_links.is_empty()
+    }
+
+    fn metadata_ok(&self) -> bool {
+        self.metadata.ok()
     }
 
     fn standard_ok(&self) -> bool {
@@ -353,7 +358,29 @@ impl ReleaseCheckSummary {
     }
 
     fn ok(&self) -> bool {
-        self.docs_ok() && self.format.ok() && self.standard_ok() && self.unattended_ok()
+        self.docs_ok()
+            && self.metadata_ok()
+            && self.format.ok()
+            && self.standard_ok()
+            && self.unattended_ok()
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ReleaseMetadataSummary {
+    project_version: Option<String>,
+    crate_version: Option<String>,
+}
+
+impl ReleaseMetadataSummary {
+    fn expected_project_version(&self) -> Option<String> {
+        self.crate_version
+            .as_ref()
+            .map(|version| format!("{version}-rust-bootstrap"))
+    }
+
+    fn ok(&self) -> bool {
+        self.project_version.is_some() && self.project_version == self.expected_project_version()
     }
 }
 
@@ -408,6 +435,10 @@ fn release_check_summary(paths: &[String]) -> ReleaseCheckSummary {
     ReleaseCheckSummary {
         missing_docs: missing_doc_references(),
         broken_doc_links: broken_doc_links(),
+        metadata: ReleaseMetadataSummary {
+            project_version: load_project_version(),
+            crate_version: load_crate_version(),
+        },
         format: format_paths(paths, true),
         standard: certification_summary(paths, CertifyProfile::Standard),
         unattended: certification_summary(paths, CertifyProfile::Unattended),
@@ -4355,6 +4386,7 @@ fn release_check_json(summary: &ReleaseCheckSummary) -> String {
             "  \"docs\": {{\"broken_links\": {}, \"markdown_links_ok\": {}, \"missing\": {}, \"ok\": {}}},\n",
             "  \"format\": {},\n",
             "  \"gates\": {},\n",
+            "  \"metadata\": {},\n",
             "  \"ok\": {},\n",
             "  \"standard_certify\": {},\n",
             "  \"unattended_certify\": {}\n",
@@ -4366,6 +4398,7 @@ fn release_check_json(summary: &ReleaseCheckSummary) -> String {
         summary.docs_ok(),
         format_json(&summary.format),
         release_gate_rows_json(summary),
+        release_metadata_json(&summary.metadata),
         summary.ok(),
         release_certify_json(
             &summary.standard,
@@ -4383,6 +4416,7 @@ fn release_check_json(summary: &ReleaseCheckSummary) -> String {
 fn release_gate_rows_json(summary: &ReleaseCheckSummary) -> String {
     let rows = [
         release_gate_json("docs", summary.docs_ok()),
+        release_gate_json("release_metadata", summary.metadata_ok()),
         release_gate_json("format", summary.format.ok()),
         release_gate_json("standard_certify", summary.standard_ok()),
         release_gate_json("unattended_certify", summary.unattended_ok()),
@@ -4392,6 +4426,24 @@ fn release_gate_rows_json(summary: &ReleaseCheckSummary) -> String {
 
 fn release_gate_json(name: &str, ok: bool) -> String {
     format!("{{\"name\": {}, \"ok\": {ok}}}", json_string(name))
+}
+
+fn release_metadata_json(summary: &ReleaseMetadataSummary) -> String {
+    let expected_project_version = summary.expected_project_version();
+    format!(
+        concat!(
+            "{{",
+            "\"crate_version\": {}, ",
+            "\"expected_project_version\": {}, ",
+            "\"ok\": {}, ",
+            "\"project_version\": {}",
+            "}}"
+        ),
+        option_string_json(summary.crate_version.as_deref()),
+        option_string_json(expected_project_version.as_deref()),
+        summary.ok(),
+        option_string_json(summary.project_version.as_deref()),
+    )
 }
 
 fn release_certify_json(
@@ -4883,7 +4935,7 @@ const CORE_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "release-check",
         RELEASE_CHECK_USAGE,
-        "Run Serow-owned public release gates: docs references and links, canonical formatting, standard certification, and unattended certification.",
+        "Run Serow-owned public release gates: release metadata, docs references and links, canonical formatting, standard certification, and unattended certification.",
     ),
     (
         "version",
@@ -4956,7 +5008,7 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "release-check",
         RELEASE_CHECK_USAGE,
-        "Run Serow-owned public release gates: docs references and links, canonical formatting, standard certification, and unattended certification.",
+        "Run Serow-owned public release gates: release metadata, docs references and links, canonical formatting, standard certification, and unattended certification.",
     ),
     (
         "version",
@@ -5800,6 +5852,26 @@ fn print_release_check_summary(summary: &ReleaseCheckSummary) {
             issue.source_path, issue.line, issue.target, issue.resolved_path
         );
     }
+    let expected_project_version = summary.metadata.expected_project_version();
+    println!(
+        "release metadata: {} (serow.project {}, Cargo.toml {}, expected {})",
+        if summary.metadata_ok() {
+            "ok"
+        } else {
+            "failed"
+        },
+        summary
+            .metadata
+            .project_version
+            .as_deref()
+            .unwrap_or("unknown"),
+        summary
+            .metadata
+            .crate_version
+            .as_deref()
+            .unwrap_or("unknown"),
+        expected_project_version.as_deref().unwrap_or("unknown")
+    );
     println!(
         "format: {} ({} files checked, {} with drift)",
         if summary.format.ok() { "ok" } else { "failed" },

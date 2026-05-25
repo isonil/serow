@@ -49,7 +49,7 @@ bin/serow release-check --json
 bin/serow release-check examples/math.serow --json
 ```
 
-`release-check` validates advertised docs plus local documentation files and heading anchors, checks canonical formatting, runs standard certification, and runs unattended certification over the selected source paths. It does not wrap repository-level Rust or Python test commands.
+`release-check` validates release metadata consistency between `serow.project` and `Cargo.toml`, validates advertised docs plus local documentation files and heading anchors, checks canonical formatting, runs standard certification, and runs unattended certification over the selected source paths. It does not wrap repository-level Rust or Python test commands.
 
 ## Version
 

@@ -2,6 +2,10 @@
 
 ## 2026-05-25
 
+- Chose release metadata consistency as a public v1 release-hardening task because `release-check` aggregated the Serow-owned gates but did not prove the canonical `serow.project` version matched the Rust crate version in `Cargo.toml`.
+- Added a dependency-free Cargo package version reader, made `release-check` report and gate `release_metadata` with the expected `-rust-bootstrap` project version, covered the mismatch case with an isolated integration fixture, and updated CLI docs/progress metadata.
+- Bumped Serow to `1.0.14-rust-bootstrap` / crate `1.0.14`; verification is recorded in the final run for this change.
+
 - Chose documentation anchor validation as a public v1 release-hardening task because `docs --check` and `release-check` validated local documentation files but still accepted local Markdown links whose `#heading` fragments did not resolve.
 - Extended local Markdown link validation to check same-file and cross-file Markdown heading anchors, kept JSON `broken_links` output source-line oriented, covered valid and broken anchor cases with an integration regression, and updated CLI docs/progress metadata.
 - Bumped Serow to `1.0.13-rust-bootstrap` / crate `1.0.13`; verification is recorded in the final run for this change.

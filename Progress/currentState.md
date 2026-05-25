@@ -25,7 +25,7 @@ Selection policy for generic implementation prompts:
 - Phase 3's first production backend slice is closed for public v1: portable IR plus dependency-free Rust source/crate generation for the supported bootstrap subset, generated metadata, artifact drift checks, runtime contract assertions, generated pure evidence tests, and binary entrypoint support are all implemented.
 - Remaining backend work such as WASM/TypeScript/Python backends, richer external effect boundaries, recursive record layout support, generic list indexing, list pattern matching, higher-order collection APIs, and semantic-embedding intent search is explicitly v2/future scope rather than blocking the public v1 bootstrap baseline.
 - The Python bootstrap remains reference-only. It should keep parity where cheap, but Rust is the source of truth for v1 behavior.
-- Latest closure: Serow is at `1.0.13-rust-bootstrap` after a public v1 patch release that makes `docs --check` and `release-check` validate local Markdown heading anchors as well as local documentation files.
+- Latest closure: Serow is at `1.0.14-rust-bootstrap` after a public v1 patch release that makes `release-check` validate release metadata consistency between `serow.project` and `Cargo.toml`.
 
 ## Implemented
 
@@ -129,6 +129,9 @@ Selection policy for generic implementation prompts:
 - Documentation discovery command:
   - `bin/serow docs [--check] [--json]`
   - lists the stable local language, CLI, standard library, backend, agent-instruction, and progress references in text or machine-readable form, and can fail CI-style when an advertised reference is missing or a public local Markdown link points at a missing file or missing heading anchor
+- Public release gate aggregation:
+  - `bin/serow release-check [paths...] [--json]`
+  - validates release metadata consistency between `serow.project` and `Cargo.toml`, advertised docs and local Markdown links/anchors, canonical formatting, standard certification, and unattended certification over the selected source paths
 - Machine-readable change planning:
   - `bin/serow plan [paths...] [--json]`
   - explicit paths are treated as the change set

@@ -9,7 +9,7 @@ use serow::diagnostic::{Diagnostic, RepairAction, validate_repair_actions};
 use serow::formatter::format_paths;
 use serow::ledger::{SymbolMatch, query_effects, query_intent, query_symbol, query_type, symbols};
 use serow::parser::{discover_sources, parse_paths};
-use serow::project::{parse_architecture, parse_project_version};
+use serow::project::{parse_architecture, parse_cargo_manifest_version, parse_project_version};
 
 #[test]
 fn sample_program_checks() {
@@ -4794,6 +4794,15 @@ fn release_check_runs_serow_owned_public_release_gates() {
     assert!(json_stdout.contains("\"ok\": true"), "{json_stdout}");
     assert!(json_stdout.contains("\"name\": \"docs\""), "{json_stdout}");
     assert!(
+        json_stdout.contains("\"name\": \"release_metadata\""),
+        "{json_stdout}"
+    );
+    assert!(json_stdout.contains("\"metadata\": {"), "{json_stdout}");
+    assert!(
+        json_stdout.contains("\"expected_project_version\": \""),
+        "{json_stdout}"
+    );
+    assert!(
         json_stdout.contains("\"name\": \"format\""),
         "{json_stdout}"
     );
@@ -4833,6 +4842,10 @@ fn release_check_runs_serow_owned_public_release_gates() {
     );
     assert!(text_stdout.contains("docs: ok"), "{text_stdout}");
     assert!(
+        text_stdout.contains("release metadata: ok"),
+        "{text_stdout}"
+    );
+    assert!(
         text_stdout.contains("standard certify: ok"),
         "{text_stdout}"
     );
@@ -4840,6 +4853,101 @@ fn release_check_runs_serow_owned_public_release_gates() {
         text_stdout.contains("unattended certify: ok"),
         "{text_stdout}"
     );
+}
+
+#[test]
+fn release_check_rejects_version_metadata_mismatch() {
+    let dir = unique_temp_dir("serow-release-version-mismatch");
+    fs::create_dir_all(dir.join("docs")).expect("create docs dir");
+    fs::create_dir_all(dir.join("Progress")).expect("create progress dir");
+    fs::create_dir_all(dir.join("examples")).expect("create examples dir");
+    fs::write(
+        dir.join("serow.project"),
+        r#"{
+  "language": "Serow",
+  "version": "9.9.9-rust-bootstrap"
+}
+"#,
+    )
+    .expect("write project manifest");
+    fs::write(
+        dir.join("Cargo.toml"),
+        r#"[package]
+name = "serow-fixture"
+version = "1.2.3"
+edition = "2024"
+"#,
+    )
+    .expect("write cargo manifest");
+    fs::write(dir.join("README.md"), "# Fixture\n").expect("write readme");
+    fs::write(dir.join("AGENTS.md"), "# Agents\n").expect("write agents");
+    fs::write(dir.join("docs/language.md"), "# Language\n").expect("write language doc");
+    fs::write(dir.join("docs/cli.md"), "# CLI\n").expect("write cli doc");
+    fs::write(dir.join("docs/stdlib.md"), "# Stdlib\n").expect("write stdlib doc");
+    fs::write(dir.join("docs/backends.md"), "# Backends\n").expect("write backend doc");
+    fs::write(dir.join("Progress/currentState.md"), "# State\n").expect("write state doc");
+    fs::write(
+        dir.join("examples/main.serow"),
+        r#"module fixture.main
+
+pub fn id(x: Int) -> Int
+  intent "Return x unchanged."
+  version v1
+  contract
+    ensures result == x
+  examples
+    id(1) == 1
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture source");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args(["release-check", "--json"])
+        .output()
+        .expect("run serow release-check with metadata mismatch");
+
+    assert_eq!(output.status.code(), Some(1), "{output:#?}");
+    assert!(output.stderr.is_empty(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"ok\": false"), "{stdout}");
+    assert!(
+        stdout.contains("\"name\": \"release_metadata\", \"ok\": false"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"project_version\": \"9.9.9-rust-bootstrap\""),
+        "{stdout}"
+    );
+    assert!(stdout.contains("\"crate_version\": \"1.2.3\""), "{stdout}");
+    assert!(
+        stdout.contains("\"expected_project_version\": \"1.2.3-rust-bootstrap\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"name\": \"docs\", \"ok\": true"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"name\": \"format\", \"ok\": true"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"name\": \"standard_certify\", \"ok\": true"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"name\": \"unattended_certify\", \"ok\": true"),
+        "{stdout}"
+    );
+
+    let _ = fs::remove_dir_all(dir);
 }
 
 #[test]
@@ -10863,6 +10971,31 @@ fn project_architecture_parser_rejects_raw_control_chars_in_strings() {
     let raw_module_key = "{\n  \"architecture\": {\n    \"modules\": {\n      \"app.\tmain\": {\n        \"may_depend_on\": [\"core.math\"]\n      }\n    }\n  }\n}";
     let architecture = parse_architecture(raw_module_key);
     assert!(architecture.policy_for("app.\tmain").is_none());
+}
+
+#[test]
+fn cargo_manifest_version_parser_reads_package_version() {
+    let manifest = r#"[workspace]
+members = ["crates/*"]
+
+[package]
+name = "serow"
+version = "1.2.3" # release version
+edition = "2024"
+
+[package.metadata.serow]
+version = "ignored"
+"#;
+
+    assert_eq!(
+        parse_cargo_manifest_version(manifest).as_deref(),
+        Some("1.2.3")
+    );
+    assert_eq!(parse_cargo_manifest_version("version = \"ignored\""), None);
+    assert_eq!(
+        parse_cargo_manifest_version("[package]\nversion = \"1.2.\ninvalid\"\n"),
+        None
+    );
 }
 
 #[test]
