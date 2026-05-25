@@ -65,7 +65,14 @@ pub fn main(args: impl Iterator<Item = String>) -> i32 {
         "replay" => run_replay(&args[1..]),
         "version" | "--version" | "-V" => run_version(&args[1..]),
         "-h" | "--help" | "help" => run_help(&args[1..], json_requested),
-        other => top_level_usage_error(json_requested, format!("Unknown serow command `{other}`.")),
+        other => {
+            let message = if other.starts_with('-') {
+                format!("Unknown serow option `{other}`.")
+            } else {
+                format!("Unknown serow command `{other}`.")
+            };
+            top_level_usage_error(json_requested, message)
+        }
     }
 }
 

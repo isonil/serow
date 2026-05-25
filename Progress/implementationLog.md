@@ -1,5 +1,11 @@
 # Implementation Log
 
+## 2026-05-25
+
+- Chose top-level option usage classification as a public v1 patch-hardening task because nested command families already classify `--...` values as unknown options, while the top-level dispatcher still described option-looking command slots as unknown commands.
+- Updated the top-level dispatcher to report `Unknown serow option` for dash-prefixed unknown command slots, covered both ordinary and leading-`--json` JSON diagnostics, and bumped Serow to `1.0.10-rust-bootstrap` / crate `1.0.10`.
+- Verification is recorded in the final run for this change.
+
 ## 2026-05-24
 
 - Chose nested command-family usage classification as a public v1 patch-hardening task because `agent`, `compile`, `query`, `replay`, and `patch` returned structured usage diagnostics, but option-looking values in the subcommand/target slot were still described as unknown subcommands.

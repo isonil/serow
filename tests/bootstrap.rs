@@ -3562,6 +3562,31 @@ fn top_level_usage_errors_respect_json_flag() {
         "{stdout}"
     );
 
+    let leading_json_unknown_option = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["--json", "--bogus"])
+        .output()
+        .expect("run leading-json unknown serow top-level option");
+    assert_eq!(
+        leading_json_unknown_option.status.code(),
+        Some(2),
+        "{leading_json_unknown_option:#?}"
+    );
+    assert!(
+        leading_json_unknown_option.stderr.is_empty(),
+        "{leading_json_unknown_option:#?}"
+    );
+    let stdout = String::from_utf8(leading_json_unknown_option.stdout).expect("stdout is utf8");
+    assert!(stdout.trim_start().starts_with('{'), "{stdout}");
+    assert!(stdout.contains("\"code\": \"UsageError\""), "{stdout}");
+    assert!(
+        stdout.contains("Unknown serow option `--bogus`."),
+        "{stdout}"
+    );
+    assert!(
+        !stdout.contains("Unknown serow command `--bogus`."),
+        "{stdout}"
+    );
+
     let help_json = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args(["help", "--json"])
         .output()
@@ -3644,6 +3669,35 @@ fn top_level_usage_errors_respect_json_flag() {
     );
     assert!(
         stdout.contains("Use `serow <command> ... [--json]`."),
+        "{stdout}"
+    );
+
+    let option_json_output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["--bogus", "--json"])
+        .output()
+        .expect("run unknown serow top-level option as json");
+    assert_eq!(
+        option_json_output.status.code(),
+        Some(2),
+        "{option_json_output:#?}"
+    );
+    assert!(
+        option_json_output.stderr.is_empty(),
+        "{option_json_output:#?}"
+    );
+    let stdout = String::from_utf8(option_json_output.stdout).expect("stdout is utf8");
+    assert!(stdout.trim_start().starts_with('{'), "{stdout}");
+    assert!(stdout.contains("\"code\": \"UsageError\""), "{stdout}");
+    assert!(
+        stdout.contains("Unknown serow option `--bogus`."),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("Use `serow <command> ... [--json]`."),
+        "{stdout}"
+    );
+    assert!(
+        !stdout.contains("Unknown serow command `--bogus`."),
         "{stdout}"
     );
 }
