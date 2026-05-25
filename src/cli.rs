@@ -4910,7 +4910,7 @@ const CORE_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "docs",
         DOCS_USAGE,
-        "List or validate stable local documentation references, inline/reference-style local Markdown links, and heading anchors.",
+        "List or validate stable local documentation references, inline/reference-style local Markdown links, reference usages, and heading anchors.",
     ),
     (
         "check",
@@ -4983,7 +4983,7 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "docs",
         DOCS_USAGE,
-        "List or validate stable local documentation references, inline/reference-style local Markdown links, and heading anchors.",
+        "List or validate stable local documentation references, inline/reference-style local Markdown links, reference usages, and heading anchors.",
     ),
     (
         "check",
@@ -5353,6 +5353,7 @@ fn broken_doc_links() -> Vec<DocLinkIssue> {
         let Ok(source) = fs::read_to_string(source_path) else {
             continue;
         };
+        let reference_labels = markdown_reference_definition_labels(&source);
         let source_parent = Path::new(source_path)
             .parent()
             .unwrap_or_else(|| Path::new(""));
@@ -5370,6 +5371,19 @@ fn broken_doc_links() -> Vec<DocLinkIssue> {
                 continue;
             }
             let link_source = markdown_without_inline_code_spans(line);
+            for usage in markdown_reference_link_usages(&link_source) {
+                if !reference_labels.contains(&usage.normalized_label) {
+                    broken.push(DocLinkIssue {
+                        source_path: (*source_path).to_string(),
+                        line: line_index + 1,
+                        target: usage.target,
+                        resolved_path: format!(
+                            "missing reference definition `{}`",
+                            usage.normalized_label
+                        ),
+                    });
+                }
+            }
             for target in markdown_link_targets(&link_source) {
                 if is_external_link(target) {
                     continue;
@@ -5410,6 +5424,28 @@ fn broken_doc_links() -> Vec<DocLinkIssue> {
         }
     }
     broken
+}
+
+fn markdown_reference_definition_labels(source: &str) -> HashSet<String> {
+    let mut labels = HashSet::new();
+    let mut fence = None;
+    for line in source.lines() {
+        if let Some(marker) = markdown_fence_marker(line) {
+            if fence == Some(marker) {
+                fence = None;
+            } else if fence.is_none() {
+                fence = Some(marker);
+            }
+            continue;
+        }
+        if fence.is_some() {
+            continue;
+        }
+        if let Some(label) = markdown_reference_definition_label(line) {
+            labels.insert(label);
+        }
+    }
+    labels
 }
 
 fn markdown_fence_marker(line: &str) -> Option<char> {
@@ -5539,6 +5575,68 @@ fn markdown_reference_definition_target(line: &str) -> Option<&str> {
         target = &target[..end];
     }
     (!target.is_empty()).then_some(target)
+}
+
+fn markdown_reference_definition_label(line: &str) -> Option<String> {
+    let trimmed = line.trim_start();
+    let indent = line.len().saturating_sub(trimmed.len());
+    if indent > 3 || !trimmed.starts_with('[') {
+        return None;
+    }
+    let label_end = trimmed.find("]:")?;
+    if label_end <= 1 {
+        return None;
+    }
+    normalize_markdown_reference_label(&trimmed[1..label_end])
+}
+
+#[derive(Clone, Debug)]
+struct MarkdownReferenceUsage {
+    normalized_label: String,
+    target: String,
+}
+
+fn markdown_reference_link_usages(line: &str) -> Vec<MarkdownReferenceUsage> {
+    let mut usages = Vec::new();
+    let mut offset = 0usize;
+    while offset < line.len() {
+        let Some(open_relative) = line[offset..].find('[') else {
+            break;
+        };
+        let open_index = offset + open_relative;
+        let text_start = open_index + 1;
+        let Some(text_end_relative) = line[text_start..].find(']') else {
+            break;
+        };
+        let text_end = text_start + text_end_relative;
+        let after_text = &line[text_end + 1..];
+        let Some(after_label_open) = after_text.strip_prefix('[') else {
+            offset = text_end + 1;
+            continue;
+        };
+        let Some(label_end_relative) = after_label_open.find(']') else {
+            break;
+        };
+        let raw_label = &after_label_open[..label_end_relative];
+        let label = if raw_label.trim().is_empty() {
+            &line[text_start..text_end]
+        } else {
+            raw_label
+        };
+        if let Some(normalized_label) = normalize_markdown_reference_label(label) {
+            usages.push(MarkdownReferenceUsage {
+                normalized_label,
+                target: format!("[{}]", label.trim()),
+            });
+        }
+        offset = text_end + 2 + label_end_relative + 1;
+    }
+    usages
+}
+
+fn normalize_markdown_reference_label(label: &str) -> Option<String> {
+    let normalized = label.split_whitespace().collect::<Vec<_>>().join(" ");
+    (!normalized.is_empty()).then(|| normalized.to_ascii_lowercase())
 }
 
 fn is_external_link(target: &str) -> bool {

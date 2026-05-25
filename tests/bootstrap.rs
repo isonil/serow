@@ -4948,6 +4948,64 @@ fn docs_check_handles_titled_inline_markdown_links() {
 }
 
 #[test]
+fn docs_check_reports_missing_reference_style_markdown_definitions() {
+    let dir = unique_temp_dir("serow-docs-missing-reference-definitions");
+    fs::create_dir_all(dir.join("docs")).expect("create docs dir");
+    fs::create_dir_all(dir.join("Progress")).expect("create progress dir");
+    fs::write(
+        dir.join("README.md"),
+        concat!(
+            "# Fixture\n\n",
+            "Defined full reference: [Language][language].\n",
+            "Defined collapsed reference: [CLI][].\n",
+            "Missing full reference: [Missing][missing-label].\n",
+            "Missing collapsed reference: [Missing Collapsed][].\n\n",
+            "[language]: docs/language.md#language\n",
+            "[cli]: docs/cli.md#cli\n"
+        ),
+    )
+    .expect("write readme");
+    fs::write(dir.join("AGENTS.md"), "# Agents\n").expect("write agents");
+    fs::write(dir.join("docs/language.md"), "# Language\n").expect("write language doc");
+    fs::write(dir.join("docs/cli.md"), "# CLI\n").expect("write cli doc");
+    fs::write(dir.join("docs/stdlib.md"), "# Stdlib\n").expect("write stdlib doc");
+    fs::write(dir.join("docs/backends.md"), "# Backends\n").expect("write backend doc");
+    fs::write(dir.join("Progress/currentState.md"), "# State\n").expect("write state doc");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args(["docs", "--check", "--json"])
+        .output()
+        .expect("run serow docs --check with missing reference definitions");
+
+    assert_eq!(output.status.code(), Some(1), "{output:#?}");
+    assert!(output.stderr.is_empty(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"ok\": false"), "{stdout}");
+    assert!(stdout.contains("\"markdown_links_ok\": false"), "{stdout}");
+    assert!(
+        stdout.contains("\"target\": \"[missing-label]\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"resolved_path\": \"missing reference definition `missing-label`\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"target\": \"[Missing Collapsed]\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"resolved_path\": \"missing reference definition `missing collapsed`\""),
+        "{stdout}"
+    );
+    assert!(!stdout.contains("\"target\": \"[language]\""), "{stdout}");
+    assert!(!stdout.contains("\"target\": \"[CLI]\""), "{stdout}");
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn release_check_runs_serow_owned_public_release_gates() {
     let json_output = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args(["release-check", "--json"])

@@ -2,6 +2,10 @@
 
 ## 2026-05-25
 
+- Chose reference-style Markdown usage validation as a public v1 release-hardening task because `docs --check` validated inline links and reference definition targets, but full/collapsed reference usages could still point at missing definitions.
+- Added missing-definition detection for full and collapsed reference-style Markdown link usages outside code spans/fences, covered valid and broken usages with a focused regression, and bumped Serow to `1.0.19-rust-bootstrap` / crate `1.0.19`.
+- Verification is recorded in the final run for this change.
+
 - Chose titled inline Markdown link validation as a public v1 release-hardening task because `docs --check` validated inline local Markdown links and reference-style links with titles, but valid inline links with optional titles were treated as paths containing the title text.
 - Updated inline Markdown link destination parsing to ignore optional titles, including angle-bracket destinations, covered valid and broken titled-link cases with a focused regression, and bumped Serow to `1.0.18-rust-bootstrap` / crate `1.0.18`.
 - Verification is recorded in the final run for this change.
