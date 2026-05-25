@@ -4447,6 +4447,20 @@ fn agent_usage_errors_respect_json_flag() {
         stdout.contains("serow agent [commands|diagnostics]"),
         "{stdout}"
     );
+
+    let separated_json = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["agent", "--", "--json"])
+        .output()
+        .expect("run serow agent with separated json-looking argument");
+
+    assert_eq!(separated_json.status.code(), Some(2), "{separated_json:#?}");
+    assert!(separated_json.stdout.is_empty(), "{separated_json:#?}");
+    let stderr = String::from_utf8(separated_json.stderr).expect("stderr is utf8");
+    assert!(
+        stderr.contains("Unknown serow agent option `--`."),
+        "{stderr}"
+    );
+    assert!(stderr.contains("serow agent commands [--json]"), "{stderr}");
 }
 
 #[test]
@@ -4689,6 +4703,19 @@ fn docs_command_lists_and_checks_public_references() {
         stdout.contains("Unknown serow docs option `--bogus`."),
         "{stdout}"
     );
+
+    let separated_json = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["docs", "--", "--json"])
+        .output()
+        .expect("run serow docs with separated json-looking argument");
+    assert_eq!(separated_json.status.code(), Some(2), "{separated_json:#?}");
+    assert!(separated_json.stdout.is_empty(), "{separated_json:#?}");
+    let stderr = String::from_utf8(separated_json.stderr).expect("stderr is utf8");
+    assert!(
+        stderr.contains("Unknown serow docs option `--`."),
+        "{stderr}"
+    );
+    assert!(stderr.contains("serow docs [--check] [--json]"), "{stderr}");
 }
 
 #[test]

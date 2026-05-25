@@ -250,7 +250,7 @@ impl CertifyProfile {
 }
 
 fn run_agent(args: &[String]) -> i32 {
-    let (rest, json_output) = split_flag(args, "--json");
+    let (rest, json_output) = split_flag_before_separator(args, "--json");
     match rest.as_slice() {
         [] => {
             if json_output {
@@ -281,11 +281,16 @@ fn run_agent(args: &[String]) -> i32 {
             agent_usage_error(json_output, message)
         }
         _ => {
-            let rendered = rest.join(" ");
-            agent_usage_error(
-                json_output,
-                format!("Unknown serow agent command sequence `{rendered}`."),
-            )
+            if rest.first().is_some_and(|arg| arg.starts_with('-')) {
+                let message = unknown_subcommand_message("agent", "command", &rest[0]);
+                agent_usage_error(json_output, message)
+            } else {
+                let rendered = rest.join(" ");
+                agent_usage_error(
+                    json_output,
+                    format!("Unknown serow agent command sequence `{rendered}`."),
+                )
+            }
         }
     }
 }
@@ -303,8 +308,8 @@ fn agent_usage_error(json_output: bool, message: String) -> i32 {
 }
 
 fn run_docs(args: &[String]) -> i32 {
-    let (args, check) = split_flag(args, "--check");
-    let (rest, json_output) = split_flag(&args, "--json");
+    let (args, check) = split_flag_before_separator(args, "--check");
+    let (rest, json_output) = split_flag_before_separator(&args, "--json");
     if !rest.is_empty() {
         let message = if rest[0].starts_with('-') {
             format!("Unknown serow docs option `{}`.", rest[0])
@@ -2630,19 +2635,6 @@ fn unknown_subcommand_message(command: &str, noun: &str, value: &str) -> String 
     } else {
         format!("Unknown serow {command} {noun} `{value}`.")
     }
-}
-
-fn split_flag(args: &[String], flag: &str) -> (Vec<String>, bool) {
-    let mut rest = Vec::new();
-    let mut found = false;
-    for arg in args {
-        if arg == flag {
-            found = true;
-        } else {
-            rest.push(arg.clone());
-        }
-    }
-    (rest, found)
 }
 
 fn split_flag_before_separator(args: &[String], flag: &str) -> (Vec<String>, bool) {

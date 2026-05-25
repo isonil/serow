@@ -2,6 +2,10 @@
 
 ## 2026-05-25
 
+- Chose discovery-command separator handling as a public v1 protocol-hardening task because `help`, `version`, path-taking commands, and structured patch commands already treated `--json` after `--` as literal input, while `agent` and `docs` still detected it as an output flag.
+- Updated `agent` and `docs` to honor `--json` only before an argument separator, kept `docs --check` under the same separator rule, and covered the separated `--json` cases with focused CLI regressions.
+- Bumped Serow to `1.0.12-rust-bootstrap` / crate `1.0.12`; verification is recorded in the final run for this change.
+
 - Chose structured patch JSON separator handling as a public v1 patch-hardening task because path-taking commands already respected `--` for literal dash-prefixed values, while patch commands stripped `--json` anywhere in the argument list and could not pass it as metadata.
 - Updated patch command dispatch and subcommand parsing so JSON output flags are honored only before `--`, literal post-separator values are preserved, the inherited JSON flag is inserted before the subcommand separator, and CLI docs describe the separator behavior for structured patch arguments.
 - Bumped Serow to `1.0.11-rust-bootstrap` / crate `1.0.11`; verification is recorded in the final run for this change.

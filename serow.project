@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "1.0.11-rust-bootstrap",
+  "version": "1.0.12-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
