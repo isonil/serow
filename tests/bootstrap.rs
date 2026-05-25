@@ -10556,6 +10556,79 @@ fn patch_usage_errors_respect_json_flag() {
 }
 
 #[test]
+fn patch_json_detection_respects_argument_separator() {
+    let dir = unique_temp_dir("serow-patch-json-separator");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("main.serow");
+    fs::write(
+        &source,
+        r#"module patch.separator
+
+pub fn id(x: Int) -> Int
+  intent "Return x."
+  version v1
+  contract
+    ensures result == x
+  examples
+    id(1) == 1
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+    let source_path = source.to_str().expect("utf8 path");
+
+    let text_output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "set-intent",
+            source_path,
+            "@patch.separator.id.v1",
+            "--",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch set-intent with json-looking literal");
+    assert!(text_output.status.success(), "{text_output:#?}");
+    let stdout = String::from_utf8(text_output.stdout).expect("stdout is utf8");
+    assert!(
+        !stdout.trim_start().starts_with('{'),
+        "literal --json after separator should not request JSON: {stdout}"
+    );
+    let updated = fs::read_to_string(&source).expect("read patched source");
+    assert!(updated.contains("  intent \"--json\""), "{updated}");
+
+    let json_output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "patch",
+            "--json",
+            "add-migration",
+            source_path,
+            "@patch.separator.id.v1",
+            "implementation-change",
+            "--",
+            "--json",
+        ])
+        .output()
+        .expect("run serow patch add-migration with inherited json and json-looking literal");
+    assert!(json_output.status.success(), "{json_output:#?}");
+    assert!(json_output.stderr.is_empty(), "{json_output:#?}");
+    let stdout = String::from_utf8(json_output.stdout).expect("stdout is utf8");
+    assert!(stdout.trim_start().starts_with('{'), "{stdout}");
+    assert!(stdout.contains("\"ok\": true"), "{stdout}");
+    let updated = fs::read_to_string(&source).expect("read patched source");
+    assert!(
+        updated.contains("  migration\n    implementation-change \"--json\""),
+        "{updated}"
+    );
+    assert!(updated.contains("  intent \"--json\""), "{updated}");
+}
+
+#[test]
 fn structured_patch_target_must_be_unambiguous() {
     let dir = unique_temp_dir("serow-patch-ambiguous-target");
     fs::create_dir_all(&dir).expect("create temp dir");

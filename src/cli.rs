@@ -1607,13 +1607,13 @@ fn plan_usage_error(json_output: bool, message: String) -> i32 {
 }
 
 fn run_patch(args: &[String]) -> i32 {
-    let (patch_args, json_output) = split_flag(args, "--json");
+    let (patch_args, json_output) = split_flag_before_separator(args, "--json");
     let Some(patch_command) = patch_args.first().map(String::as_str) else {
         return invalid_patch_args(json_output);
     };
     let mut command_args = patch_args[1..].to_vec();
     if json_output {
-        command_args.push("--json".to_string());
+        insert_flag_before_separator(&mut command_args, "--json");
     }
     match patch_command {
         "add-contract" => run_patch_add_contract(&command_args),
@@ -1655,7 +1655,7 @@ fn run_patch(args: &[String]) -> i32 {
 }
 
 fn run_patch_add_contract(args: &[String]) -> i32 {
-    let (args, json_output) = split_flag(args, "--json");
+    let (args, json_output) = split_flag_before_separator_drop_separator(args, "--json");
     let [path, target, clause, expression] = args.as_slice() else {
         return invalid_patch_args(json_output);
     };
@@ -1669,7 +1669,7 @@ fn run_patch_add_contract(args: &[String]) -> i32 {
 }
 
 fn run_patch_add_example(args: &[String]) -> i32 {
-    let (args, json_output) = split_flag(args, "--json");
+    let (args, json_output) = split_flag_before_separator_drop_separator(args, "--json");
     let [path, target, expression] = args.as_slice() else {
         return invalid_patch_args(json_output);
     };
@@ -1683,7 +1683,7 @@ fn run_patch_add_example(args: &[String]) -> i32 {
 }
 
 fn run_patch_add_function(args: &[String]) -> i32 {
-    let (args, json_output) = split_flag(args, "--json");
+    let (args, json_output) = split_flag_before_separator_drop_separator(args, "--json");
     let [path, module, signature, intent] = args.as_slice() else {
         return invalid_patch_args(json_output);
     };
@@ -1697,7 +1697,7 @@ fn run_patch_add_function(args: &[String]) -> i32 {
 }
 
 fn run_patch_add_migration(args: &[String]) -> i32 {
-    let (args, json_output) = split_flag(args, "--json");
+    let (args, json_output) = split_flag_before_separator_drop_separator(args, "--json");
     let [path, target, kind, note] = args.as_slice() else {
         return invalid_patch_args(json_output);
     };
@@ -1711,7 +1711,7 @@ fn run_patch_add_migration(args: &[String]) -> i32 {
 }
 
 fn run_patch_add_module(args: &[String]) -> i32 {
-    let (args, json_output) = split_flag(args, "--json");
+    let (args, json_output) = split_flag_before_separator_drop_separator(args, "--json");
     let [path, module] = args.as_slice() else {
         return invalid_patch_args(json_output);
     };
@@ -1725,7 +1725,7 @@ fn run_patch_add_module(args: &[String]) -> i32 {
 }
 
 fn run_patch_add_property(args: &[String]) -> i32 {
-    let (args, json_output) = split_flag(args, "--json");
+    let (args, json_output) = split_flag_before_separator_drop_separator(args, "--json");
     let [path, target, forall, expression] = args.as_slice() else {
         return invalid_patch_args(json_output);
     };
@@ -1739,7 +1739,7 @@ fn run_patch_add_property(args: &[String]) -> i32 {
 }
 
 fn run_patch_add_type(args: &[String]) -> i32 {
-    let (args, json_output) = split_flag(args, "--json");
+    let (args, json_output) = split_flag_before_separator_drop_separator(args, "--json");
     let [path, module, declaration] = args.as_slice() else {
         return invalid_patch_args(json_output);
     };
@@ -1753,7 +1753,7 @@ fn run_patch_add_type(args: &[String]) -> i32 {
 }
 
 fn run_patch_add_use(args: &[String]) -> i32 {
-    let (args, json_output) = split_flag(args, "--json");
+    let (args, json_output) = split_flag_before_separator_drop_separator(args, "--json");
     let [path, module, dependency] = args.as_slice() else {
         return invalid_patch_args(json_output);
     };
@@ -1767,7 +1767,7 @@ fn run_patch_add_use(args: &[String]) -> i32 {
 }
 
 fn run_patch_remove_type(args: &[String]) -> i32 {
-    let (args, json_output) = split_flag(args, "--json");
+    let (args, json_output) = split_flag_before_separator_drop_separator(args, "--json");
     let [path, module, name] = args.as_slice() else {
         return invalid_patch_args(json_output);
     };
@@ -1781,7 +1781,7 @@ fn run_patch_remove_type(args: &[String]) -> i32 {
 }
 
 fn run_patch_remove_use(args: &[String]) -> i32 {
-    let (args, json_output) = split_flag(args, "--json");
+    let (args, json_output) = split_flag_before_separator_drop_separator(args, "--json");
     let [path, module, dependency] = args.as_slice() else {
         return invalid_patch_args(json_output);
     };
@@ -1795,7 +1795,7 @@ fn run_patch_remove_use(args: &[String]) -> i32 {
 }
 
 fn run_patch_set_use(args: &[String]) -> i32 {
-    let (args, json_output) = split_flag(args, "--json");
+    let (args, json_output) = split_flag_before_separator_drop_separator(args, "--json");
     let [path, module, old_dependency, new_dependency] = args.as_slice() else {
         return invalid_patch_args(json_output);
     };
@@ -1809,7 +1809,7 @@ fn run_patch_set_use(args: &[String]) -> i32 {
 }
 
 fn run_patch_fill_hole(args: &[String]) -> i32 {
-    let (args, json_output) = split_flag(args, "--json");
+    let (args, json_output) = split_flag_before_separator_drop_separator(args, "--json");
     let [path, target, expression] = args.as_slice() else {
         return invalid_patch_args(json_output);
     };
@@ -1823,7 +1823,7 @@ fn run_patch_fill_hole(args: &[String]) -> i32 {
 }
 
 fn run_patch_qualify_call(args: &[String]) -> i32 {
-    let (args, json_output) = split_flag(args, "--json");
+    let (args, json_output) = split_flag_before_separator_drop_separator(args, "--json");
     let [path, caller_target, call_name, callee_target] = args.as_slice() else {
         return invalid_patch_args(json_output);
     };
@@ -1837,7 +1837,7 @@ fn run_patch_qualify_call(args: &[String]) -> i32 {
 }
 
 fn run_patch_remove_contract(args: &[String]) -> i32 {
-    let (args, json_output) = split_flag(args, "--json");
+    let (args, json_output) = split_flag_before_separator_drop_separator(args, "--json");
     let [path, target, clause, index] = args.as_slice() else {
         return invalid_patch_args(json_output);
     };
@@ -1857,7 +1857,7 @@ fn run_patch_remove_contract(args: &[String]) -> i32 {
 }
 
 fn run_patch_remove_example(args: &[String]) -> i32 {
-    let (args, json_output) = split_flag(args, "--json");
+    let (args, json_output) = split_flag_before_separator_drop_separator(args, "--json");
     let [path, target, index] = args.as_slice() else {
         return invalid_patch_args(json_output);
     };
@@ -1877,7 +1877,7 @@ fn run_patch_remove_example(args: &[String]) -> i32 {
 }
 
 fn run_patch_remove_function(args: &[String]) -> i32 {
-    let (args, json_output) = split_flag(args, "--json");
+    let (args, json_output) = split_flag_before_separator_drop_separator(args, "--json");
     let [path, target] = args.as_slice() else {
         return invalid_patch_args(json_output);
     };
@@ -1891,7 +1891,7 @@ fn run_patch_remove_function(args: &[String]) -> i32 {
 }
 
 fn run_patch_remove_migration(args: &[String]) -> i32 {
-    let (args, json_output) = split_flag(args, "--json");
+    let (args, json_output) = split_flag_before_separator_drop_separator(args, "--json");
     let [path, target, kind, index] = args.as_slice() else {
         return invalid_patch_args(json_output);
     };
@@ -1911,7 +1911,7 @@ fn run_patch_remove_migration(args: &[String]) -> i32 {
 }
 
 fn run_patch_remove_property(args: &[String]) -> i32 {
-    let (args, json_output) = split_flag(args, "--json");
+    let (args, json_output) = split_flag_before_separator_drop_separator(args, "--json");
     let [path, target, index] = args.as_slice() else {
         return invalid_patch_args(json_output);
     };
@@ -1931,7 +1931,7 @@ fn run_patch_remove_property(args: &[String]) -> i32 {
 }
 
 fn run_patch_set_type(args: &[String]) -> i32 {
-    let (args, json_output) = split_flag(args, "--json");
+    let (args, json_output) = split_flag_before_separator_drop_separator(args, "--json");
     let [path, module, name, declaration] = args.as_slice() else {
         return invalid_patch_args(json_output);
     };
@@ -1945,7 +1945,7 @@ fn run_patch_set_type(args: &[String]) -> i32 {
 }
 
 fn run_patch_rename_function(args: &[String]) -> i32 {
-    let (args, json_output) = split_flag(args, "--json");
+    let (args, json_output) = split_flag_before_separator_drop_separator(args, "--json");
     let [path, target, new_name] = args.as_slice() else {
         return invalid_patch_args(json_output);
     };
@@ -1959,7 +1959,7 @@ fn run_patch_rename_function(args: &[String]) -> i32 {
 }
 
 fn run_patch_rename_module(args: &[String]) -> i32 {
-    let (args, json_output) = split_flag(args, "--json");
+    let (args, json_output) = split_flag_before_separator_drop_separator(args, "--json");
     let [path, module, new_module] = args.as_slice() else {
         return invalid_patch_args(json_output);
     };
@@ -1973,7 +1973,7 @@ fn run_patch_rename_module(args: &[String]) -> i32 {
 }
 
 fn run_patch_rename_type(args: &[String]) -> i32 {
-    let (args, json_output) = split_flag(args, "--json");
+    let (args, json_output) = split_flag_before_separator_drop_separator(args, "--json");
     let [path, module, name, new_name] = args.as_slice() else {
         return invalid_patch_args(json_output);
     };
@@ -1987,7 +1987,7 @@ fn run_patch_rename_type(args: &[String]) -> i32 {
 }
 
 fn run_patch_set_contract(args: &[String]) -> i32 {
-    let (args, json_output) = split_flag(args, "--json");
+    let (args, json_output) = split_flag_before_separator_drop_separator(args, "--json");
     let (path, target, clause, index, expression) = match args.as_slice() {
         [path, target, clause, expression] => (path, target, clause, None, expression),
         [path, target, clause, index, expression] => match parse_patch_index(index) {
@@ -2013,7 +2013,7 @@ fn run_patch_set_contract(args: &[String]) -> i32 {
 }
 
 fn run_patch_set_effects(args: &[String]) -> i32 {
-    let (args, json_output) = split_flag(args, "--json");
+    let (args, json_output) = split_flag_before_separator_drop_separator(args, "--json");
     let [path, target, effects] = args.as_slice() else {
         return invalid_patch_args(json_output);
     };
@@ -2027,7 +2027,7 @@ fn run_patch_set_effects(args: &[String]) -> i32 {
 }
 
 fn run_patch_set_example(args: &[String]) -> i32 {
-    let (args, json_output) = split_flag(args, "--json");
+    let (args, json_output) = split_flag_before_separator_drop_separator(args, "--json");
     let (path, target, index, expression) = match args.as_slice() {
         [path, target, expression] => (path, target, None, expression),
         [path, target, index, expression] => match parse_patch_index(index) {
@@ -2053,7 +2053,7 @@ fn run_patch_set_example(args: &[String]) -> i32 {
 }
 
 fn run_patch_set_impl(args: &[String]) -> i32 {
-    let (args, json_output) = split_flag(args, "--json");
+    let (args, json_output) = split_flag_before_separator_drop_separator(args, "--json");
     let [path, target, expression] = args.as_slice() else {
         return invalid_patch_args(json_output);
     };
@@ -2067,7 +2067,7 @@ fn run_patch_set_impl(args: &[String]) -> i32 {
 }
 
 fn run_patch_set_intent(args: &[String]) -> i32 {
-    let (args, json_output) = split_flag(args, "--json");
+    let (args, json_output) = split_flag_before_separator_drop_separator(args, "--json");
     let [path, target, intent] = args.as_slice() else {
         return invalid_patch_args(json_output);
     };
@@ -2081,7 +2081,7 @@ fn run_patch_set_intent(args: &[String]) -> i32 {
 }
 
 fn run_patch_set_migration(args: &[String]) -> i32 {
-    let (args, json_output) = split_flag(args, "--json");
+    let (args, json_output) = split_flag_before_separator_drop_separator(args, "--json");
     let (path, target, kind, index, note) = match args.as_slice() {
         [path, target, kind, note] => (path, target, kind, None, note),
         [path, target, kind, index, note] => match parse_patch_index(index) {
@@ -2107,7 +2107,7 @@ fn run_patch_set_migration(args: &[String]) -> i32 {
 }
 
 fn run_patch_set_property(args: &[String]) -> i32 {
-    let (args, json_output) = split_flag(args, "--json");
+    let (args, json_output) = split_flag_before_separator_drop_separator(args, "--json");
     let (path, target, index, forall, expression) = match args.as_slice() {
         [path, target, forall, expression] => (path, target, None, forall, expression),
         [path, target, index, forall, expression] => match parse_patch_index(index) {
@@ -2133,7 +2133,7 @@ fn run_patch_set_property(args: &[String]) -> i32 {
 }
 
 fn run_patch_set_signature(args: &[String]) -> i32 {
-    let (args, json_output) = split_flag(args, "--json");
+    let (args, json_output) = split_flag_before_separator_drop_separator(args, "--json");
     let [path, target, signature] = args.as_slice() else {
         return invalid_patch_args(json_output);
     };
@@ -2147,7 +2147,7 @@ fn run_patch_set_signature(args: &[String]) -> i32 {
 }
 
 fn run_patch_set_version(args: &[String]) -> i32 {
-    let (args, json_output) = split_flag(args, "--json");
+    let (args, json_output) = split_flag_before_separator_drop_separator(args, "--json");
     let [path, target, version] = args.as_slice() else {
         return invalid_patch_args(json_output);
     };
@@ -2660,6 +2660,30 @@ fn split_flag_before_separator(args: &[String], flag: &str) -> (Vec<String>, boo
         }
     }
     (rest, found)
+}
+
+fn split_flag_before_separator_drop_separator(args: &[String], flag: &str) -> (Vec<String>, bool) {
+    let mut rest = Vec::new();
+    let mut found = false;
+    let mut parsing_options = true;
+    for arg in args {
+        if parsing_options && arg == "--" {
+            parsing_options = false;
+        } else if parsing_options && arg == flag {
+            found = true;
+        } else {
+            rest.push(arg.clone());
+        }
+    }
+    (rest, found)
+}
+
+fn insert_flag_before_separator(args: &mut Vec<String>, flag: &str) {
+    let insert_at = args
+        .iter()
+        .position(|arg| arg == "--")
+        .unwrap_or(args.len());
+    args.insert(insert_at, flag.to_string());
 }
 
 fn parse_patch_index(value: &str) -> Option<usize> {

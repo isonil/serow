@@ -25,7 +25,7 @@ Selection policy for generic implementation prompts:
 - Phase 3's first production backend slice is closed for public v1: portable IR plus dependency-free Rust source/crate generation for the supported bootstrap subset, generated metadata, artifact drift checks, runtime contract assertions, generated pure evidence tests, and binary entrypoint support are all implemented.
 - Remaining backend work such as WASM/TypeScript/Python backends, richer external effect boundaries, recursive record layout support, generic list indexing, list pattern matching, higher-order collection APIs, and semantic-embedding intent search is explicitly v2/future scope rather than blocking the public v1 bootstrap baseline.
 - The Python bootstrap remains reference-only. It should keep parity where cheap, but Rust is the source of truth for v1 behavior.
-- Latest closure: Serow is at `1.0.10-rust-bootstrap` after a public v1 patch release that classifies option-looking top-level usage errors as unknown options instead of unknown commands.
+- Latest closure: Serow is at `1.0.11-rust-bootstrap` after a public v1 patch release that lets structured patch commands use `--` to pass literal `--json` argument values while preserving JSON output requests before the separator.
 
 ## Implemented
 
@@ -210,6 +210,7 @@ Selection policy for generic implementation prompts:
   - `bin/serow patch set-use <path> <module> <old-dependency> <new-dependency> [--json]`
   - `bin/serow patch set-version <path> <symbol-or-name> <version> [--json]`
 - Structured evidence patches reject ambiguous bare targets and preserve canonical formatting.
+- Structured patch commands treat `--json` as an output flag only before any `--` argument separator; values after the separator are preserved as literal patch arguments, including metadata values such as an intent of `--json`.
 - `patch add-module` inserts an empty module declaration into an existing or new `.serow` source file through the structured patch interface, validates module names and Serow source paths, and is idempotent when the module is already present in the patch input.
 - `patch add-type` inserts one record or nullary enum declaration into an existing module, accepts declarations with or without the `type` prefix, and rejects duplicate type names plus duplicate record fields or enum variants before rewriting canonically.
 - `patch remove-type` removes an existing type declaration from a module through the structured patch interface and preserves canonical formatting.

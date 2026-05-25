@@ -39,7 +39,7 @@ bin/serow docs --json
 
 `docs --check` exits non-zero if any advertised local documentation path is missing or a local Markdown link in the public docs points at a missing file. The advertised references include the language, CLI, standard library, backend, agent-instruction, and progress documents. JSON output includes an `exists` field per reference plus top-level `references_ok`, `missing`, `markdown_links_ok`, and `broken_links` fields.
 
-For commands with JSON output, `--json` may appear before the command or inside the command arguments before any `--` path separator. Path-like arguments that start with `-` must appear after `--`; unknown option-looking arguments before that separator are reported as `UsageError` diagnostics instead of source paths.
+For commands with JSON output, `--json` may appear before the command or inside the command arguments before any `--` path separator. Path-like arguments and structured patch argument values that start with `-` must appear after `--`; unknown option-looking arguments before that separator are reported as `UsageError` diagnostics instead of source paths or patch values.
 
 Run the Serow-owned public release gates:
 

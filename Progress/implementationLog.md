@@ -2,6 +2,10 @@
 
 ## 2026-05-25
 
+- Chose structured patch JSON separator handling as a public v1 patch-hardening task because path-taking commands already respected `--` for literal dash-prefixed values, while patch commands stripped `--json` anywhere in the argument list and could not pass it as metadata.
+- Updated patch command dispatch and subcommand parsing so JSON output flags are honored only before `--`, literal post-separator values are preserved, the inherited JSON flag is inserted before the subcommand separator, and CLI docs describe the separator behavior for structured patch arguments.
+- Bumped Serow to `1.0.11-rust-bootstrap` / crate `1.0.11`; verification is recorded in the final run for this change.
+
 - Chose top-level option usage classification as a public v1 patch-hardening task because nested command families already classify `--...` values as unknown options, while the top-level dispatcher still described option-looking command slots as unknown commands.
 - Updated the top-level dispatcher to report `Unknown serow option` for dash-prefixed unknown command slots, covered both ordinary and leading-`--json` JSON diagnostics, and bumped Serow to `1.0.10-rust-bootstrap` / crate `1.0.10`.
 - Verification is recorded in the final run for this change.
