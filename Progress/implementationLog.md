@@ -2,6 +2,10 @@
 
 ## 2026-05-25
 
+- Chose reference-style documentation link validation as a public v1 release-hardening task because `docs --check` validated inline local Markdown links and anchors, but reference-style link definitions could still point at missing local files or headings.
+- Extended the docs link scanner to validate reference-style local Markdown link definitions, including angle-bracket destinations with titles, covered missing-file and missing-anchor cases with a focused regression, and bumped Serow to `1.0.17-rust-bootstrap` / crate `1.0.17`.
+- Verification is recorded in the final run for this change.
+
 - Chose documentation link scanning as a public v1 release-hardening task because `docs --check` validated public Markdown links but still treated sample Markdown link syntax inside code examples as real links.
 - Updated the docs link scanner to skip fenced code blocks and inline backtick code spans before validating local links and heading anchors, covered the behavior with a focused regression, and bumped Serow to `1.0.16-rust-bootstrap` / crate `1.0.16`.
 - Verification is recorded in the final run for this change.

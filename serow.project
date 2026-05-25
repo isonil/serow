@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "1.0.16-rust-bootstrap",
+  "version": "1.0.17-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -76,6 +76,7 @@
     "docs_command_checks_local_markdown_links": true,
     "docs_command_checks_local_markdown_anchors": true,
     "docs_command_ignores_markdown_code_link_syntax": true,
+    "docs_command_checks_reference_markdown_links": true,
     "standard_library_reference_docs": true,
     "release_check_runs_public_v1_gates": true,
     "release_check_validates_release_metadata": true,

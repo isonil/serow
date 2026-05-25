@@ -4910,7 +4910,7 @@ const CORE_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "docs",
         DOCS_USAGE,
-        "List or validate stable local documentation references, local Markdown links, and heading anchors.",
+        "List or validate stable local documentation references, inline/reference-style local Markdown links, and heading anchors.",
     ),
     (
         "check",
@@ -4983,7 +4983,7 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "docs",
         DOCS_USAGE,
-        "List or validate stable local documentation references, local Markdown links, and heading anchors.",
+        "List or validate stable local documentation references, inline/reference-style local Markdown links, and heading anchors.",
     ),
     (
         "check",
@@ -5497,7 +5497,34 @@ fn markdown_link_targets(line: &str) -> Vec<&str> {
         }
         rest = &after_open[close_index + 1..];
     }
+    if let Some(target) = markdown_reference_definition_target(line) {
+        targets.push(target);
+    }
     targets
+}
+
+fn markdown_reference_definition_target(line: &str) -> Option<&str> {
+    let trimmed = line.trim_start();
+    let indent = line.len().saturating_sub(trimmed.len());
+    if indent > 3 || !trimmed.starts_with('[') {
+        return None;
+    }
+    let label_end = trimmed.find("]:")?;
+    if label_end <= 1 {
+        return None;
+    }
+    let mut target = trimmed[label_end + 2..].trim_start();
+    if target.is_empty() {
+        return None;
+    }
+    if let Some(rest) = target.strip_prefix('<') {
+        let close_index = rest.find('>')?;
+        target = rest[..close_index].trim();
+    } else {
+        let end = target.find(char::is_whitespace).unwrap_or(target.len());
+        target = &target[..end];
+    }
+    (!target.is_empty()).then_some(target)
 }
 
 fn is_external_link(target: &str) -> bool {
