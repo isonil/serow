@@ -4860,6 +4860,11 @@ const DOC_LINK_SOURCES: &[&str] = &[
 
 const DOC_REFERENCES: &[DocReference] = &[
     (
+        "overview",
+        "README.md",
+        "Project overview, quickstart commands, reference index, and release posture.",
+    ),
+    (
         "language",
         "docs/language.md",
         "Public v1 source shape, types, expressions, evidence, effects, planning, and limits.",

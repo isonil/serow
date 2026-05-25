@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "1.0.14-rust-bootstrap",
+  "version": "1.0.15-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -71,6 +71,7 @@
     "agent_commands_subcommand_has_full_catalog": true,
     "agent_diagnostics_subcommand_has_verbose_protocols": true,
     "docs_command_lists_public_references": true,
+    "docs_command_lists_project_overview": true,
     "docs_command_checks_public_references": true,
     "docs_command_checks_local_markdown_links": true,
     "docs_command_checks_local_markdown_anchors": true,

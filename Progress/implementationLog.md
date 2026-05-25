@@ -2,6 +2,10 @@
 
 ## 2026-05-25
 
+- Chose project-overview documentation discovery as a public v1 release-hardening task because `docs --check` already validated README links, but `bin/serow docs` did not advertise `README.md` as a stable local reference.
+- Added the README project overview to `bin/serow docs` text/JSON reference rows, updated CLI/progress metadata, and covered the JSON listing with a focused regression.
+- Bumped Serow to `1.0.15-rust-bootstrap` / crate `1.0.15`; verification is recorded in the final run for this change.
+
 - Chose release metadata consistency as a public v1 release-hardening task because `release-check` aggregated the Serow-owned gates but did not prove the canonical `serow.project` version matched the Rust crate version in `Cargo.toml`.
 - Added a dependency-free Cargo package version reader, made `release-check` report and gate `release_metadata` with the expected `-rust-bootstrap` project version, covered the mismatch case with an isolated integration fixture, and updated CLI docs/progress metadata.
 - Bumped Serow to `1.0.14-rust-bootstrap` / crate `1.0.14`; verification is recorded in the final run for this change.

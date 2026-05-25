@@ -4634,6 +4634,10 @@ fn docs_command_lists_and_checks_public_references() {
     assert!(json_stdout.contains("\"ok\": true"), "{json_stdout}");
     assert!(json_stdout.contains("\"docs\""), "{json_stdout}");
     assert!(
+        json_stdout.contains("\"path\": \"README.md\""),
+        "{json_stdout}"
+    );
+    assert!(
         json_stdout.contains("\"path\": \"docs/language.md\""),
         "{json_stdout}"
     );
