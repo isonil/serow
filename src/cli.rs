@@ -1,3 +1,4 @@
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 
@@ -4852,7 +4853,7 @@ const CORE_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "docs",
         DOCS_USAGE,
-        "List or validate stable local documentation references and local Markdown links.",
+        "List or validate stable local documentation references, local Markdown links, and heading anchors.",
     ),
     (
         "check",
@@ -4925,7 +4926,7 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "docs",
         DOCS_USAGE,
-        "List or validate stable local documentation references and local Markdown links.",
+        "List or validate stable local documentation references, local Markdown links, and heading anchors.",
     ),
     (
         "check",
@@ -5283,6 +5284,12 @@ struct DocLinkIssue {
     resolved_path: String,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct DocLinkTarget {
+    path: String,
+    fragment: Option<String>,
+}
+
 fn broken_doc_links() -> Vec<DocLinkIssue> {
     let mut broken = Vec::new();
     for source_path in DOC_LINK_SOURCES {
@@ -5294,19 +5301,39 @@ fn broken_doc_links() -> Vec<DocLinkIssue> {
             .unwrap_or_else(|| Path::new(""));
         for (line_index, line) in source.lines().enumerate() {
             for target in markdown_link_targets(line) {
-                if is_external_or_fragment_link(target) {
+                if is_external_link(target) {
                     continue;
                 }
-                let Some(local_target) = local_link_path(target) else {
+                let Some(local_target) = local_link_target(target) else {
                     continue;
                 };
-                let resolved = source_parent.join(local_target);
+                let resolved = if local_target.path.is_empty() {
+                    Path::new(source_path).to_path_buf()
+                } else {
+                    source_parent.join(&local_target.path)
+                };
                 if !resolved.exists() {
                     broken.push(DocLinkIssue {
                         source_path: (*source_path).to_string(),
                         line: line_index + 1,
                         target: target.to_string(),
                         resolved_path: normalized_path_display(&resolved),
+                    });
+                    continue;
+                }
+                if let Some(fragment) = &local_target.fragment
+                    && is_markdown_path(&resolved)
+                    && !markdown_anchor_exists(&resolved, fragment)
+                {
+                    broken.push(DocLinkIssue {
+                        source_path: (*source_path).to_string(),
+                        line: line_index + 1,
+                        target: target.to_string(),
+                        resolved_path: format!(
+                            "{}#{}",
+                            normalized_path_display(&resolved),
+                            fragment
+                        ),
                     });
                 }
             }
@@ -5333,21 +5360,98 @@ fn markdown_link_targets(line: &str) -> Vec<&str> {
     targets
 }
 
-fn is_external_or_fragment_link(target: &str) -> bool {
-    target.starts_with('#')
-        || target.contains("://")
-        || target.starts_with("mailto:")
-        || target.starts_with("tel:")
+fn is_external_link(target: &str) -> bool {
+    target.contains("://") || target.starts_with("mailto:") || target.starts_with("tel:")
 }
 
-fn local_link_path(target: &str) -> Option<&str> {
-    let without_fragment = target.split('#').next().unwrap_or(target);
-    let without_query = without_fragment
-        .split('?')
-        .next()
-        .unwrap_or(without_fragment);
-    let local = without_query.trim();
-    (!local.is_empty()).then_some(local)
+fn local_link_target(target: &str) -> Option<DocLinkTarget> {
+    let without_query = target.split('?').next().unwrap_or(target).trim();
+    if without_query.is_empty() {
+        return None;
+    }
+    let (path, fragment) = without_query
+        .split_once('#')
+        .map(|(path, fragment)| (path.trim(), Some(fragment.trim())))
+        .unwrap_or((without_query, None));
+    if path.is_empty() && fragment.is_none_or(str::is_empty) {
+        return None;
+    }
+    Some(DocLinkTarget {
+        path: path.to_string(),
+        fragment: fragment
+            .filter(|fragment| !fragment.is_empty())
+            .map(str::to_string),
+    })
+}
+
+fn is_markdown_path(path: &Path) -> bool {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("md"))
+}
+
+fn markdown_anchor_exists(path: &Path, fragment: &str) -> bool {
+    let Ok(source) = fs::read_to_string(path) else {
+        return false;
+    };
+    markdown_heading_anchors(&source).contains(fragment)
+}
+
+fn markdown_heading_anchors(source: &str) -> HashSet<String> {
+    let mut anchors = HashSet::new();
+    let mut counts = HashMap::new();
+    for line in source.lines() {
+        let Some(heading) = markdown_heading_text(line) else {
+            continue;
+        };
+        let base = markdown_anchor_slug(heading);
+        if base.is_empty() {
+            continue;
+        }
+        let count = counts.entry(base.clone()).or_insert(0usize);
+        let anchor = if *count == 0 {
+            base.clone()
+        } else {
+            format!("{base}-{count}")
+        };
+        anchors.insert(anchor);
+        *count += 1;
+    }
+    anchors
+}
+
+fn markdown_heading_text(line: &str) -> Option<&str> {
+    let trimmed = line.trim_start();
+    let hashes = trimmed.bytes().take_while(|byte| *byte == b'#').count();
+    if !(1..=6).contains(&hashes) {
+        return None;
+    }
+    let after_hashes = trimmed.get(hashes..)?;
+    if !after_hashes.starts_with(' ') {
+        return None;
+    }
+    Some(after_hashes.trim().trim_end_matches('#').trim_end())
+}
+
+fn markdown_anchor_slug(heading: &str) -> String {
+    let mut slug = String::new();
+    let mut last_was_dash = false;
+    for character in heading.chars().flat_map(char::to_lowercase) {
+        if character.is_ascii_alphanumeric() {
+            slug.push(character);
+            last_was_dash = false;
+        } else if (character.is_ascii_whitespace() || character == '-')
+            && !last_was_dash
+            && !slug.is_empty()
+        {
+            slug.push('-');
+            last_was_dash = true;
+        }
+    }
+    if last_was_dash {
+        slug.pop();
+    }
+    slug
 }
 
 fn normalized_path_display(path: &Path) -> String {

@@ -37,7 +37,7 @@ bin/serow docs --check
 bin/serow docs --json
 ```
 
-`docs --check` exits non-zero if any advertised local documentation path is missing or a local Markdown link in the public docs points at a missing file. The advertised references include the language, CLI, standard library, backend, agent-instruction, and progress documents. JSON output includes an `exists` field per reference plus top-level `references_ok`, `missing`, `markdown_links_ok`, and `broken_links` fields.
+`docs --check` exits non-zero if any advertised local documentation path is missing, or if a local Markdown link in the public docs points at a missing file or heading anchor. The advertised references include the language, CLI, standard library, backend, agent-instruction, and progress documents. JSON output includes an `exists` field per reference plus top-level `references_ok`, `missing`, `markdown_links_ok`, and `broken_links` fields.
 
 For commands with JSON output, `--json` may appear before the command or inside the command arguments before any `--` path separator. Path-like arguments and structured patch argument values that start with `-` must appear after `--`; unknown option-looking arguments before that separator are reported as `UsageError` diagnostics instead of source paths or patch values.
 
@@ -49,7 +49,7 @@ bin/serow release-check --json
 bin/serow release-check examples/math.serow --json
 ```
 
-`release-check` validates advertised docs and local documentation links, checks canonical formatting, runs standard certification, and runs unattended certification over the selected source paths. It does not wrap repository-level Rust or Python test commands.
+`release-check` validates advertised docs plus local documentation files and heading anchors, checks canonical formatting, runs standard certification, and runs unattended certification over the selected source paths. It does not wrap repository-level Rust or Python test commands.
 
 ## Version
 

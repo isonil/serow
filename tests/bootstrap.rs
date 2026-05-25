@@ -4725,12 +4725,12 @@ fn docs_check_reports_broken_local_markdown_links() {
     fs::create_dir_all(dir.join("Progress")).expect("create progress dir");
     fs::write(
         dir.join("README.md"),
-        "- [Language Reference](docs/language.md)\n",
+        "# README Title\n\n- [Language Reference](docs/language.md#valid-heading)\n- [Self](#readme-title)\n",
     )
     .expect("write readme");
     fs::write(
         dir.join("docs/language.md"),
-        "See [Missing](missing.md) and [CLI](cli.md).\n",
+        "# Valid Heading\n\nSee [Missing](missing.md), [CLI](cli.md), and [Missing Section](cli.md#missing-section).\n",
     )
     .expect("write language doc");
     fs::write(dir.join("docs/cli.md"), "# CLI\n").expect("write cli doc");
@@ -4759,6 +4759,22 @@ fn docs_check_reports_broken_local_markdown_links() {
     assert!(stdout.contains("\"target\": \"missing.md\""), "{stdout}");
     assert!(
         stdout.contains("\"resolved_path\": \"docs/missing.md\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"target\": \"cli.md#missing-section\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"resolved_path\": \"docs/cli.md#missing-section\""),
+        "{stdout}"
+    );
+    assert!(
+        !stdout.contains("\"target\": \"docs/language.md#valid-heading\""),
+        "{stdout}"
+    );
+    assert!(
+        !stdout.contains("\"target\": \"#readme-title\""),
         "{stdout}"
     );
 

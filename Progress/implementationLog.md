@@ -2,6 +2,10 @@
 
 ## 2026-05-25
 
+- Chose documentation anchor validation as a public v1 release-hardening task because `docs --check` and `release-check` validated local documentation files but still accepted local Markdown links whose `#heading` fragments did not resolve.
+- Extended local Markdown link validation to check same-file and cross-file Markdown heading anchors, kept JSON `broken_links` output source-line oriented, covered valid and broken anchor cases with an integration regression, and updated CLI docs/progress metadata.
+- Bumped Serow to `1.0.13-rust-bootstrap` / crate `1.0.13`; verification is recorded in the final run for this change.
+
 - Chose discovery-command separator handling as a public v1 protocol-hardening task because `help`, `version`, path-taking commands, and structured patch commands already treated `--json` after `--` as literal input, while `agent` and `docs` still detected it as an output flag.
 - Updated `agent` and `docs` to honor `--json` only before an argument separator, kept `docs --check` under the same separator rule, and covered the separated `--json` cases with focused CLI regressions.
 - Bumped Serow to `1.0.12-rust-bootstrap` / crate `1.0.12`; verification is recorded in the final run for this change.
