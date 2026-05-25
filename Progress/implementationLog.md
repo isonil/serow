@@ -2,6 +2,10 @@
 
 ## 2026-05-25
 
+- Chose documentation link scanning as a public v1 release-hardening task because `docs --check` validated public Markdown links but still treated sample Markdown link syntax inside code examples as real links.
+- Updated the docs link scanner to skip fenced code blocks and inline backtick code spans before validating local links and heading anchors, covered the behavior with a focused regression, and bumped Serow to `1.0.16-rust-bootstrap` / crate `1.0.16`.
+- Verification is recorded in the final run for this change.
+
 - Chose project-overview documentation discovery as a public v1 release-hardening task because `docs --check` already validated README links, but `bin/serow docs` did not advertise `README.md` as a stable local reference.
 - Added the README project overview to `bin/serow docs` text/JSON reference rows, updated CLI/progress metadata, and covered the JSON listing with a focused regression.
 - Bumped Serow to `1.0.15-rust-bootstrap` / crate `1.0.15`; verification is recorded in the final run for this change.

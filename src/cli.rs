@@ -5356,8 +5356,21 @@ fn broken_doc_links() -> Vec<DocLinkIssue> {
         let source_parent = Path::new(source_path)
             .parent()
             .unwrap_or_else(|| Path::new(""));
+        let mut fence = None;
         for (line_index, line) in source.lines().enumerate() {
-            for target in markdown_link_targets(line) {
+            if let Some(marker) = markdown_fence_marker(line) {
+                if fence == Some(marker) {
+                    fence = None;
+                } else if fence.is_none() {
+                    fence = Some(marker);
+                }
+                continue;
+            }
+            if fence.is_some() {
+                continue;
+            }
+            let link_source = markdown_without_inline_code_spans(line);
+            for target in markdown_link_targets(&link_source) {
                 if is_external_link(target) {
                     continue;
                 }
@@ -5397,6 +5410,76 @@ fn broken_doc_links() -> Vec<DocLinkIssue> {
         }
     }
     broken
+}
+
+fn markdown_fence_marker(line: &str) -> Option<char> {
+    let trimmed = line.trim_start();
+    let indent = line.len().saturating_sub(trimmed.len());
+    if indent > 3 {
+        return None;
+    }
+    let marker = trimmed.chars().next()?;
+    if marker != '`' && marker != '~' {
+        return None;
+    }
+    let count = trimmed
+        .chars()
+        .take_while(|character| *character == marker)
+        .count();
+    (count >= 3).then_some(marker)
+}
+
+fn markdown_without_inline_code_spans(line: &str) -> String {
+    let mut output = String::new();
+    let mut index = 0usize;
+    while index < line.len() {
+        if line.as_bytes()[index] == b'`' {
+            let tick_count = count_backtick_run(line, index);
+            if let Some(close_index) =
+                find_closing_backtick_run(line, index + tick_count, tick_count)
+            {
+                index = close_index + tick_count;
+            } else {
+                output.push_str(&line[index..index + tick_count]);
+                index += tick_count;
+            }
+            continue;
+        }
+        let character = line[index..]
+            .chars()
+            .next()
+            .expect("index is on a char boundary");
+        output.push(character);
+        index += character.len_utf8();
+    }
+    output
+}
+
+fn count_backtick_run(line: &str, start: usize) -> usize {
+    line.as_bytes()[start..]
+        .iter()
+        .take_while(|byte| **byte == b'`')
+        .count()
+}
+
+fn find_closing_backtick_run(line: &str, start: usize, tick_count: usize) -> Option<usize> {
+    let mut index = start;
+    while index < line.len() {
+        if line.as_bytes()[index] == b'`' {
+            let found = count_backtick_run(line, index);
+            if found == tick_count {
+                return Some(index);
+            }
+            index += found;
+            continue;
+        }
+        index += line[index..]
+            .chars()
+            .next()
+            .expect("index is on a char boundary")
+            .len_utf8();
+    }
+    None
 }
 
 fn markdown_link_targets(line: &str) -> Vec<&str> {
