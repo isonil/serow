@@ -11326,6 +11326,9 @@ fn project_architecture_parser_rejects_raw_control_chars_in_strings() {
     let raw_version = "{\n  \"version\": \"0.4.\ninvalid\"\n}";
     assert_eq!(parse_project_version(raw_version), None);
 
+    let malformed_trailing_version = "{\n  \"version\": \"0.4.82-rust-bootstrap\" trailing\n}";
+    assert_eq!(parse_project_version(malformed_trailing_version), None);
+
     let raw_module_key = "{\n  \"architecture\": {\n    \"modules\": {\n      \"app.\tmain\": {\n        \"may_depend_on\": [\"core.math\"]\n      }\n    }\n  }\n}";
     let architecture = parse_architecture(raw_module_key);
     assert!(architecture.policy_for("app.\tmain").is_none());

@@ -2,6 +2,10 @@
 
 ## 2026-05-31
 
+- Chose project-manifest parser hardening as a small public v1 correctness fix because the release/version metadata reader accepted a valid quoted prefix while ignoring malformed trailing content before the comma or closing brace.
+- Tightened top-level project string parsing to require the quoted string to consume the full JSON value slice, covered the malformed trailing-version case, and bumped Serow to `1.0.24-rust-bootstrap` / crate `1.0.24`.
+- Verification is recorded in the final run for this change.
+
 - Chose safe bool-list access as a small bootstrap completeness fix because Serow supports homogeneous `List<Bool>` values and list helpers, but the temporary non-generic safe access intrinsics only covered `Text` and `Int`.
 - Added compiler-owned `get_bool(list: List<Bool>, index: Int) -> MaybeBool` across intrinsic discovery, type checking, evaluation, IR/Rust backend emission, the stdlib list helpers, docs, and regression coverage. Missing indexes return `{ found: false, value: false }`, matching the existing non-panicking access contract.
 - Bumped Serow to `1.0.23-rust-bootstrap` / crate `1.0.23`.

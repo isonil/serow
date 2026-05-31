@@ -294,7 +294,12 @@ fn top_level_string_value(source: &str, key: &str) -> Option<String> {
     if !value.starts_with('"') {
         return None;
     }
-    read_string(value, 0).map(|(value, _)| value)
+    let (parsed, end) = read_string(value, 0)?;
+    if value[end..].trim().is_empty() {
+        Some(parsed)
+    } else {
+        None
+    }
 }
 
 fn object_field_value<'a>(source: &'a str, key: &str) -> Option<&'a str> {
