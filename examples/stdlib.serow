@@ -956,6 +956,8 @@ pub fn list_bool_contains(items: List<Bool>, value: Bool) -> Bool
 pub fn list_text_get(items: List<Text>, index: Int) -> MaybeText
   intent "Return MaybeText from get_text for indexed string collections."
   version v1
+  migration
+    impact-review "Reviewed list_access text wrapper impact; Float list additions do not alter indexed text lookup behavior."
   contract
     ensures result == get_text(items, index)
   examples
@@ -974,6 +976,8 @@ pub fn list_text_get(items: List<Text>, index: Int) -> MaybeText
 pub fn list_int_get(items: List<Int>, index: Int) -> MaybeInt
   intent "Wrap get_int with a MaybeInt result for bounds-safe lookup."
   version v1
+  migration
+    impact-review "Reviewed list_access int wrapper impact; Float list additions do not alter indexed int lookup behavior."
   contract
     ensures result == get_int(items, index)
   examples
@@ -1048,6 +1052,83 @@ pub fn list_bool_remove_first(items: List<Bool>, target: Bool) -> List<Bool>
   properties
     forall value: Bool:
       list_bool_remove_first([value], value) == []
+  effects pure
+  impl
+    remove_first(items, target)
+
+pub fn list_float_count(items: List<Float>) -> Int
+  intent "Cardinality for finite values."
+  version v1
+  contract
+    ensures result == len(items)
+    ensures result >= 0
+  examples
+    list_float_count([]) == 0
+    list_float_count([1.5]) == 1
+  properties
+    forall value: Float:
+      list_float_count([value]) == 1
+  effects pure
+  impl
+    len(items)
+
+pub fn list_float_is_empty(items: List<Float>) -> Bool
+  intent "No floating values present."
+  version v1
+  contract
+    ensures result == (len(items) == 0)
+  examples
+    list_float_is_empty([]) == true
+    list_float_is_empty([1.5]) == false
+  properties
+    forall value: Float:
+      list_float_is_empty([value]) == false
+  effects pure
+  impl
+    len(items) == 0
+
+pub fn list_float_append(items: List<Float>, value: Float) -> List<Float>
+  intent "Produce tail-extended numeric copy."
+  version v1
+  contract
+    ensures len(result) == len(items) + 1
+    ensures contains(result, value) == true
+  examples
+    list_float_append([], 4.5) == [4.5]
+    len(list_float_append([1.25], 2.5)) == 2
+  properties
+    forall value: Float:
+      contains(list_float_append([], value), value) == true
+  effects pure
+  impl
+    push(items, value)
+
+pub fn list_float_contains(items: List<Float>, value: Float) -> Bool
+  intent "Indicate numeric value presence."
+  version v1
+  contract
+    ensures result == contains(items, value)
+  examples
+    list_float_contains([1.5], 1.5) == true
+    list_float_contains([1.5], 3.5) == false
+  properties
+    forall value: Float:
+      list_float_contains([value], value) == true
+  effects pure
+  impl
+    contains(items, value)
+
+pub fn list_float_remove_first(items: List<Float>, target: Float) -> List<Float>
+  intent "Filter one numeric occurrence."
+  version v1
+  contract
+    ensures len(result) == len(items) or len(result) + 1 == len(items)
+  examples
+    list_float_remove_first([1.5], 1.5) == []
+    list_float_remove_first([1.5], 3.5) == [1.5]
+  properties
+    forall value: Float:
+      list_float_remove_first([value], value) == []
   effects pure
   impl
     remove_first(items, target)

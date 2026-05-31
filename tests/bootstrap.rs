@@ -24,10 +24,10 @@ fn sample_program_checks() {
             .map(|diagnostic| &diagnostic.code)
             .collect::<Vec<_>>()
     );
-    assert_eq!(summary.functions, 92);
-    assert_eq!(summary.examples, 216);
-    assert_eq!(summary.properties, 92);
-    assert_eq!(summary.contracts, 294);
+    assert_eq!(summary.functions, 97);
+    assert_eq!(summary.examples, 226);
+    assert_eq!(summary.properties, 97);
+    assert_eq!(summary.contracts, 306);
 }
 
 #[test]
@@ -3255,7 +3255,7 @@ fn type_query_finds_functions_by_signature_shape() {
         "{exact_matches:#?}"
     );
 
-    let wildcard_matches = query_type(&program, "_ -> Int", 10);
+    let wildcard_matches = query_type(&program, "_ -> Int", 20);
     let wildcard_names = wildcard_matches
         .iter()
         .map(|query_match| query_match.function.name.as_str())

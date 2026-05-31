@@ -119,21 +119,26 @@ intrinsics. It also declares `MaybeText = { found: Bool, value: Text }`,
 | Function | Purpose |
 | --- | --- |
 | `list_int_count(items: List<Int>) -> Int` | Count numeric sequence entries. |
+| `list_float_count(items: List<Float>) -> Int` | Cardinality for finite values. |
 | `list_text_count(items: List<Text>) -> Int` | Measure string collection size. |
 | `list_bool_count(items: List<Bool>) -> Int` | Tally truth-array length. |
 | `list_int_is_empty(items: List<Int>) -> Bool` | Report a vacant numeric buffer. |
+| `list_float_is_empty(items: List<Float>) -> Bool` | No floating values present. |
 | `list_text_is_empty(items: List<Text>) -> Bool` | Recognize vacant text storage. |
 | `list_bool_is_empty(items: List<Bool>) -> Bool` | Identify absent boolean entries. |
 | `list_int_append(items: List<Int>, value: Int) -> List<Int>` | Append an `Int` payload. |
+| `list_float_append(items: List<Float>, value: Float) -> List<Float>` | Produce a tail-extended numeric copy. |
 | `list_text_append(items: List<Text>, value: Text) -> List<Text>` | Insert a string payload at the tail. |
 | `list_bool_append(items: List<Bool>, value: Bool) -> List<Bool>` | Push a `Bool` payload onto a collection. |
 | `list_int_contains(items: List<Int>, value: Int) -> Bool` | Search ints for a target. |
+| `list_float_contains(items: List<Float>, value: Float) -> Bool` | Indicate numeric value presence. |
 | `list_text_contains(items: List<Text>, value: Text) -> Bool` | Locate a text member. |
 | `list_bool_contains(items: List<Bool>, value: Bool) -> Bool` | Probe `Bool` membership. |
 | `list_text_get(items: List<Text>, index: Int) -> MaybeText` | Read an optional text entry by offset. |
 | `list_int_get(items: List<Int>, index: Int) -> MaybeInt` | Read an optional integer entry by offset. |
 | `list_bool_get(items: List<Bool>, index: Int) -> MaybeBool` | Read an optional boolean entry by offset. |
 | `list_int_remove_first(items: List<Int>, target: Int) -> List<Int>` | Drop the earliest numeric match. |
+| `list_float_remove_first(items: List<Float>, target: Float) -> List<Float>` | Filter one numeric occurrence. |
 | `list_text_remove_first(items: List<Text>, target: Text) -> List<Text>` | Delete the leading string occurrence. |
 | `list_bool_remove_first(items: List<Bool>, target: Bool) -> List<Bool>` | Erase the initial boolean match. |
 
