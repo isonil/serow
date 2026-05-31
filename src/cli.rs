@@ -5673,14 +5673,27 @@ fn is_external_link(target: &str) -> bool {
 }
 
 fn local_link_target(target: &str) -> Option<DocLinkTarget> {
-    let without_query = target.split('?').next().unwrap_or(target).trim();
-    if without_query.is_empty() {
+    let trimmed = target.trim();
+    if trimmed.is_empty() {
         return None;
     }
-    let (path, fragment) = without_query
+
+    let (path_with_query, fragment_with_query) = trimmed
         .split_once('#')
-        .map(|(path, fragment)| (path.trim(), Some(fragment.trim())))
-        .unwrap_or((without_query, None));
+        .map(|(path, fragment)| (path, Some(fragment)))
+        .unwrap_or((trimmed, None));
+    let path = path_with_query
+        .split_once('?')
+        .map(|(path, _)| path)
+        .unwrap_or(path_with_query)
+        .trim();
+    let fragment = fragment_with_query.map(|fragment| {
+        fragment
+            .split_once('?')
+            .map(|(fragment, _)| fragment)
+            .unwrap_or(fragment)
+            .trim()
+    });
     if path.is_empty() && fragment.is_none_or(str::is_empty) {
         return None;
     }
