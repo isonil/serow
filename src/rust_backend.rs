@@ -2177,11 +2177,24 @@ fn render_intrinsic_call(
                     args[1].type_name
                 ));
             }
+            let value_type = if element_type == "Never" && args[1].type_name == EMPTY_LIST_TYPE {
+                list_type("Unit")
+            } else if element_type == "Never" {
+                args[1].type_name.clone()
+            } else {
+                element_type
+            };
+            let list_code = if args[0].type_name == EMPTY_LIST_TYPE {
+                render_empty_list_as(&list_type(&value_type), context.type_names)?.code
+            } else {
+                strip_outer_parens(&args[0].code).to_string()
+            };
+            let value = coerce_empty_list(args[1].clone(), &value_type, context.type_names)?;
             Ok(rendered(
                 format!(
                     "{}.contains(&{})",
-                    strip_outer_parens(&args[0].code),
-                    strip_outer_parens(&args[1].code)
+                    list_code,
+                    strip_outer_parens(&value.code)
                 ),
                 "Bool",
             ))
@@ -2248,11 +2261,16 @@ fn render_intrinsic_call(
             } else {
                 strip_outer_parens(&args[0].code).to_string()
             };
+            let value = if element_type == "Never" {
+                args[1].clone()
+            } else {
+                coerce_empty_list(args[1].clone(), &element_type, context.type_names)?
+            };
             Ok(RenderedExpr {
                 code: format!(
                     "{{ let mut serow_list = {}; if let Some(serow_index) = serow_list.iter().position(|serow_value| serow_value == &{}) {{ serow_list.remove(serow_index); }} serow_list }}",
                     list_code,
-                    strip_outer_parens(&args[1].code)
+                    strip_outer_parens(&value.code)
                 ),
                 type_name: result_type,
             })

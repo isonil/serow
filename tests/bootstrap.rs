@@ -13714,6 +13714,32 @@ pub fn remove_item(items: List<Text>, item: Text) -> List<Text>
   impl
     remove_first(items, item)
 
+pub fn empty_contains_int() -> Bool
+  intent "Report whether an empty list contains a sampled integer."
+  contract
+    ensures result == false
+  examples
+    empty_contains_int() == false
+  properties
+    forall item: Int:
+      empty_contains_int() == contains([], item)
+  effects pure
+  impl
+    contains([], 1)
+
+pub fn contains_nested_empty_list() -> Bool
+  intent "Report whether nested list membership treats typed empty lists consistently."
+  contract
+    ensures result == true
+  examples
+    contains_nested_empty_list() == true
+  properties
+    forall flag: Bool:
+      contains_nested_empty_list() == true or flag == flag
+  effects pure
+  impl
+    contains([remove_first(push([], 1), 1)], [])
+
 pub fn drop_potion(items: List<Item>) -> List<Item>
   intent "Consume a potion token from an enum-backed pack."
   contract

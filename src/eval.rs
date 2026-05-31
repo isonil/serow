@@ -1636,7 +1636,7 @@ fn call_contains_intrinsic(name: &str, args: Vec<Value>) -> Result<CallResult, S
             ));
         }
     }
-    let result = elements.contains(&value);
+    let result = elements.iter().any(|element| value_equal(element, &value));
     let mut bindings = HashMap::new();
     bindings.insert("list".to_string(), list);
     bindings.insert("value".to_string(), value);
