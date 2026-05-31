@@ -8948,7 +8948,7 @@ fn patch_rename_type_rewrites_record_type_references() {
         r#"module app.main
 
 type Player = { hp: Int, gold: Int }
-type Party = { leader: Player }
+type Party = { leader: Player, reserves: List<Player>, nested: List<List<Player>> }
 
 pub fn new_player() -> Player
   intent "Return the starting player state."
@@ -8964,13 +8964,29 @@ pub fn new_player() -> Player
   impl
     Player { hp: 10, gold: 0 }
 
+pub fn starting_reserves() -> List<Player>
+  intent "Return a one-player reserve roster."
+  version v1
+  contract
+    ensures len(result) == 1
+  examples
+    len(starting_reserves()) == 1
+  properties
+    forall flag: Bool:
+      if flag then len(starting_reserves()) == 1 else len(starting_reserves()) == 1
+    forall roster: List<Player>:
+      len(roster) == len(roster)
+  effects pure
+  impl
+    [Player { hp: 8, gold: 1 }]
+
 pub fn leader_hp(party: Party) -> Int
   intent "Return party leader hit points."
   version v1
   contract
     ensures result == party.leader.hp
   examples
-    leader_hp(Party { leader: Player { hp: 10, gold: 0 } }) == 10
+    leader_hp(Party { leader: Player { hp: 10, gold: 0 }, reserves: [Player { hp: 8, gold: 1 }], nested: [[Player { hp: 8, gold: 1 }]] }) == 10
   properties
     forall party: Party:
       leader_hp(party) == party.leader.hp
@@ -9003,13 +9019,19 @@ pub fn leader_hp(party: Party) -> Int
         "{updated}"
     );
     assert!(
-        updated.contains("type Party = { leader: Hero }"),
+        updated.contains(
+            "type Party = { leader: Hero, reserves: List<Hero>, nested: List<List<Hero>> }"
+        ),
         "{updated}"
     );
     assert!(updated.contains("pub fn new_player() -> Hero"), "{updated}");
+    assert!(
+        updated.contains("pub fn starting_reserves() -> List<Hero>"),
+        "{updated}"
+    );
     assert!(updated.contains("Hero { hp: 10, gold: 0 }"), "{updated}");
     assert!(
-        updated.contains("leader_hp(Party { leader: Hero { hp: 10, gold: 0 } }) == 10"),
+        updated.contains("leader_hp(Party { leader: Hero { hp: 10, gold: 0 }, reserves: [Hero { hp: 8, gold: 1 }], nested: [[Hero { hp: 8, gold: 1 }]] }) == 10"),
         "{updated}"
     );
     assert!(!updated.contains("Player"), "{updated}");

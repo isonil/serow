@@ -8,6 +8,7 @@ use crate::ledger::exact_intent_key;
 use crate::model::{
     Function, MigrationRecord, Module, ModuleDependency, Param, Program, RecordField, TypeDecl,
 };
+use crate::types::rename_type_reference;
 
 const MIGRATION_KINDS: &[&str] = &[
     "public-behavior-change",
@@ -2227,21 +2228,15 @@ fn rebuild_type_index(program: &mut Program) {
 
 fn rewrite_record_field_type_names(fields: &mut [RecordField], old_name: &str, new_name: &str) {
     for field in fields {
-        if field.type_name == old_name {
-            field.type_name = new_name.to_string();
-        }
+        field.type_name = rename_type_reference(&field.type_name, old_name, new_name);
     }
 }
 
 fn rewrite_function_type_references(function: &mut Function, old_name: &str, new_name: &str) {
     for param in &mut function.params {
-        if param.type_name == old_name {
-            param.type_name = new_name.to_string();
-        }
+        param.type_name = rename_type_reference(&param.type_name, old_name, new_name);
     }
-    if function.return_type == old_name {
-        function.return_type = new_name.to_string();
-    }
+    function.return_type = rename_type_reference(&function.return_type, old_name, new_name);
     if let Some(implementation) = &mut function.implementation {
         *implementation = rewrite_expression_type_references(implementation, old_name, new_name);
     }
@@ -2276,11 +2271,7 @@ fn rewrite_forall_type_references(line: &str, old_name: &str, new_name: &str) ->
         let Some((name, type_name)) = raw_binding.trim().split_once(':') else {
             return line.to_string();
         };
-        let rewritten_type = if type_name.trim() == old_name {
-            new_name
-        } else {
-            type_name.trim()
-        };
+        let rewritten_type = rename_type_reference(type_name.trim(), old_name, new_name);
         bindings.push(format!("{}: {}", name.trim(), rewritten_type));
     }
     format!("forall {}:", bindings.join(", "))

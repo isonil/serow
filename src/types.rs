@@ -19,6 +19,12 @@ pub(crate) fn list_element_type(type_name: &str) -> Option<String> {
     }
 }
 
+pub(crate) fn rename_type_reference(type_name: &str, old_name: &str, new_name: &str) -> String {
+    parse_type(type_name)
+        .map(|parsed| rename_type_reference_parsed(&parsed, old_name, new_name).to_source())
+        .unwrap_or_else(|| type_name.to_string())
+}
+
 pub(crate) fn type_accepts(actual: &str, expected: &str) -> bool {
     if actual == expected {
         return true;
@@ -67,6 +73,16 @@ fn type_accepts_parsed(actual: &TypeName, expected: &TypeName) -> bool {
                 || type_accepts_parsed(actual, expected)
         }
         _ => false,
+    }
+}
+
+fn rename_type_reference_parsed(type_name: &TypeName, old_name: &str, new_name: &str) -> TypeName {
+    match type_name {
+        TypeName::Named(name) if name == old_name => TypeName::Named(new_name.to_string()),
+        TypeName::Named(name) => TypeName::Named(name.clone()),
+        TypeName::List(element) => TypeName::List(Box::new(rename_type_reference_parsed(
+            element, old_name, new_name,
+        ))),
     }
 }
 
