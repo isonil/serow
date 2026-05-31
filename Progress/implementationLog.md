@@ -2,6 +2,9 @@
 
 ## 2026-05-31
 
+- Chose language-reference cleanup after a checked stdlib experiment exposed an undocumented bootstrap constraint: declared type names are global across the checked source set rather than module-scoped.
+- Documented the v1 uniqueness rule in `docs/language.md` so future stdlib and example work can avoid cross-module record-name collisions.
+
 - Chose Cargo manifest version parser hardening as a small release-readiness fix because the dependency-free reader used by release checks only accepted an exact `[package]` header, while valid TOML may include header whitespace and trailing comments.
 - Updated the parser to accept spaced/commented `[package]` table headers while rejecting malformed trailing table text, covered the case in the manifest parser regression, and bumped Serow to `1.0.25-rust-bootstrap` / crate `1.0.25`.
 - Verification is recorded in the final run for this change.

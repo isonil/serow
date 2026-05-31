@@ -47,6 +47,9 @@ Record declarations define named fields:
 type Player = { hp: Int, gold: Int }
 ```
 
+Declared type names are currently unique across the whole checked source set,
+even when the declarations appear in different modules.
+
 Record construction must name the type and provide every field. Field access returns the declared field type, and record copy-update preserves the original record type:
 
 ```serow
