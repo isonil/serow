@@ -16,8 +16,8 @@ Current bootstrap constraints:
 - Source programs live in `examples/` or any path passed to `bin/serow check <path>`.
 - Public functions must declare `intent`, `contract`, `examples`, `properties`, `effects`, and `impl`.
 - Examples are executable tests.
-- Properties currently support sampled `forall` checks over built-in `Int`, `Bool`, `Text`,
-  and `Unit`, plus bounded declared-record samples and enum variants. Recursive record
+- Properties currently support sampled `forall` checks over built-in `Int`, `Float`, `Bool`,
+  `Text`, and `Unit`, plus bounded declared-record samples and enum variants. Recursive record
   sample cycles remain unsupported and are reported explicitly.
 - Generated backends exist for the current bootstrap subset: `bin/serow compile ir`
   emits portable IR and `bin/serow compile rust` emits dependency-free Rust source or
