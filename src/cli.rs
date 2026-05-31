@@ -5531,7 +5531,7 @@ fn markdown_link_targets(line: &str) -> Vec<&str> {
     while let Some(open_index) = rest.find("](") {
         let target_start = open_index + 2;
         let after_open = &rest[target_start..];
-        let Some(close_index) = after_open.find(')') else {
+        let Some(close_index) = markdown_inline_link_close_index(after_open) else {
             break;
         };
         if let Some(target) = markdown_inline_link_target(&after_open[..close_index]) {
@@ -5543,6 +5543,28 @@ fn markdown_link_targets(line: &str) -> Vec<&str> {
         targets.push(target);
     }
     targets
+}
+
+fn markdown_inline_link_close_index(source: &str) -> Option<usize> {
+    let mut paren_depth = 0usize;
+    let mut escaped = false;
+    for (index, character) in source.char_indices() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        if character == '\\' {
+            escaped = true;
+            continue;
+        }
+        match character {
+            '(' => paren_depth += 1,
+            ')' if paren_depth == 0 => return Some(index),
+            ')' => paren_depth = paren_depth.saturating_sub(1),
+            _ => {}
+        }
+    }
+    None
 }
 
 fn markdown_inline_link_target(raw_target: &str) -> Option<&str> {
