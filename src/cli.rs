@@ -310,7 +310,13 @@ fn agent_usage_error(json_output: bool, message: String) -> i32 {
 
 fn run_docs(args: &[String]) -> i32 {
     let (args, check) = split_flag_before_separator(args, "--check");
-    let (rest, json_output) = split_flag_before_separator(&args, "--json");
+    let (mut rest, json_output) = split_flag_before_separator(&args, "--json");
+    let check = if rest.len() == 1 && rest[0] == "check" {
+        rest.clear();
+        true
+    } else {
+        check
+    };
     if !rest.is_empty() {
         let message = if rest[0].starts_with('-') {
             format!("Unknown serow docs option `{}`.", rest[0])
@@ -485,7 +491,7 @@ fn certification_summary(paths: &[String], profile: CertifyProfile) -> CheckSumm
 fn docs_usage_error(json_output: bool, message: String) -> i32 {
     if json_output {
         let diagnostic = Diagnostic::error("UsageError", message, None)
-            .with_repair("Use `serow docs [--check] [--json]`.");
+            .with_repair("Use `serow docs [check|--check] [--json]`.");
         println!("{}", diagnostics_json(false, &[diagnostic]));
     } else {
         eprintln!("{message}");
@@ -4845,7 +4851,7 @@ type DocReference = (&'static str, &'static str, &'static str);
 
 const COMPILE_RUST_USAGE: &str = "serow compile rust [paths...] [--out-dir <dir>] [--check-out-dir] [--emit-bin|--bin] [--crate-name <name>] [--json]";
 const CERTIFY_USAGE: &str = "serow certify [paths...] [--profile <standard|unattended>] [--json]";
-const DOCS_USAGE: &str = "serow docs [--check] [--json]";
+const DOCS_USAGE: &str = "serow docs [check|--check] [--json]";
 const RELEASE_CHECK_USAGE: &str = "serow release-check [paths...] [--json]";
 
 const DOC_LINK_SOURCES: &[&str] = &[

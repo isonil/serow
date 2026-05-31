@@ -4409,7 +4409,10 @@ fn agent_command_prints_bootstrap_contract() {
     assert!(stdout.contains("serow agent: ok"), "{stdout}");
     assert!(stdout.contains("bin/serow check after edits"), "{stdout}");
     assert!(stdout.contains("bin/serow certify"), "{stdout}");
-    assert!(stdout.contains("serow docs [--check] [--json]"), "{stdout}");
+    assert!(
+        stdout.contains("serow docs [check|--check] [--json]"),
+        "{stdout}"
+    );
     assert!(stdout.contains("serow agent commands [--json]"), "{stdout}");
     assert!(!stdout.contains("serow patch qualify-call"), "{stdout}");
 }
@@ -4514,7 +4517,10 @@ fn agent_json_includes_compact_machine_readable_workflow() {
         stdout.contains("serow compile ir [paths...] [--json]"),
         "{stdout}"
     );
-    assert!(stdout.contains("serow docs [--check] [--json]"), "{stdout}");
+    assert!(
+        stdout.contains("serow docs [check|--check] [--json]"),
+        "{stdout}"
+    );
     assert!(
         stdout.contains("serow release-check [paths...] [--json]"),
         "{stdout}"
@@ -4573,7 +4579,10 @@ fn agent_commands_json_includes_full_command_catalog() {
         stdout.contains("serow release-check [paths...] [--json]"),
         "{stdout}"
     );
-    assert!(stdout.contains("serow docs [--check] [--json]"), "{stdout}");
+    assert!(
+        stdout.contains("serow docs [check|--check] [--json]"),
+        "{stdout}"
+    );
     assert!(stdout.contains("serow patch qualify-call"), "{stdout}");
     assert!(stdout.contains("serow patch add-module"), "{stdout}");
     assert!(stdout.contains("serow patch remove-function"), "{stdout}");
@@ -4600,7 +4609,10 @@ fn top_level_help_json_lists_help_command() {
     assert!(stdout.contains("\"name\": \"help\""), "{stdout}");
     assert!(stdout.contains("serow help [--json]"), "{stdout}");
     assert!(stdout.contains("\"name\": \"docs\""), "{stdout}");
-    assert!(stdout.contains("serow docs [--check] [--json]"), "{stdout}");
+    assert!(
+        stdout.contains("serow docs [check|--check] [--json]"),
+        "{stdout}"
+    );
     assert!(stdout.contains("\"name\": \"release-check\""), "{stdout}");
     assert!(
         stdout.contains("serow release-check [paths...] [--json]"),
@@ -4687,6 +4699,26 @@ fn docs_command_lists_and_checks_public_references() {
         "{check_stdout}"
     );
 
+    let positional_check_output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["docs", "check", "--json"])
+        .output()
+        .expect("run serow docs check --json");
+
+    assert!(
+        positional_check_output.status.success(),
+        "{positional_check_output:#?}"
+    );
+    let positional_check_stdout =
+        String::from_utf8(positional_check_output.stdout).expect("stdout is utf8");
+    assert!(
+        positional_check_stdout.contains("\"ok\": true"),
+        "{positional_check_stdout}"
+    );
+    assert!(
+        positional_check_stdout.contains("\"checked\": true"),
+        "{positional_check_stdout}"
+    );
+
     let invalid_option_json = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args(["docs", "--bogus", "--json"])
         .output()
@@ -4719,7 +4751,10 @@ fn docs_command_lists_and_checks_public_references() {
         stderr.contains("Unknown serow docs option `--`."),
         "{stderr}"
     );
-    assert!(stderr.contains("serow docs [--check] [--json]"), "{stderr}");
+    assert!(
+        stderr.contains("serow docs [check|--check] [--json]"),
+        "{stderr}"
+    );
 }
 
 #[test]

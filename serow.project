@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "1.0.21-rust-bootstrap",
+  "version": "1.0.22-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -14,7 +14,7 @@
     "agent": "bin/serow agent [--json]",
     "agent_commands": "bin/serow agent commands [--json]",
     "agent_diagnostics": "bin/serow agent diagnostics [--json]",
-    "docs": "bin/serow docs [--check] [--json]",
+    "docs": "bin/serow docs [check|--check] [--json]",
     "help": "bin/serow help [--json]",
     "release_check": "bin/serow release-check [paths...] [--json]",
     "check": "bin/serow check",
@@ -73,6 +73,7 @@
     "docs_command_lists_public_references": true,
     "docs_command_lists_project_overview": true,
     "docs_command_checks_public_references": true,
+    "docs_command_accepts_check_alias": true,
     "docs_command_checks_local_markdown_links": true,
     "docs_command_checks_local_markdown_anchors": true,
     "docs_command_ignores_markdown_code_link_syntax": true,
