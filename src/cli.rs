@@ -161,7 +161,7 @@ fn version_json(version: Option<&str>) -> String {
 fn version_usage_error(json_output: bool, message: String) -> i32 {
     if json_output {
         let diagnostic = Diagnostic::error("UsageError", message, None)
-            .with_repair("Use `serow version [--json]` or `serow --version`.");
+            .with_repair("Use `serow version [--json]` or `serow --version [--json]`.");
         println!("{}", diagnostics_json(false, &[diagnostic]));
     } else {
         eprintln!("{message}");
@@ -4950,7 +4950,7 @@ const CORE_AGENT_COMMANDS: &[AgentCommand] = &[
     ),
     (
         "version",
-        "serow version [--json] | serow --version",
+        "serow version [--json] | serow --version [--json]",
         "Print the Serow project version from serow.project.",
     ),
     (
@@ -5023,7 +5023,7 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
     ),
     (
         "version",
-        "serow version [--json] | serow --version",
+        "serow version [--json] | serow --version [--json]",
         "Print the Serow project version from serow.project.",
     ),
     (
@@ -6218,7 +6218,7 @@ fn print_usage() {
     eprintln!("  {COMPILE_RUST_USAGE}");
     eprintln!("  serow fmt [paths...] [--check] [--json]");
     eprintln!("  {RELEASE_CHECK_USAGE}");
-    eprintln!("  serow version [--json] | serow --version");
+    eprintln!("  serow version [--json] | serow --version [--json]");
     eprintln!(
         "  serow patch add-contract <path> <symbol-or-name> <requires|ensures> <expression> [--json]"
     );

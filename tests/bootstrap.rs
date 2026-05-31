@@ -3737,6 +3737,26 @@ fn version_command_reports_project_version() {
         "{stdout}"
     );
 
+    let trailing_json_output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["--version", "--json"])
+        .output()
+        .expect("run serow --version with trailing json");
+    assert!(
+        trailing_json_output.status.success(),
+        "{trailing_json_output:#?}"
+    );
+    assert!(
+        trailing_json_output.stderr.is_empty(),
+        "{trailing_json_output:#?}"
+    );
+    let stdout = String::from_utf8(trailing_json_output.stdout).expect("stdout is utf8");
+    assert!(stdout.trim_start().starts_with('{'), "{stdout}");
+    assert!(stdout.contains("\"ok\": true"), "{stdout}");
+    assert!(
+        stdout.contains(&format!("\"version\": \"{project_version}\"")),
+        "{stdout}"
+    );
+
     let invalid_json = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args(["version", "extra", "--json"])
         .output()
@@ -4535,7 +4555,10 @@ fn agent_json_includes_compact_machine_readable_workflow() {
         stdout.contains("serow certify [paths...] [--profile <standard|unattended>] [--json]"),
         "{stdout}"
     );
-    assert!(stdout.contains("serow version [--json]"), "{stdout}");
+    assert!(
+        stdout.contains("serow version [--json] | serow --version [--json]"),
+        "{stdout}"
+    );
     assert!(
         stdout.contains("serow plan [paths...] [--json]"),
         "{stdout}"
@@ -4574,7 +4597,10 @@ fn agent_commands_json_includes_full_command_catalog() {
         stdout.contains("serow certify [paths...] [--profile <standard|unattended>] [--json]"),
         "{stdout}"
     );
-    assert!(stdout.contains("serow version [--json]"), "{stdout}");
+    assert!(
+        stdout.contains("serow version [--json] | serow --version [--json]"),
+        "{stdout}"
+    );
     assert!(
         stdout.contains("serow release-check [paths...] [--json]"),
         "{stdout}"
