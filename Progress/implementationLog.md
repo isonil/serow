@@ -2,6 +2,10 @@
 
 ## 2026-05-31
 
+- Chose Python reference evaluator parity as a low-risk cleanup because the Rust interpreter now has explicit Serow value equality for Float, list, and record comparisons, while the temporary Python bootstrap still delegated equality and list membership/removal to raw Python comparisons.
+- Added a shared Python Serow value-equality helper for comparisons plus `contains`/`remove_first`, and covered signed-zero Float equality through scalar, list, record, membership, and removal evidence in the Python regression suite.
+- Verification is recorded in the final run for this change.
+
 - Chose signed-zero Float equality as a correctness fix because the checker interpreter compared Float values by stored bits, so `-0.0 == 0.0` failed during Serow evidence checks even though generated Rust `f64` equality treats them as equal.
 - Updated interpreter equality to compare Float values numerically and recurse through records as well as lists, covered signed-zero equality for scalar, list, and record values, and bumped Serow to `1.0.27-rust-bootstrap` / crate `1.0.27`.
 - Verification is recorded in the final run for this change.

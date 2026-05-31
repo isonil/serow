@@ -31,7 +31,10 @@ class Evaluator:
         if name in {"contains", "@serow.intrinsic.contains.v1", "serow.intrinsic.contains"}:
             if len(args) != 2 or not isinstance(args[0], list):
                 raise EvaluationError(f"Function `{name}` expected a list and value.")
-            return CallResult(value=args[1] in args[0], args={"list": args[0], "value": args[1]})
+            return CallResult(
+                value=any(_value_equal(element, args[1]) for element in args[0]),
+                args={"list": args[0], "value": args[1]},
+            )
         if name in {"push", "@serow.intrinsic.push.v1", "serow.intrinsic.push"}:
             if len(args) != 2 or not isinstance(args[0], list):
                 raise EvaluationError(f"Function `{name}` expected a list and value.")
@@ -39,11 +42,13 @@ class Evaluator:
         if name in {"remove_first", "@serow.intrinsic.remove_first.v1", "serow.intrinsic.remove_first"}:
             if len(args) != 2 or not isinstance(args[0], list):
                 raise EvaluationError(f"Function `{name}` expected a list and value.")
-            result = list(args[0])
-            try:
-                result.pop(result.index(args[1]))
-            except ValueError:
-                pass
+            result = []
+            removed = False
+            for element in args[0]:
+                if not removed and _value_equal(element, args[1]):
+                    removed = True
+                    continue
+                result.append(element)
             return CallResult(value=result, args={"list": args[0], "value": args[1]})
         if name in {"get_text", "@serow.intrinsic.get_text.v1", "serow.intrinsic.get_text"}:
             return _call_get_intrinsic(name, args, "")
@@ -356,9 +361,9 @@ class SafeExpressionEvaluator(pyast.NodeVisitor):
         for operator, comparator in zip(node.ops, node.comparators):
             right = self.visit(comparator)
             if isinstance(operator, pyast.Eq):
-                ok = left == right
+                ok = _value_equal(left, right)
             elif isinstance(operator, pyast.NotEq):
-                ok = left != right
+                ok = not _value_equal(left, right)
             elif isinstance(operator, pyast.Lt):
                 ok = left < right
             elif isinstance(operator, pyast.LtE):
@@ -431,6 +436,43 @@ def _enum_variants(types: List[TypeDecl]) -> Dict[str, Any]:
         for variant in type_decl.variants:
             variants[variant] = {"__enum": type_decl.name, "variant": variant}
     return variants
+
+
+def _value_equal(left: Any, right: Any) -> bool:
+    if isinstance(left, bool) or isinstance(right, bool):
+        return isinstance(left, bool) and isinstance(right, bool) and left == right
+    if isinstance(left, int) or isinstance(right, int):
+        return (
+            isinstance(left, int)
+            and not isinstance(left, bool)
+            and isinstance(right, int)
+            and not isinstance(right, bool)
+            and left == right
+        )
+    if isinstance(left, float) or isinstance(right, float):
+        return isinstance(left, float) and isinstance(right, float) and left == right
+    if isinstance(left, str) or isinstance(right, str):
+        return isinstance(left, str) and isinstance(right, str) and left == right
+    if left is None or right is None:
+        return left is None and right is None
+    if isinstance(left, list) or isinstance(right, list):
+        return (
+            isinstance(left, list)
+            and isinstance(right, list)
+            and len(left) == len(right)
+            and all(
+                _value_equal(left_item, right_item)
+                for left_item, right_item in zip(left, right)
+            )
+        )
+    if isinstance(left, dict) or isinstance(right, dict):
+        return (
+            isinstance(left, dict)
+            and isinstance(right, dict)
+            and left.keys() == right.keys()
+            and all(_value_equal(left[key], right[key]) for key in left)
+        )
+    return left == right
 
 
 def _record_update(base: Any, fields: Dict[str, Any]) -> Dict[str, Any]:

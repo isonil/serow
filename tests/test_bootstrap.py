@@ -16,6 +16,44 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual(summary.examples, 236)
         self.assertEqual(summary.properties, 99)
 
+    def test_python_reference_uses_serow_value_equality(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "float_zero.serow"
+            equality_expr = (
+                "-0.0 == 0.0 "
+                "and [-0.0] == [0.0] "
+                "and FloatBox { value: -0.0 } == FloatBox { value: 0.0 } "
+                "and contains([-0.0], 0.0) "
+                "and remove_first([-0.0], 0.0) == []"
+            )
+            source.write_text(
+                f"""module test.float_zero
+
+type FloatBox = {{ value: Float }}
+
+pub fn signed_zero_equal() -> Bool
+  intent "Treat signed zero floats as equal in checked evidence."
+  version v1
+  contract
+    ensures result == true
+  examples
+    signed_zero_equal() == true
+  properties
+    forall flag: Bool:
+      if flag then signed_zero_equal() == true else signed_zero_equal() == true
+  effects pure
+  impl
+    {equality_expr}
+""",
+                encoding="utf-8",
+            )
+            program, parse_diagnostics = parse_files([str(source)])
+            summary = check_program(program, parse_diagnostics)
+            self.assertTrue(
+                summary.ok,
+                [diagnostic.to_dict() for diagnostic in summary.diagnostics],
+            )
+
     def test_explicit_missing_source_path_is_reported(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "missing.serow"
