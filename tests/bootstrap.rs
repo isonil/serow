@@ -11431,7 +11431,7 @@ fn cargo_manifest_version_parser_reads_package_version() {
     let manifest = r#"[workspace]
 members = ["crates/*"]
 
-[package]
+[ package ] # release package metadata
 name = "serow"
 version = "1.2.3" # release version
 edition = "2024"
@@ -11445,6 +11445,10 @@ version = "ignored"
         Some("1.2.3")
     );
     assert_eq!(parse_cargo_manifest_version("version = \"ignored\""), None);
+    assert_eq!(
+        parse_cargo_manifest_version("[package] trailing\nversion = \"ignored\"\n"),
+        None
+    );
     assert_eq!(
         parse_cargo_manifest_version("[package]\nversion = \"1.2.\ninvalid\"\n"),
         None

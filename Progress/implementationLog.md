@@ -2,6 +2,10 @@
 
 ## 2026-05-31
 
+- Chose Cargo manifest version parser hardening as a small release-readiness fix because the dependency-free reader used by release checks only accepted an exact `[package]` header, while valid TOML may include header whitespace and trailing comments.
+- Updated the parser to accept spaced/commented `[package]` table headers while rejecting malformed trailing table text, covered the case in the manifest parser regression, and bumped Serow to `1.0.25-rust-bootstrap` / crate `1.0.25`.
+- Verification is recorded in the final run for this change.
+
 - Chose project-manifest parser hardening as a small public v1 correctness fix because the release/version metadata reader accepted a valid quoted prefix while ignoring malformed trailing content before the comma or closing brace.
 - Tightened top-level project string parsing to require the quoted string to consume the full JSON value slice, covered the malformed trailing-version case, and bumped Serow to `1.0.24-rust-bootstrap` / crate `1.0.24`.
 - Verification is recorded in the final run for this change.

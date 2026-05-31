@@ -44,7 +44,7 @@ pub fn parse_cargo_manifest_version(source: &str) -> Option<String> {
     for line in source.lines() {
         let trimmed = line.trim();
         if trimmed.starts_with('[') {
-            in_package = trimmed == "[package]";
+            in_package = toml_table_name(trimmed) == Some("package");
             continue;
         }
         if !in_package {
@@ -61,6 +61,20 @@ pub fn parse_cargo_manifest_version(source: &str) -> Option<String> {
         return parse_toml_string_value(value);
     }
     None
+}
+
+fn toml_table_name(trimmed_line: &str) -> Option<&str> {
+    let after_open = trimmed_line.strip_prefix('[')?;
+    if after_open.starts_with('[') {
+        return None;
+    }
+    let close = after_open.find(']')?;
+    let trailing = after_open[close + 1..].trim_start();
+    if !(trailing.is_empty() || trailing.starts_with('#')) {
+        return None;
+    }
+    let inner = &after_open[..close];
+    Some(inner.trim())
 }
 
 pub fn parse_architecture(source: &str) -> Architecture {
