@@ -66,7 +66,7 @@ Selection policy for generic implementation prompts:
 - Compiler-owned pure list intrinsics:
   - `len(list: List<T>) -> Int`, `contains(list: List<T>, value: T) -> Bool`, `push(list: List<T>, value: T) -> List<T>`, and `remove_first(list: List<T>, value: T) -> List<T>`
   - temporary safe access for current bootstrap types with `get_text(list: List<Text>, index: Int) -> MaybeText`, `get_int(list: List<Int>, index: Int) -> MaybeInt`, and `get_bool(list: List<Bool>, index: Int) -> MaybeBool`
-  - callers declare `MaybeText = { found: Bool, value: Text }`, `MaybeInt = { found: Bool, value: Int }`, and `MaybeBool = { found: Bool, value: Bool }` until generic payload enums can support `get(list, index) -> Option<T>`
+  - callers declare `MaybeText = { found: Bool, value: Text }`, `MaybeInt = { found: Bool, value: Int }`, and `MaybeBool = { found: Bool, value: Bool }`, or use the concrete stdlib wrappers, until generic payload enums can support `get(list, index) -> Option<T>`
   - negative, out-of-range, and empty-list accesses return `found: false` with a deterministic placeholder value rather than panicking
 - Compiler-owned pure float math intrinsics:
   - `float_sqrt`, `float_sin`, `float_cos`, `float_tan`, `float_asin`, `float_acos`, `float_atan`, `float_atan2`, `float_pow`, `float_pi`, `float_tau`, and `float_e`

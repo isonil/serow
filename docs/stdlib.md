@@ -112,8 +112,9 @@ Text helpers are pure and use v1 `Text` equality and concatenation:
 ## Module `core.list`
 
 The source-level list module provides concrete wrappers around v1 list
-intrinsics. It also declares `MaybeBool = { found: Bool, value: Bool }` for
-safe boolean access results.
+intrinsics. It also declares `MaybeText = { found: Bool, value: Text }`,
+`MaybeInt = { found: Bool, value: Int }`, and
+`MaybeBool = { found: Bool, value: Bool }` for safe access results.
 
 | Function | Purpose |
 | --- | --- |
@@ -129,6 +130,8 @@ safe boolean access results.
 | `list_int_contains(items: List<Int>, value: Int) -> Bool` | Search ints for a target. |
 | `list_text_contains(items: List<Text>, value: Text) -> Bool` | Locate a text member. |
 | `list_bool_contains(items: List<Bool>, value: Bool) -> Bool` | Probe `Bool` membership. |
+| `list_text_get(items: List<Text>, index: Int) -> MaybeText` | Read an optional text entry by offset. |
+| `list_int_get(items: List<Int>, index: Int) -> MaybeInt` | Read an optional integer entry by offset. |
 | `list_bool_get(items: List<Bool>, index: Int) -> MaybeBool` | Read an optional boolean entry by offset. |
 | `list_int_remove_first(items: List<Int>, target: Int) -> List<Int>` | Drop the earliest numeric match. |
 | `list_text_remove_first(items: List<Text>, target: Text) -> List<Text>` | Delete the leading string occurrence. |

@@ -1,12 +1,12 @@
 module core.list_access
 
-type MaybeText = { found: Bool, value: Text }
+use core.list
 
-type MaybeInt = { found: Bool, value: Int }
-
-pub fn get_text_at(items: List<Text>, index: Int) -> MaybeText
+fn get_text_at(items: List<Text>, index: Int) -> MaybeText
   intent "Fetch optional inventory text by position."
   version v1
+  migration
+    implementation-change "Delegate through core.list.list_text_get while preserving the get_text contract."
   contract
     ensures result == get_text(items, index)
   examples
@@ -20,11 +20,13 @@ pub fn get_text_at(items: List<Text>, index: Int) -> MaybeText
       get_text_at([value], 0).value == value
   effects pure
   impl
-    get_text(items, index)
+    core.list.list_text_get(items, index)
 
-pub fn get_int_at(items: List<Int>, index: Int) -> MaybeInt
+fn get_int_at(items: List<Int>, index: Int) -> MaybeInt
   intent "Select optional numeric sample by offset."
   version v1
+  migration
+    implementation-change "Delegate through core.list.list_int_get while preserving the get_int contract."
   contract
     ensures result == get_int(items, index)
   examples
@@ -38,4 +40,4 @@ pub fn get_int_at(items: List<Int>, index: Int) -> MaybeInt
       get_int_at([value], 0).value == value
   effects pure
   impl
-    get_int(items, index)
+    core.list.list_int_get(items, index)
