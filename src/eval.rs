@@ -1523,6 +1523,25 @@ fn compare_values(left: &Value, op: &str, right: &Value) -> Result<bool, String>
 
 fn value_equal(left: &Value, right: &Value) -> bool {
     match (left, right) {
+        (Value::Float(left), Value::Float(right)) => left.get() == right.get(),
+        (
+            Value::Record {
+                type_name: left_type,
+                fields: left_fields,
+            },
+            Value::Record {
+                type_name: right_type,
+                fields: right_fields,
+            },
+        ) => {
+            left_type == right_type
+                && left_fields.len() == right_fields.len()
+                && left_fields.iter().all(|(field, left_value)| {
+                    right_fields
+                        .get(field)
+                        .is_some_and(|right_value| value_equal(left_value, right_value))
+                })
+        }
         (
             Value::List { elements: left, .. },
             Value::List {
@@ -1535,6 +1554,16 @@ fn value_equal(left: &Value, right: &Value) -> bool {
                     .zip(right)
                     .all(|(left, right)| value_equal(left, right))
         }
+        (
+            Value::Enum {
+                type_name: left_type,
+                variant: left_variant,
+            },
+            Value::Enum {
+                type_name: right_type,
+                variant: right_variant,
+            },
+        ) => left_type == right_type && left_variant == right_variant,
         _ => left == right,
     }
 }

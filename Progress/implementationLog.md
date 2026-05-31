@@ -2,6 +2,10 @@
 
 ## 2026-05-31
 
+- Chose signed-zero Float equality as a correctness fix because the checker interpreter compared Float values by stored bits, so `-0.0 == 0.0` failed during Serow evidence checks even though generated Rust `f64` equality treats them as equal.
+- Updated interpreter equality to compare Float values numerically and recurse through records as well as lists, covered signed-zero equality for scalar, list, and record values, and bumped Serow to `1.0.27-rust-bootstrap` / crate `1.0.27`.
+- Verification is recorded in the final run for this change.
+
 - Chose safe float-list access as a small bootstrap completeness fix because finite `List<Float>` values already support the other list intrinsics, but the temporary non-generic safe access intrinsics skipped floats.
 - Added compiler-owned `get_float(list: List<Float>, index: Int) -> MaybeFloat` across intrinsic discovery, type checking, evaluation, IR/Rust backend emission, Python bootstrap parity, the stdlib list helpers, docs, and regression coverage. Missing indexes return `{ found: false, value: 0.0 }`, matching the existing non-panicking access contract.
 - Bumped Serow to `1.0.26-rust-bootstrap` / crate `1.0.26`.

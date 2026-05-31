@@ -13854,6 +13854,46 @@ fn compile_rust_usage_json_detection_respects_path_separator() {
 }
 
 #[test]
+fn float_signed_zero_equality_is_numeric_across_nested_values() {
+    let dir = unique_temp_dir("serow-float-signed-zero-equality");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("float_zero.serow");
+    fs::write(
+        &source,
+        r#"module test.float_zero
+
+type FloatBox = { value: Float }
+
+pub fn signed_zero_equal() -> Bool
+  intent "Treat signed zero floats as equal in checked evidence."
+  version v1
+  contract
+    ensures result == true
+  examples
+    signed_zero_equal() == true
+  properties
+    forall flag: Bool:
+      if flag then signed_zero_equal() == true else signed_zero_equal() == true
+  effects pure
+  impl
+    -0.0 == 0.0 and [-0.0] == [0.0] and FloatBox { value: -0.0 } == FloatBox { value: 0.0 }
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["check", source.to_str().expect("utf8 path"), "--json"])
+        .output()
+        .expect("run serow check for signed zero equality");
+
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"ok\": true"), "{stdout}");
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn homogeneous_lists_check_lower_and_compile_to_rust_vecs() {
     let dir = unique_temp_dir("serow-homogeneous-lists");
     fs::create_dir_all(&dir).expect("create temp dir");
