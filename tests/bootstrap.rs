@@ -24,9 +24,9 @@ fn sample_program_checks() {
             .map(|diagnostic| &diagnostic.code)
             .collect::<Vec<_>>()
     );
-    assert_eq!(summary.functions, 97);
-    assert_eq!(summary.examples, 226);
-    assert_eq!(summary.properties, 97);
+    assert_eq!(summary.functions, 99);
+    assert_eq!(summary.examples, 236);
+    assert_eq!(summary.properties, 99);
     assert_eq!(summary.contracts, 306);
 }
 
@@ -13776,6 +13776,7 @@ type Item = Potion | Key
 type MaybeText = { found: Bool, value: Text }
 type MaybeInt = { found: Bool, value: Int }
 type MaybeBool = { found: Bool, value: Bool }
+type MaybeFloat = { found: Bool, value: Float }
 
 pub fn empty_items() -> List<Text>
   intent "Return an empty text inventory."
@@ -13950,6 +13951,23 @@ pub fn get_bool_at(items: List<Bool>, index: Int) -> MaybeBool
   effects pure
   impl
     get_bool(items, index)
+
+pub fn get_float_at(items: List<Float>, index: Int) -> MaybeFloat
+  intent "Read optional decimal sample by offset."
+  contract
+    ensures result == get_float(items, index)
+  examples
+    get_float_at([1.5, 2.5], 0).found == true
+    get_float_at([1.5, 2.5], 1).value == 2.5
+    get_float_at([1.5], 1).found == false
+    get_float_at([1.5], -1).found == false
+    get_float_at([], 0).found == false
+  properties
+    forall value: Float:
+      get_float_at([value], 0).value == value
+  effects pure
+  impl
+    get_float(items, index)
 "#,
     )
     .expect("write list source");
@@ -13992,6 +14010,10 @@ pub fn get_bool_at(items: List<Bool>, index: Int) -> MaybeBool
         stdout.contains("\"target\": \"@serow.intrinsic.get_bool.v1\""),
         "{stdout}"
     );
+    assert!(
+        stdout.contains("\"target\": \"@serow.intrinsic.get_float.v1\""),
+        "{stdout}"
+    );
 
     let rust = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args(["compile", "rust", source.to_str().expect("utf8 path")])
@@ -14011,6 +14033,10 @@ pub fn get_bool_at(items: List<Bool>, index: Int) -> MaybeBool
     );
     assert!(
         stdout.contains("pub struct SerowTestListsMaybeBool"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("pub struct SerowTestListsMaybeFloat"),
         "{stdout}"
     );
     assert!(

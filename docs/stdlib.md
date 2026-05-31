@@ -113,8 +113,9 @@ Text helpers are pure and use v1 `Text` equality and concatenation:
 
 The source-level list module provides concrete wrappers around v1 list
 intrinsics. It also declares `MaybeText = { found: Bool, value: Text }`,
-`MaybeInt = { found: Bool, value: Int }`, and
-`MaybeBool = { found: Bool, value: Bool }` for safe access results.
+`MaybeInt = { found: Bool, value: Int }`,
+`MaybeBool = { found: Bool, value: Bool }`, and
+`MaybeFloat = { found: Bool, value: Float }` for safe access results.
 
 | Function | Purpose |
 | --- | --- |
@@ -137,6 +138,7 @@ intrinsics. It also declares `MaybeText = { found: Bool, value: Text }`,
 | `list_text_get(items: List<Text>, index: Int) -> MaybeText` | Read an optional text entry by offset. |
 | `list_int_get(items: List<Int>, index: Int) -> MaybeInt` | Read an optional integer entry by offset. |
 | `list_bool_get(items: List<Bool>, index: Int) -> MaybeBool` | Read an optional boolean entry by offset. |
+| `list_float_get(items: List<Float>, index: Int) -> MaybeFloat` | Wrap `get_float` with `MaybeFloat` for finite decimal lookup. |
 | `list_int_remove_first(items: List<Int>, target: Int) -> List<Int>` | Drop the earliest numeric match. |
 | `list_float_remove_first(items: List<Float>, target: Float) -> List<Float>` | Filter one numeric occurrence. |
 | `list_text_remove_first(items: List<Text>, target: Text) -> List<Text>` | Delete the leading string occurrence. |

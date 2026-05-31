@@ -3,9 +3,9 @@ use std::collections::{BTreeMap, HashMap};
 use crate::intrinsics::{
     CONTAINS_SYMBOL, FLOAT_ACOS_SYMBOL, FLOAT_ASIN_SYMBOL, FLOAT_ATAN_SYMBOL, FLOAT_ATAN2_SYMBOL,
     FLOAT_COS_SYMBOL, FLOAT_E_SYMBOL, FLOAT_PI_SYMBOL, FLOAT_POW_SYMBOL, FLOAT_SIN_SYMBOL,
-    FLOAT_SQRT_SYMBOL, FLOAT_TAN_SYMBOL, FLOAT_TAU_SYMBOL, GET_BOOL_SYMBOL, GET_INT_SYMBOL,
-    GET_TEXT_SYMBOL, LEN_SYMBOL, PRINT_SYMBOL, PUSH_SYMBOL, READ_LINE_SYMBOL, REMOVE_FIRST_SYMBOL,
-    intrinsic_functions,
+    FLOAT_SQRT_SYMBOL, FLOAT_TAN_SYMBOL, FLOAT_TAU_SYMBOL, GET_BOOL_SYMBOL, GET_FLOAT_SYMBOL,
+    GET_INT_SYMBOL, GET_TEXT_SYMBOL, LEN_SYMBOL, PRINT_SYMBOL, PUSH_SYMBOL, READ_LINE_SYMBOL,
+    REMOVE_FIRST_SYMBOL, intrinsic_functions,
 };
 use crate::model::{Function, TypeDecl};
 use crate::types::{EMPTY_LIST_TYPE, list_element_type, list_type, type_accepts};
@@ -185,6 +185,15 @@ impl Evaluator {
         }
         if function.symbol() == GET_BOOL_SYMBOL {
             return call_get_intrinsic(name, args, "Bool", "MaybeBool", Value::Bool(false));
+        }
+        if function.symbol() == GET_FLOAT_SYMBOL {
+            return call_get_intrinsic(
+                name,
+                args,
+                "Float",
+                "MaybeFloat",
+                Value::Float(float_value(0.0)?),
+            );
         }
         if function.symbol() == FLOAT_SQRT_SYMBOL {
             return call_float_unary_intrinsic(name, args, f64::sqrt);

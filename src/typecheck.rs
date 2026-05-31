@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use crate::eval::{Token, find_match_body_start, resolve_function, tokenize};
 use crate::intrinsics::{
-    CONTAINS_SYMBOL, GET_BOOL_SYMBOL, GET_INT_SYMBOL, GET_TEXT_SYMBOL, LEN_SYMBOL, PUSH_SYMBOL,
-    REMOVE_FIRST_SYMBOL,
+    CONTAINS_SYMBOL, GET_BOOL_SYMBOL, GET_FLOAT_SYMBOL, GET_INT_SYMBOL, GET_TEXT_SYMBOL,
+    LEN_SYMBOL, PUSH_SYMBOL, REMOVE_FIRST_SYMBOL,
 };
 use crate::model::{Function, TypeDecl};
 use crate::types::{
@@ -484,6 +484,7 @@ impl<'a> TypeParser<'a> {
             GET_TEXT_SYMBOL => return self.parse_get_call(name, &args, "Text", "MaybeText"),
             GET_INT_SYMBOL => return self.parse_get_call(name, &args, "Int", "MaybeInt"),
             GET_BOOL_SYMBOL => return self.parse_get_call(name, &args, "Bool", "MaybeBool"),
+            GET_FLOAT_SYMBOL => return self.parse_get_call(name, &args, "Float", "MaybeFloat"),
             _ => {}
         }
         if args.len() != function.params.len() {

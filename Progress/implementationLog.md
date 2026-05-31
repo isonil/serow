@@ -2,8 +2,13 @@
 
 ## 2026-05-31
 
+- Chose safe float-list access as a small bootstrap completeness fix because finite `List<Float>` values already support the other list intrinsics, but the temporary non-generic safe access intrinsics skipped floats.
+- Added compiler-owned `get_float(list: List<Float>, index: Int) -> MaybeFloat` across intrinsic discovery, type checking, evaluation, IR/Rust backend emission, Python bootstrap parity, the stdlib list helpers, docs, and regression coverage. Missing indexes return `{ found: false, value: 0.0 }`, matching the existing non-panicking access contract.
+- Bumped Serow to `1.0.26-rust-bootstrap` / crate `1.0.26`.
+- Verification is recorded in the final run for this change.
+
 - Chose Python reference test maintenance as a low-risk cleanup because the Rust and Python bootstraps now both check the current examples cleanly, but the Python aggregate smoke test still expected older fixture totals.
-- Updated the Python bootstrap example-count regression to the current canonical `serow check` totals: 97 functions, 226 examples, and 97 properties.
+- Updated the Python bootstrap example-count regression to the then-current canonical `serow check` totals: 97 functions, 226 examples, and 97 properties.
 - Verification is recorded in the final run for this change.
 
 - Chose language-reference cleanup after a checked stdlib experiment exposed an undocumented bootstrap constraint: declared type names are global across the checked source set rather than module-scoped.

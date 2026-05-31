@@ -4,7 +4,7 @@
 
 Future generic implementation prompts should choose the highest-leverage next step across all phases. Phase 0, Phase 1, Phase 2 agent workflow, Phase 2.5 certification, Phase 2.6 unattended safety, and the first Phase 3 backend slice are released for public v1. Prefer targeted v2 hardening gaps before expanding syntax beyond the v1 bootstrap subset.
 
-Latest closure: Serow is at `1.0.25-rust-bootstrap` after a v1 hardening patch that accepts valid commented or spaced Cargo `[package]` table headers when reading release metadata.
+Latest closure: Serow is at `1.0.26-rust-bootstrap` after adding safe finite-float list access through `get_float`/`MaybeFloat`, matching the existing non-panicking concrete list access intrinsics.
 
 Selection policy:
 

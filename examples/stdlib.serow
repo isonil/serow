@@ -767,6 +767,8 @@ type MaybeInt = { found: Bool, value: Int }
 
 type MaybeBool = { found: Bool, value: Bool }
 
+type MaybeFloat = { found: Bool, value: Float }
+
 pub fn list_int_count(items: List<Int>) -> Int
   intent "Count numeric sequence entries."
   version v1
@@ -1010,6 +1012,24 @@ pub fn list_bool_get(items: List<Bool>, index: Int) -> MaybeBool
   effects pure
   impl
     get_bool(items, index)
+
+pub fn list_float_get(items: List<Float>, index: Int) -> MaybeFloat
+  intent "Wrap get_float with MaybeFloat for finite decimal lookup."
+  version v1
+  contract
+    ensures result == get_float(items, index)
+  examples
+    list_float_get([1.5, 2.5], 0).found == true
+    list_float_get([1.5, 2.5], 1).value == 2.5
+    list_float_get([1.5], 1).found == false
+    list_float_get([1.5], -1).found == false
+    list_float_get([], 0).found == false
+  properties
+    forall value: Float:
+      list_float_get([value], 0).value == value
+  effects pure
+  impl
+    get_float(items, index)
 
 pub fn list_int_remove_first(items: List<Int>, target: Int) -> List<Int>
   intent "Drop earliest numeric match."

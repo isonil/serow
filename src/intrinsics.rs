@@ -11,6 +11,7 @@ pub const REMOVE_FIRST_SYMBOL: &str = "@serow.intrinsic.remove_first.v1";
 pub const GET_TEXT_SYMBOL: &str = "@serow.intrinsic.get_text.v1";
 pub const GET_INT_SYMBOL: &str = "@serow.intrinsic.get_int.v1";
 pub const GET_BOOL_SYMBOL: &str = "@serow.intrinsic.get_bool.v1";
+pub const GET_FLOAT_SYMBOL: &str = "@serow.intrinsic.get_float.v1";
 pub const FLOAT_SQRT_SYMBOL: &str = "@serow.intrinsic.float_sqrt.v1";
 pub const FLOAT_SIN_SYMBOL: &str = "@serow.intrinsic.float_sin.v1";
 pub const FLOAT_COS_SYMBOL: &str = "@serow.intrinsic.float_cos.v1";
@@ -289,6 +290,39 @@ static INTRINSICS: LazyLock<Vec<Function>> = LazyLock::new(|| {
             effects: vec!["pure".to_string()],
             implementation: None,
         },
+        Function {
+            name: "get_float".to_string(),
+            module: "serow.intrinsic".to_string(),
+            public: true,
+            version: "v1".to_string(),
+            version_explicit: true,
+            params: vec![
+                Param {
+                    name: "list".to_string(),
+                    type_name: "List<Float>".to_string(),
+                },
+                Param {
+                    name: "index".to_string(),
+                    type_name: "Int".to_string(),
+                },
+            ],
+            return_type: "MaybeFloat".to_string(),
+            source_path: "<intrinsic>".to_string(),
+            line: 0,
+            intent: Some(
+                "Return a safe float-list access record without panicking for missing indexes."
+                    .to_string(),
+            ),
+            requires: Vec::new(),
+            contracts: Vec::new(),
+            examples: Vec::new(),
+            example_lines: Vec::new(),
+            properties: Vec::new(),
+            property_lines: Vec::new(),
+            migrations: Vec::new(),
+            effects: vec!["pure".to_string()],
+            implementation: None,
+        },
         pure_float_unary(
             "float_sqrt",
             "Return the square root of a finite non-negative float.",
@@ -341,6 +375,7 @@ pub fn is_intrinsic_symbol(symbol: &str) -> bool {
             | GET_TEXT_SYMBOL
             | GET_INT_SYMBOL
             | GET_BOOL_SYMBOL
+            | GET_FLOAT_SYMBOL
             | FLOAT_SQRT_SYMBOL
             | FLOAT_SIN_SYMBOL
             | FLOAT_COS_SYMBOL

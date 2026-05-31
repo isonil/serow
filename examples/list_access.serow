@@ -5,8 +5,6 @@ use core.list
 fn get_text_at(items: List<Text>, index: Int) -> MaybeText
   intent "Fetch optional inventory text by position."
   version v1
-  migration
-    implementation-change "Delegate through core.list.list_text_get while preserving the get_text contract."
   contract
     ensures result == get_text(items, index)
   examples
@@ -25,8 +23,6 @@ fn get_text_at(items: List<Text>, index: Int) -> MaybeText
 fn get_int_at(items: List<Int>, index: Int) -> MaybeInt
   intent "Select optional numeric sample by offset."
   version v1
-  migration
-    implementation-change "Delegate through core.list.list_int_get while preserving the get_int contract."
   contract
     ensures result == get_int(items, index)
   examples
@@ -41,3 +37,21 @@ fn get_int_at(items: List<Int>, index: Int) -> MaybeInt
   effects pure
   impl
     core.list.list_int_get(items, index)
+
+fn get_float_at(items: List<Float>, index: Int) -> MaybeFloat
+  intent "Select optional decimal sample by offset."
+  version v1
+  contract
+    ensures result == get_float(items, index)
+  examples
+    get_float_at([1.5, 2.5], 0).found == true
+    get_float_at([1.5, 2.5], 1).value == 2.5
+    get_float_at([1.5], 1).found == false
+    get_float_at([1.5], -1).found == false
+    get_float_at([], 0).found == false
+  properties
+    forall value: Float:
+      get_float_at([value], 0).value == value
+  effects pure
+  impl
+    core.list.list_float_get(items, index)
