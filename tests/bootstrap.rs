@@ -11452,6 +11452,14 @@ version = "ignored"
         parse_cargo_manifest_version(manifest).as_deref(),
         Some("1.2.3")
     );
+    assert_eq!(
+        parse_cargo_manifest_version("[package]\nversion = '1.2.3'\n").as_deref(),
+        Some("1.2.3")
+    );
+    assert_eq!(
+        parse_cargo_manifest_version("[package]\nversion = \"1.2.\\U00000033\"\n").as_deref(),
+        Some("1.2.3")
+    );
     assert_eq!(parse_cargo_manifest_version("version = \"ignored\""), None);
     assert_eq!(
         parse_cargo_manifest_version("[package] trailing\nversion = \"ignored\"\n"),
@@ -11459,6 +11467,14 @@ version = "ignored"
     );
     assert_eq!(
         parse_cargo_manifest_version("[package]\nversion = \"1.2.\ninvalid\"\n"),
+        None
+    );
+    assert_eq!(
+        parse_cargo_manifest_version("[package]\nversion = \"1.2.\\/invalid\"\n"),
+        None
+    );
+    assert_eq!(
+        parse_cargo_manifest_version("[package]\nversion = '1.2.3' trailing\n"),
         None
     );
 }

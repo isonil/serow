@@ -221,21 +221,128 @@ fn read_string(text: &str, start: usize) -> Option<(String, usize)> {
 }
 
 fn parse_toml_string_value(value: &str) -> Option<String> {
-    if !value.starts_with('"') {
+    if value.starts_with('"') {
+        let (parsed, end) = read_toml_basic_string(value, 0)?;
+        return toml_string_trailing_is_valid(value, end).then_some(parsed);
+    }
+
+    if value.starts_with('\'') {
+        let (parsed, end) = read_toml_literal_string(value, 0)?;
+        return toml_string_trailing_is_valid(value, end).then_some(parsed);
+    }
+
+    None
+}
+
+fn toml_string_trailing_is_valid(value: &str, end: usize) -> bool {
+    let trailing = value[end..].trim_start();
+    trailing.is_empty() || trailing.starts_with('#')
+}
+
+fn read_toml_basic_string(text: &str, start: usize) -> Option<(String, usize)> {
+    if !text.get(start..)?.starts_with('"') {
         return None;
     }
-    let (parsed, end) = read_string(value, 0)?;
-    let trailing = value[end..].trim_start();
-    if trailing.is_empty() || trailing.starts_with('#') {
-        Some(parsed)
-    } else {
-        None
+    let mut index = start + 1;
+    let mut value = String::new();
+    while index < text.len() {
+        let char = text[index..].chars().next()?;
+        if char == '\\' {
+            index += char.len_utf8();
+            let escaped = text[index..].chars().next()?;
+            match escaped {
+                '"' | '\\' => {
+                    value.push(escaped);
+                    index += escaped.len_utf8();
+                }
+                'b' => {
+                    value.push('\u{0008}');
+                    index += escaped.len_utf8();
+                }
+                'f' => {
+                    value.push('\u{000c}');
+                    index += escaped.len_utf8();
+                }
+                'n' => {
+                    value.push('\n');
+                    index += escaped.len_utf8();
+                }
+                'r' => {
+                    value.push('\r');
+                    index += escaped.len_utf8();
+                }
+                't' => {
+                    value.push('\t');
+                    index += escaped.len_utf8();
+                }
+                'u' => {
+                    let hex_start = index + escaped.len_utf8();
+                    let (char, escape_end) = read_toml_unicode_escape(text, hex_start, 4)?;
+                    value.push(char);
+                    index = escape_end;
+                }
+                'U' => {
+                    let hex_start = index + escaped.len_utf8();
+                    let (char, escape_end) = read_toml_unicode_escape(text, hex_start, 8)?;
+                    value.push(char);
+                    index = escape_end;
+                }
+                _ => return None,
+            }
+            continue;
+        }
+        if char == '"' {
+            return Some((value, index + char.len_utf8()));
+        }
+        if is_forbidden_toml_string_control(char) {
+            return None;
+        }
+        value.push(char);
+        index += char.len_utf8();
     }
+    None
+}
+
+fn read_toml_literal_string(text: &str, start: usize) -> Option<(String, usize)> {
+    if !text.get(start..)?.starts_with('\'') {
+        return None;
+    }
+    let mut index = start + 1;
+    let mut value = String::new();
+    while index < text.len() {
+        let char = text[index..].chars().next()?;
+        if char == '\'' {
+            return Some((value, index + char.len_utf8()));
+        }
+        if is_forbidden_toml_string_control(char) {
+            return None;
+        }
+        value.push(char);
+        index += char.len_utf8();
+    }
+    None
+}
+
+fn is_forbidden_toml_string_control(char: char) -> bool {
+    char.is_control() && char != '\t'
+}
+
+fn read_toml_unicode_escape(text: &str, hex_start: usize, digits: usize) -> Option<(char, usize)> {
+    let code = read_hex_escape_digits(text, hex_start, digits)?;
+    let escape_end = hex_start + digits;
+    if is_high_surrogate(code) || is_low_surrogate(code) {
+        return None;
+    }
+    Some((char::from_u32(code)?, escape_end))
 }
 
 fn read_hex_escape(text: &str, start: usize) -> Option<u32> {
+    read_hex_escape_digits(text, start, 4)
+}
+
+fn read_hex_escape_digits(text: &str, start: usize, digits: usize) -> Option<u32> {
     let mut value = 0;
-    for byte in text.as_bytes().get(start..start + 4)? {
+    for byte in text.as_bytes().get(start..start + digits)? {
         value = value * 16 + char::from(*byte).to_digit(16)?;
     }
     Some(value)
