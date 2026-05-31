@@ -24,9 +24,9 @@ fn sample_program_checks() {
             .map(|diagnostic| &diagnostic.code)
             .collect::<Vec<_>>()
     );
-    assert_eq!(summary.functions, 89);
-    assert_eq!(summary.examples, 201);
-    assert_eq!(summary.properties, 89);
+    assert_eq!(summary.functions, 90);
+    assert_eq!(summary.examples, 206);
+    assert_eq!(summary.properties, 90);
     assert_eq!(summary.contracts, 294);
 }
 
@@ -13652,6 +13652,7 @@ type Pack = { items: List<Text> }
 type Item = Potion | Key
 type MaybeText = { found: Bool, value: Text }
 type MaybeInt = { found: Bool, value: Int }
+type MaybeBool = { found: Bool, value: Bool }
 
 pub fn empty_items() -> List<Text>
   intent "Return an empty text inventory."
@@ -13783,6 +13784,23 @@ pub fn get_int_at(items: List<Int>, index: Int) -> MaybeInt
   effects pure
   impl
     get_int(items, index)
+
+pub fn get_bool_at(items: List<Bool>, index: Int) -> MaybeBool
+  intent "Read optional boolean flag by offset."
+  contract
+    ensures result == get_bool(items, index)
+  examples
+    get_bool_at([true, false], 0).found == true
+    get_bool_at([true, false], 1).value == false
+    get_bool_at([true], 1).found == false
+    get_bool_at([true], -1).found == false
+    get_bool_at([], 0).found == false
+  properties
+    forall value: Bool:
+      get_bool_at([value], 0).value == value
+  effects pure
+  impl
+    get_bool(items, index)
 "#,
     )
     .expect("write list source");
@@ -13821,6 +13839,10 @@ pub fn get_int_at(items: List<Int>, index: Int) -> MaybeInt
         stdout.contains("\"target\": \"@serow.intrinsic.get_int.v1\""),
         "{stdout}"
     );
+    assert!(
+        stdout.contains("\"target\": \"@serow.intrinsic.get_bool.v1\""),
+        "{stdout}"
+    );
 
     let rust = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args(["compile", "rust", source.to_str().expect("utf8 path")])
@@ -13836,6 +13858,10 @@ pub fn get_int_at(items: List<Int>, index: Int) -> MaybeInt
     );
     assert!(
         stdout.contains("pub struct SerowTestListsMaybeInt"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("pub struct SerowTestListsMaybeBool"),
         "{stdout}"
     );
     assert!(

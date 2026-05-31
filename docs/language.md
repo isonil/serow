@@ -168,8 +168,9 @@ Pure list intrinsics are available through the ledger:
 - `remove_first(list: List<T>, value: T) -> List<T>`
 - `get_text(list: List<Text>, index: Int) -> MaybeText`
 - `get_int(list: List<Int>, index: Int) -> MaybeInt`
+- `get_bool(list: List<Bool>, index: Int) -> MaybeBool`
 
-Callers declare `MaybeText = { found: Bool, value: Text }` and `MaybeInt = { found: Bool, value: Int }` until source-level generics and payload enums can support a generic `Option<T>`. Negative, out-of-range, and empty-list access returns `found: false` with a deterministic placeholder value.
+Callers declare `MaybeText = { found: Bool, value: Text }`, `MaybeInt = { found: Bool, value: Int }`, and `MaybeBool = { found: Bool, value: Bool }` until source-level generics and payload enums can support a generic `Option<T>`. Negative, out-of-range, and empty-list access returns `found: false` with a deterministic placeholder value.
 
 Pure float math intrinsics include square root, powers, trigonometry, and constants through `float_sqrt`, `float_pow`, `float_sin`, `float_cos`, `float_tan`, `float_asin`, `float_acos`, `float_atan`, `float_atan2`, `float_pi`, `float_tau`, and `float_e`.
 

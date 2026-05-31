@@ -2,6 +2,11 @@
 
 ## 2026-05-31
 
+- Chose safe bool-list access as a small bootstrap completeness fix because Serow supports homogeneous `List<Bool>` values and list helpers, but the temporary non-generic safe access intrinsics only covered `Text` and `Int`.
+- Added compiler-owned `get_bool(list: List<Bool>, index: Int) -> MaybeBool` across intrinsic discovery, type checking, evaluation, IR/Rust backend emission, the stdlib list helpers, docs, and regression coverage. Missing indexes return `{ found: false, value: false }`, matching the existing non-panicking access contract.
+- Bumped Serow to `1.0.23-rust-bootstrap` / crate `1.0.23`.
+- Verification is recorded in the final run for this change.
+
 - Chose docs command ergonomics as a small public v1 hardening task because `bin/serow docs --check` was the documented automation spelling, while the intuitive `bin/serow docs check` form failed as a positional-argument usage error.
 - Added `docs check` as a narrow alias for `docs --check` without changing `--` separator behavior, updated command discovery/docs/progress metadata, covered the alias with a focused regression, and bumped Serow to `1.0.22-rust-bootstrap` / crate `1.0.22`.
 - Verification is recorded in the final run for this change.

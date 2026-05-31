@@ -5,8 +5,8 @@ use crate::eval::{Value, format_float};
 use crate::intrinsics::{
     CONTAINS_SYMBOL, FLOAT_ACOS_SYMBOL, FLOAT_ASIN_SYMBOL, FLOAT_ATAN_SYMBOL, FLOAT_ATAN2_SYMBOL,
     FLOAT_COS_SYMBOL, FLOAT_E_SYMBOL, FLOAT_PI_SYMBOL, FLOAT_POW_SYMBOL, FLOAT_SIN_SYMBOL,
-    FLOAT_SQRT_SYMBOL, FLOAT_TAN_SYMBOL, FLOAT_TAU_SYMBOL, GET_INT_SYMBOL, GET_TEXT_SYMBOL,
-    LEN_SYMBOL, PRINT_SYMBOL, PUSH_SYMBOL, READ_LINE_SYMBOL, REMOVE_FIRST_SYMBOL,
+    FLOAT_SQRT_SYMBOL, FLOAT_TAN_SYMBOL, FLOAT_TAU_SYMBOL, GET_BOOL_SYMBOL, GET_INT_SYMBOL,
+    GET_TEXT_SYMBOL, LEN_SYMBOL, PRINT_SYMBOL, PUSH_SYMBOL, READ_LINE_SYMBOL, REMOVE_FIRST_SYMBOL,
     is_intrinsic_symbol,
 };
 use crate::ir::{
@@ -2261,6 +2261,9 @@ fn render_intrinsic_call(
             render_get_intrinsic_call(target, &args, context, "Text", "MaybeText", "String::new()")
         }
         GET_INT_SYMBOL => render_get_intrinsic_call(target, &args, context, "Int", "MaybeInt", "0"),
+        GET_BOOL_SYMBOL => {
+            render_get_intrinsic_call(target, &args, context, "Bool", "MaybeBool", "false")
+        }
         FLOAT_SQRT_SYMBOL => render_float_unary_intrinsic_call(target, &args, "sqrt"),
         FLOAT_SIN_SYMBOL => render_float_unary_intrinsic_call(target, &args, "sin"),
         FLOAT_COS_SYMBOL => render_float_unary_intrinsic_call(target, &args, "cos"),

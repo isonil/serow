@@ -949,6 +949,24 @@ pub fn list_bool_contains(items: List<Bool>, value: Bool) -> Bool
   impl
     contains(items, value)
 
+pub fn list_bool_get(items: List<Bool>, index: Int) -> MaybeBool
+  intent "Read optional boolean entry by offset."
+  version v1
+  contract
+    ensures result == get_bool(items, index)
+  examples
+    list_bool_get([true, false], 0).found == true
+    list_bool_get([true, false], 1).value == false
+    list_bool_get([true], 1).found == false
+    list_bool_get([true], -1).found == false
+    list_bool_get([], 0).found == false
+  properties
+    forall value: Bool:
+      list_bool_get([value], 0).value == value
+  effects pure
+  impl
+    get_bool(items, index)
+
 pub fn list_int_remove_first(items: List<Int>, target: Int) -> List<Int>
   intent "Drop earliest numeric match."
   version v1

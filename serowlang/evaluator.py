@@ -49,6 +49,8 @@ class Evaluator:
             return _call_get_intrinsic(name, args, "")
         if name in {"get_int", "@serow.intrinsic.get_int.v1", "serow.intrinsic.get_int"}:
             return _call_get_intrinsic(name, args, 0)
+        if name in {"get_bool", "@serow.intrinsic.get_bool.v1", "serow.intrinsic.get_bool"}:
+            return _call_get_intrinsic(name, args, False)
         float_intrinsics = {
             "float_sqrt": (1, math.sqrt),
             "float_sin": (1, math.sin),
@@ -592,6 +594,7 @@ def _resolve_intrinsic(reference_text: str):
         "remove_first": ([Param("list", "List<T>"), Param("value", "T")], "List<T>", ["pure"]),
         "get_text": ([Param("list", "List<Text>"), Param("index", "Int")], "MaybeText", ["pure"]),
         "get_int": ([Param("list", "List<Int>"), Param("index", "Int")], "MaybeInt", ["pure"]),
+        "get_bool": ([Param("list", "List<Bool>"), Param("index", "Int")], "MaybeBool", ["pure"]),
         "float_sqrt": ([Param("value", "Float")], "Float", ["pure"]),
         "float_sin": ([Param("value", "Float")], "Float", ["pure"]),
         "float_cos": ([Param("value", "Float")], "Float", ["pure"]),
