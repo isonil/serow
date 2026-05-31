@@ -2,6 +2,10 @@
 
 ## 2026-05-31
 
+- Chose Python reference test maintenance as a low-risk cleanup because the Rust and Python bootstraps now both check the current examples cleanly, but the Python aggregate smoke test still expected older fixture totals.
+- Updated the Python bootstrap example-count regression to the current canonical `serow check` totals: 97 functions, 226 examples, and 97 properties.
+- Verification is recorded in the final run for this change.
+
 - Chose language-reference cleanup after a checked stdlib experiment exposed an undocumented bootstrap constraint: declared type names are global across the checked source set rather than module-scoped.
 - Documented the v1 uniqueness rule in `docs/language.md` so future stdlib and example work can avoid cross-module record-name collisions.
 
