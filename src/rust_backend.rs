@@ -557,7 +557,12 @@ fn render_function_tests(
                 variable_types.insert(variable.name.clone(), variable.type_name.clone());
                 let rendered_value = render_sample_value(value, type_names)
                     .map_err(|message| vec![backend_error(function, message)])?;
-                bindings.push(format!("        let {rust_variable} = {};", rendered_value));
+                let rust_binding_type = rust_type(&variable.type_name, type_names)
+                    .map_err(|message| vec![backend_error(function, message)])?;
+                bindings.push(format!(
+                    "        let {rust_variable}: {rust_binding_type} = {};",
+                    rendered_value
+                ));
             }
             let rendered = render_expr(
                 &property.expression,

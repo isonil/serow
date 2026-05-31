@@ -94,7 +94,7 @@ Contracts contain executable clauses:
 - `requires <boolean-expression>` runs before executable calls.
 - `ensures <boolean-expression>` runs after successful calls with `result` bound to the return value.
 
-Examples are executable boolean expressions owned by the compiler. Sampled properties use `forall` bindings over deterministic built-in sample sets for `Int`, `Float`, `Bool`, `Text`, `Unit`, bounded declared records, and declared enum variants. Recursive record sample cycles and unsupported generator types are reported explicitly.
+Examples are executable boolean expressions owned by the compiler. Sampled properties use `forall` bindings over deterministic built-in sample sets for `Int`, `Float`, `Bool`, `Text`, `Unit`, bounded homogeneous `List<T>` values, bounded declared records, and declared enum variants. Recursive record sample cycles and unsupported generator types are reported explicitly.
 
 Sampled property failures include deterministic replay data: property index, sample index, sample seed, bindings, and shrink hints when a simpler same-outcome sample exists. Replay one sample with:
 

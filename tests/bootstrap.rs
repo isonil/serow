@@ -2302,7 +2302,7 @@ pub fn heal(player: Player) -> Player
     fs::write(&generated, &rust.stdout).expect("write generated rust");
     assert!(
         generated_source.contains(
-            "let serow_player = SerowTestPropertyPlayer { serow_gold: -2, serow_hp: -2 };"
+            "let serow_player: SerowTestPropertyPlayer = SerowTestPropertyPlayer { serow_gold: -2, serow_hp: -2 };"
         ),
         "{generated_source}"
     );
@@ -14242,7 +14242,7 @@ pub fn bad_items() -> List<Text>
 }
 
 #[test]
-fn list_forall_sampling_is_reported_as_unsupported() {
+fn list_forall_sampling_checks_and_compiles() {
     let dir = unique_temp_dir("serow-list-sampling");
     fs::create_dir_all(&dir).expect("create temp dir");
     let source = dir.join("list_sampling.serow");
@@ -14252,18 +14252,32 @@ fn list_forall_sampling_is_reported_as_unsupported() {
 
 type Pack = { items: List<Text> }
 
-pub fn has_torch(pack: Pack) -> Bool
-  intent "Return whether a pack includes a torch."
+pub fn has_item(items: List<Text>, item: Text) -> Bool
+  intent "Return whether a text list includes a supplied item."
   contract
-    ensures result == contains(pack.items, "torch")
+    ensures result == contains(items, item)
   examples
-    has_torch(Pack { items: ["torch"] }) == true
+    has_item(["torch"], "torch") == true
+    has_item([], "torch") == false
   properties
-    forall pack: Pack:
-      has_torch(pack) == contains(pack.items, "torch")
+    forall items: List<Text>, item: Text:
+      has_item(items, item) == contains(items, item)
   effects pure
   impl
-    contains(pack.items, "torch")
+    contains(items, item)
+
+pub fn pack_size(pack: Pack) -> Int
+  intent "Return the number of items in a pack."
+  contract
+    ensures result == len(pack.items)
+  examples
+    pack_size(Pack { items: ["torch"] }) == 1
+  properties
+    forall pack: Pack:
+      pack_size(pack) == len(pack.items)
+  effects pure
+  impl
+    len(pack.items)
 "#,
     )
     .expect("write list sampling source");
@@ -14274,11 +14288,34 @@ pub fn has_torch(pack: Pack) -> Bool
         .expect("run serow check for list sampling");
     assert!(output.status.success(), "{output:#?}");
     let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
-    assert!(stdout.contains("PropertyNotExecutable"), "{stdout}");
+    assert!(stdout.contains("\"ok\": true"), "{stdout}");
+    assert!(!stdout.contains("PropertyNotExecutable"), "{stdout}");
+
+    let crate_dir = dir.join("generated");
+    let generated = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "compile",
+            "rust",
+            source.to_str().expect("utf8 path"),
+            "--out-dir",
+            crate_dir.to_str().expect("utf8 path"),
+        ])
+        .output()
+        .expect("generate rust crate for list sampling");
+    assert!(generated.status.success(), "{generated:#?}");
+    let cargo_test = Command::new("cargo")
+        .arg("test")
+        .current_dir(&crate_dir)
+        .output()
+        .expect("run generated cargo test for list sampling");
     assert!(
-        stdout.contains("Pack: list samples unsupported for `List<Text>`"),
-        "{stdout}"
+        cargo_test.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&cargo_test.stdout),
+        String::from_utf8_lossy(&cargo_test.stderr)
     );
+
+    let _ = fs::remove_dir_all(dir);
 }
 
 fn unique_temp_dir(prefix: &str) -> PathBuf {

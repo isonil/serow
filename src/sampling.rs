@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use crate::eval::{Evaluator, FloatValue, Value};
 use crate::model::{Function, TypeDecl};
-use crate::types::is_list_type;
+use crate::types::list_element_type;
 
 pub(crate) fn samples_for_type(type_name: &str, types: &[TypeDecl]) -> Option<Vec<Value>> {
     samples_for_type_result(type_name, types, &mut Vec::new()).ok()
@@ -12,7 +12,6 @@ pub(crate) fn samples_for_type(type_name: &str, types: &[TypeDecl]) -> Option<Ve
 pub(crate) enum SampleUnsupportedReason {
     UnknownType(String),
     RecursiveRecordCycle(Vec<String>),
-    ListSamplesUnsupported(String),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -37,17 +36,13 @@ impl SampleUnsupported {
             SampleUnsupportedReason::RecursiveRecordCycle(cycle) => {
                 format!("recursive record sample cycle: {}", cycle.join(" -> "))
             }
-            SampleUnsupportedReason::ListSamplesUnsupported(type_name) => {
-                format!("list samples unsupported for `{type_name}`")
-            }
         }
     }
 
     pub(crate) fn cycle_text(&self) -> Option<String> {
         match &self.reason {
             SampleUnsupportedReason::RecursiveRecordCycle(cycle) => Some(cycle.join(" -> ")),
-            SampleUnsupportedReason::UnknownType(_)
-            | SampleUnsupportedReason::ListSamplesUnsupported(_) => None,
+            SampleUnsupportedReason::UnknownType(_) => None,
         }
     }
 }
@@ -135,11 +130,39 @@ fn samples_for_type_result(
             Value::Text("123".to_string()),
         ]),
         "Unit" => Ok(vec![Value::Unit]),
-        other if is_list_type(other) => Err(SampleUnsupportedReason::ListSamplesUnsupported(
-            other.to_string(),
-        )),
+        other if list_element_type(other).is_some() => {
+            list_samples_for_type(other, types, active_records)
+        }
         _ => declared_samples_for_type(type_name, types, active_records),
     }
+}
+
+fn list_samples_for_type(
+    type_name: &str,
+    types: &[TypeDecl],
+    active_records: &mut Vec<String>,
+) -> Result<Vec<Value>, SampleUnsupportedReason> {
+    let element_type =
+        list_element_type(type_name).expect("list_samples_for_type called with List<T>");
+    let element_samples = samples_for_type_result(&element_type, types, active_records)?;
+
+    let mut lists = vec![Value::List {
+        element_type: Some(element_type.clone()),
+        elements: Vec::new(),
+    }];
+    for sample in &element_samples {
+        lists.push(Value::List {
+            element_type: Some(element_type.clone()),
+            elements: vec![sample.clone()],
+        });
+    }
+    if element_samples.len() >= 2 {
+        lists.push(Value::List {
+            element_type: Some(element_type),
+            elements: vec![element_samples[0].clone(), element_samples[1].clone()],
+        });
+    }
+    Ok(lists)
 }
 
 fn declared_samples_for_type(

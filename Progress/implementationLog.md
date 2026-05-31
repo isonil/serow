@@ -2,6 +2,10 @@
 
 ## 2026-05-31
 
+- Chose deterministic list property sampling as a small completeness fix because `List<T>` values already check, evaluate, lower to IR, and compile to Rust, but `forall` bindings over list values were still reported as non-executable.
+- Added bounded list samples built from supported element samples, emitted typed Rust property-test bindings so empty sampled lists compile reliably, updated docs/progress metadata, and bumped Serow to `1.0.28-rust-bootstrap` / crate `1.0.28`.
+- Verification is recorded in the final run for this change.
+
 - Chose Python reference evaluator parity as a low-risk cleanup because the Rust interpreter now has explicit Serow value equality for Float, list, and record comparisons, while the temporary Python bootstrap still delegated equality and list membership/removal to raw Python comparisons.
 - Added a shared Python Serow value-equality helper for comparisons plus `contains`/`remove_first`, and covered signed-zero Float equality through scalar, list, record, membership, and removal evidence in the Python regression suite.
 - Verification is recorded in the final run for this change.
