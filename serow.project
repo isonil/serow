@@ -246,6 +246,22 @@
       "core.random": {
         "owner": "bootstrap",
         "may_depend_on": []
+      },
+      "core.rpg": {
+        "owner": "demo",
+        "may_depend_on": []
+      },
+      "core.terminal": {
+        "owner": "demo",
+        "may_depend_on": []
+      },
+      "core.text_game": {
+        "owner": "demo",
+        "may_depend_on": []
+      },
+      "core.list_access": {
+        "owner": "demo",
+        "may_depend_on": ["core.list"]
       }
     }
   }

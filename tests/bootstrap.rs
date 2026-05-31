@@ -11378,6 +11378,22 @@ fn project_architecture_parser_reads_module_policies() {
 }
 
 #[test]
+fn project_architecture_covers_example_modules() {
+    let source = fs::read_to_string("serow.project").expect("read project manifest");
+    let architecture = parse_architecture(&source);
+    let (program, parse_diagnostics) = parse_paths(&["examples".to_string()]);
+    assert!(parse_diagnostics.is_empty(), "{parse_diagnostics:#?}");
+
+    for module in &program.modules {
+        assert!(
+            architecture.policy_for(&module.name).is_some(),
+            "missing architecture policy for {}",
+            module.name
+        );
+    }
+}
+
+#[test]
 fn project_architecture_parser_decodes_json_string_escapes() {
     let project = r#"{
   "vers\u0069on": "0.4.\uD835\uDFD8-rust\u002dbootstrap\n",
