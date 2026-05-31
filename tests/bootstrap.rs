@@ -3276,6 +3276,14 @@ fn type_query_finds_functions_by_signature_shape() {
         int_unary_names.contains(&"next_random"),
         "{int_unary_matches:#?}"
     );
+    assert!(
+        query_type(&program, "Int, -> Int", 10).is_empty(),
+        "empty parameter segments must not be ignored"
+    );
+    assert!(
+        query_type(&program, "Int,, Int -> Int", 10).is_empty(),
+        "empty parameter segments must not be ignored"
+    );
 
     assert!(
         query_symbol(&program, "", 20).is_empty(),

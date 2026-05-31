@@ -765,7 +765,7 @@ impl TypeQuery {
             return None;
         }
         if let Some((params, return_type)) = trimmed.split_once("->") {
-            let params = parse_type_list(params);
+            let params = parse_type_list(params)?;
             let return_type = parse_type_pattern(return_type.trim())?;
             return Some(Self {
                 params: Some(params),
@@ -854,7 +854,7 @@ impl TypeQuery {
     }
 }
 
-fn parse_type_list(text: &str) -> Vec<Option<String>> {
+fn parse_type_list(text: &str) -> Option<Vec<Option<String>>> {
     let trimmed = text
         .trim()
         .strip_prefix('(')
@@ -862,12 +862,12 @@ fn parse_type_list(text: &str) -> Vec<Option<String>> {
         .unwrap_or_else(|| text.trim())
         .trim();
     if trimmed.is_empty() {
-        return Vec::new();
+        return Some(Vec::new());
     }
     trimmed
         .split(',')
-        .filter_map(parse_type_pattern)
-        .collect::<Vec<_>>()
+        .map(parse_type_pattern)
+        .collect::<Option<Vec<_>>>()
 }
 
 fn parse_type_pattern(text: &str) -> Option<Option<String>> {
