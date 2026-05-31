@@ -303,8 +303,7 @@ fn top_level_string_value(source: &str, key: &str) -> Option<String> {
 }
 
 fn object_field_value<'a>(source: &'a str, key: &str) -> Option<&'a str> {
-    let root_open = source.find('{')?;
-    let root_close = find_matching(source, root_open, '{', '}')?;
+    let (root_open, root_close) = root_object_bounds(source)?;
     let mut index = root_open + 1;
     while index < root_close {
         index = skip_ws(source, index);
@@ -334,6 +333,19 @@ fn object_field_value<'a>(source: &'a str, key: &str) -> Option<&'a str> {
         index = skip_value(source, index, root_close);
     }
     None
+}
+
+fn root_object_bounds(source: &str) -> Option<(usize, usize)> {
+    let root_open = skip_ws(source, 0);
+    if !source[root_open..].starts_with('{') {
+        return None;
+    }
+    let root_close = find_matching(source, root_open, '{', '}')?;
+    if source[root_close + 1..].trim().is_empty() {
+        Some((root_open, root_close))
+    } else {
+        None
+    }
 }
 
 fn value_end(source: &str, start: usize, limit: usize) -> usize {

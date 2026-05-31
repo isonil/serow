@@ -11414,6 +11414,19 @@ fn project_architecture_parser_rejects_raw_control_chars_in_strings() {
 }
 
 #[test]
+fn project_manifest_parser_rejects_non_json_root_text() {
+    let prefixed_manifest = "metadata = {\n  \"version\": \"0.4.82-rust-bootstrap\"\n}";
+    assert_eq!(parse_project_version(prefixed_manifest), None);
+
+    let suffixed_manifest = "{\n  \"version\": \"0.4.82-rust-bootstrap\"\n}\ntrailing";
+    assert_eq!(parse_project_version(suffixed_manifest), None);
+
+    let architecture_manifest = "{\n  \"architecture\": {\n    \"modules\": {\n      \"app.main\": {\n        \"may_depend_on\": [\"core.math\"]\n      }\n    }\n  }\n}\ntrailing";
+    let architecture = parse_architecture(architecture_manifest);
+    assert!(architecture.modules.is_empty());
+}
+
+#[test]
 fn cargo_manifest_version_parser_reads_package_version() {
     let manifest = r#"[workspace]
 members = ["crates/*"]
