@@ -2050,6 +2050,7 @@ fn split_args(text: &str) -> Vec<String> {
     let mut parts = Vec::new();
     let mut depth = 0;
     let mut brace_depth = 0;
+    let mut bracket_depth = 0;
     let mut in_string = false;
     let mut escaped = false;
     let mut current = String::new();
@@ -2068,7 +2069,12 @@ fn split_args(text: &str) -> Vec<String> {
             brace_depth += 1;
         } else if !in_string && char == '}' {
             brace_depth -= 1;
-        } else if !in_string && char == ',' && depth == 0 && brace_depth == 0 {
+        } else if !in_string && char == '[' {
+            bracket_depth += 1;
+        } else if !in_string && char == ']' {
+            bracket_depth -= 1;
+        } else if !in_string && char == ',' && depth == 0 && brace_depth == 0 && bracket_depth == 0
+        {
             parts.push(current.trim().to_string());
             current.clear();
             continue;

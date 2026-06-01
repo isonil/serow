@@ -14501,6 +14501,34 @@ pub fn contains_nested_empty_list() -> Bool
   impl
     contains([remove_first(push([], 1), 1)], [])
 
+pub fn append_first_copy(items: List<Int>) -> List<Int>
+  intent "Duplicate leading numeric inventory entry during append code generation."
+  contract
+    ensures len(result) == len(items) + 1
+  examples
+    append_first_copy([7]) == [7, 7]
+    append_first_copy([]) == [0]
+  properties
+    forall value: Int:
+      contains(append_first_copy([value]), value)
+  effects pure
+  impl
+    push(items, get_int(items, 0).value)
+
+pub fn remove_first_copy(items: List<Int>) -> List<Int>
+  intent "Drop numeric head chosen through indexed lookup during removal code generation."
+  contract
+    ensures len(result) <= len(items)
+  examples
+    remove_first_copy([7, 8]) == [8]
+    remove_first_copy([]) == []
+  properties
+    forall value: Int:
+      remove_first_copy([value]) == []
+  effects pure
+  impl
+    remove_first(items, get_int(items, 0).value)
+
 pub fn drop_potion(items: List<Item>) -> List<Item>
   intent "Consume a potion token from an enum-backed pack."
   contract
@@ -14686,6 +14714,7 @@ pub fn get_float_at(items: List<Float>, index: Int) -> MaybeFloat
     assert!(stdout.contains(".contains(&"), "{stdout}");
     assert!(stdout.contains(".push("), "{stdout}");
     assert!(stdout.contains(".remove("), "{stdout}");
+    assert!(stdout.contains(".clone()"), "{stdout}");
     assert!(stdout.contains(".get(serow_index as usize)"), "{stdout}");
 
     let crate_dir = dir.join("generated");

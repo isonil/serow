@@ -2228,11 +2228,17 @@ fn render_intrinsic_call(
             } else {
                 &element_type
             });
+            let list_code = list_for_copy_update(&args[0], &result_type, context.type_names)?;
+            let value = if element_type == "Never" {
+                args[1].clone()
+            } else {
+                coerce_empty_list(args[1].clone(), &element_type, context.type_names)?
+            };
             Ok(RenderedExpr {
                 code: format!(
                     "{{ let mut serow_list = {}; serow_list.push({}); serow_list }}",
-                    strip_outer_parens(&args[0].code),
-                    strip_outer_parens(&args[1].code)
+                    list_code,
+                    strip_outer_parens(&value.code)
                 ),
                 type_name: result_type,
             })
@@ -2261,11 +2267,7 @@ fn render_intrinsic_call(
             } else {
                 &element_type
             });
-            let list_code = if args[0].type_name == EMPTY_LIST_TYPE {
-                render_empty_list_as(&result_type, context.type_names)?.code
-            } else {
-                strip_outer_parens(&args[0].code).to_string()
-            };
+            let list_code = list_for_copy_update(&args[0], &result_type, context.type_names)?;
             let value = if element_type == "Never" {
                 args[1].clone()
             } else {
@@ -2310,6 +2312,17 @@ fn render_intrinsic_call(
         }
         _ => Err(format!("Unsupported intrinsic `{target}`.")),
     }
+}
+
+fn list_for_copy_update(
+    rendered: &RenderedExpr,
+    result_type: &str,
+    type_names: &HashMap<String, String>,
+) -> Result<String, String> {
+    if rendered.type_name == EMPTY_LIST_TYPE {
+        return Ok(render_empty_list_as(result_type, type_names)?.code);
+    }
+    Ok(format!("({}).clone()", strip_outer_parens(&rendered.code)))
 }
 
 fn render_float_unary_intrinsic_call(
