@@ -5563,6 +5563,8 @@ fn is_escaped_byte(text: &str, index: usize) -> bool {
 fn markdown_inline_link_close_index(source: &str) -> Option<usize> {
     let mut paren_depth = 0usize;
     let mut escaped = false;
+    let mut destination_started = false;
+    let mut in_angle_destination = false;
     for (index, character) in source.char_indices() {
         if escaped {
             escaped = false;
@@ -5571,6 +5573,22 @@ fn markdown_inline_link_close_index(source: &str) -> Option<usize> {
         if character == '\\' {
             escaped = true;
             continue;
+        }
+        if in_angle_destination {
+            if character == '>' {
+                in_angle_destination = false;
+            }
+            continue;
+        }
+        if !destination_started {
+            if character.is_whitespace() {
+                continue;
+            }
+            destination_started = true;
+            if character == '<' {
+                in_angle_destination = true;
+                continue;
+            }
         }
         match character {
             '(' => paren_depth += 1,
