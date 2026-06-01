@@ -44,6 +44,7 @@ pub fn discover_sources(paths: &[String]) -> Vec<PathBuf> {
 }
 
 pub fn discover_sources_with_diagnostics(paths: &[String]) -> (Vec<PathBuf>, Vec<Diagnostic>) {
+    let using_default_sources = paths.is_empty();
     let roots = if paths.is_empty() {
         vec![PathBuf::from("examples")]
     } else {
@@ -58,7 +59,7 @@ pub fn discover_sources_with_diagnostics(paths: &[String]) -> (Vec<PathBuf>, Vec
             let before = sources.len();
             let mut visited = HashSet::new();
             collect_serow_files(root, &mut sources, &mut visited);
-            if !paths.is_empty() && sources.len() == before {
+            if sources.len() == before {
                 let source_path = root.to_string_lossy().to_string();
                 diagnostics.push(
                     Diagnostic::error(
@@ -69,7 +70,7 @@ pub fn discover_sources_with_diagnostics(paths: &[String]) -> (Vec<PathBuf>, Vec
                     .with_repair("Pass a `.serow` file or a directory containing Serow sources."),
                 );
             }
-        } else if !paths.is_empty() {
+        } else if !paths.is_empty() || using_default_sources {
             let source_path = root.to_string_lossy().to_string();
             let message = if root.exists() {
                 format!("Input path `{source_path}` is not a `.serow` file or directory.")

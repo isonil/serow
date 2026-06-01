@@ -25,7 +25,8 @@ use crate::plan::{
     EvidenceDrift, EvidenceWeakening, ImpactEvidenceCoverage, ImplementationChange,
     ImplementationEvidenceCoverage, PropertyCoverageHint, PublicBehaviorChange,
     RemovedPublicSymbol, SemanticChange, plan_paths, unattended_capability_expansion_diagnostics,
-    unattended_evidence_weakening_diagnostics, unattended_implementation_change_diagnostics,
+    unattended_check_paths, unattended_evidence_weakening_diagnostics,
+    unattended_implementation_change_diagnostics,
     unattended_implementation_evidence_drift_diagnostics,
     unattended_public_behavior_change_diagnostics, unattended_removed_public_symbol_diagnostics,
     unattended_stale_migration_diagnostics, unattended_unchecked_impact_diagnostics,
@@ -2212,7 +2213,12 @@ fn run_check(args: &[String], certify: bool) -> i32 {
         Ok(parsed) => parsed,
         Err((json_output, message)) => return check_usage_error(json_output, message, certify),
     };
-    let (program, parse_diagnostics) = parse_paths(&paths);
+    let check_paths = if profile == CertifyProfile::Unattended {
+        unattended_check_paths(&paths)
+    } else {
+        paths.clone()
+    };
+    let (program, parse_diagnostics) = parse_paths(&check_paths);
     let mut summary = check_program(&program, parse_diagnostics);
     if profile == CertifyProfile::Unattended {
         enforce_unattended_profile(&program, &mut summary);

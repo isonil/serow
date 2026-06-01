@@ -164,6 +164,24 @@ pub struct PropertyCoverageHint {
     pub recursive_record_cycles: Vec<String>,
 }
 
+pub(crate) fn unattended_check_paths(paths: &[String]) -> Vec<String> {
+    if !paths.is_empty() {
+        return paths.to_vec();
+    }
+    let changed_sources = git_changed_serow_files();
+    if changed_sources.is_empty() {
+        return paths.to_vec();
+    }
+    let mut sources = git_project_serow_files();
+    sources.extend(changed_sources);
+    sources.sort();
+    sources.dedup();
+    sources
+        .iter()
+        .map(|path| path.to_string_lossy().to_string())
+        .collect()
+}
+
 pub fn plan_paths(paths: &[String]) -> ChangePlan {
     let explicit_paths = !paths.is_empty();
     let changed_sources = if explicit_paths {

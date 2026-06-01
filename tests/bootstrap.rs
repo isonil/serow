@@ -46,6 +46,49 @@ fn explicit_missing_source_path_is_reported() {
     assert!(stdout.contains("does not exist"), "{stdout}");
 }
 
+#[test]
+fn default_source_path_must_exist_and_contain_serow_sources() {
+    let missing_default_dir = unique_temp_dir("serow-missing-default-source");
+    fs::create_dir_all(&missing_default_dir).expect("create temp dir");
+
+    let missing_output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&missing_default_dir)
+        .args(["check", "--json"])
+        .output()
+        .expect("run serow check with missing default source path");
+    assert!(!missing_output.status.success(), "{missing_output:#?}");
+    assert!(missing_output.stderr.is_empty(), "{missing_output:#?}");
+    let stdout = String::from_utf8(missing_output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"ok\": false"), "{stdout}");
+    assert!(stdout.contains("SourceNotFound"), "{stdout}");
+    assert!(
+        stdout.contains("Input path `examples` does not exist."),
+        "{stdout}"
+    );
+
+    let empty_default_dir = unique_temp_dir("serow-empty-default-source");
+    let examples_dir = empty_default_dir.join("examples");
+    fs::create_dir_all(&examples_dir).expect("create empty examples dir");
+
+    let empty_output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&empty_default_dir)
+        .args(["check", "--json"])
+        .output()
+        .expect("run serow check with empty default source path");
+    assert!(!empty_output.status.success(), "{empty_output:#?}");
+    assert!(empty_output.stderr.is_empty(), "{empty_output:#?}");
+    let stdout = String::from_utf8(empty_output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"ok\": false"), "{stdout}");
+    assert!(stdout.contains("NoSerowSources"), "{stdout}");
+    assert!(
+        stdout.contains("No `.serow` source files found under `examples`."),
+        "{stdout}"
+    );
+
+    let _ = fs::remove_dir_all(missing_default_dir);
+    let _ = fs::remove_dir_all(empty_default_dir);
+}
+
 #[cfg(unix)]
 #[test]
 fn source_discovery_ignores_directory_symlink_cycles() {
