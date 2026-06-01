@@ -5472,10 +5472,9 @@ fn markdown_without_inline_code_spans(line: &str) -> String {
             }
             continue;
         }
-        let character = line[index..]
-            .chars()
-            .next()
-            .expect("index is on a char boundary");
+        let Some(character) = line[index..].chars().next() else {
+            break;
+        };
         output.push(character);
         index += character.len_utf8();
     }
@@ -5500,11 +5499,10 @@ fn find_closing_backtick_run(line: &str, start: usize, tick_count: usize) -> Opt
             index += found;
             continue;
         }
-        index += line[index..]
-            .chars()
-            .next()
-            .expect("index is on a char boundary")
-            .len_utf8();
+        let Some(character) = line[index..].chars().next() else {
+            break;
+        };
+        index += character.len_utf8();
     }
     None
 }

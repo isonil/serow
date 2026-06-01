@@ -159,8 +159,7 @@ impl Program {
             types: Vec::new(),
             functions: Vec::new(),
         });
-        self.modules
-            .last_mut()
-            .expect("module was just pushed and must exist")
+        let index = self.modules.len() - 1;
+        &mut self.modules[index]
     }
 }

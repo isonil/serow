@@ -142,8 +142,9 @@ fn list_samples_for_type(
     types: &[TypeDecl],
     active_records: &mut Vec<String>,
 ) -> Result<Vec<Value>, SampleUnsupportedReason> {
-    let element_type =
-        list_element_type(type_name).expect("list_samples_for_type called with List<T>");
+    let Some(element_type) = list_element_type(type_name) else {
+        return Err(SampleUnsupportedReason::UnknownType(type_name.to_string()));
+    };
     let element_samples = samples_for_type_result(&element_type, types, active_records)?;
 
     let mut lists = vec![Value::List {

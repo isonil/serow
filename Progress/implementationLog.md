@@ -2,6 +2,9 @@
 
 ## 2026-06-01
 
+- Chose internal panic-surface cleanup because a few production helpers still used `expect()` after local invariants had already been established, making future edits easier to turn into process crashes.
+- Replaced those assertions with explicit fallback or direct index handling in program module insertion, list sample generation, Rust backend type lookup, and Markdown inline-code scanning while preserving the existing behavior for valid inputs.
+
 - Chose Git-status planning hardening because `serow plan` relies on `git status --porcelain`, while Git quotes paths containing characters such as `"` and the parser stripped quotes without decoding escapes.
 - Decoded Git's quoted C-style path output before selecting changed and tracked `.serow` files, and added a regression that plans a tracked Serow source file whose filename contains a quote.
 

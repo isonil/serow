@@ -1829,10 +1829,10 @@ fn rust_type(type_name: &str, type_names: &HashMap<String, String>) -> Result<St
         "Bool" => Ok("bool".to_string()),
         "Text" => Ok("String".to_string()),
         "Unit" => Ok("()".to_string()),
-        other if type_names.contains_key(other) => {
-            Ok(type_names.get(other).expect("checked above").clone())
-        }
-        other => Err(format!("Unknown backend type `{other}`.")),
+        other => type_names
+            .get(other)
+            .cloned()
+            .ok_or_else(|| format!("Unknown backend type `{other}`.")),
     }
 }
 
