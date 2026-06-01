@@ -1589,14 +1589,18 @@ fn as_ordered(
     Ok(predicate(ordering))
 }
 
-fn call_print_intrinsic(name: &str, args: Vec<Value>) -> Result<CallResult, String> {
-    if args.len() != 1 {
-        return Err(format!(
-            "Function `{name}` expected 1 arguments, got {}.",
+fn require_args<const N: usize>(name: &str, args: Vec<Value>) -> Result<[Value; N], String> {
+    args.try_into().map_err(|args: Vec<Value>| {
+        format!(
+            "Function `{name}` expected {N} arguments, got {}.",
             args.len()
-        ));
-    }
-    match args.into_iter().next().expect("length checked above") {
+        )
+    })
+}
+
+fn call_print_intrinsic(name: &str, args: Vec<Value>) -> Result<CallResult, String> {
+    let [arg] = require_args(name, args)?;
+    match arg {
         Value::Text(text) => {
             let mut bindings = HashMap::new();
             bindings.insert("text".to_string(), Value::Text(text));
@@ -1625,14 +1629,7 @@ fn call_read_line_intrinsic(name: &str, args: Vec<Value>) -> Result<CallResult, 
 }
 
 fn call_len_intrinsic(name: &str, args: Vec<Value>) -> Result<CallResult, String> {
-    if args.len() != 1 {
-        return Err(format!(
-            "Function `{name}` expected 1 arguments, got {}.",
-            args.len()
-        ));
-    }
-    let mut args = args;
-    let list = args.pop().expect("length checked above");
+    let [list] = require_args(name, args)?;
     let Value::List { elements, .. } = &list else {
         return Err(format!(
             "Function `{name}` argument 1 expected List<T>, got {list}."
@@ -1648,15 +1645,7 @@ fn call_len_intrinsic(name: &str, args: Vec<Value>) -> Result<CallResult, String
 }
 
 fn call_contains_intrinsic(name: &str, args: Vec<Value>) -> Result<CallResult, String> {
-    if args.len() != 2 {
-        return Err(format!(
-            "Function `{name}` expected 2 arguments, got {}.",
-            args.len()
-        ));
-    }
-    let mut args = args;
-    let value = args.pop().expect("length checked above");
-    let list = args.pop().expect("length checked above");
+    let [list, value] = require_args(name, args)?;
     let Value::List {
         element_type,
         elements,
@@ -1685,15 +1674,7 @@ fn call_contains_intrinsic(name: &str, args: Vec<Value>) -> Result<CallResult, S
 }
 
 fn call_push_intrinsic(name: &str, args: Vec<Value>) -> Result<CallResult, String> {
-    if args.len() != 2 {
-        return Err(format!(
-            "Function `{name}` expected 2 arguments, got {}.",
-            args.len()
-        ));
-    }
-    let mut args = args;
-    let value = args.pop().expect("length checked above");
-    let list = args.pop().expect("length checked above");
+    let [list, value] = require_args(name, args)?;
     let Value::List {
         element_type,
         mut elements,
@@ -1729,15 +1710,7 @@ fn call_push_intrinsic(name: &str, args: Vec<Value>) -> Result<CallResult, Strin
 }
 
 fn call_remove_first_intrinsic(name: &str, args: Vec<Value>) -> Result<CallResult, String> {
-    if args.len() != 2 {
-        return Err(format!(
-            "Function `{name}` expected 2 arguments, got {}.",
-            args.len()
-        ));
-    }
-    let mut args = args;
-    let value = args.pop().expect("length checked above");
-    let list = args.pop().expect("length checked above");
+    let [list, value] = require_args(name, args)?;
     let Value::List {
         element_type,
         mut elements,
@@ -1780,15 +1753,7 @@ fn call_get_intrinsic(
     result_type: &str,
     fallback_value: Value,
 ) -> Result<CallResult, String> {
-    if args.len() != 2 {
-        return Err(format!(
-            "Function `{name}` expected 2 arguments, got {}.",
-            args.len()
-        ));
-    }
-    let mut args = args;
-    let index = args.pop().expect("length checked above");
-    let list = args.pop().expect("length checked above");
+    let [list, index] = require_args(name, args)?;
     let Value::Int(index_value) = index else {
         return Err(format!(
             "Function `{name}` argument 2 expected Int, got {index}."
@@ -1843,14 +1808,7 @@ fn call_float_unary_intrinsic(
     args: Vec<Value>,
     operation: impl FnOnce(f64) -> f64,
 ) -> Result<CallResult, String> {
-    if args.len() != 1 {
-        return Err(format!(
-            "Function `{name}` expected 1 arguments, got {}.",
-            args.len()
-        ));
-    }
-    let mut args = args;
-    let value = args.pop().expect("length checked above");
+    let [value] = require_args(name, args)?;
     let result = operation(as_float(value.clone())?);
     let mut bindings = HashMap::new();
     bindings.insert("value".to_string(), value);
@@ -1865,15 +1823,7 @@ fn call_float_binary_intrinsic(
     args: Vec<Value>,
     operation: impl FnOnce(f64, f64) -> f64,
 ) -> Result<CallResult, String> {
-    if args.len() != 2 {
-        return Err(format!(
-            "Function `{name}` expected 2 arguments, got {}.",
-            args.len()
-        ));
-    }
-    let mut args = args;
-    let right = args.pop().expect("length checked above");
-    let left = args.pop().expect("length checked above");
+    let [left, right] = require_args(name, args)?;
     let result = operation(as_float(left.clone())?, as_float(right.clone())?);
     let mut bindings = HashMap::new();
     bindings.insert("left".to_string(), left);
