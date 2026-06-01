@@ -14236,7 +14236,32 @@ pub fn main() -> Handle
 
 #[test]
 fn compile_rust_rejects_invalid_crate_name() {
-    for crate_name in ["BadName", "1bad"] {
+    for (crate_name, expected_message) in [
+        (
+            "BadName",
+            "`--crate-name` must start with a lowercase ASCII letter",
+        ),
+        (
+            "1bad",
+            "`--crate-name` must start with a lowercase ASCII letter",
+        ),
+        (
+            "bad.name",
+            "`--crate-name` may only contain lowercase ASCII letters, digits, `_`, or `-`.",
+        ),
+        (
+            "bad--name",
+            "`--crate-name` may not contain adjacent `_` or `-` separators.",
+        ),
+        (
+            "bad__name",
+            "`--crate-name` may not contain adjacent `_` or `-` separators.",
+        ),
+        (
+            "bad-_name",
+            "`--crate-name` may not contain adjacent `_` or `-` separators.",
+        ),
+    ] {
         let output = Command::new(env!("CARGO_BIN_EXE_serow"))
             .args([
                 "compile",
@@ -14253,8 +14278,7 @@ fn compile_rust_rejects_invalid_crate_name() {
         assert_eq!(output.status.code(), Some(2), "{output:#?}");
         let stdout = String::from_utf8_lossy(&output.stdout);
         assert!(
-            stdout.contains("\"code\": \"UsageError\"")
-                && stdout.contains("`--crate-name` must start with a lowercase ASCII letter"),
+            stdout.contains("\"code\": \"UsageError\"") && stdout.contains(expected_message),
             "{stdout}"
         );
         assert!(

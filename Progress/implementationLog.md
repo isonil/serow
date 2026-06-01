@@ -2,6 +2,9 @@
 
 ## 2026-06-01
 
+- Chose Rust backend crate-name validation hardening because generated Cargo library crate names normalize `-` to `_`, so accepted names such as `bad--name` could compile with Rust non-snake-case warnings.
+- Rejected adjacent `_`/`-` separators in custom `--crate-name` values, added JSON usage-error regressions for invalid characters and warning-prone separator combinations, and updated backend/progress documentation.
+
 - Chose Rust backend terminal I/O hardening because generated `read_line()` still used a Rust `expect()` and could panic despite Serow exposing a total `read_line() -> Text` intrinsic.
 - Lowered generated stdin reads through an error check that leaves the Serow result as empty text on read failure while preserving newline trimming and normal successful input behavior.
 - Updated backend/progress documentation, covered the generated source shape in existing terminal I/O codegen regressions, and bumped Serow to `1.0.30-rust-bootstrap` / crate `1.0.30`.

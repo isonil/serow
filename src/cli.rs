@@ -1626,6 +1626,20 @@ fn validate_rust_crate_name(crate_name: &str) -> Result<(), String> {
                 .to_string(),
         );
     }
+    if crate_name
+        .chars()
+        .try_fold(false, |previous_was_separator, char| {
+            let is_separator = char == '_' || char == '-';
+            if previous_was_separator && is_separator {
+                Err(())
+            } else {
+                Ok(is_separator)
+            }
+        })
+        .is_err()
+    {
+        return Err("`--crate-name` may not contain adjacent `_` or `-` separators.".to_string());
+    }
     Ok(())
 }
 
