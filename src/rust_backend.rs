@@ -13,7 +13,7 @@ use crate::ir::{
     IrBinaryOp, IrExpr, IrFunction, IrProgram, IrSummary, IrUnaryOp, lower_checked_program,
 };
 use crate::model::{Program, TypeDecl};
-use crate::sampling::{cartesian_product, samples_for_type};
+use crate::sampling::{cartesian_samples, samples_for_type};
 use crate::types::{EMPTY_LIST_TYPE, list_element_type, list_type, type_accepts};
 
 #[derive(Clone, Debug)]
@@ -542,9 +542,7 @@ fn render_function_tests(
             };
             sample_sets.push(samples);
         }
-        for (sample_offset, sample_values) in
-            cartesian_product(&sample_sets).into_iter().enumerate()
-        {
+        for (sample_offset, sample_values) in cartesian_samples(&sample_sets).enumerate() {
             let sample_index = sample_offset + 1;
             let mut variables = HashMap::new();
             let mut variable_types = HashMap::new();

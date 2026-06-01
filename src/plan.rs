@@ -9,7 +9,9 @@ use crate::ir::lower_expression;
 use crate::ledger::{CallSite, ImpactDependent, intent_terms, query_impact};
 use crate::model::{Function, MigrationRecord};
 use crate::parser::{discover_sources, parse_paths, parse_source};
-use crate::sampling::{cartesian_product, sample_unsupported_summary, samples_for_type};
+use crate::sampling::{
+    cartesian_sample_count, cartesian_samples, sample_unsupported_summary, samples_for_type,
+};
 
 #[derive(Clone, Debug)]
 pub struct ChangePlan {
@@ -1979,13 +1981,12 @@ fn property_coverage_hints(
                 .collect::<Vec<_>>();
             let unsupported = sample_unsupported_summary(&block.variables, &program.types);
             let sample_count = if unsupported.unsupported_types.is_empty() {
-                block
+                let sample_sets = block
                     .variables
                     .iter()
                     .filter_map(|(_, type_name)| samples_for_type(type_name, &program.types))
-                    .map(|samples| samples.len())
-                    .try_fold(1usize, |count, len| count.checked_mul(len))
-                    .unwrap_or(usize::MAX)
+                    .collect::<Vec<_>>();
+                cartesian_sample_count(&sample_sets).unwrap_or(usize::MAX)
             } else {
                 0
             };
@@ -2018,7 +2019,7 @@ fn property_fails_against_program(
     let Some(sample_sets) = sample_sets else {
         return false;
     };
-    for values in cartesian_product(&sample_sets) {
+    for values in cartesian_samples(&sample_sets) {
         let bindings = property
             .variables
             .iter()

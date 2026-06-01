@@ -7,7 +7,7 @@ use crate::ledger::{exact_intent_key, intent_terms, query_intent};
 use crate::model::{Function, Program};
 use crate::project::load_architecture;
 use crate::sampling::{
-    cartesian_product, find_shrunk_property_evaluation_error, find_shrunk_property_failure,
+    cartesian_samples, find_shrunk_property_evaluation_error, find_shrunk_property_failure,
     format_sample_bindings, sample_unsupported_summary, samples_for_type,
 };
 use crate::typecheck::infer_expression_type;
@@ -1828,8 +1828,7 @@ fn check_property(
         return;
     }
     let sample_sets = samples.into_iter().flatten().collect::<Vec<_>>();
-    let combinations = cartesian_product(&sample_sets);
-    for (sample_offset, values) in combinations.into_iter().enumerate() {
+    for (sample_offset, values) in cartesian_samples(&sample_sets).enumerate() {
         let sample_values = values.clone();
         let bindings = property
             .variables

@@ -247,7 +247,63 @@ fn declared_samples_for_type(
     Ok(records)
 }
 
-pub(crate) fn cartesian_product(sample_sets: &[Vec<Value>]) -> Vec<Vec<Value>> {
+pub(crate) fn cartesian_sample_count(sample_sets: &[Vec<Value>]) -> Option<usize> {
+    sample_sets
+        .iter()
+        .try_fold(1usize, |count, set| count.checked_mul(set.len()))
+}
+
+pub(crate) fn cartesian_samples(sample_sets: &[Vec<Value>]) -> CartesianSamples<'_> {
+    CartesianSamples {
+        sample_sets,
+        indices: vec![0; sample_sets.len()],
+        done: sample_sets.iter().any(Vec::is_empty),
+    }
+}
+
+pub(crate) struct CartesianSamples<'a> {
+    sample_sets: &'a [Vec<Value>],
+    indices: Vec<usize>,
+    done: bool,
+}
+
+impl Iterator for CartesianSamples<'_> {
+    type Item = Vec<Value>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.done {
+            return None;
+        }
+        let values = self
+            .sample_sets
+            .iter()
+            .zip(&self.indices)
+            .map(|(sample_set, index)| sample_set[*index].clone())
+            .collect::<Vec<_>>();
+        self.advance();
+        Some(values)
+    }
+}
+
+impl CartesianSamples<'_> {
+    fn advance(&mut self) {
+        if self.sample_sets.is_empty() {
+            self.done = true;
+            return;
+        }
+        for position in (0..self.indices.len()).rev() {
+            self.indices[position] += 1;
+            if self.indices[position] < self.sample_sets[position].len() {
+                return;
+            }
+            self.indices[position] = 0;
+        }
+        self.done = true;
+    }
+}
+
+#[cfg(test)]
+fn eager_cartesian_product(sample_sets: &[Vec<Value>]) -> Vec<Vec<Value>> {
     let mut combinations = vec![Vec::new()];
     for sample_set in sample_sets {
         let mut next = Vec::new();
@@ -370,10 +426,7 @@ fn find_shrunk_property_case(
 ) -> Option<ShrunkPropertyFailure> {
     let original_complexity = sample_complexity(search.original_values);
     let mut best: Option<(usize, usize, String)> = None;
-    for (sample_offset, values) in cartesian_product(search.sample_sets)
-        .into_iter()
-        .enumerate()
-    {
+    for (sample_offset, values) in cartesian_samples(search.sample_sets).enumerate() {
         let sample_index = sample_offset + 1;
         if sample_index == search.original_sample_index {
             continue;
@@ -432,7 +485,10 @@ fn value_complexity(value: &Value) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use super::samples_for_type;
+    use super::{
+        cartesian_sample_count, cartesian_samples, eager_cartesian_product, samples_for_type,
+    };
+    use crate::eval::Value;
 
     #[test]
     fn builtin_float_samples_are_finite_and_stable() {
@@ -451,5 +507,33 @@ mod tests {
                 "3.141592653589793"
             ]
         );
+    }
+
+    #[test]
+    fn cartesian_samples_preserve_eager_order_without_materializing() {
+        let sample_sets = vec![
+            vec![Value::Int(1), Value::Int(2)],
+            vec![Value::Text("a".to_string()), Value::Text("b".to_string())],
+        ];
+
+        assert_eq!(cartesian_sample_count(&sample_sets), Some(4));
+        assert_eq!(
+            cartesian_samples(&sample_sets).collect::<Vec<_>>(),
+            eager_cartesian_product(&sample_sets)
+        );
+    }
+
+    #[test]
+    fn cartesian_samples_handle_vacuous_and_empty_sample_sets() {
+        let no_bindings: Vec<Vec<Value>> = Vec::new();
+        assert_eq!(cartesian_sample_count(&no_bindings), Some(1));
+        assert_eq!(
+            cartesian_samples(&no_bindings).collect::<Vec<_>>(),
+            vec![vec![]]
+        );
+
+        let empty_generator = vec![Vec::<Value>::new()];
+        assert_eq!(cartesian_sample_count(&empty_generator), Some(0));
+        assert!(cartesian_samples(&empty_generator).next().is_none());
     }
 }
