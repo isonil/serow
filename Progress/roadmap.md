@@ -4,7 +4,7 @@
 
 Future generic implementation prompts should choose the highest-leverage next step across all phases. Phase 0, Phase 1, Phase 2 agent workflow, Phase 2.5 certification, Phase 2.6 unattended safety, and the first Phase 3 backend slice are released for public v1. Prefer targeted v2 hardening gaps before expanding syntax beyond the v1 bootstrap subset.
 
-Latest closure: Serow is at `1.0.31-rust-bootstrap` after making generated Rust list copy updates preserve source-list readability across `push` and `remove_first`.
+Latest closure: Serow is at `1.0.32-rust-bootstrap` after tightening project-manifest parsing to accept only JSON whitespace around metadata tokens.
 
 Selection policy:
 

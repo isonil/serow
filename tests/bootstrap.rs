@@ -11997,6 +11997,28 @@ fn project_manifest_parser_rejects_non_json_root_text() {
 }
 
 #[test]
+fn project_manifest_parser_rejects_non_json_whitespace() {
+    let leading_non_json_whitespace = format!(
+        "{}\n{{\n  \"version\": \"0.4.82-rust-bootstrap\"\n}}",
+        '\u{00a0}'
+    );
+    assert_eq!(parse_project_version(&leading_non_json_whitespace), None);
+
+    let token_non_json_whitespace = format!(
+        "{{\n  \"version\"{}: \"0.4.82-rust-bootstrap\",\n  \"architecture\": {{\n    \"modules\": {{\n      \"app.main\": {{\n        \"may_depend_on\": [\"core.math\"]\n      }}\n    }}\n  }}\n}}",
+        '\u{00a0}'
+    );
+    assert_eq!(parse_project_version(&token_non_json_whitespace), None);
+
+    let architecture_non_json_whitespace = format!(
+        "{{\n  \"architecture\"{}: {{\n    \"modules\": {{\n      \"app.main\": {{\n        \"may_depend_on\": [\"core.math\"]\n      }}\n    }}\n  }}\n}}",
+        '\u{00a0}'
+    );
+    let architecture = parse_architecture(&architecture_non_json_whitespace);
+    assert!(architecture.modules.is_empty());
+}
+
+#[test]
 fn cargo_manifest_version_parser_reads_package_version() {
     let manifest = r#"[workspace]
 members = ["crates/*"]

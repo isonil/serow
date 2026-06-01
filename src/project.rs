@@ -522,7 +522,7 @@ fn skip_value(source: &str, start: usize, limit: usize) -> usize {
 fn skip_ws(text: &str, start: usize) -> usize {
     let mut index = start;
     while let Some(char) = text[index..].chars().next() {
-        if !char.is_whitespace() {
+        if !is_json_whitespace(char) {
             break;
         }
         index += char.len_utf8();
@@ -531,4 +531,8 @@ fn skip_ws(text: &str, start: usize) -> usize {
         }
     }
     index
+}
+
+fn is_json_whitespace(char: char) -> bool {
+    matches!(char, ' ' | '\n' | '\r' | '\t')
 }

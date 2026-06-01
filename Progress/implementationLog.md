@@ -2,6 +2,9 @@
 
 ## 2026-06-01
 
+- Chose project-manifest parser hardening because the dependency-free metadata reader accepted non-JSON Unicode whitespace around root and object-field tokens, allowing malformed `serow.project` files to drive version and architecture behavior.
+- Restricted project-manifest whitespace skipping to JSON's space, tab, carriage-return, and line-feed set, added regressions for invalid leading and token whitespace, and bumped Serow to `1.0.32-rust-bootstrap` / crate `1.0.32`.
+
 - Chose Rust backend artifact-check clarity because `--check-out-dir` reported old Serow-generated binary entrypoints and hand-authored unexpected `src/main.rs` files through the same generic diagnostic.
 - Split stale generated binary entrypoints into `RustBackendStaleGeneratedArtifact` with a read-only remediation hint while keeping unknown files under `RustBackendUnexpectedArtifact`, and covered both cases in the generated-crate regression.
 
