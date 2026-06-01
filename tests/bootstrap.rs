@@ -3491,6 +3491,25 @@ fn text_query_commands_reject_json_flag_without_query_text() {
 }
 
 #[test]
+fn text_query_accepts_separator_before_dash_prefixed_text() {
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["query", "intent", "--", "-needle", "--json"])
+        .output()
+        .expect("run dash-prefixed serow query intent");
+
+    assert!(output.status.success(), "{output:#?}");
+    assert!(output.stderr.is_empty(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.trim_start().starts_with('{'), "{stdout}");
+    assert!(stdout.contains("\"results\""), "{stdout}");
+    assert!(!stdout.contains("UsageError"), "{stdout}");
+    assert!(
+        !stdout.contains("Unknown serow query intent option `-needle`."),
+        "{stdout}"
+    );
+}
+
+#[test]
 fn query_usage_errors_respect_json_flag() {
     let missing_command = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args(["query", "--json"])

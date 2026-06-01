@@ -2498,11 +2498,12 @@ fn parse_text_query_args(
     query_command: &str,
 ) -> Result<Option<TextQueryArgs>, (bool, String)> {
     let (args, mut json_output) = split_flag_before_separator(args, "--json");
-    let Some(text) = args.first().cloned() else {
+    let text_index = usize::from(args.first().is_some_and(|arg| arg == "--"));
+    let Some(text) = args.get(text_index).cloned() else {
         return Ok(None);
     };
     let command_label = format!("query {query_command}");
-    let path_args = parse_paths_and_json(&args[1..], &command_label)?;
+    let path_args = parse_paths_and_json(&args[text_index + 1..], &command_label)?;
     let paths = path_args.paths;
     let path_json_output = path_args.json_output;
     json_output |= path_json_output;
