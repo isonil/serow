@@ -54,6 +54,40 @@ pub fn signed_zero_equal() -> Bool
                 [diagnostic.to_dict() for diagnostic in summary.diagnostics],
             )
 
+    def test_python_reference_samples_homogeneous_lists(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "list_samples.serow"
+            source.write_text(
+                """module test.list_samples
+
+pub fn count_items(items: List<Int>) -> Int
+  intent "Count integer list items in the Python bootstrap."
+  version v1
+  contract
+    ensures result == len(items)
+  examples
+    count_items([]) == 0
+    count_items([1, 2]) == 2
+  properties
+    forall items: List<Int>:
+      count_items(items) == len(items)
+  effects pure
+  impl
+    len(items)
+""",
+                encoding="utf-8",
+            )
+            program, parse_diagnostics = parse_files([str(source)])
+            summary = check_program(program, parse_diagnostics)
+            self.assertTrue(
+                summary.ok,
+                [diagnostic.to_dict() for diagnostic in summary.diagnostics],
+            )
+            self.assertNotIn(
+                "PropertyNotExecutable",
+                [diagnostic.code for diagnostic in summary.diagnostics],
+            )
+
     def test_explicit_missing_source_path_is_reported(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "missing.serow"

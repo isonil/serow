@@ -1278,8 +1278,12 @@ def _value_complexity(value: Any) -> int:
         return int(value)
     if isinstance(value, int):
         return abs(value)
+    if isinstance(value, float):
+        return round(abs(value) * 10)
     if isinstance(value, str):
         return len(value)
+    if isinstance(value, list):
+        return sum(_value_complexity(item) for item in value)
     if isinstance(value, dict):
         if "__enum" in value:
             return len(value["variant"])
@@ -1329,6 +1333,8 @@ def _format_sample_bindings(variables: List[Tuple[str, str]], bindings: Dict[str
 def _format_sample_value(value: Any) -> str:
     if isinstance(value, bool):
         return str(value).lower()
+    if isinstance(value, list):
+        return "[" + ", ".join(_format_sample_value(item) for item in value) + "]"
     if isinstance(value, str):
         return json.dumps(value)
     if isinstance(value, dict) and "__enum" in value:
@@ -1361,8 +1367,9 @@ class _UnsupportedSample:
 
 
 def _samples_for_type(type_name: str, types: List[TypeDecl], active_records: Optional[List[str]] = None):
-    if _is_list_type(type_name):
-        return _UnsupportedSample(_UnknownSampleType(type_name))
+    element_type = _list_element_type(type_name)
+    if element_type is not None:
+        return _list_samples_for_type(element_type, types, active_records)
     if type_name == "Int":
         return [-2, -1, 0, 1, 2, -10, 10]
     if type_name == "Float":
@@ -1412,6 +1419,23 @@ def _samples_for_type(type_name: str, types: List[TypeDecl], active_records: Opt
     return records
 
 
+def _list_samples_for_type(
+    element_type: str,
+    types: List[TypeDecl],
+    active_records: Optional[List[str]],
+):
+    element_samples = _samples_for_type(element_type, types, active_records)
+    if isinstance(element_samples, _UnsupportedSample):
+        return element_samples
+
+    lists = [[]]
+    for sample in element_samples:
+        lists.append([sample])
+    if len(element_samples) >= 2:
+        lists.append([element_samples[0], element_samples[1]])
+    return lists
+
+
 def _record_sample_value(type_name: str, fields: Dict[str, Any]) -> Dict[str, Any]:
     value = {"__type": type_name}
     value.update(fields)
@@ -1431,10 +1455,6 @@ def _is_known_type(type_name: str, known_types: set) -> bool:
         return True
     element_type = _list_element_type(type_name)
     return element_type is not None and _is_known_type(element_type, known_types)
-
-
-def _is_list_type(type_name: str) -> bool:
-    return _list_element_type(type_name) is not None
 
 
 def _list_element_type(type_name: str) -> Optional[str]:
@@ -1474,6 +1494,7 @@ def _split_args(text: str) -> List[str]:
     parts = []
     depth = 0
     brace_depth = 0
+    bracket_depth = 0
     in_string = False
     current = []
     for char in text:
@@ -1488,7 +1509,16 @@ def _split_args(text: str) -> List[str]:
                 brace_depth += 1
             elif char == "}":
                 brace_depth -= 1
-            elif char == "," and depth == 0 and brace_depth == 0:
+            elif char == "[":
+                bracket_depth += 1
+            elif char == "]":
+                bracket_depth -= 1
+            elif (
+                char == ","
+                and depth == 0
+                and brace_depth == 0
+                and bracket_depth == 0
+            ):
                 parts.append("".join(current).strip())
                 current = []
                 continue

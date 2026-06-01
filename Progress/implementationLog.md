@@ -2,6 +2,9 @@
 
 ## 2026-06-01
 
+- Chose Python reference sampler parity as a low-risk cleanup because the Rust bootstrap and public docs support bounded homogeneous `List<T>` property samples, while the temporary Python checker still treated every list binding as non-executable.
+- Added Python list property samples matching the Rust empty/singleton/two-element-prefix shape, made sample formatting and shrinking complexity list-aware, and fixed direct-call argument splitting for list literals containing commas.
+
 - Chose public progress documentation cleanup because the canonical project/crate version and CLI/backend docs already describe `1.0.28` list property sampling, while the README, roadmap, and current-state closure summary still implied the older `1.0.27` signed-zero milestone or omitted homogeneous list samples from the sampled-property overview.
 - Updated those public summaries so future agent iterations choose work from the current state instead of stale progress notes.
 
