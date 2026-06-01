@@ -2186,12 +2186,7 @@ fn qualify_expression_call_name(
             continue;
         }
         let Some(end) = identifier_end(expression, index) else {
-            let char = rest
-                .chars()
-                .next()
-                .expect("index is inside expression bounds");
-            rewritten.push(char);
-            index += char.len_utf8();
+            push_current_char(rest, &mut rewritten, &mut index);
             continue;
         };
         let reference_text = &expression[index..end];
@@ -2289,12 +2284,7 @@ fn rewrite_expression_type_references(expression: &str, old_name: &str, new_name
             continue;
         }
         let Some(end) = identifier_end(expression, index) else {
-            let char = rest
-                .chars()
-                .next()
-                .expect("index is inside expression bounds");
-            rewritten.push(char);
-            index += char.len_utf8();
+            push_current_char(rest, &mut rewritten, &mut index);
             continue;
         };
         let reference_text = &expression[index..end];
@@ -2418,12 +2408,7 @@ fn rewrite_expression_module_call_references(
             continue;
         }
         let Some(end) = identifier_end(expression, index) else {
-            let char = rest
-                .chars()
-                .next()
-                .expect("index is inside expression bounds");
-            rewritten.push(char);
-            index += char.len_utf8();
+            push_current_char(rest, &mut rewritten, &mut index);
             continue;
         };
         let reference_text = &expression[index..end];
@@ -2516,12 +2501,7 @@ fn rewrite_expression_call_references(
             continue;
         }
         let Some(end) = identifier_end(expression, index) else {
-            let char = rest
-                .chars()
-                .next()
-                .expect("index is inside expression bounds");
-            rewritten.push(char);
-            index += char.len_utf8();
+            push_current_char(rest, &mut rewritten, &mut index);
             continue;
         };
         let reference_text = &expression[index..end];
@@ -2620,6 +2600,14 @@ fn renamed_call_reference(
         (None, None) if bare_name_count(program, new_name, target) == 0 => new_name.to_string(),
         (None, None) => exact,
     }
+}
+
+fn push_current_char(rest: &str, rewritten: &mut String, index: &mut usize) {
+    let Some(char) = rest.chars().next() else {
+        return;
+    };
+    rewritten.push(char);
+    *index += char.len_utf8();
 }
 
 fn resolved_call_replacement(

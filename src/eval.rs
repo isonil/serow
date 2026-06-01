@@ -1248,20 +1248,15 @@ impl<'a> ExprParser<'a> {
         if !self.consume(&Token::RBrace) {
             loop {
                 let field = self.expect_ident()?;
-                if !type_decl
-                    .fields
-                    .iter()
-                    .any(|declared| declared.name == field)
-                {
-                    return Err(format!("Record `{type_name}` has unknown field `{field}`."));
-                }
-                self.expect(&Token::Colon)?;
-                let value = self.parse_expression()?;
-                let declared = type_decl
+                let Some(declared) = type_decl
                     .fields
                     .iter()
                     .find(|declared| declared.name == field)
-                    .expect("field existence checked above");
+                else {
+                    return Err(format!("Record `{type_name}` has unknown field `{field}`."));
+                };
+                self.expect(&Token::Colon)?;
+                let value = self.parse_expression()?;
                 let actual = value_type_name(&value);
                 if !type_accepts(&actual, &declared.type_name) {
                     return Err(format!(

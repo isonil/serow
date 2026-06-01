@@ -723,9 +723,7 @@ fn parse_compile_rust_args(args: &[String]) -> Result<CompileRustArgs, String> {
                 if out_dir.is_some() {
                     return Err("`--out-dir` can only be provided once.".to_string());
                 }
-                let value = value
-                    .strip_prefix("--out-dir=")
-                    .expect("prefix checked above");
+                let value = &value["--out-dir=".len()..];
                 if value.is_empty() {
                     return Err("`--out-dir` requires a directory path.".to_string());
                 }
@@ -751,9 +749,7 @@ fn parse_compile_rust_args(args: &[String]) -> Result<CompileRustArgs, String> {
                     return Err("`--crate-name` can only be provided once.".to_string());
                 }
                 crate_name_seen = true;
-                let value = value
-                    .strip_prefix("--crate-name=")
-                    .expect("prefix checked above");
+                let value = &value["--crate-name=".len()..];
                 if value.is_empty() {
                     return Err("`--crate-name` requires a crate name.".to_string());
                 }
