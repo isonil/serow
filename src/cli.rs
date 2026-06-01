@@ -5297,6 +5297,12 @@ struct DocLinkTarget {
     fragment: Option<String>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct MarkdownFence {
+    marker: char,
+    length: usize,
+}
+
 fn broken_doc_links() -> Vec<DocLinkIssue> {
     let mut broken = Vec::new();
     for source_path in DOC_LINK_SOURCES {
@@ -5307,10 +5313,10 @@ fn broken_doc_links() -> Vec<DocLinkIssue> {
         let source_parent = Path::new(source_path)
             .parent()
             .unwrap_or_else(|| Path::new(""));
-        let mut fence = None;
+        let mut fence: Option<MarkdownFence> = None;
         for (line_index, line) in source.lines().enumerate() {
             if let Some(marker) = markdown_fence_marker(line) {
-                if fence == Some(marker) {
+                if fence.is_some_and(|open| markdown_fence_closes(open, marker)) {
                     fence = None;
                 } else if fence.is_none() {
                     fence = Some(marker);
@@ -5378,10 +5384,10 @@ fn broken_doc_links() -> Vec<DocLinkIssue> {
 
 fn markdown_reference_definition_labels(source: &str) -> HashSet<String> {
     let mut labels = HashSet::new();
-    let mut fence = None;
+    let mut fence: Option<MarkdownFence> = None;
     for line in source.lines() {
         if let Some(marker) = markdown_fence_marker(line) {
-            if fence == Some(marker) {
+            if fence.is_some_and(|open| markdown_fence_closes(open, marker)) {
                 fence = None;
             } else if fence.is_none() {
                 fence = Some(marker);
@@ -5399,7 +5405,7 @@ fn markdown_reference_definition_labels(source: &str) -> HashSet<String> {
     labels
 }
 
-fn markdown_fence_marker(line: &str) -> Option<char> {
+fn markdown_fence_marker(line: &str) -> Option<MarkdownFence> {
     let trimmed = line.trim_start();
     let indent = line.len().saturating_sub(trimmed.len());
     if indent > 3 {
@@ -5413,7 +5419,14 @@ fn markdown_fence_marker(line: &str) -> Option<char> {
         .chars()
         .take_while(|character| *character == marker)
         .count();
-    (count >= 3).then_some(marker)
+    (count >= 3).then_some(MarkdownFence {
+        marker,
+        length: count,
+    })
+}
+
+fn markdown_fence_closes(open: MarkdownFence, candidate: MarkdownFence) -> bool {
+    candidate.marker == open.marker && candidate.length >= open.length
 }
 
 fn markdown_without_inline_code_spans(line: &str) -> String {
@@ -5724,11 +5737,11 @@ fn markdown_anchor_exists(path: &Path, fragment: &str) -> bool {
 fn markdown_heading_anchors(source: &str) -> HashSet<String> {
     let mut anchors = HashSet::new();
     let mut counts = HashMap::new();
-    let mut fence = None;
+    let mut fence: Option<MarkdownFence> = None;
     let mut setext_candidate = None::<String>;
     for line in source.lines() {
         if let Some(marker) = markdown_fence_marker(line) {
-            if fence == Some(marker) {
+            if fence.is_some_and(|open| markdown_fence_closes(open, marker)) {
                 fence = None;
             } else if fence.is_none() {
                 fence = Some(marker);
