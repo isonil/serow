@@ -2,6 +2,9 @@
 
 ## 2026-06-01
 
+- Chose Float sampling panic-surface cleanup because the deterministic built-in `Float` property samples still constructed values through `expect()` even though unsupported sample generation already has a recoverable error path.
+- Replaced the assertions with a small finite-sample helper that propagates an unsupported-sample error if an internal sample ever stops being finite, and added a focused unit regression for the stable built-in Float sample set.
+
 - Chose Python reference source-discovery parity because the Rust bootstrap reports missing or empty default `examples` roots, while the temporary Python parser silently accepted an empty default source set.
 - Updated Python discovery to emit the same default-source diagnostics as explicit source paths and added regressions for missing and empty default `examples` directories.
 

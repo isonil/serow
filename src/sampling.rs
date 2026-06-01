@@ -11,6 +11,7 @@ pub(crate) fn samples_for_type(type_name: &str, types: &[TypeDecl]) -> Option<Ve
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum SampleUnsupportedReason {
     UnknownType(String),
+    InvalidBuiltInSample { type_name: String, value: String },
     RecursiveRecordCycle(Vec<String>),
 }
 
@@ -33,6 +34,9 @@ impl SampleUnsupported {
             SampleUnsupportedReason::UnknownType(type_name) => {
                 format!("unknown type `{type_name}`")
             }
+            SampleUnsupportedReason::InvalidBuiltInSample { type_name, value } => {
+                format!("invalid built-in `{type_name}` sample `{value}`")
+            }
             SampleUnsupportedReason::RecursiveRecordCycle(cycle) => {
                 format!("recursive record sample cycle: {}", cycle.join(" -> "))
             }
@@ -42,7 +46,8 @@ impl SampleUnsupported {
     pub(crate) fn cycle_text(&self) -> Option<String> {
         match &self.reason {
             SampleUnsupportedReason::RecursiveRecordCycle(cycle) => Some(cycle.join(" -> ")),
-            SampleUnsupportedReason::UnknownType(_) => None,
+            SampleUnsupportedReason::InvalidBuiltInSample { .. }
+            | SampleUnsupportedReason::UnknownType(_) => None,
         }
     }
 }
@@ -111,16 +116,7 @@ fn samples_for_type_result(
             Value::Int(-10),
             Value::Int(10),
         ]),
-        "Float" => Ok(vec![
-            Value::Float(FloatValue::new(-2.0).expect("finite float sample")),
-            Value::Float(FloatValue::new(-1.0).expect("finite float sample")),
-            Value::Float(FloatValue::new(-0.5).expect("finite float sample")),
-            Value::Float(FloatValue::new(0.0).expect("finite float sample")),
-            Value::Float(FloatValue::new(0.5).expect("finite float sample")),
-            Value::Float(FloatValue::new(1.0).expect("finite float sample")),
-            Value::Float(FloatValue::new(2.0).expect("finite float sample")),
-            Value::Float(FloatValue::new(std::f64::consts::PI).expect("finite float sample")),
-        ]),
+        "Float" => finite_float_samples(),
         "Bool" => Ok(vec![Value::Bool(false), Value::Bool(true)]),
         "Text" => Ok(vec![
             Value::Text(String::new()),
@@ -135,6 +131,20 @@ fn samples_for_type_result(
         }
         _ => declared_samples_for_type(type_name, types, active_records),
     }
+}
+
+fn finite_float_samples() -> Result<Vec<Value>, SampleUnsupportedReason> {
+    [-2.0, -1.0, -0.5, 0.0, 0.5, 1.0, 2.0, std::f64::consts::PI]
+        .into_iter()
+        .map(|value| {
+            FloatValue::new(value).map(Value::Float).map_err(|_| {
+                SampleUnsupportedReason::InvalidBuiltInSample {
+                    type_name: "Float".to_string(),
+                    value: value.to_string(),
+                }
+            })
+        })
+        .collect()
 }
 
 fn list_samples_for_type(
@@ -417,5 +427,29 @@ fn value_complexity(value: &Value) -> usize {
         Value::Enum { variant, .. } => variant.len(),
         Value::List { elements, .. } => elements.iter().map(value_complexity).sum(),
         Value::Unit => 0,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::samples_for_type;
+
+    #[test]
+    fn builtin_float_samples_are_finite_and_stable() {
+        let samples = samples_for_type("Float", &[]).expect("Float samples are supported");
+        let rendered = samples.iter().map(ToString::to_string).collect::<Vec<_>>();
+        assert_eq!(
+            rendered,
+            vec![
+                "-2.0",
+                "-1.0",
+                "-0.5",
+                "0.0",
+                "0.5",
+                "1.0",
+                "2.0",
+                "3.141592653589793"
+            ]
+        );
     }
 }
