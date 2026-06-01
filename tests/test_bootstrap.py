@@ -359,6 +359,42 @@ pub fn add(x: Int, y: Int) -> Int
             codes = [diagnostic.code for diagnostic in summary.diagnostics]
             self.assertIn("ExampleFailed", codes)
 
+    def test_unsupported_contract_clause_repair_mentions_requires_and_ensures(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "contract.serow"
+            source.write_text(
+                """module test.contract
+
+pub fn id(x: Int) -> Int
+  intent "Return the input unchanged."
+  contract
+    invariant x == x
+  examples
+    id(1) == 1
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+""",
+                encoding="utf-8",
+            )
+            _program, parse_diagnostics = parse_files([str(source)])
+            diagnostic = next(
+                diagnostic
+                for diagnostic in parse_diagnostics
+                if diagnostic.code == "UnsupportedContractClause"
+            )
+            self.assertTrue(
+                any(
+                    "requires <boolean-expression>" in repair
+                    and "ensures <boolean-expression>" in repair
+                    for repair in diagnostic.repairs
+                ),
+                diagnostic.to_dict(),
+            )
+
     def test_typed_hole_reports_structured_obligations(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "hole.serow"

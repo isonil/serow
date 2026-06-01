@@ -2,6 +2,9 @@
 
 ## 2026-06-01
 
+- Chose contract diagnostic cleanup because the parser accepts both `requires` and `ensures` clauses, but the unsupported-clause repair text still told users to use only `ensures`.
+- Updated the Rust bootstrap and temporary Python reference repair guidance to mention both supported contract clause forms, with focused regressions for each parser.
+
 - Chose Rust backend list-copy hardening because generated `push`/`remove_first` blocks moved their source list, so a second argument such as `get_int(items, 0).value` could make otherwise valid Serow fail to compile as Rust.
 - Lowered consuming list intrinsics by cloning the source list before mutation, fixed checker example argument splitting for list literals with commas, added generated-crate regressions for reading the same input list while appending/removing, documented the backend support list consistently, and bumped Serow to `1.0.31-rust-bootstrap` / crate `1.0.31`.
 

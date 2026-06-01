@@ -593,6 +593,48 @@ pub fn div_trunc(x: Int, y: Int) -> Int
 }
 
 #[test]
+fn unsupported_contract_clause_repair_mentions_requires_and_ensures() {
+    let dir = unique_temp_dir("serow-unsupported-contract-repair");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("contract.serow");
+    fs::write(
+        &source,
+        r#"module test.contract
+
+pub fn id(x: Int) -> Int
+  intent "Return the input unchanged."
+  contract
+    invariant x == x
+  examples
+    id(1) == 1
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let (_program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let diagnostic = parse_diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "UnsupportedContractClause")
+        .expect("unsupported contract clause diagnostic");
+    assert!(
+        diagnostic
+            .repairs
+            .iter()
+            .any(|repair| repair.contains("requires <boolean-expression>")
+                && repair.contains("ensures <boolean-expression>")),
+        "{diagnostic:#?}"
+    );
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn implementation_return_type_mismatch_is_reported() {
     let dir = unique_temp_dir("serow-type-mismatch");
     fs::create_dir_all(&dir).expect("create temp dir");

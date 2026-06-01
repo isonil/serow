@@ -404,7 +404,9 @@ def _parse_function(path: str, module: str, line: int, header: re.Match, block: 
                             code="UnsupportedContractClause",
                             message=f"Unsupported contract clause: {content}",
                             target=f"{path}:{offset}",
-                            repairs=["Use `ensures <boolean-expression>` for now."],
+                            repairs=[
+                                "Use `requires <boolean-expression>` or `ensures <boolean-expression>`."
+                            ],
                         )
                     )
             elif current_section == "examples":

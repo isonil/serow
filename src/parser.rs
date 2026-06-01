@@ -544,7 +544,9 @@ fn parse_function(
                                 format!("Unsupported contract clause: {}", content.trim()),
                                 Some(format!("{path}:{line_number}")),
                             )
-                            .with_repair("Use `ensures <boolean-expression>` for now."),
+                            .with_repair(
+                                "Use `requires <boolean-expression>` or `ensures <boolean-expression>`.",
+                            ),
                         );
                     }
                 }
