@@ -13,7 +13,7 @@ The language and compiler are intentionally small, but usable for the supported 
 - records, nullary enum/sum types, exhaustive enum matches, sequencing, local mutation, checked loops, `Unit`, and concrete `List<T>` values
 - explicit effects with direct-call capability checks
 - explicit and inferred module dependencies checked against `serow.project`
-- executable examples and deterministic sampled properties over built-in values, declared records, and enum variants
+- executable examples and deterministic sampled properties over built-in values, homogeneous lists, declared records, and enum variants
 - structured JSON diagnostics with machine-readable repair actions where available
 - semantic ledger queries for intent search, symbol lookup, type-shape lookup, callees, effects, dependents, and impact paths
 - machine-readable change plans and certification gates for public behavior, implementation evidence, capability changes, impact coverage, and migration acknowledgements

@@ -1,5 +1,10 @@
 # Implementation Log
 
+## 2026-06-01
+
+- Chose public progress documentation cleanup because the canonical project/crate version and CLI/backend docs already describe `1.0.28` list property sampling, while the README, roadmap, and current-state closure summary still implied the older `1.0.27` signed-zero milestone or omitted homogeneous list samples from the sampled-property overview.
+- Updated those public summaries so future agent iterations choose work from the current state instead of stale progress notes.
+
 ## 2026-05-31
 
 - Chose deterministic list property sampling as a small completeness fix because `List<T>` values already check, evaluate, lower to IR, and compile to Rust, but `forall` bindings over list values were still reported as non-executable.

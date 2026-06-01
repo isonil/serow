@@ -4,7 +4,7 @@
 
 Future generic implementation prompts should choose the highest-leverage next step across all phases. Phase 0, Phase 1, Phase 2 agent workflow, Phase 2.5 certification, Phase 2.6 unattended safety, and the first Phase 3 backend slice are released for public v1. Prefer targeted v2 hardening gaps before expanding syntax beyond the v1 bootstrap subset.
 
-Latest closure: Serow is at `1.0.27-rust-bootstrap` after aligning checked Float equality with Rust `f64` equality for signed zero, including nested list and record equality.
+Latest closure: Serow is at `1.0.28-rust-bootstrap` after adding bounded homogeneous `List<T>` property samples across checking, replay, planning, and generated Rust tests.
 
 Selection policy:
 
@@ -113,7 +113,7 @@ This phase exists because the original Serow premise is not only "AI-first synta
   - make capability expansion visible in certification and dependent-impact output _(Done enough for v1: `serow plan` reports declared capability changes against `HEAD`, and unattended certification rejects added capabilities as `CapabilityExpansionNeedsMigration` unless acknowledged by a `capability-expansion` migration.)_
 - Strengthen property testing ergonomics:
   - record deterministic seeds for sampled property failures and make them replayable from diagnostics and certification output _(Done enough for v1: `PropertyFailed` and `PropertyEvaluationError` diagnostics include `property_index`, `sample_index`, `sample_seed`, sampled `bindings`, and a `replay property` repair action for single-sample reruns.)_
-  - improve built-in sampled generators before adding custom generator syntax _(Done enough for v1: checker, replay, plan, and Rust generated tests share deterministic sample sets; Int/Text/Float sample coverage has been expanded while preserving stable replay seeds, and declared record and enum types receive bounded samples.)_
+  - improve built-in sampled generators before adding custom generator syntax _(Done enough for v1: checker, replay, plan, and Rust generated tests share deterministic sample sets; Int/Text/Float sample coverage has been expanded while preserving stable replay seeds, homogeneous lists receive bounded samples, and declared record and enum types receive bounded samples.)_
   - treat shrinking for failing sampled properties as a stretch goal after replay is stable _(Done enough for v1: failures and evaluation errors include deterministic `shrunk_sample_index`, `shrunk_sample_seed`, and `shrunk_bindings` data when a simpler same-outcome binding exists in the built-in sample set.)_
   - report lightweight coverage hints for sampled evidence so shallow properties are easier to spot _(Done enough for v1: `serow plan` emits per-property sample counts, direct-call flags, vacuous flags, unsupported generator types, unsupported-sample reasons, and recursive record sample cycles for changed symbols.)_
 - Add machine-readable change plans:
