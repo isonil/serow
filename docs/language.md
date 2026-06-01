@@ -198,4 +198,4 @@ Structured patch commands cover common safe edits: modules, dependencies, functi
 
 ## V1 Limits
 
-The public v1 baseline deliberately excludes source-level generics, payload enum variants, recursive record layout support, list `forall` sample generation, map/filter/fold/slicing, wildcard match branches, effect polymorphism, semantic embedding search, proof-based properties, comment-preserving formatting, external effects beyond terminal I/O, and non-Rust production backends. These are v2 or future scope unless they block a public workflow.
+The public v1 baseline deliberately excludes source-level generics, payload enum variants, recursive record layout support, map/filter/fold/slicing, wildcard match branches, effect polymorphism, semantic embedding search, proof-based properties, custom property generators, comment-preserving formatting, external effects beyond terminal I/O, and non-Rust production backends. These are v2 or future scope unless they block a public workflow.

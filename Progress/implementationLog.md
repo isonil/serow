@@ -1112,3 +1112,10 @@
 - Added the standard-library reference to `bin/serow docs [--check] [--json]`, README references, CLI/language docs, `serow.project`, and Progress notes.
 - Bumped `serow.project` to `1.0.4-rust-bootstrap`.
 - Verified with `bin/serow query intent "publish public standard library reference documentation" --json`, `bin/serow query symbol "standard library" --json`, `cargo fmt --check`, `cargo test docs_command_lists_and_checks_public_references -- --nocapture`, `bin/serow docs --check --json`, `bin/serow release-check --json`, `bin/serow fmt --check --json`, `bin/serow check --json`, `bin/serow certify --json`, `bin/serow certify --profile unattended --json`, `cargo test`, `python3 -m unittest discover -s tests`, `bin/serow version --json`, `git diff --check`, and `cargo clippy -- -D warnings`.
+
+## 2026-06-01
+
+- Chose documentation consistency cleanup because the language reference still listed list `forall` sample generation as a v1 exclusion even though the checker, CLI reference, backend docs, README, and current progress state describe bounded homogeneous `List<T>` property samples as supported.
+- Updated the language known-limits text to keep richer list APIs and custom generators in future scope without incorrectly excluding supported list property samples.
+- Updated current progress known limits to include bounded homogeneous list samples in the sampled-property summary.
+- Verified with `bin/serow docs --check --json`, `bin/serow check`, `bin/serow certify`, `bin/serow certify --profile unattended`, `bin/serow release-check --json`, `cargo clippy --quiet --all-targets -- -D warnings`, `cargo test --quiet`, and `git diff --check`.

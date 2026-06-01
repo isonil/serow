@@ -1,6 +1,6 @@
 # Current State
 
-Date: 2026-05-31
+Date: 2026-06-01
 
 ## Active Mode
 
@@ -1973,7 +1973,7 @@ git diff --check
 - Intent duplicate errors are exact after simple normalization; near-duplicate warnings and intent search use deterministic token ranking with stopwords and light token normalization. Duplicate and near-duplicate diagnostics expose token overlap/differences, but they are not semantic similarity yet.
 - Type checking covers the current expression subset, record types, nullary enum types, and exhaustive nullary enum matches, but does not yet model generics, payload variants, wildcard/payload pattern matching, or effect polymorphism.
 - Expression support is intentionally small: literals, variables, enum variants, direct or qualified calls, arithmetic, comparisons, booleans, records, exhaustive nullary enum matches, sequencing, local mutation, checked while loops, and one-line `if ... then ... else ...`.
-- Properties are sampled, not proven; built-in samples are fixed small sets for `Int`, `Float`, `Bool`, `Text`, singleton `Unit`, bounded declared-record values, and declared enum variants. Failed or erroring sampled properties report replay data, include simpler shrunk same-outcome bindings when available, and can be rerun one sample at a time with `bin/serow replay property`. Non-executable property diagnostics include unsupported-sample reasons, including recursive record sample cycles when present.
+- Properties are sampled, not proven; built-in samples are fixed small sets for `Int`, `Float`, `Bool`, `Text`, singleton `Unit`, bounded homogeneous `List<T>` values, bounded declared-record values, and declared enum variants. Failed or erroring sampled properties report replay data, include simpler shrunk same-outcome bindings when available, and can be rerun one sample at a time with `bin/serow replay property`. Non-executable property diagnostics include unsupported-sample reasons, including recursive record sample cycles when present.
 - Effects checking is intentionally conservative direct-call capability subset validation; it warns on unused declared capabilities only when resolved non-self direct callees establish a required capability set, and it does not yet model effect polymorphism or external effect primitives beyond the compiler-owned terminal I/O intrinsics.
 - Structured patch coverage is intentionally narrow: module `use` insertion/removal/replacement, type insertion/removal/rename with record field and enum variant replacement, in-file type-reference rewrites for renames, public function skeleton insertion, public function rename with in-file resolved call rewrites, bare-call qualification to exact symbols, evidence insertion, indexed evidence removal, migration acknowledgement insertion/replacement/removal, indexed contract/example/property replacement, duplicate-intent-guarded intent replacement, missing or existing effect declaration setting, missing or existing implementation expression setting, version declaration and pinned-call-aware version bumps, and typed-hole filling are implemented.
 - Evidence patching can append or replace individual contract/example/property items, but dependent impact and evidence policy are still enforced by `serow plan` and unattended certification rather than by the patch command itself.
