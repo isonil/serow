@@ -2,6 +2,9 @@
 
 ## 2026-06-01
 
+- Chose Rust backend artifact-check clarity because `--check-out-dir` reported old Serow-generated binary entrypoints and hand-authored unexpected `src/main.rs` files through the same generic diagnostic.
+- Split stale generated binary entrypoints into `RustBackendStaleGeneratedArtifact` with a read-only remediation hint while keeping unknown files under `RustBackendUnexpectedArtifact`, and covered both cases in the generated-crate regression.
+
 - Chose Float sampling panic-surface cleanup because the deterministic built-in `Float` property samples still constructed values through `expect()` even though unsupported sample generation already has a recoverable error path.
 - Replaced the assertions with a small finite-sample helper that propagates an unsupported-sample error if an internal sample ever stops being finite, and added a focused unit regression for the stable built-in Float sample set.
 

@@ -13419,10 +13419,44 @@ fn compile_rust_out_dir_writes_crate_layout() {
     );
     let unexpected_stdout = String::from_utf8_lossy(&unexpected_output.stdout);
     assert!(
-        unexpected_stdout.contains("\"code\": \"RustBackendUnexpectedArtifact\""),
+        unexpected_stdout.contains("\"code\": \"RustBackendStaleGeneratedArtifact\""),
+        "{unexpected_stdout}"
+    );
+    assert!(
+        unexpected_stdout.contains("without `--check-out-dir`"),
         "{unexpected_stdout}"
     );
     fs::remove_file(&unexpected_main).expect("remove unexpected generated main");
+
+    fs::write(
+        &unexpected_main,
+        "// hand-authored binary entrypoint that Serow must not remove\nfn main() {}\n",
+    )
+    .expect("write unexpected hand-authored main");
+    let hand_authored_output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "compile",
+            "rust",
+            "examples/math.serow",
+            "--out-dir",
+            &out_dir.to_string_lossy(),
+            "--crate-name",
+            "serow_math_generated",
+            "--check-out-dir",
+            "--json",
+        ])
+        .output()
+        .expect("run unexpected hand-authored artifact compile rust --check-out-dir");
+    assert!(
+        !hand_authored_output.status.success(),
+        "{hand_authored_output:#?}"
+    );
+    let hand_authored_stdout = String::from_utf8_lossy(&hand_authored_output.stdout);
+    assert!(
+        hand_authored_stdout.contains("\"code\": \"RustBackendUnexpectedArtifact\""),
+        "{hand_authored_stdout}"
+    );
+    fs::remove_file(&unexpected_main).expect("remove unexpected hand-authored main");
 
     let cargo_output = Command::new("cargo")
         .args(["check", "--manifest-path"])

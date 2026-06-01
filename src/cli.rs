@@ -949,8 +949,23 @@ fn check_rust_crate_artifact(artifact: &RustCrateArtifact) -> Result<Vec<String>
         }
     }
     for path in &artifact.absent_generated_files {
-        if path.exists() {
-            diagnostics.push(
+        match fs::read_to_string(path) {
+            Ok(source) if is_generated_rust_binary_entrypoint(&source) => diagnostics.push(
+                Diagnostic::error(
+                    "RustBackendStaleGeneratedArtifact",
+                    format!(
+                        "Generated Rust artifact `{}` is stale and not part of the current Serow backend output.",
+                        path.display()
+                    ),
+                    Some(artifact.out_dir.clone()),
+                )
+                .with_data("path", path.display().to_string())
+                .with_data("expected", "absent")
+                .with_repair(
+                    "Run the same `serow compile rust` command without `--check-out-dir` to remove stale generated artifacts.",
+                ),
+            ),
+            Ok(_) => diagnostics.push(
                 Diagnostic::error(
                     "RustBackendUnexpectedArtifact",
                     format!(
@@ -961,7 +976,20 @@ fn check_rust_crate_artifact(artifact: &RustCrateArtifact) -> Result<Vec<String>
                 )
                 .with_data("path", path.display().to_string())
                 .with_data("expected", "absent"),
-            );
+            ),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => diagnostics.push(
+                Diagnostic::error(
+                    "RustBackendReadError",
+                    format!(
+                        "Could not read generated Rust artifact `{}`: {error}",
+                        path.display()
+                    ),
+                    Some(artifact.out_dir.clone()),
+                )
+                .with_data("path", path.display().to_string())
+                .with_data("error", error.to_string()),
+            ),
         }
     }
     if diagnostics.is_empty() {
