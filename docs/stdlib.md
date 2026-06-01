@@ -181,6 +181,7 @@ bin/serow query effects @core.random.random_between.v1 examples/stdlib.serow --j
 ## Limits
 
 The v1 standard library intentionally stays within the bootstrap language
-surface. Source-level generics, payload enums, generic `Option<T>`, higher-order
-collection helpers, list sampling for properties, ambient randomness, and
-cryptographic randomness are v2 or future scope.
+surface. Source-level generics, payload enums, generic `Option<T>`,
+higher-order collection helpers, ambient randomness, and cryptographic
+randomness are v2 or future scope. Sampled properties can already quantify over
+bounded homogeneous `List<T>` values when the element type is sampleable.

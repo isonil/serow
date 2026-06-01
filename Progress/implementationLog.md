@@ -2,6 +2,9 @@
 
 ## 2026-06-01
 
+- Chose standard-library reference cleanup because `docs/stdlib.md` still listed list property sampling as future scope after the checker, language reference, README, and progress state all documented bounded homogeneous `List<T>` sampled properties as supported.
+- Updated the stdlib limits text to keep source-level generics, generic `Option<T>`, higher-order collection helpers, and external randomness in future scope without excluding existing list property samples.
+
 - Chose Python reference parser/checker parity as a contained cleanup because the Rust bootstrap already handles escaped quotes in executable string arguments, while the temporary Python reference split example call arguments without honoring escaped string delimiters.
 - Made the Python example argument splitter escape-aware inside strings and added a regression for an escaped quote followed by a comma inside a `Text` argument.
 
