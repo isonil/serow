@@ -5725,6 +5725,7 @@ fn markdown_heading_anchors(source: &str) -> HashSet<String> {
     let mut anchors = HashSet::new();
     let mut counts = HashMap::new();
     let mut fence = None;
+    let mut setext_candidate = None::<String>;
     for line in source.lines() {
         if let Some(marker) = markdown_fence_marker(line) {
             if fence == Some(marker) {
@@ -5732,28 +5733,51 @@ fn markdown_heading_anchors(source: &str) -> HashSet<String> {
             } else if fence.is_none() {
                 fence = Some(marker);
             }
+            setext_candidate = None;
             continue;
         }
         if fence.is_some() {
             continue;
         }
-        let Some(heading) = markdown_heading_text(line) else {
-            continue;
-        };
-        let base = markdown_anchor_slug(heading);
-        if base.is_empty() {
+        if let Some(heading) = markdown_heading_text(line) {
+            insert_markdown_heading_anchor(&mut anchors, &mut counts, heading);
+            setext_candidate = None;
             continue;
         }
-        let count = counts.entry(base.clone()).or_insert(0usize);
-        let anchor = if *count == 0 {
-            base.clone()
+        if markdown_setext_heading_underline(line) {
+            if let Some(heading) = setext_candidate.take() {
+                insert_markdown_heading_anchor(&mut anchors, &mut counts, &heading);
+            }
+            continue;
+        }
+
+        let trimmed = line.trim();
+        setext_candidate = if trimmed.is_empty() {
+            None
         } else {
-            format!("{base}-{count}")
+            Some(trimmed.to_string())
         };
-        anchors.insert(anchor);
-        *count += 1;
     }
     anchors
+}
+
+fn insert_markdown_heading_anchor(
+    anchors: &mut HashSet<String>,
+    counts: &mut HashMap<String, usize>,
+    heading: &str,
+) {
+    let base = markdown_anchor_slug(heading);
+    if base.is_empty() {
+        return;
+    }
+    let count = counts.entry(base.clone()).or_insert(0usize);
+    let anchor = if *count == 0 {
+        base.clone()
+    } else {
+        format!("{base}-{count}")
+    };
+    anchors.insert(anchor);
+    *count += 1;
 }
 
 fn markdown_heading_text(line: &str) -> Option<&str> {
@@ -5767,6 +5791,19 @@ fn markdown_heading_text(line: &str) -> Option<&str> {
         return None;
     }
     Some(after_hashes.trim().trim_end_matches('#').trim_end())
+}
+
+fn markdown_setext_heading_underline(line: &str) -> bool {
+    let trimmed_start = line.trim_start();
+    let indent = line.len().saturating_sub(trimmed_start.len());
+    if indent > 3 {
+        return false;
+    }
+    let trimmed = trimmed_start.trim_end();
+    let Some(marker) = trimmed.chars().next() else {
+        return false;
+    };
+    (marker == '=' || marker == '-') && trimmed.chars().all(|character| character == marker)
 }
 
 fn markdown_anchor_slug(heading: &str) -> String {
