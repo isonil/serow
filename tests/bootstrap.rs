@@ -4641,6 +4641,10 @@ fn agent_text_includes_supported_bootstrap_types() {
         stdout.contains("Int, Float, Bool, Text, Unit, List<T>, declared records, declared enums"),
         "{stdout}"
     );
+    assert!(
+        stdout.contains("homogeneous List<T> and declared-record samples are bounded"),
+        "{stdout}"
+    );
 }
 
 #[test]
@@ -4707,6 +4711,7 @@ fn agent_json_includes_compact_machine_readable_workflow() {
     );
     assert!(stdout.contains("\"Float\""), "{stdout}");
     assert!(stdout.contains("\"List<T>\""), "{stdout}");
+    assert!(stdout.contains("bounded homogeneous List<T>"), "{stdout}");
     assert!(stdout.contains("serow query intent <text>"), "{stdout}");
     assert!(
         stdout.contains("serow query type <type-or-shape>"),

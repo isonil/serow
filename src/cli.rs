@@ -5310,7 +5310,7 @@ fn agent_json() -> String {
             "bin/serow plan --json"
         ]),
         str_array_json(&[
-            "Properties are sampled, not proven; replay uses deterministic seeds for built-in, bounded declared-record, and declared-enum samples, and non-executable property diagnostics include unsupported-sample reasons such as recursive record cycles.",
+            "Properties are sampled, not proven; replay uses deterministic seeds for built-in, bounded homogeneous List<T>, bounded declared-record, and declared-enum samples, and non-executable property diagnostics include unsupported-sample reasons such as recursive record cycles.",
             "Intent search is deterministic token ranking, not semantic embeddings.",
             "Rust backend emission supports pure Int/Float/Bool/Text/Unit functions, non-recursive declared records, nullary declared enums, and terminal io intrinsics, emits runtime asserts for Serow requires and ensures clauses, emits Rust tests for pure Serow examples and deterministic sampled properties, moves final record update bases when postconditions do not need the original value, rejects recursive record layouts with explicit diagnostics, records the Serow project version, aggregate/per-source Serow input fingerprints, plus type, source, binary entrypoint, and exact evidence-line metadata in generated Cargo manifests, README files, and serow-metadata.json sidecars, disables automatic Cargo target discovery in generated manifests, removes stale generated main.rs files when returning to library-only output, and can check generated crate artifacts for drift or unexpected optional artifacts.",
             "Expression support is intentionally small and formatting does not preserve comments.",
@@ -6194,7 +6194,7 @@ fn print_agent_bootstrap() {
     println!("  bin/serow plan --json");
     println!("known limits:");
     println!(
-        "  properties are sampled, not proven; declared-record samples are bounded, declared enum variants are sampled, and recursive sample cycles are reported explicitly"
+        "  properties are sampled, not proven; homogeneous List<T> and declared-record samples are bounded, declared enum variants are sampled, and recursive sample cycles are reported explicitly"
     );
     println!("  intent search is token-ranked, not semantic embeddings");
     println!(

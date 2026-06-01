@@ -2,6 +2,9 @@
 
 ## 2026-06-01
 
+- Chose agent bootstrap documentation drift cleanup because `serow agent` still described replayable property samples without mentioning bounded homogeneous `List<T>` samples, even though the checker, docs, and progress state support them.
+- Updated text and JSON agent discovery output to include list samples in the property-sampling limits and added regression assertions for both output modes.
+
 - Chose Rust backend safe-access borrow hardening because generated `get_text`/`get_int`/`get_bool`/`get_float` blocks moved their source list, so otherwise valid Serow could fail to compile as Rust when the list was reused after a safe lookup.
 - Lowered safe list access by borrowing the rendered list expression for `.get(...)` and added a generated-crate regression that reads from a list and then calls `len` on the same list.
 
