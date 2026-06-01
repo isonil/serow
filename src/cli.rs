@@ -5527,22 +5527,53 @@ fn find_closing_backtick_run(line: &str, start: usize, tick_count: usize) -> Opt
 
 fn markdown_link_targets(line: &str) -> Vec<&str> {
     let mut targets = Vec::new();
-    let mut rest = line;
-    while let Some(open_index) = rest.find("](") {
-        let target_start = open_index + 2;
-        let after_open = &rest[target_start..];
+    let mut offset = 0usize;
+    while let Some(open_relative) = find_unescaped_byte(line, offset, b'[') {
+        let open_index = open_relative;
+        let Some(close_index) = find_unescaped_byte(line, open_index + 1, b']') else {
+            break;
+        };
+        if !line[close_index + 1..].starts_with('(') {
+            offset = close_index + 1;
+            continue;
+        }
+        let target_start = close_index + 2;
+        let after_open = &line[target_start..];
         let Some(close_index) = markdown_inline_link_close_index(after_open) else {
             break;
         };
         if let Some(target) = markdown_inline_link_target(&after_open[..close_index]) {
             targets.push(target);
         }
-        rest = &after_open[close_index + 1..];
+        offset = target_start + close_index + 1;
     }
     if let Some(target) = markdown_reference_definition_target(line) {
         targets.push(target);
     }
     targets
+}
+
+fn find_unescaped_byte(text: &str, start: usize, target: u8) -> Option<usize> {
+    let bytes = text.as_bytes();
+    let mut index = start;
+    while index < bytes.len() {
+        if bytes[index] == target && !is_escaped_byte(text, index) {
+            return Some(index);
+        }
+        index += text[index..].chars().next()?.len_utf8();
+    }
+    None
+}
+
+fn is_escaped_byte(text: &str, index: usize) -> bool {
+    let bytes = text.as_bytes();
+    let mut slash_count = 0usize;
+    let mut cursor = index;
+    while cursor > 0 && bytes[cursor - 1] == b'\\' {
+        slash_count += 1;
+        cursor -= 1;
+    }
+    slash_count % 2 == 1
 }
 
 fn markdown_inline_link_close_index(source: &str) -> Option<usize> {
@@ -5629,21 +5660,19 @@ fn markdown_reference_link_usages(line: &str) -> Vec<MarkdownReferenceUsage> {
     let mut usages = Vec::new();
     let mut offset = 0usize;
     while offset < line.len() {
-        let Some(open_relative) = line[offset..].find('[') else {
+        let Some(open_index) = find_unescaped_byte(line, offset, b'[') else {
             break;
         };
-        let open_index = offset + open_relative;
         let text_start = open_index + 1;
-        let Some(text_end_relative) = line[text_start..].find(']') else {
+        let Some(text_end) = find_unescaped_byte(line, text_start, b']') else {
             break;
         };
-        let text_end = text_start + text_end_relative;
         let after_text = &line[text_end + 1..];
         let Some(after_label_open) = after_text.strip_prefix('[') else {
             offset = text_end + 1;
             continue;
         };
-        let Some(label_end_relative) = after_label_open.find(']') else {
+        let Some(label_end_relative) = find_unescaped_byte(after_label_open, 0, b']') else {
             break;
         };
         let raw_label = &after_label_open[..label_end_relative];

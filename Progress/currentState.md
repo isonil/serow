@@ -129,7 +129,7 @@ Selection policy for generic implementation prompts:
 - Documentation discovery command:
   - `bin/serow docs [check|--check] [--json]`
   - lists the stable local project overview, language, CLI, standard library, backend, agent-instruction, and progress references in text or machine-readable form, and can fail CI-style when an advertised reference is missing, a public inline/reference-style local Markdown link points at a missing file or missing heading anchor, or a full/collapsed reference-style link usage has no definition, including links that use normal Markdown titles
-  - ignores Markdown link/reference syntax and heading-like anchor text inside fenced code blocks, and ignores inline link/reference syntax inside inline backtick code spans
+  - ignores Markdown link/reference syntax and heading-like anchor text inside fenced code blocks, and ignores inline link/reference syntax inside inline backtick code spans or escaped Markdown text
 - Public release gate aggregation:
   - `bin/serow release-check [paths...] [--json]`
   - validates release metadata consistency between `serow.project` and `Cargo.toml`, advertised docs and local Markdown links/anchors, canonical formatting, standard certification, and unattended certification over the selected source paths
