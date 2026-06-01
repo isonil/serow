@@ -5765,19 +5765,22 @@ fn local_link_target(target: &str) -> Option<DocLinkTarget> {
         return None;
     }
     Some(DocLinkTarget {
-        path: percent_decode_local_link_path(path).unwrap_or_else(|| path.to_string()),
+        path: percent_decode_local_link_component(path).unwrap_or_else(|| path.to_string()),
         fragment: fragment
             .filter(|fragment| !fragment.is_empty())
-            .map(str::to_string),
+            .map(|fragment| {
+                percent_decode_local_link_component(fragment)
+                    .unwrap_or_else(|| fragment.to_string())
+            }),
     })
 }
 
-fn percent_decode_local_link_path(path: &str) -> Option<String> {
-    if !path.as_bytes().contains(&b'%') {
-        return Some(path.to_string());
+fn percent_decode_local_link_component(component: &str) -> Option<String> {
+    if !component.as_bytes().contains(&b'%') {
+        return Some(component.to_string());
     }
-    let mut decoded = Vec::with_capacity(path.len());
-    let bytes = path.as_bytes();
+    let mut decoded = Vec::with_capacity(component.len());
+    let bytes = component.as_bytes();
     let mut index = 0usize;
     while index < bytes.len() {
         if bytes[index] == b'%' && index + 2 < bytes.len() {
@@ -5904,7 +5907,7 @@ fn markdown_anchor_slug(heading: &str) -> String {
     let mut slug = String::new();
     let mut last_was_dash = false;
     for character in heading.chars().flat_map(char::to_lowercase) {
-        if character.is_ascii_alphanumeric() {
+        if character.is_alphanumeric() {
             slug.push(character);
             last_was_dash = false;
         } else if (character.is_ascii_whitespace() || character == '-')

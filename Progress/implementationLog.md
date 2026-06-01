@@ -2,6 +2,9 @@
 
 ## 2026-06-01
 
+- Chose docs-check anchor hardening because local Markdown links to non-ASCII headings such as `# Café API` could be reported as broken, especially when fragments were percent-encoded.
+- Decoded local link fragments alongside paths, kept Unicode alphanumeric characters in generated heading slugs, and added a CLI regression covering raw and percent-encoded Unicode anchors.
+
 - Chose project-manifest parser hardening because the dependency-free metadata reader accepted non-JSON Unicode whitespace around root and object-field tokens, allowing malformed `serow.project` files to drive version and architecture behavior.
 - Restricted project-manifest whitespace skipping to JSON's space, tab, carriage-return, and line-feed set, added regressions for invalid leading and token whitespace, and bumped Serow to `1.0.32-rust-bootstrap` / crate `1.0.32`.
 

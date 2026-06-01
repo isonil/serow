@@ -5566,6 +5566,43 @@ fn docs_check_handles_percent_encoded_local_markdown_paths() {
 }
 
 #[test]
+fn docs_check_handles_unicode_markdown_heading_anchors() {
+    let dir = unique_temp_dir("serow-docs-unicode-heading-anchors");
+    fs::create_dir_all(dir.join("docs")).expect("create docs dir");
+    fs::create_dir_all(dir.join("Progress")).expect("create progress dir");
+    fs::write(
+        dir.join("README.md"),
+        concat!(
+            "# Fixture\n\n",
+            "Valid unicode anchor: [Cafe](docs/language.md#café-api).\n",
+            "Valid encoded unicode anchor: [Cafe Encoded](docs/language.md#caf%C3%A9-api).\n"
+        ),
+    )
+    .expect("write readme");
+    fs::write(dir.join("AGENTS.md"), "# Agents\n").expect("write agents");
+    fs::write(dir.join("docs/language.md"), "# Café API\n").expect("write language doc");
+    fs::write(dir.join("docs/cli.md"), "# CLI\n").expect("write cli doc");
+    fs::write(dir.join("docs/stdlib.md"), "# Stdlib\n").expect("write stdlib doc");
+    fs::write(dir.join("docs/backends.md"), "# Backends\n").expect("write backend doc");
+    fs::write(dir.join("Progress/currentState.md"), "# State\n").expect("write state doc");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args(["docs", "--check", "--json"])
+        .output()
+        .expect("run serow docs --check with unicode heading anchors");
+
+    assert!(output.status.success(), "{output:#?}");
+    assert!(output.stderr.is_empty(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"ok\": true"), "{stdout}");
+    assert!(stdout.contains("\"markdown_links_ok\": true"), "{stdout}");
+    assert!(stdout.contains("\"broken_links\": []"), "{stdout}");
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn docs_check_validates_markdown_link_anchors_after_query_strings() {
     let dir = unique_temp_dir("serow-docs-query-string-anchors");
     fs::create_dir_all(dir.join("docs")).expect("create docs dir");
