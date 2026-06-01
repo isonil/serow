@@ -1129,6 +1129,10 @@
 
 ## 2026-06-01
 
+- Chose Rust backend CLI compatibility as a targeted production cleanup because `compile rust` only accepted two-token value flags even though equals-value forms are common in automation and avoid ambiguity around generated paths.
+- Added `--out-dir=<dir>` and `--crate-name=<name>` support for `bin/serow compile rust`, preserving duplicate-flag validation, generated crate-name validation, and `--check-out-dir` artifact checking.
+- Updated backend/current-state documentation and bumped `serow.project` to `1.0.29-rust-bootstrap`.
+- Verified with `bin/serow query intent "compile rust option parsing accepts equals-style flags for out-dir and crate-name"`, `bin/serow query symbol "parse_compile_rust_args"`, `cargo fmt --check`, `cargo test compile_rust_accepts_equals_value_backend_flags -- --nocapture`, `bin/serow check`, `bin/serow certify`, `bin/serow docs --check --json`, `bin/serow release-check --json`, `cargo test`, and `cargo clippy --all-targets --all-features -- -D warnings`.
 - Chose documentation consistency cleanup because the language reference still listed list `forall` sample generation as a v1 exclusion even though the checker, CLI reference, backend docs, README, and current progress state describe bounded homogeneous `List<T>` property samples as supported.
 - Updated the language known-limits text to keep richer list APIs and custom generators in future scope without incorrectly excluding supported list property samples.
 - Updated current progress known limits to include bounded homogeneous list samples in the sampled-property summary.

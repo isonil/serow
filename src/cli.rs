@@ -719,6 +719,18 @@ fn parse_compile_rust_args(args: &[String]) -> Result<CompileRustArgs, String> {
                 }
                 out_dir = Some(value.clone());
             }
+            value if value.starts_with("--out-dir=") => {
+                if out_dir.is_some() {
+                    return Err("`--out-dir` can only be provided once.".to_string());
+                }
+                let value = value
+                    .strip_prefix("--out-dir=")
+                    .expect("prefix checked above");
+                if value.is_empty() {
+                    return Err("`--out-dir` requires a directory path.".to_string());
+                }
+                out_dir = Some(value.to_string());
+            }
             "--crate-name" => {
                 if crate_name_seen {
                     return Err("`--crate-name` can only be provided once.".to_string());
@@ -733,6 +745,20 @@ fn parse_compile_rust_args(args: &[String]) -> Result<CompileRustArgs, String> {
                 }
                 validate_rust_crate_name(value)?;
                 crate_name = value.clone();
+            }
+            value if value.starts_with("--crate-name=") => {
+                if crate_name_seen {
+                    return Err("`--crate-name` can only be provided once.".to_string());
+                }
+                crate_name_seen = true;
+                let value = value
+                    .strip_prefix("--crate-name=")
+                    .expect("prefix checked above");
+                if value.is_empty() {
+                    return Err("`--crate-name` requires a crate name.".to_string());
+                }
+                validate_rust_crate_name(value)?;
+                crate_name = value.to_string();
             }
             "--" => {
                 paths.extend(args[index + 1..].iter().cloned());

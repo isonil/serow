@@ -13325,6 +13325,57 @@ pub fn id(x: Int) -> Int
 }
 
 #[test]
+fn compile_rust_accepts_equals_value_backend_flags() {
+    let dir = unique_temp_dir("serow-compile-rust-equals-flags");
+    let out_dir = dir.join("generated_crate");
+    let out_dir_flag = format!("--out-dir={}", out_dir.to_string_lossy());
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "compile",
+            "rust",
+            "examples/math.serow",
+            &out_dir_flag,
+            "--crate-name=serow_equals_flags",
+            "--json",
+        ])
+        .output()
+        .expect("run compile rust with equals-value backend flags");
+    assert!(output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("\"crate_name\": \"serow_equals_flags\""),
+        "{stdout}"
+    );
+    assert!(out_dir.join("src").join("lib.rs").exists(), "{out_dir:?}");
+    let manifest = fs::read_to_string(out_dir.join("Cargo.toml")).expect("read generated manifest");
+    assert!(
+        manifest.contains("name = \"serow_equals_flags\""),
+        "{manifest}"
+    );
+
+    let check_output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "compile",
+            "rust",
+            "examples/math.serow",
+            &out_dir_flag,
+            "--crate-name=serow_equals_flags",
+            "--check-out-dir",
+            "--json",
+        ])
+        .output()
+        .expect("check generated crate with equals-value backend flags");
+    assert!(check_output.status.success(), "{check_output:#?}");
+    let check_stdout = String::from_utf8_lossy(&check_output.stdout);
+    assert!(
+        check_stdout.contains("\"checked_files\": ["),
+        "{check_stdout}"
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn compile_rust_emit_bin_writes_runnable_crate() {
     let dir = unique_temp_dir("serow-compile-rust-emit-bin");
     fs::create_dir_all(&dir).expect("create temp dir");
