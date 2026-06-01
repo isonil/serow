@@ -2,6 +2,9 @@
 
 ## 2026-06-01
 
+- Chose Rust backend safe-access borrow hardening because generated `get_text`/`get_int`/`get_bool`/`get_float` blocks moved their source list, so otherwise valid Serow could fail to compile as Rust when the list was reused after a safe lookup.
+- Lowered safe list access by borrowing the rendered list expression for `.get(...)` and added a generated-crate regression that reads from a list and then calls `len` on the same list.
+
 - Chose docs-check anchor hardening because local Markdown links to non-ASCII headings such as `# Café API` could be reported as broken, especially when fragments were percent-encoded.
 - Decoded local link fragments alongside paths, kept Unicode alphanumeric characters in generated heading slugs, and added a CLI regression covering raw and percent-encoded Unicode anchors.
 

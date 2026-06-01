@@ -14738,6 +14738,21 @@ pub fn get_int_at(items: List<Int>, index: Int) -> MaybeInt
   impl
     get_int(items, index)
 
+pub fn count_after_first_int_probe(items: List<Int>) -> Int
+  intent "Probe the first integer while preserving the original list count."
+  contract
+    ensures result == len(items)
+  examples
+    count_after_first_int_probe([10, 20]) == 2
+    count_after_first_int_probe([]) == 0
+  properties
+    forall value: Int:
+      count_after_first_int_probe([value]) == 1
+  effects pure
+  impl
+    let first = get_int(items, 0);
+    len(items) + first.value * 0
+
 pub fn get_bool_at(items: List<Bool>, index: Int) -> MaybeBool
   intent "Read optional boolean flag by offset."
   contract

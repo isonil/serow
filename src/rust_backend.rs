@@ -2437,7 +2437,7 @@ fn render_get_intrinsic_call(
     };
     Ok(RenderedExpr {
         code: format!(
-            "{{ let serow_list = {}; let serow_index = {}; if serow_index >= 0 {{ match serow_list.get(serow_index as usize) {{ Some(serow_value) => {rust_result_type} {{ {found_field}: true, {value_field}: serow_value.clone() }}, None => {rust_result_type} {{ {found_field}: false, {value_field}: {fallback_value} }} }} }} else {{ {rust_result_type} {{ {found_field}: false, {value_field}: {fallback_value} }} }} }}",
+            "{{ let serow_list = &({}); let serow_index = {}; if serow_index >= 0 {{ match serow_list.get(serow_index as usize) {{ Some(serow_value) => {rust_result_type} {{ {found_field}: true, {value_field}: serow_value.clone() }}, None => {rust_result_type} {{ {found_field}: false, {value_field}: {fallback_value} }} }} }} else {{ {rust_result_type} {{ {found_field}: false, {value_field}: {fallback_value} }} }} }}",
             list_code,
             strip_outer_parens(&args[1].code)
         ),
