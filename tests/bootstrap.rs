@@ -4884,6 +4884,26 @@ fn docs_command_lists_and_checks_public_references() {
 }
 
 #[test]
+fn standard_library_reference_lists_all_public_function_signatures() {
+    let (program, parse_diagnostics) = parse_paths(&["examples/stdlib.serow".to_string()]);
+    assert!(parse_diagnostics.is_empty(), "{parse_diagnostics:#?}");
+    let docs = fs::read_to_string("docs/stdlib.md").expect("read standard library docs");
+
+    let missing = program
+        .functions
+        .iter()
+        .filter(|function| function.public)
+        .map(|function| function.signature())
+        .filter(|signature| !docs.contains(&format!("`{signature}`")))
+        .collect::<Vec<_>>();
+
+    assert!(
+        missing.is_empty(),
+        "docs/stdlib.md is missing public function signatures: {missing:#?}"
+    );
+}
+
+#[test]
 fn docs_check_reports_broken_local_markdown_links() {
     let dir = unique_temp_dir("serow-docs-broken-links");
     fs::create_dir_all(dir.join("docs")).expect("create docs dir");

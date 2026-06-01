@@ -76,7 +76,7 @@ Selection policy for generic implementation prompts:
   - `core.int` integer arithmetic, bounds, parity, and sign helpers
   - `core.float` finite float arithmetic, tolerance comparison, constants, powers, roots, and trigonometry helpers
   - `core.text` bootstrap text predicates and builders over the current `Text` subset
-  - `core.list` concrete `Int`/`Text`/`Bool` list helpers layered over list intrinsics
+  - `core.list` concrete `Int`/`Float`/`Text`/`Bool` list helpers layered over list intrinsics
   - `core.random` deterministic seed-threaded random records and range helpers
 - Source-level public symbol versions with `version vN`; omitted versions default to `v1` for compatibility.
 - Source-level function migration acknowledgements with `migration` records for `public-behavior-change`, `capability-expansion`, `evidence-weakening`, `implementation-change`, and `impact-review`.
