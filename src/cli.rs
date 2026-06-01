@@ -7,11 +7,11 @@ use crate::diagnostic::{Diagnostic, has_errors, validate_repair_actions};
 use crate::formatter::{FormatSummary, format_paths};
 use crate::ir::{IrExpr, IrFunction, IrProgram, IrSummary, lower_checked_program};
 use crate::ledger::{
-    Callee, Dependent, EffectQueryRow, ImpactDependent, SymbolMatch, SymbolQueryMatch,
+    Callee, Dependent, EffectQueryRow, ImpactDependent, QueryMatch, SymbolMatch, SymbolQueryMatch,
     query_callees, query_dependents, query_effects, query_impact, query_intent, query_symbol,
     query_type, symbols,
 };
-use crate::model::Function;
+use crate::model::{Function, Program};
 use crate::parser::{discover_sources, parse_paths};
 use crate::patch::{
     PatchSummary, add_contract, add_example, add_function, add_migration, add_module, add_property,
@@ -2387,159 +2387,97 @@ fn run_query(args: &[String]) -> i32 {
     };
 
     match query_command {
-        "callees" => {
-            let mut parsed = match parse_text_query_args(&query_args[1..], "callees") {
-                Ok(Some(parsed)) => parsed,
-                Ok(None) => return text_query_usage_error("callees", json_requested),
-                Err((json_output, message)) => {
-                    return query_usage_error(json_output || json_requested, message);
-                }
-            };
-            parsed.json_output |= json_requested;
-            let (program, parse_diagnostics) = parse_paths(&parsed.paths);
-            if emit_query_parse_errors("callees", parsed.json_output, &parse_diagnostics) {
-                return 1;
-            }
-            let callees = query_callees(&program, &parsed.text);
-            if parsed.json_output {
-                println!("{}", callees_json(&callees));
-            } else {
-                print_callees(&callees);
-            }
-            0
-        }
-        "dependents" => {
-            let mut parsed = match parse_text_query_args(&query_args[1..], "dependents") {
-                Ok(Some(parsed)) => parsed,
-                Ok(None) => return text_query_usage_error("dependents", json_requested),
-                Err((json_output, message)) => {
-                    return query_usage_error(json_output || json_requested, message);
-                }
-            };
-            parsed.json_output |= json_requested;
-            let (program, parse_diagnostics) = parse_paths(&parsed.paths);
-            if emit_query_parse_errors("dependents", parsed.json_output, &parse_diagnostics) {
-                return 1;
-            }
-            let dependents = query_dependents(&program, &parsed.text);
-            if parsed.json_output {
-                println!("{}", dependents_json(&dependents));
-            } else {
-                print_dependents(&dependents);
-            }
-            0
-        }
-        "effects" => {
-            let mut parsed = match parse_text_query_args(&query_args[1..], "effects") {
-                Ok(Some(parsed)) => parsed,
-                Ok(None) => return text_query_usage_error("effects", json_requested),
-                Err((json_output, message)) => {
-                    return query_usage_error(json_output || json_requested, message);
-                }
-            };
-            parsed.json_output |= json_requested;
-            let (program, parse_diagnostics) = parse_paths(&parsed.paths);
-            if emit_query_parse_errors("effects", parsed.json_output, &parse_diagnostics) {
-                return 1;
-            }
-            let effects = query_effects(&program, &parsed.text);
-            if parsed.json_output {
-                println!("{}", effects_json(&effects));
-            } else {
-                print_effects(&effects);
-            }
-            0
-        }
-        "impact" => {
-            let mut parsed = match parse_text_query_args(&query_args[1..], "impact") {
-                Ok(Some(parsed)) => parsed,
-                Ok(None) => return text_query_usage_error("impact", json_requested),
-                Err((json_output, message)) => {
-                    return query_usage_error(json_output || json_requested, message);
-                }
-            };
-            parsed.json_output |= json_requested;
-            let (program, parse_diagnostics) = parse_paths(&parsed.paths);
-            if emit_query_parse_errors("impact", parsed.json_output, &parse_diagnostics) {
-                return 1;
-            }
-            let impact = query_impact(&program, &parsed.text);
-            if parsed.json_output {
-                println!("{}", impact_json(&impact));
-            } else {
-                print_impact(&impact);
-            }
-            0
-        }
-        "intent" => {
-            let mut parsed = match parse_text_query_args(&query_args[1..], "intent") {
-                Ok(Some(parsed)) => parsed,
-                Ok(None) => return text_query_usage_error("intent", json_requested),
-                Err((json_output, message)) => {
-                    return query_usage_error(json_output || json_requested, message);
-                }
-            };
-            parsed.json_output |= json_requested;
-            let (program, parse_diagnostics) = parse_paths(&parsed.paths);
-            if emit_query_parse_errors("intent", parsed.json_output, &parse_diagnostics) {
-                return 1;
-            }
-            let matches = query_intent(&program, &parsed.text, 10);
-            if parsed.json_output {
-                println!("{}", query_matches_json(&matches));
-            } else {
-                print_query_matches(&matches);
-            }
-            0
-        }
-        "symbol" => {
-            let mut parsed = match parse_text_query_args(&query_args[1..], "symbol") {
-                Ok(Some(parsed)) => parsed,
-                Ok(None) => return text_query_usage_error("symbol", json_requested),
-                Err((json_output, message)) => {
-                    return query_usage_error(json_output || json_requested, message);
-                }
-            };
-            parsed.json_output |= json_requested;
-            let (program, parse_diagnostics) = parse_paths(&parsed.paths);
-            if emit_query_parse_errors("symbol", parsed.json_output, &parse_diagnostics) {
-                return 1;
-            }
-            let matches = query_symbol(&program, &parsed.text, 20);
-            if parsed.json_output {
-                println!("{}", symbol_query_matches_json(&matches));
-            } else {
-                print_symbol_query_matches(&matches);
-            }
-            0
-        }
-        "type" => {
-            let mut parsed = match parse_text_query_args(&query_args[1..], "type") {
-                Ok(Some(parsed)) => parsed,
-                Ok(None) => return text_query_usage_error("type", json_requested),
-                Err((json_output, message)) => {
-                    return query_usage_error(json_output || json_requested, message);
-                }
-            };
-            parsed.json_output |= json_requested;
-            let (program, parse_diagnostics) = parse_paths(&parsed.paths);
-            if emit_query_parse_errors("type", parsed.json_output, &parse_diagnostics) {
-                return 1;
-            }
-            let matches = query_type(&program, &parsed.text, 20);
-            if parsed.json_output {
-                println!("{}", query_matches_json(&matches));
-            } else {
-                print_query_matches(&matches);
-            }
-            0
-        }
+        "callees" => run_text_query(
+            &query_args[1..],
+            json_requested,
+            "callees",
+            query_callees,
+            |callees: &Vec<Callee>| println!("{}", callees_json(callees)),
+            |callees: &Vec<Callee>| print_callees(callees),
+        ),
+        "dependents" => run_text_query(
+            &query_args[1..],
+            json_requested,
+            "dependents",
+            query_dependents,
+            |dependents: &Vec<Dependent>| println!("{}", dependents_json(dependents)),
+            |dependents: &Vec<Dependent>| print_dependents(dependents),
+        ),
+        "effects" => run_text_query(
+            &query_args[1..],
+            json_requested,
+            "effects",
+            query_effects,
+            |effects: &Vec<EffectQueryRow>| println!("{}", effects_json(effects)),
+            |effects: &Vec<EffectQueryRow>| print_effects(effects),
+        ),
+        "impact" => run_text_query(
+            &query_args[1..],
+            json_requested,
+            "impact",
+            query_impact,
+            |impact: &Vec<ImpactDependent>| println!("{}", impact_json(impact)),
+            |impact: &Vec<ImpactDependent>| print_impact(impact),
+        ),
+        "intent" => run_text_query(
+            &query_args[1..],
+            json_requested,
+            "intent",
+            |program, text| query_intent(program, text, 10),
+            |matches: &Vec<QueryMatch>| println!("{}", query_matches_json(matches)),
+            |matches: &Vec<QueryMatch>| print_query_matches(matches),
+        ),
+        "symbol" => run_text_query(
+            &query_args[1..],
+            json_requested,
+            "symbol",
+            |program, text| query_symbol(program, text, 20),
+            |matches: &Vec<SymbolQueryMatch>| println!("{}", symbol_query_matches_json(matches)),
+            |matches: &Vec<SymbolQueryMatch>| print_symbol_query_matches(matches),
+        ),
+        "type" => run_text_query(
+            &query_args[1..],
+            json_requested,
+            "type",
+            |program, text| query_type(program, text, 20),
+            |matches: &Vec<QueryMatch>| println!("{}", query_matches_json(matches)),
+            |matches: &Vec<QueryMatch>| print_query_matches(matches),
+        ),
         "symbols" => run_symbols_query(&query_args[1..], json_requested),
         _ => {
             let message = unknown_subcommand_message("query", "command", query_command);
             query_usage_error(json_requested, message)
         }
     }
+}
+
+fn run_text_query<T>(
+    args: &[String],
+    inherited_json_output: bool,
+    query_command: &str,
+    query: impl FnOnce(&Program, &str) -> T,
+    print_json: impl FnOnce(&T),
+    print_text: impl FnOnce(&T),
+) -> i32 {
+    let mut parsed = match parse_text_query_args(args, query_command) {
+        Ok(Some(parsed)) => parsed,
+        Ok(None) => return text_query_usage_error(query_command, inherited_json_output),
+        Err((json_output, message)) => {
+            return query_usage_error(json_output || inherited_json_output, message);
+        }
+    };
+    parsed.json_output |= inherited_json_output;
+    let (program, parse_diagnostics) = parse_paths(&parsed.paths);
+    if emit_query_parse_errors(query_command, parsed.json_output, &parse_diagnostics) {
+        return 1;
+    }
+    let results = query(&program, &parsed.text);
+    if parsed.json_output {
+        print_json(&results);
+    } else {
+        print_text(&results);
+    }
+    0
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
