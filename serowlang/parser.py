@@ -55,7 +55,7 @@ def discover_sources_with_diagnostics(paths: Iterable[str]) -> Tuple[List[Path],
         elif root.is_dir():
             before = len(sources)
             sources.extend(sorted(root.rglob("*.serow")))
-            if requested_paths and len(sources) == before:
+            if len(sources) == before:
                 source_path = str(root)
                 diagnostics.append(
                     Diagnostic(
@@ -68,7 +68,7 @@ def discover_sources_with_diagnostics(paths: Iterable[str]) -> Tuple[List[Path],
                         ],
                     )
                 )
-        elif requested_paths:
+        else:
             source_path = str(root)
             if root.exists():
                 message = f"Input path `{source_path}` is not a `.serow` file or directory."

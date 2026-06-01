@@ -2,6 +2,9 @@
 
 ## 2026-06-01
 
+- Chose Python reference source-discovery parity because the Rust bootstrap reports missing or empty default `examples` roots, while the temporary Python parser silently accepted an empty default source set.
+- Updated Python discovery to emit the same default-source diagnostics as explicit source paths and added regressions for missing and empty default `examples` directories.
+
 - Chose contract diagnostic cleanup because the parser accepts both `requires` and `ensures` clauses, but the unsupported-clause repair text still told users to use only `ensures`.
 - Updated the Rust bootstrap and temporary Python reference repair guidance to mention both supported contract clause forms, with focused regressions for each parser.
 

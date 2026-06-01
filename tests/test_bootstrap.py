@@ -1,3 +1,4 @@
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -112,6 +113,38 @@ pub fn count_items(items: List<Int>) -> Int
             )
             self.assertEqual(diagnostic.target, directory)
             self.assertIn("No `.serow` source files found", diagnostic.message)
+
+    def test_default_source_path_must_exist_and_contain_serow_sources(self):
+        previous_cwd = os.getcwd()
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                os.chdir(directory)
+                program, parse_diagnostics = parse_files([])
+                os.chdir(previous_cwd)
+                self.assertEqual(program.functions, [])
+                diagnostic = next(
+                    diagnostic
+                    for diagnostic in parse_diagnostics
+                    if diagnostic.code == "SourceNotFound"
+                )
+                self.assertEqual(diagnostic.target, "examples")
+                self.assertIn("does not exist", diagnostic.message)
+
+            with tempfile.TemporaryDirectory() as directory:
+                os.chdir(directory)
+                Path("examples").mkdir()
+                program, parse_diagnostics = parse_files([])
+                os.chdir(previous_cwd)
+                self.assertEqual(program.functions, [])
+                diagnostic = next(
+                    diagnostic
+                    for diagnostic in parse_diagnostics
+                    if diagnostic.code == "NoSerowSources"
+                )
+                self.assertEqual(diagnostic.target, "examples")
+                self.assertIn("No `.serow` source files found", diagnostic.message)
+        finally:
+            os.chdir(previous_cwd)
 
     def test_python_parser_preserves_module_dependencies(self):
         with tempfile.TemporaryDirectory() as directory:
