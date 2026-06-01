@@ -6764,6 +6764,80 @@ pub fn bump(x: Int) -> Int
 }
 
 #[test]
+fn plan_detects_git_status_quoted_serow_paths() {
+    let dir = unique_temp_dir("serow-plan-quoted-path");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("quote \"file\".serow");
+    fs::write(
+        &source,
+        r#"module quoted.path
+
+pub fn identity(x: Int) -> Int
+  intent "Return x."
+  version v1
+  contract
+    ensures result == x
+  examples
+    identity(2) == 2
+  properties
+    forall x: Int:
+      identity(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write quoted-path fixture");
+
+    git(&dir, &["init"]);
+    git(&dir, &["add", "."]);
+    git(&dir, &["commit", "-m", "baseline"]);
+
+    fs::write(
+        &source,
+        r#"module quoted.path
+
+pub fn identity(x: Int) -> Int
+  intent "Return x unchanged."
+  version v1
+  contract
+    ensures result == x
+  examples
+    identity(2) == 2
+  properties
+    forall x: Int:
+      identity(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("modify quoted-path fixture");
+
+    let plan = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args(["plan", "--json"])
+        .output()
+        .expect("run serow plan for quoted git path");
+
+    assert!(plan.status.success(), "{plan:#?}");
+    assert!(plan.stderr.is_empty(), "{plan:#?}");
+    let stdout = String::from_utf8(plan.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"mode\": \"git-status\""), "{stdout}");
+    assert!(
+        stdout.contains("\"changed_paths\": [\"quote \\\"file\\\".serow\"]"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"symbol\": \"@quoted.path.identity.v1\""),
+        "{stdout}"
+    );
+    assert!(!stdout.contains("SourceNotFound"), "{stdout}");
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn plan_json_reports_uncovered_impact_edges() {
     let dir = unique_temp_dir("serow-plan-impact-coverage");
     fs::create_dir_all(&dir).expect("create temp dir");

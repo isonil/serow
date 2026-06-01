@@ -2,6 +2,9 @@
 
 ## 2026-06-01
 
+- Chose Git-status planning hardening because `serow plan` relies on `git status --porcelain`, while Git quotes paths containing characters such as `"` and the parser stripped quotes without decoding escapes.
+- Decoded Git's quoted C-style path output before selecting changed and tracked `.serow` files, and added a regression that plans a tracked Serow source file whose filename contains a quote.
+
 - Chose standard-library reference cleanup because `docs/stdlib.md` still listed list property sampling as future scope after the checker, language reference, README, and progress state all documented bounded homogeneous `List<T>` sampled properties as supported.
 - Updated the stdlib limits text to keep source-level generics, generic `Option<T>`, higher-order collection helpers, and external randomness in future scope without excluding existing list property samples.
 

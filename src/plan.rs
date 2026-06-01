@@ -2336,7 +2336,7 @@ fn git_project_serow_files() -> Vec<PathBuf> {
     let mut paths = String::from_utf8_lossy(&output.stdout)
         .lines()
         .map(str::trim)
-        .filter(|path| !path.is_empty())
+        .filter_map(git_quoted_path_text)
         .map(PathBuf::from)
         .collect::<Vec<_>>();
     paths.sort();
@@ -2352,9 +2352,83 @@ fn parse_git_status_path(line: &str) -> Option<PathBuf> {
     let path = path
         .rsplit_once(" -> ")
         .map_or(path, |(_, new_path)| new_path);
+    git_quoted_path_text(path).map(PathBuf::from)
+}
+
+fn git_quoted_path_text(path: &str) -> Option<String> {
+    let path = path.trim();
     if path.is_empty() {
-        None
-    } else {
-        Some(PathBuf::from(path.trim_matches('"')))
+        return None;
     }
+    if !path.starts_with('"') {
+        return Some(path.to_string());
+    }
+    let bytes = path.as_bytes();
+    if bytes.len() < 2 || bytes.last() != Some(&b'"') {
+        return None;
+    }
+    let mut decoded = Vec::new();
+    let mut index = 1usize;
+    while index + 1 < bytes.len() {
+        if bytes[index] != b'\\' {
+            decoded.push(bytes[index]);
+            index += 1;
+            continue;
+        }
+        index += 1;
+        if index + 1 >= bytes.len() {
+            return None;
+        }
+        match bytes[index] {
+            b'"' => {
+                decoded.push(b'"');
+                index += 1;
+            }
+            b'\\' => {
+                decoded.push(b'\\');
+                index += 1;
+            }
+            b'a' => {
+                decoded.push(0x07);
+                index += 1;
+            }
+            b'b' => {
+                decoded.push(0x08);
+                index += 1;
+            }
+            b'f' => {
+                decoded.push(0x0c);
+                index += 1;
+            }
+            b'n' => {
+                decoded.push(b'\n');
+                index += 1;
+            }
+            b'r' => {
+                decoded.push(b'\r');
+                index += 1;
+            }
+            b't' => {
+                decoded.push(b'\t');
+                index += 1;
+            }
+            b'v' => {
+                decoded.push(0x0b);
+                index += 1;
+            }
+            b'0'..=b'7' => {
+                let mut value = 0u8;
+                let mut digits = 0usize;
+                while index + 1 < bytes.len() && digits < 3 && (b'0'..=b'7').contains(&bytes[index])
+                {
+                    value = value * 8 + (bytes[index] - b'0');
+                    index += 1;
+                    digits += 1;
+                }
+                decoded.push(value);
+            }
+            _ => return None,
+        }
+    }
+    String::from_utf8(decoded).ok()
 }
