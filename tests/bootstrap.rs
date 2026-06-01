@@ -4266,6 +4266,36 @@ fn repair_action_contract_validation_rejects_malformed_commands() {
             ],
         ),
         Diagnostic::warning(
+            "SyntheticCompileIrRepair",
+            "Synthetic diagnostic with a compile IR repair action.",
+            Some("test.target".to_string()),
+        )
+        .with_command_repair(
+            "Inspect portable IR",
+            vec![
+                "bin/serow".to_string(),
+                "compile".to_string(),
+                "ir".to_string(),
+                "examples/math.serow".to_string(),
+                "--json".to_string(),
+            ],
+        ),
+        Diagnostic::warning(
+            "SyntheticCompileRustRepair",
+            "Synthetic diagnostic with a compile Rust repair action.",
+            Some("test.target".to_string()),
+        )
+        .with_command_repair(
+            "Generate Rust backend source",
+            vec![
+                "bin/serow".to_string(),
+                "compile".to_string(),
+                "rust".to_string(),
+                "examples/math.serow".to_string(),
+                "--json".to_string(),
+            ],
+        ),
+        Diagnostic::warning(
             "SyntheticHelpRepair",
             "Synthetic diagnostic with a help catalog repair action.",
             Some("test.target".to_string()),

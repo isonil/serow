@@ -155,6 +155,7 @@ fn repair_action_issue(action: &RepairAction) -> Option<String> {
     match command {
         "agent" | "certify" | "check" | "docs" | "fmt" | "help" | "plan" | "release-check"
         | "version" => None,
+        "compile" => validate_nested_command(action, &["ir", "rust"]),
         "patch" => validate_nested_command(
             action,
             &[
