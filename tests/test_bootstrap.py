@@ -775,6 +775,35 @@ pub fn id(x: Int) -> Int
                 'Changed "quoted" path C:\\tmp.',
             )
 
+    def test_python_reference_handles_escaped_quotes_inside_string_arguments(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "escaped_string_args.serow"
+            source.write_text(
+                r'''module test.escape_args
+
+pub fn keep_text(value: Text) -> Text
+  intent "Return text containing escaped quote and comma characters."
+  version v1
+  contract
+    ensures result == value
+  examples
+    keep_text("a\",b") == "a\",b"
+  properties
+    forall value: Text:
+      keep_text(value) == value
+  effects pure
+  impl
+    value
+''',
+                encoding="utf-8",
+            )
+            program, parse_diagnostics = parse_files([str(source)])
+            summary = check_program(program, parse_diagnostics)
+            self.assertTrue(
+                summary.ok,
+                [diagnostic.to_dict() for diagnostic in summary.diagnostics],
+            )
+
     def test_near_duplicate_public_intent_is_warned(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "near_duplicate_intent.serow"

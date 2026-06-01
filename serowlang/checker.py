@@ -1496,8 +1496,17 @@ def _split_args(text: str) -> List[str]:
     brace_depth = 0
     bracket_depth = 0
     in_string = False
+    escaped = False
     current = []
     for char in text:
+        if escaped:
+            current.append(char)
+            escaped = False
+            continue
+        if char == "\\" and in_string:
+            current.append(char)
+            escaped = True
+            continue
         if char == '"':
             in_string = not in_string
         elif not in_string:
