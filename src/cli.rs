@@ -5698,11 +5698,41 @@ fn local_link_target(target: &str) -> Option<DocLinkTarget> {
         return None;
     }
     Some(DocLinkTarget {
-        path: path.to_string(),
+        path: percent_decode_local_link_path(path).unwrap_or_else(|| path.to_string()),
         fragment: fragment
             .filter(|fragment| !fragment.is_empty())
             .map(str::to_string),
     })
+}
+
+fn percent_decode_local_link_path(path: &str) -> Option<String> {
+    if !path.as_bytes().contains(&b'%') {
+        return Some(path.to_string());
+    }
+    let mut decoded = Vec::with_capacity(path.len());
+    let bytes = path.as_bytes();
+    let mut index = 0usize;
+    while index < bytes.len() {
+        if bytes[index] == b'%' && index + 2 < bytes.len() {
+            let high = hex_digit_value(bytes[index + 1])?;
+            let low = hex_digit_value(bytes[index + 2])?;
+            decoded.push((high << 4) | low);
+            index += 3;
+        } else {
+            decoded.push(bytes[index]);
+            index += 1;
+        }
+    }
+    String::from_utf8(decoded).ok()
+}
+
+fn hex_digit_value(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
 }
 
 fn is_markdown_path(path: &Path) -> bool {

@@ -1124,3 +1124,6 @@
 - Updated the language known-limits text to keep richer list APIs and custom generators in future scope without incorrectly excluding supported list property samples.
 - Updated current progress known limits to include bounded homogeneous list samples in the sampled-property summary.
 - Verified with `bin/serow docs --check --json`, `bin/serow check`, `bin/serow certify`, `bin/serow certify --profile unattended`, `bin/serow release-check --json`, `cargo clippy --quiet --all-targets -- -D warnings`, `cargo test --quiet`, and `git diff --check`.
+- Chose documentation-link hardening as a low-risk production cleanup because `bin/serow docs --check` validated local Markdown links but treated URL-encoded path characters such as `%20` literally, reporting existing files with spaces as missing.
+- Decoded percent-encoded local Markdown link paths before filesystem resolution, preserved readable decoded paths in missing-link diagnostics, documented the behavior, and added a focused CLI regression.
+- Verified with `bin/serow query intent "validate percent encoded local markdown links in documentation" --json`, `bin/serow query symbol "docs" --json`, `cargo fmt --check`, and `cargo test docs_check -- --nocapture`.
