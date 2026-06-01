@@ -4,7 +4,7 @@
 
 Future generic implementation prompts should choose the highest-leverage next step across all phases. Phase 0, Phase 1, Phase 2 agent workflow, Phase 2.5 certification, Phase 2.6 unattended safety, and the first Phase 3 backend slice are released for public v1. Prefer targeted v2 hardening gaps before expanding syntax beyond the v1 bootstrap subset.
 
-Latest closure: Serow is at `1.0.28-rust-bootstrap` after adding bounded homogeneous `List<T>` property samples across checking, replay, planning, and generated Rust tests.
+Latest closure: Serow is at `1.0.30-rust-bootstrap` after making generated Rust `read_line()` avoid panicking on stdin read errors.
 
 Selection policy:
 

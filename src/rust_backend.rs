@@ -2135,7 +2135,7 @@ fn render_intrinsic_call(
             Ok(rendered(
                 concat!(
                     "{ let mut serow_line = String::new(); ",
-                    "std::io::stdin().read_line(&mut serow_line).expect(\"Serow read_line failed\"); ",
+                    "if std::io::stdin().read_line(&mut serow_line).is_err() { serow_line.clear(); } ",
                     "while serow_line.ends_with('\\n') || serow_line.ends_with('\\r') { serow_line.pop(); } ",
                     "serow_line }"
                 )

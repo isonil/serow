@@ -12756,6 +12756,11 @@ pub fn input_once() -> Text
         stdout.contains("std::io::stdin().read_line(&mut serow_line)"),
         "{stdout}"
     );
+    assert!(
+        stdout.contains("if std::io::stdin().read_line(&mut serow_line).is_err()"),
+        "{stdout}"
+    );
+    assert!(!stdout.contains("Serow read_line failed"), "{stdout}");
     assert!(stdout.contains("\"generated_functions\": 2"), "{stdout}");
     assert!(stdout.contains("\"generated_tests\": 0"), "{stdout}");
     let _ = fs::remove_dir_all(dir);
@@ -12777,7 +12782,7 @@ fn compile_rust_lowers_let_and_sequence_for_terminal_programs() {
         stdout.contains("println!(\\\"{}\\\", String::from(\\\"Welcome\\\"))"),
         "{stdout}"
     );
-    assert!(stdout.contains("let serow_name = { let mut serow_line = String::new(); std::io::stdin().read_line(&mut serow_line)"), "{stdout}");
+    assert!(stdout.contains("let serow_name = { let mut serow_line = String::new(); if std::io::stdin().read_line(&mut serow_line).is_err()"), "{stdout}");
     assert!(
         stdout.contains("println!(\\\"{}\\\", format!(\\\"{}{}\\\", String::from(\\\"Hello \\\"), serow_name.clone()))"),
         "{stdout}"

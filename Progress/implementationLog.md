@@ -2,6 +2,10 @@
 
 ## 2026-06-01
 
+- Chose Rust backend terminal I/O hardening because generated `read_line()` still used a Rust `expect()` and could panic despite Serow exposing a total `read_line() -> Text` intrinsic.
+- Lowered generated stdin reads through an error check that leaves the Serow result as empty text on read failure while preserving newline trimming and normal successful input behavior.
+- Updated backend/progress documentation, covered the generated source shape in existing terminal I/O codegen regressions, and bumped Serow to `1.0.30-rust-bootstrap` / crate `1.0.30`.
+
 - Chose internal panic-surface cleanup because a few production helpers still used `expect()` after local invariants had already been established, making future edits easier to turn into process crashes.
 - Replaced those assertions with explicit fallback or direct index handling in program module insertion, list sample generation, Rust backend type lookup, and Markdown inline-code scanning while preserving the existing behavior for valid inputs.
 
