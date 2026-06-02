@@ -2,6 +2,9 @@
 
 ## 2026-06-02
 
+- Chose Rust backend finite-Float hardening because checked Serow evaluation rejects non-finite `Float` results, while generated Rust could still return `NaN` or infinities from float arithmetic and math intrinsics.
+- Added a generated `serow_finite_float` guard for float-producing Rust backend expressions and covered raw square-root lowering with a generated-crate regression that panics instead of returning `NaN`.
+
 - Chose project-manifest parser whitespace hardening because release metadata parsing still accepted non-JSON Unicode whitespace after top-level string values or after the root object through Rust's broad Unicode trimming.
 - Replaced those trims with JSON-whitespace-only helpers and added regressions covering trailing root, version-value, and architecture-value whitespace.
 

@@ -14670,6 +14670,85 @@ fn compile_rust_usage_json_detection_respects_path_separator() {
 }
 
 #[test]
+fn compile_rust_guards_non_finite_float_results() {
+    let dir = unique_temp_dir("serow-rust-finite-float-guard");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("float_guard.serow");
+    fs::write(
+        &source,
+        r#"module test.float_guard
+
+pub fn unchecked_sqrt(value: Float) -> Float
+  intent "Expose raw square-root lowering for backend finite-result checks."
+  contract
+    ensures result == @serow.intrinsic.float_sqrt.v1(value)
+  examples
+    unchecked_sqrt(4.0) == 2.0
+  properties
+    forall value: Float:
+      unchecked_sqrt(value * value) >= 0.0
+  effects pure
+  impl
+    @serow.intrinsic.float_sqrt.v1(value)
+"#,
+    )
+    .expect("write finite float guard source");
+
+    let crate_dir = dir.join("generated");
+    let generated = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "compile",
+            "rust",
+            source.to_str().expect("utf8 path"),
+            "--out-dir",
+            crate_dir.to_str().expect("utf8 path"),
+            "--crate-name",
+            "serow_float_guard",
+        ])
+        .output()
+        .expect("generate rust crate with finite float guard");
+    assert!(generated.status.success(), "{generated:#?}");
+
+    let lib_rs = fs::read_to_string(crate_dir.join("src").join("lib.rs"))
+        .expect("read generated finite float guard lib");
+    assert!(
+        lib_rs.contains("fn serow_finite_float(value: f64) -> f64"),
+        "{lib_rs}"
+    );
+    assert!(
+        lib_rs.contains("serow_finite_float(serow_value.sqrt())"),
+        "{lib_rs}"
+    );
+
+    let tests_dir = crate_dir.join("tests");
+    fs::create_dir_all(&tests_dir).expect("create generated crate tests dir");
+    fs::write(
+        tests_dir.join("finite_float.rs"),
+        r#"#[test]
+#[should_panic(expected = "Serow Float result must be finite")]
+fn non_finite_sqrt_result_panics() {
+    let _ = serow_float_guard::serow_test_float_guard_unchecked_sqrt_v1(-1.0);
+}
+"#,
+    )
+    .expect("write generated crate finite float regression");
+
+    let cargo_test = Command::new("cargo")
+        .arg("test")
+        .current_dir(&crate_dir)
+        .output()
+        .expect("run generated cargo test for finite float guard");
+    assert!(
+        cargo_test.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&cargo_test.stdout),
+        String::from_utf8_lossy(&cargo_test.stderr)
+    );
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn float_signed_zero_equality_is_numeric_across_nested_values() {
     let dir = unique_temp_dir("serow-float-signed-zero-equality");
     fs::create_dir_all(&dir).expect("create temp dir");
