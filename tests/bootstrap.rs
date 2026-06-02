@@ -24,9 +24,9 @@ fn sample_program_checks() {
             .map(|diagnostic| &diagnostic.code)
             .collect::<Vec<_>>()
     );
-    assert_eq!(summary.functions, 99);
-    assert_eq!(summary.examples, 236);
-    assert_eq!(summary.properties, 99);
+    assert_eq!(summary.functions, 100);
+    assert_eq!(summary.examples, 241);
+    assert_eq!(summary.properties, 100);
     assert_eq!(summary.contracts, 306);
 }
 

@@ -38,6 +38,24 @@ fn get_int_at(items: List<Int>, index: Int) -> MaybeInt
   impl
     core.list.list_int_get(items, index)
 
+fn get_bool_at(items: List<Bool>, index: Int) -> MaybeBool
+  intent "Select optional boolean sample by offset."
+  version v1
+  contract
+    ensures result == get_bool(items, index)
+  examples
+    get_bool_at([true, false], 0).found == true
+    get_bool_at([true, false], 1).value == false
+    get_bool_at([true], 1).found == false
+    get_bool_at([true], -1).found == false
+    get_bool_at([], 0).found == false
+  properties
+    forall value: Bool:
+      get_bool_at([value], 0).value == value
+  effects pure
+  impl
+    core.list.list_bool_get(items, index)
+
 fn get_float_at(items: List<Float>, index: Int) -> MaybeFloat
   intent "Select optional decimal sample by offset."
   version v1
