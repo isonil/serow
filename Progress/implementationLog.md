@@ -2,6 +2,9 @@
 
 ## 2026-06-02
 
+- Chose Rust backend overwrite hardening because `serow compile rust --out-dir` protected optional stale generated `src/main.rs` removal but still overwrote existing `Cargo.toml`, `README.md`, `serow-metadata.json`, or `src/lib.rs` files unconditionally.
+- Added generated-artifact marker checks before writing crate files so hand-authored artifacts are reported through `RustBackendUnexpectedArtifact` with a remediation hint, and covered the refusal path with a generated-crate regression.
+
 - Chose backend documentation drift cleanup because the Rust backend now reports stale Serow-generated optional crate artifacts through `RustBackendStaleGeneratedArtifact`, while backend/progress references still grouped that case under `RustBackendUnexpectedArtifact`.
 - Updated backend and progress references so generated stale artifacts and unexpected hand-authored files are described with their distinct diagnostics.
 

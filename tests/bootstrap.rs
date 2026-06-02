@@ -13566,6 +13566,61 @@ fn compile_rust_out_dir_writes_crate_layout() {
 }
 
 #[test]
+fn compile_rust_out_dir_refuses_to_overwrite_hand_authored_artifacts() {
+    let dir = unique_temp_dir("serow-compile-rust-out-dir-hand-authored");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let out_dir = dir.join("generated_crate");
+    fs::create_dir_all(&out_dir).expect("create output dir");
+    let cargo_toml = out_dir.join("Cargo.toml");
+    let hand_authored_manifest =
+        "[package]\nname = \"hand_authored\"\nversion = \"0.1.0\"\nedition = \"2021\"\n";
+    fs::write(&cargo_toml, hand_authored_manifest).expect("write hand-authored manifest");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "compile",
+            "rust",
+            "examples/math.serow",
+            "--out-dir",
+            &out_dir.to_string_lossy(),
+            "--json",
+        ])
+        .output()
+        .expect("run compile rust --out-dir");
+    assert!(!output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("\"code\": \"RustBackendUnexpectedArtifact\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("Refusing to overwrite hand-authored Rust backend artifact"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("Choose an empty `--out-dir` or remove the hand-authored file"),
+        "{stdout}"
+    );
+    assert_eq!(
+        fs::read_to_string(&cargo_toml).expect("read hand-authored manifest"),
+        hand_authored_manifest
+    );
+    assert!(
+        !out_dir.join("README.md").exists(),
+        "generation should stop before writing additional artifacts"
+    );
+    assert!(
+        !out_dir.join("src").exists(),
+        "generation should not create source directories after refusing the manifest"
+    );
+    assert!(
+        !out_dir.join("src").join("lib.rs").exists(),
+        "generation should not write source after refusing the manifest"
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn compile_rust_generated_readme_escapes_backtick_source_paths() {
     let dir = unique_temp_dir("serow-compile-rust-readme-backtick-path");
     fs::create_dir_all(&dir).expect("create temp dir");
