@@ -2,6 +2,9 @@
 
 ## 2026-06-02
 
+- Chose structured patch panic-surface cleanup because several patch replacement helpers still ended impossible multi-item fallback paths with `unreachable!()`, so future model/parser drift could turn a recoverable patch conflict into a CLI panic.
+- Replaced those fallback arms with explicit `PatchConflict` diagnostics that preserve the existing index-specific remediation guidance.
+
 - Chose Rust backend overwrite hardening because `serow compile rust --out-dir` protected optional stale generated `src/main.rs` removal but still overwrote existing `Cargo.toml`, `README.md`, `serow-metadata.json`, or `src/lib.rs` files unconditionally.
 - Added generated-artifact marker checks before writing crate files so hand-authored artifacts are reported through `RustBackendUnexpectedArtifact` with a remediation hint, and covered the refusal path with a generated-crate regression.
 

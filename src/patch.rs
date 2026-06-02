@@ -1258,7 +1258,17 @@ pub fn set_contract(
                 lines.push(expression.to_string());
                 Ok(true)
             }
-            _ => unreachable!("multiple contract clauses were rejected above"),
+            _ => Err(Box::new(
+                Diagnostic::error(
+                    "PatchConflict",
+                    format!(
+                        "Function `{}` has multiple `{clause}` contract clauses.",
+                        function_name
+                    ),
+                    Some(function_target),
+                )
+                .with_repair("Pass a 1-based clause index to replace a specific clause."),
+            )),
         }
     })
 }
@@ -1392,7 +1402,14 @@ pub fn set_example(
                 function.examples.push(expression.to_string());
                 Ok(true)
             }
-            _ => unreachable!("multiple examples were rejected above"),
+            _ => Err(Box::new(
+                Diagnostic::error(
+                    "PatchConflict",
+                    format!("Function `{}` has multiple examples.", function_name),
+                    Some(function_target),
+                )
+                .with_repair("Pass a 1-based example index to replace a specific example."),
+            )),
         }
     })
 }
@@ -1544,7 +1561,14 @@ pub fn set_property(
                 function.properties.push(expression.to_string());
                 Ok(true)
             }
-            _ => unreachable!("multiple properties were rejected above"),
+            _ => Err(Box::new(
+                Diagnostic::error(
+                    "PatchConflict",
+                    format!("Function `{}` has multiple properties.", function_name),
+                    Some(function_target),
+                )
+                .with_repair("Pass a 1-based property index to replace a specific property."),
+            )),
         }
     })
 }
@@ -1666,7 +1690,14 @@ pub fn set_migration(
                 });
                 Ok(true)
             }
-            _ => unreachable!("multiple migration records were rejected above"),
+            _ => Err(Box::new(
+                Diagnostic::error(
+                    "PatchConflict",
+                    format!("Function `{function_name}` has multiple `{kind}` migration records."),
+                    Some(function_target),
+                )
+                .with_repair("Pass a 1-based migration index to replace a specific record."),
+            )),
         }
     })
 }
