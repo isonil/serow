@@ -2,6 +2,9 @@
 
 ## 2026-06-02
 
+- Chose backend documentation drift cleanup because the Rust backend now reports stale Serow-generated optional crate artifacts through `RustBackendStaleGeneratedArtifact`, while backend/progress references still grouped that case under `RustBackendUnexpectedArtifact`.
+- Updated backend and progress references so generated stale artifacts and unexpected hand-authored files are described with their distinct diagnostics.
+
 - Chose generated metadata escaping cleanup because the Rust backend hand-emits both Cargo TOML and JSON metadata, and keeping the duplicate string escaping paths in sync is production-critical for unusual source paths.
 - Shared the generated-metadata string escaping helper between TOML and JSON emitters and added a generated-crate regression covering source paths with quote and backslash characters.
 

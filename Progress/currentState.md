@@ -1,6 +1,6 @@
 # Current State
 
-Date: 2026-06-01
+Date: 2026-06-02
 
 ## Active Mode
 
@@ -25,7 +25,7 @@ Selection policy for generic implementation prompts:
 - Phase 3's first production backend slice is closed for public v1: portable IR plus dependency-free Rust source/crate generation for the supported bootstrap subset, generated metadata, artifact drift checks, runtime contract assertions, generated pure evidence tests, and binary entrypoint support are all implemented.
 - Remaining backend work such as WASM/TypeScript/Python backends, richer external effect boundaries, recursive record layout support, generic list indexing, list pattern matching, higher-order collection APIs, and semantic-embedding intent search is explicitly v2/future scope rather than blocking the public v1 bootstrap baseline.
 - The Python bootstrap remains reference-only. It should keep parity where cheap, but Rust is the source of truth for v1 behavior.
-- Latest closure: Serow is at `1.0.32-rust-bootstrap` after tightening project-manifest parsing to accept only JSON whitespace around metadata tokens.
+- Latest cleanup: backend documentation now distinguishes read-only `RustBackendStaleGeneratedArtifact` diagnostics for stale Serow-generated optional artifacts from `RustBackendUnexpectedArtifact` diagnostics for unexpected hand-authored files.
 
 ## Implemented
 
@@ -166,7 +166,7 @@ Selection policy for generic implementation prompts:
   - emits deterministic Rust source on stdout in text mode and includes the generated source, Serow project manifest version, deterministic aggregate Serow input fingerprint, per-source input paths/fingerprints/byte counts, deterministic generated source fingerprint, and source-location-aware symbol-to-Rust-name rows in JSON mode
   - writes a dependency-free Rust crate layout with `Cargo.toml`, `README.md`, `serow-metadata.json`, and `src/lib.rs` when passed `--out-dir <dir>` or `--out-dir=<dir>`, using `--crate-name <name>` or `--crate-name=<name>` when provided and defaulting to `serow_generated`; custom crate names are rejected before generation when they would produce an invalid Cargo package name or a warning-prone normalized Rust library crate name
   - disables Cargo automatic target discovery in generated manifests and declares an explicit binary target only for `--emit-bin` output, so stray files in generated crate directories do not become Cargo targets
-  - checks an existing generated Rust crate without writing when passed `--out-dir <dir> --check-out-dir`, comparing `Cargo.toml`, `README.md`, `serow-metadata.json`, `src/lib.rs`, and optional `src/main.rs` against current Serow sources and reporting `RustBackendArtifactDrift`/`RustBackendMissingArtifact` diagnostics, plus `RustBackendUnexpectedArtifact` when stale optional generated artifacts such as library-mode `src/main.rs` are present
+  - checks an existing generated Rust crate without writing when passed `--out-dir <dir> --check-out-dir`, comparing `Cargo.toml`, `README.md`, `serow-metadata.json`, `src/lib.rs`, and optional `src/main.rs` against current Serow sources and reporting `RustBackendArtifactDrift`/`RustBackendMissingArtifact` diagnostics, plus `RustBackendStaleGeneratedArtifact` when stale Serow-generated optional artifacts such as library-mode `src/main.rs` are present and `RustBackendUnexpectedArtifact` when unexpected non-Serow files are present
   - removes stale Serow-generated `src/main.rs` files when regenerating a previously binary generated crate as a library-only crate
   - writes deterministic generated crate `README.md` provenance for humans, including source-of-truth guidance, backend/project/input fingerprints, counts, source inputs, and binary entrypoint metadata when present
   - writes deterministic `serow-metadata.json` sidecar metadata for generated Rust crates, mirroring backend, Serow project manifest version, input, generated-source, type, function, binary entrypoint, and evidence-test provenance in JSON
