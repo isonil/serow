@@ -32,6 +32,33 @@ struct TypeParser<'a> {
     types: &'a [TypeDecl],
 }
 
+#[derive(Clone, Copy)]
+enum ComparisonOp {
+    Eq,
+    NotEq,
+    LtEq,
+    GtEq,
+    Lt,
+    Gt,
+}
+
+impl ComparisonOp {
+    fn symbol(self) -> &'static str {
+        match self {
+            Self::Eq => "==",
+            Self::NotEq => "!=",
+            Self::LtEq => "<=",
+            Self::GtEq => ">=",
+            Self::Lt => "<",
+            Self::Gt => ">",
+        }
+    }
+
+    fn is_equality(self) -> bool {
+        matches!(self, Self::Eq | Self::NotEq)
+    }
+}
+
 impl<'a> TypeParser<'a> {
     fn new(
         tokens: Vec<Token>,
@@ -225,51 +252,51 @@ impl<'a> TypeParser<'a> {
     fn parse_compare(&mut self) -> Result<String, String> {
         let mut left = self.parse_add()?;
         loop {
-            let op = if self.consume(&Token::EqEq) {
-                Some("==")
-            } else if self.consume(&Token::NotEq) {
-                Some("!=")
-            } else if self.consume(&Token::LtEq) {
-                Some("<=")
-            } else if self.consume(&Token::GtEq) {
-                Some(">=")
-            } else if self.consume(&Token::Lt) {
-                Some("<")
-            } else if self.consume(&Token::Gt) {
-                Some(">")
-            } else {
-                None
-            };
-            let Some(op) = op else {
+            let Some(op) = self.consume_comparison_op() else {
                 return Ok(left);
             };
+            let op_symbol = op.symbol();
             let right = self.parse_add()?;
-            match op {
-                "==" | "!=" => {
-                    require_compatible_type(&left, &right, op)?;
-                    let comparable = if left == EMPTY_LIST_TYPE {
-                        &right
-                    } else {
-                        &left
-                    };
-                    if is_list_type(comparable) && !comparable_type(comparable) {
-                        return Err(format!(
-                            "`{op}` requires comparable operands, got {comparable}."
-                        ));
-                    }
+            if op.is_equality() {
+                require_compatible_type(&left, &right, op_symbol)?;
+                let comparable = if left == EMPTY_LIST_TYPE {
+                    &right
+                } else {
+                    &left
+                };
+                if is_list_type(comparable) && !comparable_type(comparable) {
+                    return Err(format!(
+                        "`{op_symbol}` requires comparable operands, got {comparable}."
+                    ));
                 }
-                "<" | "<=" | ">" | ">=" => {
-                    require_same_type(&left, &right, op)?;
-                    if left != "Int" && left != "Float" && left != "Text" {
-                        return Err(format!(
-                            "`{op}` requires Int, Float, or Text operands, got {}.",
-                            left
-                        ));
-                    }
+            } else {
+                require_same_type(&left, &right, op_symbol)?;
+                if left != "Int" && left != "Float" && left != "Text" {
+                    return Err(format!(
+                        "`{op_symbol}` requires Int, Float, or Text operands, got {}.",
+                        left
+                    ));
                 }
-                _ => unreachable!("comparison operator set above"),
             }
             left = "Bool".to_string();
+        }
+    }
+
+    fn consume_comparison_op(&mut self) -> Option<ComparisonOp> {
+        if self.consume(&Token::EqEq) {
+            Some(ComparisonOp::Eq)
+        } else if self.consume(&Token::NotEq) {
+            Some(ComparisonOp::NotEq)
+        } else if self.consume(&Token::LtEq) {
+            Some(ComparisonOp::LtEq)
+        } else if self.consume(&Token::GtEq) {
+            Some(ComparisonOp::GtEq)
+        } else if self.consume(&Token::Lt) {
+            Some(ComparisonOp::Lt)
+        } else if self.consume(&Token::Gt) {
+            Some(ComparisonOp::Gt)
+        } else {
+            None
         }
     }
 

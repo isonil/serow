@@ -2,6 +2,9 @@
 
 ## 2026-06-02
 
+- Chose comparison typechecker panic-surface cleanup because comparison parsing still used stringly operator dispatch with an `unreachable!()` fallback, so future tokenizer/parser drift could turn an ordinary typechecking path into a process panic.
+- Replaced the string operator dispatch with a private `ComparisonOp` enum that preserves existing diagnostics while making supported comparison cases exhaustive.
+
 - Chose structured patch panic-surface cleanup because several patch replacement helpers still ended impossible multi-item fallback paths with `unreachable!()`, so future model/parser drift could turn a recoverable patch conflict into a CLI panic.
 - Replaced those fallback arms with explicit `PatchConflict` diagnostics that preserve the existing index-specific remediation guidance.
 
