@@ -2,6 +2,9 @@
 
 ## 2026-06-02
 
+- Chose project-manifest parser whitespace hardening because release metadata parsing still accepted non-JSON Unicode whitespace after top-level string values or after the root object through Rust's broad Unicode trimming.
+- Replaced those trims with JSON-whitespace-only helpers and added regressions covering trailing root, version-value, and architecture-value whitespace.
+
 - Chose comparison typechecker panic-surface cleanup because comparison parsing still used stringly operator dispatch with an `unreachable!()` fallback, so future tokenizer/parser drift could turn an ordinary typechecking path into a process panic.
 - Replaced the string operator dispatch with a private `ComparisonOp` enum that preserves existing diagnostics while making supported comparison cases exhaustive.
 

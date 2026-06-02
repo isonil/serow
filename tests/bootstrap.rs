@@ -12046,17 +12046,43 @@ fn project_manifest_parser_rejects_non_json_whitespace() {
     );
     assert_eq!(parse_project_version(&leading_non_json_whitespace), None);
 
+    let trailing_non_json_whitespace = format!(
+        "{{\n  \"version\": \"0.4.82-rust-bootstrap\"\n}}{}",
+        '\u{00a0}'
+    );
+    assert_eq!(parse_project_version(&trailing_non_json_whitespace), None);
+
     let token_non_json_whitespace = format!(
         "{{\n  \"version\"{}: \"0.4.82-rust-bootstrap\",\n  \"architecture\": {{\n    \"modules\": {{\n      \"app.main\": {{\n        \"may_depend_on\": [\"core.math\"]\n      }}\n    }}\n  }}\n}}",
         '\u{00a0}'
     );
     assert_eq!(parse_project_version(&token_non_json_whitespace), None);
 
+    let value_non_json_whitespace = format!(
+        "{{\n  \"version\": \"0.4.82-rust-bootstrap\"{}\n}}",
+        '\u{00a0}'
+    );
+    assert_eq!(parse_project_version(&value_non_json_whitespace), None);
+
     let architecture_non_json_whitespace = format!(
         "{{\n  \"architecture\"{}: {{\n    \"modules\": {{\n      \"app.main\": {{\n        \"may_depend_on\": [\"core.math\"]\n      }}\n    }}\n  }}\n}}",
         '\u{00a0}'
     );
     let architecture = parse_architecture(&architecture_non_json_whitespace);
+    assert!(architecture.modules.is_empty());
+
+    let architecture_trailing_non_json_whitespace = format!(
+        "{{\n  \"architecture\": {{\n    \"modules\": {{\n      \"app.main\": {{\n        \"may_depend_on\": [\"core.math\"]\n      }}\n    }}\n  }}\n}}{}",
+        '\u{00a0}'
+    );
+    let architecture = parse_architecture(&architecture_trailing_non_json_whitespace);
+    assert!(architecture.modules.is_empty());
+
+    let architecture_value_non_json_whitespace = format!(
+        "{{\n  \"architecture\": {{\n    \"modules\": {{\n      \"app.main\": {{\n        \"may_depend_on\": [\"core.math\"]\n      }}\n    }}\n  }}{}\n}}",
+        '\u{00a0}'
+    );
+    let architecture = parse_architecture(&architecture_value_non_json_whitespace);
     assert!(architecture.modules.is_empty());
 }
 

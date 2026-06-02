@@ -428,7 +428,7 @@ fn top_level_string_value(source: &str, key: &str) -> Option<String> {
         return None;
     }
     let (parsed, end) = read_string(value, 0)?;
-    if value[end..].trim().is_empty() {
+    if contains_only_json_whitespace(&value[end..]) {
         Some(parsed)
     } else {
         None
@@ -461,7 +461,7 @@ fn object_field_value<'a>(source: &'a str, key: &str) -> Option<&'a str> {
         index = skip_ws(source, index + 1);
         if candidate_key == key {
             let value_end = value_end(source, index, root_close);
-            return Some(source[index..value_end].trim_end());
+            return Some(trim_json_whitespace_end(&source[index..value_end]));
         }
         index = skip_value(source, index, root_close);
     }
@@ -474,7 +474,7 @@ fn root_object_bounds(source: &str) -> Option<(usize, usize)> {
         return None;
     }
     let root_close = find_matching(source, root_open, '{', '}')?;
-    if source[root_close + 1..].trim().is_empty() {
+    if contains_only_json_whitespace(&source[root_close + 1..]) {
         Some((root_open, root_close))
     } else {
         None
@@ -543,6 +543,24 @@ fn skip_ws(text: &str, start: usize) -> usize {
         }
     }
     index
+}
+
+fn trim_json_whitespace_end(text: &str) -> &str {
+    let mut end = text.len();
+    while end > 0 {
+        let Some(char) = text[..end].chars().next_back() else {
+            break;
+        };
+        if !is_json_whitespace(char) {
+            break;
+        }
+        end -= char.len_utf8();
+    }
+    &text[..end]
+}
+
+fn contains_only_json_whitespace(text: &str) -> bool {
+    text.chars().all(is_json_whitespace)
 }
 
 fn is_json_whitespace(char: char) -> bool {
