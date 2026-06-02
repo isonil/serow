@@ -13613,6 +13613,84 @@ pub fn id(x: Int) -> Int
 }
 
 #[test]
+fn compile_rust_generated_metadata_escapes_source_paths() {
+    let dir = unique_temp_dir("serow-compile-rust-metadata-escaped-path");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("source\"with\\slash.serow");
+    let out_dir = dir.join("generated_crate");
+    fs::write(
+        &source,
+        r#"module test.metadata
+
+pub fn id(x: Int) -> Int
+  intent "Return the input integer."
+  version v1
+  contract
+    ensures result == x
+  examples
+    id(1) == 1
+  properties
+    forall x: Int:
+      id(x) == x
+  effects pure
+  impl
+    x
+"#,
+    )
+    .expect("write fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "compile",
+            "rust",
+            &source.to_string_lossy(),
+            "--out-dir",
+            &out_dir.to_string_lossy(),
+        ])
+        .output()
+        .expect("run compile rust --out-dir");
+    assert!(output.status.success(), "{output:#?}");
+
+    let escaped_path = source
+        .to_string_lossy()
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"");
+    let manifest = fs::read_to_string(out_dir.join("Cargo.toml")).expect("read Cargo.toml");
+    assert!(
+        manifest.contains(&format!("path = \"{escaped_path}\"")),
+        "{manifest}"
+    );
+    assert!(
+        manifest.contains(&format!("source_path = \"{escaped_path}\"")),
+        "{manifest}"
+    );
+    let metadata =
+        fs::read_to_string(out_dir.join("serow-metadata.json")).expect("read metadata json");
+    assert!(
+        metadata.contains(&format!("\"path\": \"{escaped_path}\"")),
+        "{metadata}"
+    );
+    assert!(
+        metadata.contains(&format!("\"source_path\": \"{escaped_path}\"")),
+        "{metadata}"
+    );
+
+    let cargo_check = Command::new("cargo")
+        .args(["check", "--manifest-path"])
+        .arg(out_dir.join("Cargo.toml"))
+        .output()
+        .expect("cargo check generated crate");
+    assert!(
+        cargo_check.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&cargo_check.stdout),
+        String::from_utf8_lossy(&cargo_check.stderr)
+    );
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn compile_rust_accepts_equals_value_backend_flags() {
     let dir = unique_temp_dir("serow-compile-rust-equals-flags");
     let out_dir = dir.join("generated_crate");

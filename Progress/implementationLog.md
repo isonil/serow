@@ -1,5 +1,10 @@
 # Implementation Log
 
+## 2026-06-02
+
+- Chose generated metadata escaping cleanup because the Rust backend hand-emits both Cargo TOML and JSON metadata, and keeping the duplicate string escaping paths in sync is production-critical for unusual source paths.
+- Shared the generated-metadata string escaping helper between TOML and JSON emitters and added a generated-crate regression covering source paths with quote and backslash characters.
+
 ## 2026-06-01
 
 - Chose agent bootstrap documentation drift cleanup because `serow agent` still described replayable property samples without mentioning bounded homogeneous `List<T>` samples, even though the checker, docs, and progress state support them.

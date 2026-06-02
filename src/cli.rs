@@ -1672,6 +1672,10 @@ fn validate_rust_crate_name(crate_name: &str) -> Result<(), String> {
 }
 
 fn toml_string_literal(value: &str) -> String {
+    quoted_basic_string(value)
+}
+
+fn quoted_basic_string(value: &str) -> String {
     let mut escaped = String::from("\"");
     for char in value.chars() {
         match char {
@@ -6125,20 +6129,7 @@ fn human_list(values: &[String]) -> String {
 }
 
 fn json_string(value: &str) -> String {
-    let mut escaped = String::from("\"");
-    for char in value.chars() {
-        match char {
-            '"' => escaped.push_str("\\\""),
-            '\\' => escaped.push_str("\\\\"),
-            '\n' => escaped.push_str("\\n"),
-            '\r' => escaped.push_str("\\r"),
-            '\t' => escaped.push_str("\\t"),
-            char if char.is_control() => escaped.push_str(&format!("\\u{:04x}", char as u32)),
-            char => escaped.push(char),
-        }
-    }
-    escaped.push('"');
-    escaped
+    quoted_basic_string(value)
 }
 
 fn signed(value: isize) -> String {
