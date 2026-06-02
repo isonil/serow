@@ -13,9 +13,9 @@ class BootstrapTests(unittest.TestCase):
         program, parse_diagnostics = parse_files(["examples"])
         summary = check_program(program, parse_diagnostics)
         self.assertTrue(summary.ok, [diagnostic.to_dict() for diagnostic in summary.diagnostics])
-        self.assertEqual(summary.functions, 99)
-        self.assertEqual(summary.examples, 236)
-        self.assertEqual(summary.properties, 99)
+        self.assertEqual(summary.functions, 100)
+        self.assertEqual(summary.examples, 241)
+        self.assertEqual(summary.properties, 100)
 
     def test_python_reference_uses_serow_value_equality(self):
         with tempfile.TemporaryDirectory() as directory:

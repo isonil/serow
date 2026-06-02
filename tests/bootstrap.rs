@@ -12083,6 +12083,14 @@ version = "ignored"
         Some("1.2.3")
     );
     assert_eq!(
+        parse_cargo_manifest_version("[\"pack\\u0061ge\"]\nversion = \"1.2.3\"\n").as_deref(),
+        Some("1.2.3")
+    );
+    assert_eq!(
+        parse_cargo_manifest_version("['package']\nversion = \"1.2.3\"\n").as_deref(),
+        Some("1.2.3")
+    );
+    assert_eq!(
         parse_cargo_manifest_version("[package]\nversion = \"1.2.\\U00000033\"\n").as_deref(),
         Some("1.2.3")
     );

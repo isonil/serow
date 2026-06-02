@@ -44,7 +44,7 @@ pub fn parse_cargo_manifest_version(source: &str) -> Option<String> {
     for line in source.lines() {
         let trimmed = line.trim();
         if trimmed.starts_with('[') {
-            in_package = toml_table_name(trimmed) == Some("package");
+            in_package = toml_table_name(trimmed).as_deref() == Some("package");
             continue;
         }
         if !in_package {
@@ -63,7 +63,7 @@ pub fn parse_cargo_manifest_version(source: &str) -> Option<String> {
     None
 }
 
-fn toml_table_name(trimmed_line: &str) -> Option<&str> {
+fn toml_table_name(trimmed_line: &str) -> Option<String> {
     let after_open = trimmed_line.strip_prefix('[')?;
     if after_open.starts_with('[') {
         return None;
@@ -74,7 +74,19 @@ fn toml_table_name(trimmed_line: &str) -> Option<&str> {
         return None;
     }
     let inner = &after_open[..close];
-    Some(inner.trim())
+    parse_toml_key(inner.trim())
+}
+
+fn parse_toml_key(key: &str) -> Option<String> {
+    if key.starts_with('"') {
+        let (parsed, end) = read_toml_basic_string(key, 0)?;
+        return (key[end..].trim().is_empty()).then_some(parsed);
+    }
+    if key.starts_with('\'') {
+        let (parsed, end) = read_toml_literal_string(key, 0)?;
+        return (key[end..].trim().is_empty()).then_some(parsed);
+    }
+    (!key.is_empty()).then(|| key.to_string())
 }
 
 pub fn parse_architecture(source: &str) -> Architecture {
