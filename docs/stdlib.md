@@ -112,10 +112,14 @@ Text helpers are pure and use v1 `Text` equality and concatenation:
 ## Module `core.list`
 
 The source-level list module provides concrete wrappers around v1 list
-intrinsics. It also declares `MaybeText = { found: Bool, value: Text }`,
-`MaybeInt = { found: Bool, value: Int }`,
-`MaybeBool = { found: Bool, value: Bool }`, and
-`MaybeFloat = { found: Bool, value: Float }` for safe access results.
+intrinsics. It also declares safe access result records:
+
+```serow
+type MaybeText = { found: Bool, value: Text }
+type MaybeInt = { found: Bool, value: Int }
+type MaybeBool = { found: Bool, value: Bool }
+type MaybeFloat = { found: Bool, value: Float }
+```
 
 | Function | Purpose |
 | --- | --- |

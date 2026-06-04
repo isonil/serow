@@ -5038,6 +5038,41 @@ fn standard_library_reference_lists_all_public_function_signatures() {
 }
 
 #[test]
+fn standard_library_reference_lists_all_declared_type_shapes() {
+    let (program, parse_diagnostics) = parse_paths(&["examples/stdlib.serow".to_string()]);
+    assert!(parse_diagnostics.is_empty(), "{parse_diagnostics:#?}");
+    let docs = fs::read_to_string("docs/stdlib.md").expect("read standard library docs");
+
+    let missing = program
+        .types
+        .iter()
+        .map(|type_decl| {
+            if type_decl.is_record() {
+                let fields = type_decl
+                    .fields
+                    .iter()
+                    .map(|field| format!("{}: {}", field.name, field.type_name))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("type {} = {{ {fields} }}", type_decl.name)
+            } else {
+                format!(
+                    "type {} = {}",
+                    type_decl.name,
+                    type_decl.variants.join(" | ")
+                )
+            }
+        })
+        .filter(|shape| !docs.contains(shape))
+        .collect::<Vec<_>>();
+
+    assert!(
+        missing.is_empty(),
+        "docs/stdlib.md is missing declared type shapes: {missing:#?}"
+    );
+}
+
+#[test]
 fn docs_check_reports_broken_local_markdown_links() {
     let dir = unique_temp_dir("serow-docs-broken-links");
     fs::create_dir_all(dir.join("docs")).expect("create docs dir");
