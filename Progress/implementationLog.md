@@ -2,6 +2,9 @@
 
 ## 2026-06-04
 
+- Chose release-check argument parser cleanup because `release-check` carried a private copy of the path/`--json` option parsing rules already shared by the other path-taking commands.
+- Reused the shared path parser for `release-check`, preserving existing separator and JSON usage behavior while reducing future CLI drift risk.
+
 - Chose docs-check escaped local-separator hardening because local Markdown destinations can use escaped `#` and `?` as filename punctuation, while the docs gate split those characters as fragments or query strings before unescaping.
 - Added unescaped-separator splitting for local Markdown targets, covered inline and reference-style links to files whose names contain literal `#` and `?`, and bumped Serow to `1.0.42-rust-bootstrap` / crate `1.0.42`.
 

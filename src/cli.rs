@@ -392,7 +392,7 @@ impl ReleaseMetadataSummary {
 }
 
 fn run_release_check(args: &[String]) -> i32 {
-    let (paths, json_output) = match parse_release_check_args(args) {
+    let PathArgs { paths, json_output } = match parse_paths_and_json(args, "release-check") {
         Ok(parsed) => parsed,
         Err((json_output, message)) => return release_check_usage_error(json_output, message),
     };
@@ -403,27 +403,6 @@ fn run_release_check(args: &[String]) -> i32 {
         print_release_check_summary(&summary);
     }
     i32::from(!summary.ok())
-}
-
-fn parse_release_check_args(args: &[String]) -> Result<(Vec<String>, bool), (bool, String)> {
-    let json_output = json_flag_requested(args);
-    let mut paths = Vec::new();
-    let mut parsing_options = true;
-    for arg in args {
-        if parsing_options && arg == "--" {
-            parsing_options = false;
-        } else if parsing_options && arg == "--json" {
-            // handled through json_flag_requested so later errors still honor --json
-        } else if parsing_options && arg.starts_with('-') {
-            return Err((
-                json_output,
-                format!("Unknown serow release-check option `{arg}`."),
-            ));
-        } else {
-            paths.push(arg.clone());
-        }
-    }
-    Ok((paths, json_output))
 }
 
 fn release_check_usage_error(json_output: bool, message: String) -> i32 {
