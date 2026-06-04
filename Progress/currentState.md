@@ -25,7 +25,7 @@ Selection policy for generic implementation prompts:
 - Phase 3's first production backend slice is closed for public v1: portable IR plus dependency-free Rust source/crate generation for the supported bootstrap subset, generated metadata, artifact drift checks, runtime contract assertions, generated pure evidence tests, and binary entrypoint support are all implemented.
 - Remaining backend work such as WASM/TypeScript/Python backends, richer external effect boundaries, recursive record layout support, generic list indexing, list pattern matching, higher-order collection APIs, and semantic-embedding intent search is explicitly v2/future scope rather than blocking the public v1 bootstrap baseline.
 - The Python bootstrap remains reference-only. It should keep parity where cheap, but Rust is the source of truth for v1 behavior.
-- Latest cleanup: docs-check escaped angle-destination handling now finds escaped `>` closers correctly and unescapes local destination punctuation before percent decoding, so links to Markdown files whose names contain escaped punctuation are validated against the actual path.
+- Latest cleanup: docs-check local-target parsing now treats escaped `#` and `?` as literal path punctuation instead of fragment/query separators, so links to Markdown files whose names contain those characters validate against the actual path.
 
 ## Implemented
 

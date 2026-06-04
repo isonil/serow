@@ -2,6 +2,9 @@
 
 ## 2026-06-04
 
+- Chose docs-check escaped local-separator hardening because local Markdown destinations can use escaped `#` and `?` as filename punctuation, while the docs gate split those characters as fragments or query strings before unescaping.
+- Added unescaped-separator splitting for local Markdown targets, covered inline and reference-style links to files whose names contain literal `#` and `?`, and bumped Serow to `1.0.42-rust-bootstrap` / crate `1.0.42`.
+
 - Chose public progress-state drift cleanup because the roadmap and current-state latest-cleanup summaries still pointed at older boolean/external-link work after escaped angle-destination hardening became the current `1.0.41` state.
 - Updated both progress summaries to identify escaped angle-destination validation as the latest cleanup so future generic implementation iterations start from the actual newest project state.
 

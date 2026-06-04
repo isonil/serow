@@ -5940,18 +5940,15 @@ fn local_link_target(target: &str) -> Option<DocLinkTarget> {
         return None;
     }
 
-    let (path_with_query, fragment_with_query) = trimmed
-        .split_once('#')
+    let (path_with_query, fragment_with_query) = split_once_unescaped_byte(trimmed, b'#')
         .map(|(path, fragment)| (path, Some(fragment)))
         .unwrap_or((trimmed, None));
-    let path = path_with_query
-        .split_once('?')
+    let path = split_once_unescaped_byte(path_with_query, b'?')
         .map(|(path, _)| path)
         .unwrap_or(path_with_query)
         .trim();
     let fragment = fragment_with_query.map(|fragment| {
-        fragment
-            .split_once('?')
+        split_once_unescaped_byte(fragment, b'?')
             .map(|(fragment, _)| fragment)
             .unwrap_or(fragment)
             .trim()
@@ -5965,6 +5962,11 @@ fn local_link_target(target: &str) -> Option<DocLinkTarget> {
             .filter(|fragment| !fragment.is_empty())
             .map(decode_local_link_component),
     })
+}
+
+fn split_once_unescaped_byte(text: &str, target: u8) -> Option<(&str, &str)> {
+    let index = find_unescaped_byte(text, 0, target)?;
+    Some((&text[..index], &text[index + 1..]))
 }
 
 fn decode_local_link_component(component: &str) -> String {
