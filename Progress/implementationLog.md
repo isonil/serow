@@ -2,6 +2,9 @@
 
 ## 2026-06-04
 
+- Chose Cargo manifest version parser hardening because the dependency-free release metadata reader still used Rust's broad Unicode trimming even after the JSON project-manifest parser had been tightened to grammar-specific whitespace.
+- Replaced TOML table/value trimming with explicit space/tab-only helpers, added regressions for non-breaking spaces around package/version metadata, and bumped Serow to `1.0.36-rust-bootstrap` / crate `1.0.36`.
+
 - Chose progress-state drift cleanup because `Progress/currentState.md` still dated the project state to 2026-06-02 and named balanced nested Markdown labels as the latest cleanup after escaped reference-definition label hardening had become the newer docs-check state.
 - Updated the current-state date and latest-cleanup summary so future generic iterations start from the actual newest docs-check hardening.
 

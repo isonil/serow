@@ -42,7 +42,7 @@ pub fn load_crate_version() -> Option<String> {
 pub fn parse_cargo_manifest_version(source: &str) -> Option<String> {
     let mut in_package = false;
     for line in source.lines() {
-        let trimmed = line.trim();
+        let trimmed = trim_toml_whitespace(line);
         if trimmed.starts_with('[') {
             in_package = toml_table_name(trimmed).as_deref() == Some("package");
             continue;
@@ -53,11 +53,11 @@ pub fn parse_cargo_manifest_version(source: &str) -> Option<String> {
         let Some(rest) = trimmed.strip_prefix("version") else {
             continue;
         };
-        let rest = rest.trim_start();
+        let rest = trim_toml_whitespace_start(rest);
         if !rest.starts_with('=') {
             continue;
         }
-        let value = rest[1..].trim_start();
+        let value = trim_toml_whitespace_start(&rest[1..]);
         return parse_toml_string_value(value);
     }
     None
@@ -69,22 +69,22 @@ fn toml_table_name(trimmed_line: &str) -> Option<String> {
         return None;
     }
     let close = after_open.find(']')?;
-    let trailing = after_open[close + 1..].trim_start();
+    let trailing = trim_toml_whitespace_start(&after_open[close + 1..]);
     if !(trailing.is_empty() || trailing.starts_with('#')) {
         return None;
     }
     let inner = &after_open[..close];
-    parse_toml_key(inner.trim())
+    parse_toml_key(trim_toml_whitespace(inner))
 }
 
 fn parse_toml_key(key: &str) -> Option<String> {
     if key.starts_with('"') {
         let (parsed, end) = read_toml_basic_string(key, 0)?;
-        return (key[end..].trim().is_empty()).then_some(parsed);
+        return contains_only_toml_whitespace(&key[end..]).then_some(parsed);
     }
     if key.starts_with('\'') {
         let (parsed, end) = read_toml_literal_string(key, 0)?;
-        return (key[end..].trim().is_empty()).then_some(parsed);
+        return contains_only_toml_whitespace(&key[end..]).then_some(parsed);
     }
     (!key.is_empty()).then(|| key.to_string())
 }
@@ -247,8 +247,48 @@ fn parse_toml_string_value(value: &str) -> Option<String> {
 }
 
 fn toml_string_trailing_is_valid(value: &str, end: usize) -> bool {
-    let trailing = value[end..].trim_start();
+    let trailing = trim_toml_whitespace_start(&value[end..]);
     trailing.is_empty() || trailing.starts_with('#')
+}
+
+fn trim_toml_whitespace(text: &str) -> &str {
+    trim_toml_whitespace_end(trim_toml_whitespace_start(text))
+}
+
+fn trim_toml_whitespace_start(text: &str) -> &str {
+    let mut start = 0;
+    while let Some(char) = text[start..].chars().next() {
+        if !is_toml_whitespace(char) {
+            break;
+        }
+        start += char.len_utf8();
+        if start >= text.len() {
+            break;
+        }
+    }
+    &text[start..]
+}
+
+fn trim_toml_whitespace_end(text: &str) -> &str {
+    let mut end = text.len();
+    while end > 0 {
+        let Some(char) = text[..end].chars().next_back() else {
+            break;
+        };
+        if !is_toml_whitespace(char) {
+            break;
+        }
+        end -= char.len_utf8();
+    }
+    &text[..end]
+}
+
+fn contains_only_toml_whitespace(text: &str) -> bool {
+    text.chars().all(is_toml_whitespace)
+}
+
+fn is_toml_whitespace(char: char) -> bool {
+    matches!(char, ' ' | '\t')
 }
 
 fn read_toml_basic_string(text: &str, start: usize) -> Option<(String, usize)> {

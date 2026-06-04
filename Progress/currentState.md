@@ -25,7 +25,7 @@ Selection policy for generic implementation prompts:
 - Phase 3's first production backend slice is closed for public v1: portable IR plus dependency-free Rust source/crate generation for the supported bootstrap subset, generated metadata, artifact drift checks, runtime contract assertions, generated pure evidence tests, and binary entrypoint support are all implemented.
 - Remaining backend work such as WASM/TypeScript/Python backends, richer external effect boundaries, recursive record layout support, generic list indexing, list pattern matching, higher-order collection APIs, and semantic-embedding intent search is explicitly v2/future scope rather than blocking the public v1 bootstrap baseline.
 - The Python bootstrap remains reference-only. It should keep parity where cheap, but Rust is the source of truth for v1 behavior.
-- Latest cleanup: `docs/stdlib.md` now records source-level standard-library type declarations in exact Serow syntax, with regression coverage preventing declared stdlib type-shape drift.
+- Latest cleanup: the dependency-free Cargo manifest version parser now accepts only TOML space/tab whitespace around package metadata and rejects Unicode whitespace that Cargo/TOML should not treat as release metadata spacing.
 
 ## Implemented
 
