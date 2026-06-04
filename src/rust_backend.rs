@@ -13,7 +13,7 @@ use crate::ir::{
     IrBinaryOp, IrExpr, IrFunction, IrProgram, IrSummary, IrUnaryOp, lower_checked_program,
 };
 use crate::model::{Program, TypeDecl};
-use crate::sampling::{cartesian_samples, samples_for_type};
+use crate::sampling::{cartesian_samples, sample_unsupported_summary, samples_for_type};
 use crate::types::{EMPTY_LIST_TYPE, list_element_type, list_type, type_accepts};
 
 #[derive(Clone, Debug)]
@@ -548,17 +548,40 @@ fn render_function_tests(
     }
 
     for property in &function.properties {
+        let property_sample_variables = property
+            .variables
+            .iter()
+            .map(|variable| (variable.name.clone(), variable.type_name.clone()))
+            .collect::<Vec<_>>();
         let mut sample_sets = Vec::new();
         for variable in &property.variables {
             let Some(samples) = samples_for_type(&variable.type_name, types) else {
-                return Err(vec![unsupported_type_diagnostic(
+                let unsupported = sample_unsupported_summary(&property_sample_variables, types);
+                let mut diagnostic = unsupported_type_diagnostic(
                     function,
                     &variable.type_name,
                     &format!(
                         "No deterministic Rust backend samples exist for property variable `{}`.",
                         variable.name
                     ),
-                )]);
+                )
+                .with_data("property_index", property.index.to_string())
+                .with_data("property_variable", variable.name.clone())
+                .with_data(
+                    "unsupported_types",
+                    unsupported.unsupported_types.join(", "),
+                )
+                .with_data(
+                    "unsupported_reasons",
+                    unsupported.unsupported_reasons.join("; "),
+                );
+                if !unsupported.recursive_record_cycles.is_empty() {
+                    diagnostic = diagnostic.with_data(
+                        "recursive_record_cycles",
+                        unsupported.recursive_record_cycles.join("; "),
+                    );
+                }
+                return Err(vec![diagnostic]);
             };
             sample_sets.push(samples);
         }

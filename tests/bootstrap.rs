@@ -2331,6 +2331,27 @@ pub fn id(x: Int) -> Int
         }),
         "{diagnostic:#?}"
     );
+
+    let compile = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["compile", "rust", &source.to_string_lossy(), "--json"])
+        .output()
+        .expect("run compile rust with unsupported property sample type");
+    assert!(!compile.status.success(), "{compile:#?}");
+    let stdout = String::from_utf8(compile.stdout).expect("stdout is utf8");
+    assert!(
+        stdout.contains("\"code\": \"RustBackendUnsupportedType\""),
+        "{stdout}"
+    );
+    assert!(stdout.contains("\"property_index\": \"1\""), "{stdout}");
+    assert!(stdout.contains("\"property_variable\": \"x\""), "{stdout}");
+    assert!(
+        stdout.contains("\"unsupported_types\": \"Blob\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"unsupported_reasons\": \"Blob: unknown type `Blob`\""),
+        "{stdout}"
+    );
     let _ = fs::remove_dir_all(dir);
 }
 
