@@ -5897,7 +5897,7 @@ fn markdown_reference_link_usages(line: &str) -> Vec<MarkdownReferenceUsage> {
 
 fn normalize_markdown_reference_label(label: &str) -> Option<String> {
     let normalized = label.split_whitespace().collect::<Vec<_>>().join(" ");
-    (!normalized.is_empty()).then(|| normalized.to_ascii_lowercase())
+    (!normalized.is_empty()).then(|| normalized.chars().flat_map(char::to_lowercase).collect())
 }
 
 fn is_external_link(target: &str) -> bool {

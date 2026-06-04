@@ -2,6 +2,9 @@
 
 ## 2026-06-04
 
+- Chose docs-check Unicode reference-label hardening because Markdown reference labels are case-insensitive, while the release docs gate normalized labels with ASCII-only lowercasing and could falsely report non-ASCII label casing mismatches.
+- Switched reference-label normalization to Unicode lowercasing, covered a `[Café]` definition referenced as `[CAFÉ]` with a CLI regression, and bumped Serow to `1.0.39-rust-bootstrap` / crate `1.0.39`.
+
 - Chose docs-check linked-heading anchor hardening because Markdown headings can contain inline or reference-style links, while the release docs gate slugged the raw source text and could include link destinations in anchors.
 - Added heading-anchor text normalization that keeps link labels and drops inline/reference destinations, covered inline/full-reference/collapsed-reference heading anchors with a CLI regression, and bumped Serow to `1.0.38-rust-bootstrap` / crate `1.0.38`.
 
