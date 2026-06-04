@@ -5755,13 +5755,10 @@ fn markdown_inline_link_target(raw_target: &str) -> Option<&str> {
 fn markdown_reference_definition_target(line: &str) -> Option<&str> {
     let trimmed = line.trim_start();
     let indent = line.len().saturating_sub(trimmed.len());
-    if indent > 3 || !trimmed.starts_with('[') {
+    if indent > 3 {
         return None;
     }
-    let label_end = trimmed.find("]:")?;
-    if label_end <= 1 {
-        return None;
-    }
+    let label_end = markdown_reference_definition_label_end(trimmed)?;
     let mut target = trimmed[label_end + 2..].trim_start();
     if target.is_empty() {
         return None;
@@ -5779,14 +5776,22 @@ fn markdown_reference_definition_target(line: &str) -> Option<&str> {
 fn markdown_reference_definition_label(line: &str) -> Option<String> {
     let trimmed = line.trim_start();
     let indent = line.len().saturating_sub(trimmed.len());
-    if indent > 3 || !trimmed.starts_with('[') {
+    if indent > 3 {
         return None;
     }
-    let label_end = trimmed.find("]:")?;
-    if label_end <= 1 {
-        return None;
-    }
+    let label_end = markdown_reference_definition_label_end(trimmed)?;
     normalize_markdown_reference_label(&trimmed[1..label_end])
+}
+
+fn markdown_reference_definition_label_end(trimmed: &str) -> Option<usize> {
+    if !trimmed.starts_with('[') {
+        return None;
+    }
+    let label_end = find_unescaped_byte(trimmed, 1, b']')?;
+    if label_end <= 1 || !trimmed[label_end + 1..].starts_with(':') {
+        return None;
+    }
+    Some(label_end)
 }
 
 #[derive(Clone, Debug)]

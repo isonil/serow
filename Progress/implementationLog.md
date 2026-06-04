@@ -1,5 +1,10 @@
 # Implementation Log
 
+## 2026-06-04
+
+- Chose docs-check escaped reference-label hardening because reference-style usage parsing honored escaped closing brackets in labels, while reference definition parsing still searched for a raw `]:` and could falsely report valid escaped-label links as missing definitions.
+- Shared reference definition label-boundary parsing with the existing unescaped-bracket scanner, added a regression for escaped `]` labels, and bumped Serow to `1.0.34-rust-bootstrap` / crate `1.0.34`.
+
 ## 2026-06-02
 
 - Chose Rust backend finite-Float hardening because checked Serow evaluation rejects non-finite `Float` results, while generated Rust could still return `NaN` or infinities from float arithmetic and math intrinsics.

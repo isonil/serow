@@ -5758,6 +5758,56 @@ fn docs_check_reports_missing_reference_style_markdown_definitions() {
 }
 
 #[test]
+fn docs_check_handles_escaped_reference_definition_labels() {
+    let dir = unique_temp_dir("serow-docs-escaped-reference-labels");
+    fs::create_dir_all(dir.join("docs")).expect("create docs dir");
+    fs::create_dir_all(dir.join("Progress")).expect("create progress dir");
+    fs::write(
+        dir.join("README.md"),
+        concat!(
+            "# Fixture\n\n",
+            "Escaped label: [Language][lang\\]ref].\n",
+            "Broken escaped label: [Missing][missing\\]ref].\n\n",
+            "[lang\\]ref]: docs/language.md#language\n"
+        ),
+    )
+    .expect("write readme");
+    fs::write(dir.join("AGENTS.md"), "# Agents\n").expect("write agents");
+    fs::write(dir.join("docs/language.md"), "# Language\n").expect("write language doc");
+    fs::write(dir.join("docs/cli.md"), "# CLI\n").expect("write cli doc");
+    fs::write(dir.join("docs/stdlib.md"), "# Stdlib\n").expect("write stdlib doc");
+    fs::write(dir.join("docs/backends.md"), "# Backends\n").expect("write backend doc");
+    fs::write(dir.join("Progress/currentState.md"), "# State\n").expect("write state doc");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args(["docs", "--check", "--json"])
+        .output()
+        .expect("run serow docs --check with escaped reference labels");
+
+    assert_eq!(output.status.code(), Some(1), "{output:#?}");
+    assert!(output.stderr.is_empty(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"ok\": false"), "{stdout}");
+    assert!(stdout.contains("\"markdown_links_ok\": false"), "{stdout}");
+    assert!(
+        stdout.contains("\"target\": \"[missing\\\\]ref]\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("missing reference definition `missing\\\\]ref`"),
+        "{stdout}"
+    );
+    assert!(
+        !stdout.contains("\"target\": \"[lang\\\\]ref]\""),
+        "{stdout}"
+    );
+    assert!(!stdout.contains("docs/language.md#language"), "{stdout}");
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn release_check_runs_serow_owned_public_release_gates() {
     let json_output = Command::new(env!("CARGO_BIN_EXE_serow"))
         .args(["release-check", "--json"])
