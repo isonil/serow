@@ -304,11 +304,13 @@ fn render_type_decl(
         "Clone, Debug, PartialEq"
     };
     if type_decl.is_enum() {
-        let variants = type_decl
-            .variants
-            .iter()
-            .map(|variant| format!("    {},", rust_variant_identifier(variant)))
-            .collect::<Vec<_>>();
+        let mut variants = Vec::new();
+        for variant in &type_decl.variants {
+            variants.push(format!(
+                "    {},",
+                rust_variant_identifier(&type_decl.name, variant, types)?
+            ));
+        }
         return Ok(format!(
             "#[derive({derives})]\npub enum {rust_name} {{\n{}\n}}",
             variants.join("\n")
@@ -596,7 +598,7 @@ fn render_function_tests(
                     allocate_rust_identifier(&variable.name, &mut allocated_variables);
                 variables.insert(variable.name.clone(), rust_variable.clone());
                 variable_types.insert(variable.name.clone(), variable.type_name.clone());
-                let rendered_value = render_sample_value(value, type_names)
+                let rendered_value = render_sample_value(value, type_names, types)
                     .map_err(|message| vec![backend_error(function, message)])?;
                 let rust_binding_type = rust_type(&variable.type_name, type_names)
                     .map_err(|message| vec![backend_error(function, message)])?;
@@ -711,7 +713,10 @@ fn render_expr(
         IrExpr::EnumVariant { type_name, variant } => {
             let rust_type = rust_type(type_name, type_names)?;
             Ok(RenderedExpr {
-                code: format!("{rust_type}::{}", rust_variant_identifier(variant)),
+                code: format!(
+                    "{rust_type}::{}",
+                    rust_variant_identifier(type_name, variant, types)?
+                ),
                 type_name: type_name.clone(),
             })
         }
@@ -1183,7 +1188,7 @@ fn render_expr(
                 }
                 rendered_branches.push(format!(
                     "{rust_type}::{} => {}",
-                    rust_variant_identifier(variant),
+                    rust_variant_identifier(&matched.type_name, variant, types)?,
                     strip_outer_parens(&rendered_branch.code)
                 ));
             }
@@ -1974,6 +1979,7 @@ fn rust_string_literal(value: &str) -> String {
 fn render_sample_value(
     value: &Value,
     type_names: &HashMap<String, String>,
+    types: &[TypeDecl],
 ) -> Result<String, String> {
     match value {
         Value::Int(value) => Ok(value.to_string()),
@@ -1989,7 +1995,7 @@ fn render_sample_value(
                 rendered_fields.push(format!(
                     "{}: {}",
                     rust_field_identifier(field),
-                    render_sample_value(value, type_names)?
+                    render_sample_value(value, type_names, types)?
                 ));
             }
             Ok(format!("{rust_name} {{ {} }}", rendered_fields.join(", ")))
@@ -1998,12 +2004,15 @@ fn render_sample_value(
             let rust_name = type_names
                 .get(type_name)
                 .ok_or_else(|| format!("No generated Rust type for enum sample `{type_name}`."))?;
-            Ok(format!("{rust_name}::{}", rust_variant_identifier(variant)))
+            Ok(format!(
+                "{rust_name}::{}",
+                rust_variant_identifier(type_name, variant, types)?
+            ))
         }
         Value::List { elements, .. } => {
             let elements = elements
                 .iter()
-                .map(|element| render_sample_value(element, type_names))
+                .map(|element| render_sample_value(element, type_names, types))
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(format!("vec![{}]", elements.join(", ")))
         }
@@ -2044,8 +2053,20 @@ fn rust_field_identifier(name: &str) -> String {
     rust_identifier(name)
 }
 
-fn rust_variant_identifier(name: &str) -> String {
-    allocate_rust_type_identifier(name, &mut HashMap::new())
+fn rust_variant_identifier(
+    type_name: &str,
+    variant: &str,
+    types: &[TypeDecl],
+) -> Result<String, String> {
+    let type_decl = enum_type(type_name, types)?;
+    let mut allocated = HashMap::<String, usize>::new();
+    for declared in &type_decl.variants {
+        let rust_name = allocate_rust_type_identifier(declared, &mut allocated);
+        if declared == variant {
+            return Ok(rust_name);
+        }
+    }
+    Err(format!("Enum `{type_name}` has no variant `{variant}`."))
 }
 
 fn allocate_rust_type_identifier(name: &str, allocated: &mut HashMap<String, usize>) -> String {
@@ -2070,6 +2091,9 @@ fn allocate_rust_type_identifier(name: &str, allocated: &mut HashMap<String, usi
             .is_some_and(|char| char.is_ascii_digit())
     {
         output.insert_str(0, "Serow");
+    }
+    if output == "Self" {
+        output = "SerowSelf".to_string();
     }
     let count = allocated.entry(output.clone()).or_insert(0);
     *count += 1;

@@ -1273,3 +1273,7 @@
 - Tightened project JSON string parsing to require a string token at the current cursor, stopped top-level object field lookup on invalid non-comma tokens, and made nested architecture module policy parsing stop before accepting junk-prefixed keys.
 - Added regressions for malformed tokens before the top-level `version`, top-level `architecture`, and nested module policy keys.
 - Verification is recorded in the final run for this change.
+- Chose Rust backend enum-identifier hardening because nullary enum variants with distinct Serow names could normalize to the same Rust variant identifier, and a Serow variant named `Self` emitted an invalid Rust keyword.
+- Allocated rendered Rust variant names in declaration order for each enum, reused that mapping for expressions, match arms, and sampled property values, and reserved `Self` as `SerowSelf`.
+- Added a compile-rust regression that generates, compiles, and runs tests for variants `A_B`, `A__B`, and `Self`.
+- Verified with `bin/serow query intent "compile rust enum variant names"`, `bin/serow query symbol "Status"`, `cargo test compile_rust_disambiguates_enum_variant_identifiers --test bootstrap`, `cargo fmt --check`, `bin/serow check`, `bin/serow certify`, `cargo clippy --all-targets -- -D warnings`, and `cargo test`.

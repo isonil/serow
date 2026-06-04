@@ -2745,6 +2745,92 @@ pub fn delta(direction: Direction) -> Int
 }
 
 #[test]
+fn compile_rust_disambiguates_enum_variant_identifiers() {
+    let dir = unique_temp_dir("serow-enum-rust-variant-identifiers");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("variants.serow");
+    fs::write(
+        &source,
+        r#"module test.variants
+
+type Weird = A_B | A__B | Self
+
+pub fn rank(value: Weird) -> Int
+  version v1
+  intent "Return a stable rank for enum variants with Rust-hostile rendered names."
+  contract
+    ensures result > 0
+  examples
+    rank(A_B) == 1
+    rank(A__B) == 2
+    rank(Self) == 3
+  properties
+    forall value: Weird:
+      rank(value) > 0
+  effects pure
+  impl
+    match value { A_B -> 1, A__B -> 2, Self -> 3 }
+"#,
+    )
+    .expect("write fixture");
+
+    let rust = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["compile", "rust", &source.to_string_lossy()])
+        .output()
+        .expect("run compile rust variant identifiers");
+    assert!(rust.status.success(), "{rust:#?}");
+    let generated_source = String::from_utf8(rust.stdout.clone()).expect("generated rust is utf8");
+    assert!(
+        generated_source.contains("pub enum SerowTestVariantsWeird"),
+        "{generated_source}"
+    );
+    assert!(generated_source.contains("AB,"), "{generated_source}");
+    assert!(generated_source.contains("AB2,"), "{generated_source}");
+    assert!(
+        generated_source.contains("SerowSelf,"),
+        "{generated_source}"
+    );
+    assert!(
+        generated_source.contains("SerowTestVariantsWeird::AB => 1")
+            && generated_source.contains("SerowTestVariantsWeird::AB2 => 2")
+            && generated_source.contains("SerowTestVariantsWeird::SerowSelf => 3"),
+        "{generated_source}"
+    );
+    assert!(
+        generated_source
+            .contains("let serow_value: SerowTestVariantsWeird = SerowTestVariantsWeird::AB2;"),
+        "{generated_source}"
+    );
+
+    let generated = dir.join("generated.rs");
+    fs::write(&generated, &rust.stdout).expect("write generated rust");
+    let generated_tests = dir.join("generated_tests");
+    let rustc_test_output = Command::new("rustc")
+        .arg("--test")
+        .arg(&generated)
+        .arg("-o")
+        .arg(&generated_tests)
+        .output()
+        .expect("compile generated rust tests");
+    assert!(
+        rustc_test_output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&rustc_test_output.stdout),
+        String::from_utf8_lossy(&rustc_test_output.stderr)
+    );
+    let run_tests_output = Command::new(&generated_tests)
+        .output()
+        .expect("run generated rust tests");
+    assert!(
+        run_tests_output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&run_tests_output.stdout),
+        String::from_utf8_lossy(&run_tests_output.stderr)
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn enum_match_type_errors_are_reported() {
     let dir = unique_temp_dir("serow-enum-match-errors");
     fs::create_dir_all(&dir).expect("create temp dir");
