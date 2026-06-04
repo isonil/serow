@@ -326,15 +326,13 @@ pub(crate) fn nth_cartesian_sample(
     if sample_index == 0 {
         return None;
     }
+    if sample_sets.iter().any(Vec::is_empty) {
+        return None;
+    }
     let mut remaining = sample_index - 1;
     let mut values = Vec::new();
     for (index, sample_set) in sample_sets.iter().enumerate() {
-        if sample_set.is_empty() {
-            return None;
-        }
-        let suffix_count = sample_sets[index + 1..]
-            .iter()
-            .try_fold(1usize, |count, set| count.checked_mul(set.len()))?;
+        let suffix_count = capped_cartesian_count(&sample_sets[index + 1..], remaining + 1);
         let value_index = remaining / suffix_count;
         if value_index >= sample_set.len() {
             return None;
@@ -343,6 +341,12 @@ pub(crate) fn nth_cartesian_sample(
         remaining %= suffix_count;
     }
     if remaining == 0 { Some(values) } else { None }
+}
+
+fn capped_cartesian_count(sample_sets: &[Vec<Value>], cap: usize) -> usize {
+    sample_sets.iter().fold(1usize, |count, set| {
+        count.saturating_mul(set.len()).min(cap)
+    })
 }
 
 pub(crate) fn format_sample_bindings(
@@ -486,7 +490,8 @@ fn value_complexity(value: &Value) -> usize {
 #[cfg(test)]
 mod tests {
     use super::{
-        cartesian_sample_count, cartesian_samples, eager_cartesian_product, samples_for_type,
+        cartesian_sample_count, cartesian_samples, eager_cartesian_product, nth_cartesian_sample,
+        samples_for_type,
     };
     use crate::eval::Value;
 
@@ -535,5 +540,23 @@ mod tests {
         let empty_generator = vec![Vec::<Value>::new()];
         assert_eq!(cartesian_sample_count(&empty_generator), Some(0));
         assert!(cartesian_samples(&empty_generator).next().is_none());
+    }
+
+    #[test]
+    fn nth_cartesian_sample_handles_empty_later_sample_sets() {
+        let sample_sets = vec![vec![Value::Int(1)], Vec::<Value>::new()];
+
+        assert_eq!(nth_cartesian_sample(&sample_sets, 1), None);
+    }
+
+    #[test]
+    fn nth_cartesian_sample_handles_overflowing_suffix_counts() {
+        let sample_sets = (0..usize::BITS)
+            .map(|_| vec![Value::Int(0), Value::Int(1)])
+            .collect::<Vec<_>>();
+
+        let first = nth_cartesian_sample(&sample_sets, 1).expect("first sample exists");
+
+        assert_eq!(first, vec![Value::Int(0); usize::BITS as usize]);
     }
 }
