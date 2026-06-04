@@ -588,6 +588,82 @@ pub(crate) fn find_match_branch_end(tokens: &[Token], start: usize) -> Result<us
     Err("Expected `,` or `}` after match branch expression.".to_string())
 }
 
+fn find_if_else(tokens: &[Token], start: usize) -> Result<usize, String> {
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut brace_depth = 0usize;
+    let mut nested_if_depth = 0usize;
+    for (offset, token) in tokens[start..].iter().enumerate() {
+        let index = start + offset;
+        let top_level = paren_depth == 0 && bracket_depth == 0 && brace_depth == 0;
+        match token {
+            Token::If if top_level => nested_if_depth += 1,
+            Token::Else if top_level && nested_if_depth == 0 => return Ok(index),
+            Token::Else if top_level => nested_if_depth -= 1,
+            Token::LParen => paren_depth += 1,
+            Token::LBracket => bracket_depth += 1,
+            Token::LBrace => brace_depth += 1,
+            Token::RParen => {
+                paren_depth = paren_depth
+                    .checked_sub(1)
+                    .ok_or_else(|| "Unexpected `)` before if else branch.".to_string())?;
+            }
+            Token::RBracket => {
+                bracket_depth = bracket_depth
+                    .checked_sub(1)
+                    .ok_or_else(|| "Unexpected `]` before if else branch.".to_string())?;
+            }
+            Token::RBrace => {
+                brace_depth = brace_depth
+                    .checked_sub(1)
+                    .ok_or_else(|| "Unexpected `}` before if else branch.".to_string())?;
+            }
+            _ => {}
+        }
+    }
+    Err("Expected `else` after if then branch.".to_string())
+}
+
+fn find_expression_end(tokens: &[Token], start: usize) -> Result<usize, String> {
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut brace_depth = 0usize;
+    let mut nested_if_depth = 0usize;
+    for (offset, token) in tokens[start..].iter().enumerate() {
+        let index = start + offset;
+        let top_level = paren_depth == 0 && bracket_depth == 0 && brace_depth == 0;
+        match token {
+            Token::Comma | Token::RParen | Token::RBracket | Token::RBrace
+                if top_level && nested_if_depth == 0 =>
+            {
+                return Ok(index);
+            }
+            Token::If if top_level => nested_if_depth += 1,
+            Token::Else if top_level && nested_if_depth > 0 => nested_if_depth -= 1,
+            Token::LParen => paren_depth += 1,
+            Token::LBracket => bracket_depth += 1,
+            Token::LBrace => brace_depth += 1,
+            Token::RParen => {
+                paren_depth = paren_depth
+                    .checked_sub(1)
+                    .ok_or_else(|| "Unexpected `)` while finding expression end.".to_string())?;
+            }
+            Token::RBracket => {
+                bracket_depth = bracket_depth
+                    .checked_sub(1)
+                    .ok_or_else(|| "Unexpected `]` while finding expression end.".to_string())?;
+            }
+            Token::RBrace => {
+                brace_depth = brace_depth
+                    .checked_sub(1)
+                    .ok_or_else(|| "Unexpected `}` while finding expression end.".to_string())?;
+            }
+            _ => {}
+        }
+    }
+    Ok(tokens.len())
+}
+
 pub fn called_functions(expression: &str) -> Result<Vec<CallReference>, String> {
     let mut calls = Vec::new();
     for line in expression.lines() {
@@ -832,14 +908,27 @@ impl<'a> ExprParser<'a> {
         if self.consume(&Token::If) {
             let condition = self.parse_expression()?;
             self.expect(&Token::Then)?;
-            let true_value = self.parse_expression()?;
-            self.expect(&Token::Else)?;
-            let false_value = self.parse_expression()?;
-            return match condition {
-                Value::Bool(true) => Ok(true_value),
-                Value::Bool(false) => Ok(false_value),
+            let then_start = self.index;
+            let else_index = find_if_else(&self.tokens, then_start)?;
+            let else_start = else_index + 1;
+            let if_end = find_expression_end(&self.tokens, else_start)?;
+            let branch_tokens = match condition {
+                Value::Bool(true) => Ok(self.tokens[then_start..else_index].to_vec()),
+                Value::Bool(false) => Ok(self.tokens[else_start..if_end].to_vec()),
                 value => Err(format!("If condition must be Bool, got {value}.")),
+            }?;
+            let mut branch_parser = ExprParser {
+                tokens: branch_tokens,
+                index: 0,
+                variables: self.variables.clone(),
+                assignable: self.assignable.clone(),
+                evaluator: self.evaluator,
             };
+            let value = branch_parser.parse_expression()?;
+            branch_parser.expect_end()?;
+            self.variables = branch_parser.variables;
+            self.index = if_end;
+            return Ok(value);
         }
         self.parse_or()
     }

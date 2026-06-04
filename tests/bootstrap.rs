@@ -593,6 +593,45 @@ pub fn div_trunc(x: Int, y: Int) -> Int
 }
 
 #[test]
+fn if_expression_evaluates_only_selected_branch() {
+    let dir = unique_temp_dir("serow-lazy-if");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("lazy_if.serow");
+    fs::write(
+        &source,
+        r#"module test.lazy_if
+
+pub fn selected() -> Int
+  intent "Return the selected conditional branch."
+  contract
+    ensures result == 1
+  examples
+    selected() == 1
+  properties
+    forall sample: Unit:
+      selected() == 1
+  effects pure
+  impl
+    if true then 1 else 1 // 0
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(
+        summary.ok(),
+        "{:#?}",
+        summary
+            .diagnostics
+            .iter()
+            .map(|diagnostic| (&diagnostic.code, &diagnostic.message))
+            .collect::<Vec<_>>()
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn unsupported_contract_clause_repair_mentions_requires_and_ensures() {
     let dir = unique_temp_dir("serow-unsupported-contract-repair");
     fs::create_dir_all(&dir).expect("create temp dir");
