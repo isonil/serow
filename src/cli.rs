@@ -5528,6 +5528,8 @@ fn broken_doc_links() -> Vec<DocLinkIssue> {
                 };
                 let resolved = if local_target.path.is_empty() {
                     Path::new(source_path).to_path_buf()
+                } else if let Some(root_relative) = local_target.path.strip_prefix('/') {
+                    Path::new(root_relative).to_path_buf()
                 } else {
                     source_parent.join(&local_target.path)
                 };

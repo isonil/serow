@@ -25,7 +25,7 @@ Selection policy for generic implementation prompts:
 - Phase 3's first production backend slice is closed for public v1: portable IR plus dependency-free Rust source/crate generation for the supported bootstrap subset, generated metadata, artifact drift checks, runtime contract assertions, generated pure evidence tests, and binary entrypoint support are all implemented.
 - Remaining backend work such as WASM/TypeScript/Python backends, richer external effect boundaries, recursive record layout support, generic list indexing, list pattern matching, higher-order collection APIs, and semantic-embedding intent search is explicitly v2/future scope rather than blocking the public v1 bootstrap baseline.
 - The Python bootstrap remains reference-only. It should keep parity where cheap, but Rust is the source of truth for v1 behavior.
-- Latest cleanup: source discovery now deduplicates `.serow` file symlinks by canonical path, preventing one physical source file from being parsed twice when a directory contains both the real file and a symlink to it.
+- Latest cleanup: docs-check now resolves root-relative local Markdown links such as `/docs/cli.md` against the checked project root instead of treating them as filesystem-absolute paths.
 
 ## Implemented
 
@@ -128,7 +128,7 @@ Selection policy for generic implementation prompts:
   - reports the canonical version loaded from `serow.project`
 - Documentation discovery command:
   - `bin/serow docs [check|--check] [--json]`
-  - lists the stable local project overview, language, CLI, standard library, backend, agent-instruction, and progress references in text or machine-readable form, and can fail CI-style when an advertised reference is missing, a public inline/reference-style local Markdown link points at a missing file or missing heading anchor, or a full/collapsed reference-style link usage has no definition, including links that use normal Markdown titles
+  - lists the stable local project overview, language, CLI, standard library, backend, agent-instruction, and progress references in text or machine-readable form, and can fail CI-style when an advertised reference is missing, a public inline/reference-style local Markdown link points at a missing file or missing heading anchor, or a full/collapsed reference-style link usage has no definition, including links that use normal Markdown titles and project-root-relative local paths
   - ignores Markdown link/reference syntax and heading-like anchor text inside fenced code blocks, and ignores inline link/reference syntax inside inline backtick code spans or escaped Markdown text
 - Public release gate aggregation:
   - `bin/serow release-check [paths...] [--json]`

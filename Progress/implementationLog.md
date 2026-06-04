@@ -2,6 +2,9 @@
 
 ## 2026-06-04
 
+- Chose docs-check root-relative link hardening because repository Markdown commonly uses `/docs/...` paths, while the docs gate resolved those as filesystem-absolute paths instead of project-root-relative local links.
+- Resolved single-leading-slash local Markdown paths against the checked project root, preserved protocol-relative external-link handling, covered valid and broken root-relative links, and bumped Serow to `1.0.43-rust-bootstrap` / crate `1.0.43`.
+
 - Chose source-discovery symlink-file deduplication because recursive discovery already avoided directory symlink cycles, but a `.serow` file plus a symlink to the same file could still be parsed twice and reported as duplicate symbols.
 - Deduplicated discovered source files by canonical path after sorting, preserving the user-facing path that survives discovery while preventing one physical source file from entering the program twice.
 
