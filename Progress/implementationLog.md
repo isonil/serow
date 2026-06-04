@@ -2,6 +2,9 @@
 
 ## 2026-06-04
 
+- Chose docs-check linked-heading anchor hardening because Markdown headings can contain inline or reference-style links, while the release docs gate slugged the raw source text and could include link destinations in anchors.
+- Added heading-anchor text normalization that keeps link labels and drops inline/reference destinations, covered inline/full-reference/collapsed-reference heading anchors with a CLI regression, and bumped Serow to `1.0.38-rust-bootstrap` / crate `1.0.38`.
+
 - Chose docs-check duplicate reference-definition hardening because repeated Markdown reference labels were collapsed into a set, allowing stale or conflicting documentation targets to pass the release docs gate silently.
 - Added duplicate-label tracking to the docs link scanner, reported repeated definitions through the existing `broken_links` output, covered the failure path with a focused CLI regression, and bumped Serow to `1.0.37-rust-bootstrap` / crate `1.0.37`.
 

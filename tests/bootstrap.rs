@@ -5730,6 +5730,54 @@ fn docs_check_handles_unicode_markdown_heading_anchors() {
 }
 
 #[test]
+fn docs_check_uses_markdown_link_text_for_heading_anchors() {
+    let dir = unique_temp_dir("serow-docs-link-text-heading-anchors");
+    fs::create_dir_all(dir.join("docs")).expect("create docs dir");
+    fs::create_dir_all(dir.join("Progress")).expect("create progress dir");
+    fs::write(
+        dir.join("README.md"),
+        concat!(
+            "# Fixture\n\n",
+            "Inline link heading: [CLI](docs/language.md#cli-reference).\n",
+            "Full reference heading: [Stdlib](docs/language.md#standard-library-reference).\n",
+            "Collapsed reference heading: [Backend](docs/language.md#backend-reference).\n"
+        ),
+    )
+    .expect("write readme");
+    fs::write(dir.join("AGENTS.md"), "# Agents\n").expect("write agents");
+    fs::write(
+        dir.join("docs/language.md"),
+        concat!(
+            "# [CLI](cli.md) Reference\n\n",
+            "# [Standard Library][stdlib] Reference\n\n",
+            "# [Backend][] Reference\n\n",
+            "[stdlib]: stdlib.md\n",
+            "[backend]: backends.md\n"
+        ),
+    )
+    .expect("write language doc");
+    fs::write(dir.join("docs/cli.md"), "# CLI\n").expect("write cli doc");
+    fs::write(dir.join("docs/stdlib.md"), "# Stdlib\n").expect("write stdlib doc");
+    fs::write(dir.join("docs/backends.md"), "# Backends\n").expect("write backend doc");
+    fs::write(dir.join("Progress/currentState.md"), "# State\n").expect("write state doc");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args(["docs", "--check", "--json"])
+        .output()
+        .expect("run serow docs --check with linked heading anchors");
+
+    assert!(output.status.success(), "{output:#?}");
+    assert!(output.stderr.is_empty(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"ok\": true"), "{stdout}");
+    assert!(stdout.contains("\"markdown_links_ok\": true"), "{stdout}");
+    assert!(stdout.contains("\"broken_links\": []"), "{stdout}");
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn docs_check_validates_markdown_link_anchors_after_query_strings() {
     let dir = unique_temp_dir("serow-docs-query-string-anchors");
     fs::create_dir_all(dir.join("docs")).expect("create docs dir");

@@ -6028,7 +6028,8 @@ fn insert_markdown_heading_anchor(
     counts: &mut HashMap<String, usize>,
     heading: &str,
 ) {
-    let base = markdown_anchor_slug(heading);
+    let heading = markdown_heading_anchor_text(heading);
+    let base = markdown_anchor_slug(&heading);
     if base.is_empty() {
         return;
     }
@@ -6040,6 +6041,46 @@ fn insert_markdown_heading_anchor(
     };
     anchors.insert(anchor);
     *count += 1;
+}
+
+fn markdown_heading_anchor_text(heading: &str) -> String {
+    let mut output = String::new();
+    let mut offset = 0usize;
+    while let Some(open_index) = find_unescaped_byte(heading, offset, b'[') {
+        output.push_str(&heading[offset..open_index]);
+        let Some(label_end) = markdown_link_label_close_index(heading, open_index) else {
+            output.push_str(&heading[open_index..]);
+            return output;
+        };
+        let label = &heading[open_index + 1..label_end];
+        let after_label = &heading[label_end + 1..];
+        if after_label.starts_with('(') {
+            let target_start = label_end + 2;
+            let Some(target_end) = markdown_inline_link_close_index(&heading[target_start..])
+            else {
+                output.push_str(&heading[open_index..]);
+                return output;
+            };
+            output.push_str(label);
+            offset = target_start + target_end + 1;
+            continue;
+        }
+        if after_label.starts_with('[') {
+            let reference_open = label_end + 1;
+            let Some(reference_end) = markdown_link_label_close_index(heading, reference_open)
+            else {
+                output.push_str(&heading[open_index..]);
+                return output;
+            };
+            output.push_str(label);
+            offset = reference_end + 1;
+            continue;
+        }
+        output.push_str(&heading[open_index..label_end + 1]);
+        offset = label_end + 1;
+    }
+    output.push_str(&heading[offset..]);
+    output
 }
 
 fn markdown_heading_text(line: &str) -> Option<&str> {
