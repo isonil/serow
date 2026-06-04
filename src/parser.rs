@@ -57,9 +57,10 @@ pub fn discover_sources_with_diagnostics(paths: &[String]) -> (Vec<PathBuf>, Vec
             sources.push(root.clone());
         } else if root.is_dir() {
             let before = sources.len();
+            let diagnostics_before = diagnostics.len();
             let mut visited = HashSet::new();
-            collect_serow_files(root, &mut sources, &mut visited);
-            if sources.len() == before {
+            collect_serow_files(root, &mut sources, &mut visited, &mut diagnostics);
+            if sources.len() == before && diagnostics.len() == diagnostics_before {
                 let source_path = root.to_string_lossy().to_string();
                 diagnostics.push(
                     Diagnostic::error(
@@ -88,23 +89,58 @@ pub fn discover_sources_with_diagnostics(paths: &[String]) -> (Vec<PathBuf>, Vec
     (sources, diagnostics)
 }
 
-fn collect_serow_files(path: &Path, sources: &mut Vec<PathBuf>, visited: &mut HashSet<PathBuf>) {
-    if let Ok(canonical) = fs::canonicalize(path)
-        && !visited.insert(canonical)
-    {
-        return;
+fn collect_serow_files(
+    path: &Path,
+    sources: &mut Vec<PathBuf>,
+    visited: &mut HashSet<PathBuf>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    match fs::canonicalize(path) {
+        Ok(canonical) => {
+            if !visited.insert(canonical) {
+                return;
+            }
+        }
+        Err(error) => {
+            push_source_read_error(path, error, diagnostics);
+            return;
+        }
     }
-    let Ok(entries) = fs::read_dir(path) else {
-        return;
+    let entries = match fs::read_dir(path) {
+        Ok(entries) => entries,
+        Err(error) => {
+            push_source_read_error(path, error, diagnostics);
+            return;
+        }
     };
-    for entry in entries.flatten() {
+    for entry in entries {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(error) => {
+                push_source_read_error(path, error, diagnostics);
+                continue;
+            }
+        };
         let path = entry.path();
         if path.is_dir() {
-            collect_serow_files(&path, sources, visited);
+            collect_serow_files(&path, sources, visited, diagnostics);
         } else if path.is_file() && path.extension().is_some_and(|ext| ext == "serow") {
             sources.push(path);
         }
     }
+}
+
+fn push_source_read_error(path: &Path, error: std::io::Error, diagnostics: &mut Vec<Diagnostic>) {
+    let source_path = path.to_string_lossy().to_string();
+    diagnostics.push(
+        Diagnostic::error(
+            "SourceReadError",
+            format!("Could not read source directory `{source_path}`: {error}"),
+            Some(source_path),
+        )
+        .with_data("error", error.to_string())
+        .with_repair("Make the source directory readable or pass a readable Serow source path."),
+    );
 }
 
 fn parse_file(path: &Path) -> (Program, Vec<Diagnostic>) {

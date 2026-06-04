@@ -108,6 +108,54 @@ fn source_discovery_ignores_directory_symlink_cycles() {
     let _ = fs::remove_dir_all(dir);
 }
 
+#[cfg(unix)]
+#[test]
+fn source_discovery_reports_unreadable_directories() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = unique_temp_dir("serow-source-unreadable-dir");
+    let source_dir = dir.join("sources");
+    let unreadable_dir = source_dir.join("unreadable");
+    fs::create_dir_all(&unreadable_dir).expect("create unreadable source dir");
+    fs::write(
+        unreadable_dir.join("main.serow"),
+        "module unreadable.test\n",
+    )
+    .expect("write source");
+
+    let original_permissions = fs::metadata(&unreadable_dir)
+        .expect("read unreadable dir metadata")
+        .permissions();
+    fs::set_permissions(&unreadable_dir, fs::Permissions::from_mode(0o000))
+        .expect("make source dir unreadable");
+    if fs::read_dir(&unreadable_dir).is_ok() {
+        fs::set_permissions(&unreadable_dir, original_permissions)
+            .expect("restore unreadable dir permissions");
+        let _ = fs::remove_dir_all(dir);
+        return;
+    }
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args(["check", &source_dir.to_string_lossy(), "--json"])
+        .output()
+        .expect("run serow check with unreadable source directory");
+
+    fs::set_permissions(&unreadable_dir, original_permissions)
+        .expect("restore unreadable dir permissions");
+
+    assert!(!output.status.success(), "{output:#?}");
+    assert!(output.stderr.is_empty(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"ok\": false"), "{stdout}");
+    assert!(stdout.contains("SourceReadError"), "{stdout}");
+    assert!(
+        stdout.contains("Could not read source directory"),
+        "{stdout}"
+    );
+    assert!(!stdout.contains("NoSerowSources"), "{stdout}");
+    let _ = fs::remove_dir_all(dir);
+}
+
 #[test]
 fn source_path_separator_allows_json_looking_paths() {
     let dir = unique_temp_dir("serow-path-separator");
