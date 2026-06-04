@@ -2,6 +2,9 @@
 
 ## 2026-06-04
 
+- Chose docs-check escaped angle-destination hardening because angle-bracket Markdown destinations can contain escaped punctuation, while local destination extraction still stopped at the first `>` and resolved escaped path punctuation literally.
+- Added escape-aware angle destination closing plus local destination unescaping before percent decoding, covered inline and reference-style links to a local Markdown file containing `>` in its name, and bumped Serow to `1.0.41-rust-bootstrap` / crate `1.0.41`.
+
 - Chose docs-check external URI hardening because the local Markdown link gate treated protocol-relative links and URI-scheme targets without `://`, such as `urn:`, as local filesystem paths.
 - Added a scheme-aware external-target classifier, covered protocol-relative, `urn:`, and `mailto:` links while keeping broken local links reported, and bumped Serow to `1.0.40-rust-bootstrap` / crate `1.0.40`.
 

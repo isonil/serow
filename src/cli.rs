@@ -5797,13 +5797,17 @@ fn markdown_inline_link_target(raw_target: &str) -> Option<&str> {
         return None;
     }
     if let Some(rest) = target.strip_prefix('<') {
-        let close_index = rest.find('>')?;
+        let close_index = markdown_angle_destination_close_index(rest)?;
         let target = rest[..close_index].trim();
         return (!target.is_empty()).then_some(target);
     }
     let end = target.find(char::is_whitespace).unwrap_or(target.len());
     let target = &target[..end];
     (!target.is_empty()).then_some(target)
+}
+
+fn markdown_angle_destination_close_index(destination: &str) -> Option<usize> {
+    find_unescaped_byte(destination, 0, b'>')
 }
 
 fn markdown_reference_definition_target(line: &str) -> Option<&str> {
@@ -5818,7 +5822,7 @@ fn markdown_reference_definition_target(line: &str) -> Option<&str> {
         return None;
     }
     if let Some(rest) = target.strip_prefix('<') {
-        let close_index = rest.find('>')?;
+        let close_index = markdown_angle_destination_close_index(rest)?;
         target = rest[..close_index].trim();
     } else {
         let end = target.find(char::is_whitespace).unwrap_or(target.len());
@@ -5948,14 +5952,33 @@ fn local_link_target(target: &str) -> Option<DocLinkTarget> {
         return None;
     }
     Some(DocLinkTarget {
-        path: percent_decode_local_link_component(path).unwrap_or_else(|| path.to_string()),
+        path: decode_local_link_component(path),
         fragment: fragment
             .filter(|fragment| !fragment.is_empty())
-            .map(|fragment| {
-                percent_decode_local_link_component(fragment)
-                    .unwrap_or_else(|| fragment.to_string())
-            }),
+            .map(decode_local_link_component),
     })
+}
+
+fn decode_local_link_component(component: &str) -> String {
+    let unescaped = markdown_unescape_destination_component(component);
+    percent_decode_local_link_component(&unescaped).unwrap_or(unescaped)
+}
+
+fn markdown_unescape_destination_component(component: &str) -> String {
+    let mut unescaped = String::new();
+    let mut characters = component.chars().peekable();
+    while let Some(character) = characters.next() {
+        if character == '\\'
+            && let Some(next) = characters.peek()
+            && next.is_ascii_punctuation()
+        {
+            unescaped.push(*next);
+            characters.next();
+            continue;
+        }
+        unescaped.push(character);
+    }
+    unescaped
 }
 
 fn percent_decode_local_link_component(component: &str) -> Option<String> {
