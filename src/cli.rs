@@ -5901,7 +5901,25 @@ fn normalize_markdown_reference_label(label: &str) -> Option<String> {
 }
 
 fn is_external_link(target: &str) -> bool {
-    target.contains("://") || target.starts_with("mailto:") || target.starts_with("tel:")
+    let trimmed = target.trim();
+    trimmed.starts_with("//") || markdown_uri_scheme_end(trimmed).is_some()
+}
+
+fn markdown_uri_scheme_end(target: &str) -> Option<usize> {
+    let mut chars = target.char_indices();
+    let (_, first) = chars.next()?;
+    if !first.is_ascii_alphabetic() {
+        return None;
+    }
+    for (index, character) in chars {
+        if character == ':' {
+            return Some(index);
+        }
+        if !(character.is_ascii_alphanumeric() || matches!(character, '+' | '-' | '.')) {
+            return None;
+        }
+    }
+    None
 }
 
 fn local_link_target(target: &str) -> Option<DocLinkTarget> {

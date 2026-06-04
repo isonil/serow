@@ -1,6 +1,6 @@
 {
   "language": "Serow",
-  "version": "1.0.39-rust-bootstrap",
+  "version": "1.0.40-rust-bootstrap",
   "implementation": {
     "primary": "Rust",
     "reference": "Python bootstrap in serowlang/"
@@ -79,6 +79,7 @@
     "docs_command_ignores_markdown_code_link_syntax": true,
     "docs_command_ignores_markdown_code_reference_definitions": true,
     "docs_command_ignores_escaped_markdown_link_syntax": true,
+    "docs_command_ignores_external_markdown_uri_links": true,
     "docs_command_checks_reference_markdown_links": true,
     "docs_command_checks_reference_markdown_link_usages": true,
     "docs_command_handles_escaped_reference_definition_labels": true,

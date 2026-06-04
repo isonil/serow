@@ -5157,6 +5157,51 @@ fn docs_check_reports_broken_local_markdown_links() {
 }
 
 #[test]
+fn docs_check_ignores_external_markdown_uri_links() {
+    let dir = unique_temp_dir("serow-docs-external-uri-links");
+    fs::create_dir_all(dir.join("docs")).expect("create docs dir");
+    fs::create_dir_all(dir.join("Progress")).expect("create progress dir");
+    fs::write(
+        dir.join("README.md"),
+        concat!(
+            "# Fixture\n\n",
+            "Protocol relative: [CDN](//cdn.example.com/guide.md).\n",
+            "URN link: [ISBN](urn:isbn:9780131103627).\n",
+            "Mail link: [Email](mailto:hello@example.com).\n",
+            "Broken local: [Missing](docs/missing.md).\n"
+        ),
+    )
+    .expect("write readme");
+    fs::write(dir.join("AGENTS.md"), "# Agents\n").expect("write agents");
+    fs::write(dir.join("docs/language.md"), "# Language\n").expect("write language doc");
+    fs::write(dir.join("docs/cli.md"), "# CLI\n").expect("write cli doc");
+    fs::write(dir.join("docs/stdlib.md"), "# Stdlib\n").expect("write stdlib doc");
+    fs::write(dir.join("docs/backends.md"), "# Backends\n").expect("write backend doc");
+    fs::write(dir.join("Progress/currentState.md"), "# State\n").expect("write state doc");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .current_dir(&dir)
+        .args(["docs", "--check", "--json"])
+        .output()
+        .expect("run serow docs --check with external URI markdown links");
+
+    assert_eq!(output.status.code(), Some(1), "{output:#?}");
+    assert!(output.stderr.is_empty(), "{output:#?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf8");
+    assert!(stdout.contains("\"ok\": false"), "{stdout}");
+    assert!(stdout.contains("\"markdown_links_ok\": false"), "{stdout}");
+    assert!(
+        stdout.contains("\"target\": \"docs/missing.md\""),
+        "{stdout}"
+    );
+    assert!(!stdout.contains("cdn.example.com"), "{stdout}");
+    assert!(!stdout.contains("urn:isbn"), "{stdout}");
+    assert!(!stdout.contains("mailto:"), "{stdout}");
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn docs_check_ignores_markdown_links_inside_code() {
     let dir = unique_temp_dir("serow-docs-code-links");
     fs::create_dir_all(dir.join("docs")).expect("create docs dir");
