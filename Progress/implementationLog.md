@@ -2,6 +2,9 @@
 
 ## 2026-06-04
 
+- Chose docs-check duplicate reference-definition hardening because repeated Markdown reference labels were collapsed into a set, allowing stale or conflicting documentation targets to pass the release docs gate silently.
+- Added duplicate-label tracking to the docs link scanner, reported repeated definitions through the existing `broken_links` output, covered the failure path with a focused CLI regression, and bumped Serow to `1.0.37-rust-bootstrap` / crate `1.0.37`.
+
 - Chose Cargo manifest version parser hardening because the dependency-free release metadata reader still used Rust's broad Unicode trimming even after the JSON project-manifest parser had been tightened to grammar-specific whitespace.
 - Replaced TOML table/value trimming with explicit space/tab-only helpers, added regressions for non-breaking spaces around package/version metadata, and bumped Serow to `1.0.36-rust-bootstrap` / crate `1.0.36`.
 

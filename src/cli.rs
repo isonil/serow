@@ -5026,7 +5026,7 @@ const CORE_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "docs",
         DOCS_USAGE,
-        "List or validate stable local documentation references, inline/reference-style local Markdown links, reference usages, and heading anchors.",
+        "List or validate stable local documentation references, inline/reference-style local Markdown links, reference usages, duplicate reference definitions, and heading anchors.",
     ),
     (
         "check",
@@ -5099,7 +5099,7 @@ const FULL_AGENT_COMMANDS: &[AgentCommand] = &[
     (
         "docs",
         DOCS_USAGE,
-        "List or validate stable local documentation references, inline/reference-style local Markdown links, reference usages, and heading anchors.",
+        "List or validate stable local documentation references, inline/reference-style local Markdown links, reference usages, duplicate reference definitions, and heading anchors.",
     ),
     (
         "check",
@@ -5469,13 +5469,36 @@ struct MarkdownFence {
     length: usize,
 }
 
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+struct MarkdownReferenceDefinitions {
+    labels: HashSet<String>,
+    duplicate_labels: Vec<MarkdownReferenceDuplicate>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct MarkdownReferenceDuplicate {
+    line: usize,
+    normalized_label: String,
+}
+
 fn broken_doc_links() -> Vec<DocLinkIssue> {
     let mut broken = Vec::new();
     for source_path in DOC_LINK_SOURCES {
         let Ok(source) = fs::read_to_string(source_path) else {
             continue;
         };
-        let reference_labels = markdown_reference_definition_labels(&source);
+        let reference_definitions = markdown_reference_definitions(&source);
+        for duplicate in &reference_definitions.duplicate_labels {
+            broken.push(DocLinkIssue {
+                source_path: (*source_path).to_string(),
+                line: duplicate.line,
+                target: format!("[{}]", duplicate.normalized_label),
+                resolved_path: format!(
+                    "duplicate reference definition `{}`",
+                    duplicate.normalized_label
+                ),
+            });
+        }
         let source_parent = Path::new(source_path)
             .parent()
             .unwrap_or_else(|| Path::new(""));
@@ -5494,7 +5517,10 @@ fn broken_doc_links() -> Vec<DocLinkIssue> {
             }
             let link_source = markdown_without_inline_code_spans(line);
             for usage in markdown_reference_link_usages(&link_source) {
-                if !reference_labels.contains(&usage.normalized_label) {
+                if !reference_definitions
+                    .labels
+                    .contains(&usage.normalized_label)
+                {
                     broken.push(DocLinkIssue {
                         source_path: (*source_path).to_string(),
                         line: line_index + 1,
@@ -5548,10 +5574,10 @@ fn broken_doc_links() -> Vec<DocLinkIssue> {
     broken
 }
 
-fn markdown_reference_definition_labels(source: &str) -> HashSet<String> {
-    let mut labels = HashSet::new();
+fn markdown_reference_definitions(source: &str) -> MarkdownReferenceDefinitions {
+    let mut definitions = MarkdownReferenceDefinitions::default();
     let mut fence: Option<MarkdownFence> = None;
-    for line in source.lines() {
+    for (line_index, line) in source.lines().enumerate() {
         if let Some(marker) = markdown_fence_marker(line) {
             if fence.is_some_and(|open| markdown_fence_closes(open, marker)) {
                 fence = None;
@@ -5564,11 +5590,18 @@ fn markdown_reference_definition_labels(source: &str) -> HashSet<String> {
             continue;
         }
         let link_source = markdown_without_inline_code_spans(line);
-        if let Some(label) = markdown_reference_definition_label(&link_source) {
-            labels.insert(label);
+        if let Some(label) = markdown_reference_definition_label(&link_source)
+            && !definitions.labels.insert(label.clone())
+        {
+            definitions
+                .duplicate_labels
+                .push(MarkdownReferenceDuplicate {
+                    line: line_index + 1,
+                    normalized_label: label,
+                });
         }
     }
-    labels
+    definitions
 }
 
 fn markdown_fence_marker(line: &str) -> Option<MarkdownFence> {
