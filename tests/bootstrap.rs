@@ -14354,6 +14354,49 @@ fn compile_rust_out_dir_refuses_to_overwrite_hand_authored_artifacts() {
 }
 
 #[test]
+fn compile_rust_out_dir_refuses_schema_lookalike_metadata() {
+    let dir = unique_temp_dir("serow-compile-rust-out-dir-lookalike-metadata");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let out_dir = dir.join("generated_crate");
+    fs::create_dir_all(&out_dir).expect("create output dir");
+    let metadata_json = out_dir.join("serow-metadata.json");
+    let hand_authored_metadata =
+        "{\n  \"schema\": \"serow.rust.metadata.v0\",\n  \"owner\": \"human\"\n}\n";
+    fs::write(&metadata_json, hand_authored_metadata).expect("write hand-authored metadata");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "compile",
+            "rust",
+            "examples/math.serow",
+            "--out-dir",
+            &out_dir.to_string_lossy(),
+            "--json",
+        ])
+        .output()
+        .expect("run compile rust --out-dir");
+    assert!(!output.status.success(), "{output:#?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("\"code\": \"RustBackendUnexpectedArtifact\""),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("Refusing to overwrite hand-authored Rust backend artifact"),
+        "{stdout}"
+    );
+    assert_eq!(
+        fs::read_to_string(&metadata_json).expect("read hand-authored metadata"),
+        hand_authored_metadata
+    );
+    assert!(
+        !out_dir.join("src").exists(),
+        "generation should not create source directories after refusing metadata"
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn compile_rust_generated_readme_escapes_backtick_source_paths() {
     let dir = unique_temp_dir("serow-compile-rust-readme-backtick-path");
     fs::create_dir_all(&dir).expect("create temp dir");

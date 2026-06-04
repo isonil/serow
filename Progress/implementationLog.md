@@ -1284,3 +1284,7 @@
 - Made evaluator `and`/`or` skip unneeded right-hand operands while preserving surrounding expression boundaries such as `then`, `else`, `do`, separators, and delimiters.
 - Added a regression covering examples and sampled properties that guard integer division by zero behind short-circuited `and` and `or` expressions, and documented the language rule.
 - Verification is recorded in the final run for this change.
+- Chose Rust backend artifact safety hardening because generated crate writes accepted any `serow-metadata.json` containing the Serow metadata schema string, which could overwrite hand-authored lookalike JSON sidecars.
+- Tightened generated metadata recognition to require the deterministic generated metadata shape before overwrite/removal checks treat the sidecar as Serow-owned.
+- Added a compile-rust regression proving schema-lookalike metadata is rejected and preserved without creating generated source directories.
+- Verification is recorded in the final run for this change.
