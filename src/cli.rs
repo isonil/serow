@@ -5651,7 +5651,7 @@ fn markdown_link_targets(line: &str) -> Vec<&str> {
     let mut offset = 0usize;
     while let Some(open_relative) = find_unescaped_byte(line, offset, b'[') {
         let open_index = open_relative;
-        let Some(close_index) = find_unescaped_byte(line, open_index + 1, b']') else {
+        let Some(close_index) = markdown_link_label_close_index(line, open_index) else {
             break;
         };
         if !line[close_index + 1..].starts_with('(') {
@@ -5682,6 +5682,27 @@ fn find_unescaped_byte(text: &str, start: usize, target: u8) -> Option<usize> {
             return Some(index);
         }
         index += text[index..].chars().next()?.len_utf8();
+    }
+    None
+}
+
+fn markdown_link_label_close_index(line: &str, open_index: usize) -> Option<usize> {
+    if line.as_bytes().get(open_index) != Some(&b'[') || is_escaped_byte(line, open_index) {
+        return None;
+    }
+    let mut depth = 0usize;
+    let mut index = open_index + 1;
+    while index < line.len() {
+        let byte = line.as_bytes()[index];
+        if !is_escaped_byte(line, index) {
+            match byte {
+                b'[' => depth += 1,
+                b']' if depth == 0 => return Some(index),
+                b']' => depth = depth.saturating_sub(1),
+                _ => {}
+            }
+        }
+        index += line[index..].chars().next()?.len_utf8();
     }
     None
 }
@@ -5787,7 +5808,7 @@ fn markdown_reference_definition_label_end(trimmed: &str) -> Option<usize> {
     if !trimmed.starts_with('[') {
         return None;
     }
-    let label_end = find_unescaped_byte(trimmed, 1, b']')?;
+    let label_end = markdown_link_label_close_index(trimmed, 0)?;
     if label_end <= 1 || !trimmed[label_end + 1..].starts_with(':') {
         return None;
     }
@@ -5808,18 +5829,23 @@ fn markdown_reference_link_usages(line: &str) -> Vec<MarkdownReferenceUsage> {
             break;
         };
         let text_start = open_index + 1;
-        let Some(text_end) = find_unescaped_byte(line, text_start, b']') else {
+        let Some(text_end) = markdown_link_label_close_index(line, open_index) else {
             break;
         };
         let after_text = &line[text_end + 1..];
-        let Some(after_label_open) = after_text.strip_prefix('[') else {
+        if after_text.starts_with('(') {
             offset = text_end + 1;
             continue;
-        };
-        let Some(label_end_relative) = find_unescaped_byte(after_label_open, 0, b']') else {
+        }
+        if !after_text.starts_with('[') {
+            offset = text_end + 1;
+            continue;
+        }
+        let label_open = text_end + 1;
+        let Some(label_end) = markdown_link_label_close_index(line, label_open) else {
             break;
         };
-        let raw_label = &after_label_open[..label_end_relative];
+        let raw_label = &line[label_open + 1..label_end];
         let label = if raw_label.trim().is_empty() {
             &line[text_start..text_end]
         } else {
@@ -5831,7 +5857,7 @@ fn markdown_reference_link_usages(line: &str) -> Vec<MarkdownReferenceUsage> {
                 target: format!("[{}]", label.trim()),
             });
         }
-        offset = text_end + 2 + label_end_relative + 1;
+        offset = label_end + 1;
     }
     usages
 }

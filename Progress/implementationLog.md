@@ -2,6 +2,9 @@
 
 ## 2026-06-04
 
+- Chose docs-check nested-label hardening because Markdown inline/reference links can contain balanced bracket pairs in their labels, while the checker stopped at the first closing bracket and could skip broken links.
+- Added a shared balanced Markdown link-label scanner for inline links, reference usages, and reference definitions, covered broken nested-label inline/reference links, and bumped Serow to `1.0.35-rust-bootstrap` / crate `1.0.35`.
+
 - Chose docs-check escaped reference-label hardening because reference-style usage parsing honored escaped closing brackets in labels, while reference definition parsing still searched for a raw `]:` and could falsely report valid escaped-label links as missing definitions.
 - Shared reference definition label-boundary parsing with the existing unescaped-bracket scanner, added a regression for escaped `]` labels, and bumped Serow to `1.0.34-rust-bootstrap` / crate `1.0.34`.
 
