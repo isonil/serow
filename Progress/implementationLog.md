@@ -2,6 +2,9 @@
 
 ## 2026-06-04
 
+- Chose source-discovery symlink-file deduplication because recursive discovery already avoided directory symlink cycles, but a `.serow` file plus a symlink to the same file could still be parsed twice and reported as duplicate symbols.
+- Deduplicated discovered source files by canonical path after sorting, preserving the user-facing path that survives discovery while preventing one physical source file from entering the program twice.
+
 - Chose release-check argument parser cleanup because `release-check` carried a private copy of the path/`--json` option parsing rules already shared by the other path-taking commands.
 - Reused the shared path parser for `release-check`, preserving existing separator and JSON usage behavior while reducing future CLI drift risk.
 

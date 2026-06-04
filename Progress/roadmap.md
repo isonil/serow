@@ -4,7 +4,7 @@
 
 Future generic implementation prompts should choose the highest-leverage next step across all phases. Phase 0, Phase 1, Phase 2 agent workflow, Phase 2.5 certification, Phase 2.6 unattended safety, and the first Phase 3 backend slice are released for public v1. Prefer targeted v2 hardening gaps before expanding syntax beyond the v1 bootstrap subset.
 
-Latest cleanup: docs-check escaped angle-destination handling now finds escaped `>` closers correctly and unescapes local destination punctuation before percent decoding.
+Latest cleanup: source discovery now deduplicates `.serow` file symlinks by canonical path, preventing duplicate symbols from one physical source file reached through multiple directory entries.
 
 Selection policy:
 

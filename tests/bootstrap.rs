@@ -110,6 +110,23 @@ fn source_discovery_ignores_directory_symlink_cycles() {
 
 #[cfg(unix)]
 #[test]
+fn source_discovery_deduplicates_symlinked_source_files() {
+    let dir = unique_temp_dir("serow-source-file-symlink-dedup");
+    let source_dir = dir.join("sources");
+    fs::create_dir_all(&source_dir).expect("create source dir");
+    let source = source_dir.join("main.serow");
+    fs::write(&source, "module file_symlink.test\n").expect("write source");
+    std::os::unix::fs::symlink(&source, source_dir.join("alias.serow"))
+        .expect("create source file symlink");
+
+    let sources = discover_sources(&[source_dir.to_string_lossy().to_string()]);
+
+    assert_eq!(sources.len(), 1, "{sources:#?}");
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[cfg(unix)]
+#[test]
 fn source_discovery_reports_unreadable_directories() {
     use std::os::unix::fs::PermissionsExt;
 

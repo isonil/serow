@@ -85,8 +85,16 @@ pub fn discover_sources_with_diagnostics(paths: &[String]) -> (Vec<PathBuf>, Vec
         }
     }
     sources.sort();
-    sources.dedup();
+    dedup_sources_by_canonical_path(&mut sources);
     (sources, diagnostics)
+}
+
+fn dedup_sources_by_canonical_path(sources: &mut Vec<PathBuf>) {
+    let mut seen = HashSet::new();
+    sources.retain(|source| {
+        let key = fs::canonicalize(source).unwrap_or_else(|_| source.clone());
+        seen.insert(key)
+    });
 }
 
 fn collect_serow_files(
