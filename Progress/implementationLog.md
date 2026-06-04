@@ -1255,3 +1255,7 @@
 - Updated the stdlib reference to list the `MaybeText`, `MaybeInt`, `MaybeBool`, and `MaybeFloat` records as exact Serow type declarations, matching the existing exact `RandomInt` and `RandomBool` block.
 - Added a Rust regression that parses `examples/stdlib.serow` and fails when any declared stdlib type shape is absent from `docs/stdlib.md`.
 - Verified with `bin/serow query intent "general cleanup bugfix tech debt production readiness"`, `bin/serow docs --check --json`, `cargo fmt --check`, targeted `cargo test standard_library_reference_lists_all_declared_type_shapes -- --nocapture`, `bin/serow check --json`, `bin/serow certify --json`, `bin/serow certify --profile unattended --json`, `bin/serow fmt --check --json`, `cargo clippy --all-targets --all-features -- -D warnings`, `git diff --check`, `cargo test`, `python3 -m unittest discover -s tests`, and `bin/serow release-check --json`.
+- Chose Cargo manifest release-metadata hardening because `bin/serow release-check` now relies on a hand-written dependency-free TOML reader, and the value-key side still used a raw `version` prefix instead of the TOML key parser used for package tables.
+- Reused structural TOML key parsing for `[package]` entries, accepting quoted `version` keys while rejecting dotted keys such as `version.extra`, and added focused release metadata regressions for quoted value keys plus dotted metadata tables.
+- Updated the roadmap/current-state latest cleanup notes to point at the current release-metadata hardening.
+- Verification is recorded in the final run for this change.

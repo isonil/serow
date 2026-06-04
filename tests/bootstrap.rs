@@ -12490,6 +12490,14 @@ version = "ignored"
         Some("1.2.3")
     );
     assert_eq!(
+        parse_cargo_manifest_version("[package]\n\"version\" = \"1.2.3\"\n").as_deref(),
+        Some("1.2.3")
+    );
+    assert_eq!(
+        parse_cargo_manifest_version("[package]\n'version' = \"1.2.3\"\n").as_deref(),
+        Some("1.2.3")
+    );
+    assert_eq!(
         parse_cargo_manifest_version("[\"pack\\u0061ge\"]\nversion = \"1.2.3\"\n").as_deref(),
         Some("1.2.3")
     );
@@ -12501,7 +12509,25 @@ version = "ignored"
         parse_cargo_manifest_version("[package]\nversion = \"1.2.\\U00000033\"\n").as_deref(),
         Some("1.2.3")
     );
+    assert_eq!(
+        parse_cargo_manifest_version(
+            "[package.metadata.serow]\nversion = \"ignored\"\n\n[package]\nversion = \"1.2.3\"\n"
+        )
+        .as_deref(),
+        Some("1.2.3")
+    );
+    assert_eq!(
+        parse_cargo_manifest_version(
+            "[\"package\" . metadata . serow]\nversion = \"ignored\"\n\n[package]\nversion = \"1.2.3\"\n"
+        )
+        .as_deref(),
+        Some("1.2.3")
+    );
     assert_eq!(parse_cargo_manifest_version("version = \"ignored\""), None);
+    assert_eq!(
+        parse_cargo_manifest_version("[package]\nversion.extra = \"ignored\"\n"),
+        None
+    );
     assert_eq!(
         parse_cargo_manifest_version("[package] trailing\nversion = \"ignored\"\n"),
         None

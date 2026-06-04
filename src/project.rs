@@ -50,14 +50,12 @@ pub fn parse_cargo_manifest_version(source: &str) -> Option<String> {
         if !in_package {
             continue;
         }
-        let Some(rest) = trimmed.strip_prefix("version") else {
+        let Some((key_parts, value)) = toml_key_value(trimmed) else {
             continue;
         };
-        let rest = trim_toml_whitespace_start(rest);
-        if !rest.starts_with('=') {
+        if key_parts.len() != 1 || key_parts[0] != "version" {
             continue;
         }
-        let value = trim_toml_whitespace_start(&rest[1..]);
         return parse_toml_string_value(value);
     }
     None
@@ -73,20 +71,67 @@ fn toml_table_name(trimmed_line: &str) -> Option<String> {
     if !(trailing.is_empty() || trailing.starts_with('#')) {
         return None;
     }
-    let inner = &after_open[..close];
-    parse_toml_key(trim_toml_whitespace(inner))
+    let inner = trim_toml_whitespace(&after_open[..close]);
+    let (parts, end) = parse_toml_dotted_key(inner)?;
+    contains_only_toml_whitespace(&inner[end..]).then(|| parts.join("."))
 }
 
-fn parse_toml_key(key: &str) -> Option<String> {
-    if key.starts_with('"') {
-        let (parsed, end) = read_toml_basic_string(key, 0)?;
-        return contains_only_toml_whitespace(&key[end..]).then_some(parsed);
+fn toml_key_value(line: &str) -> Option<(Vec<String>, &str)> {
+    let (key_parts, key_end) = parse_toml_dotted_key(line)?;
+    let rest = trim_toml_whitespace_start(&line[key_end..]);
+    let value = rest.strip_prefix('=')?;
+    Some((key_parts, trim_toml_whitespace_start(value)))
+}
+
+fn parse_toml_dotted_key(key: &str) -> Option<(Vec<String>, usize)> {
+    let mut parts = Vec::new();
+    let mut index = 0;
+    loop {
+        index = skip_toml_whitespace_in(key, index);
+        let (part, part_end) = parse_toml_key_part(key, index)?;
+        parts.push(part);
+        index = skip_toml_whitespace_in(key, part_end);
+        if !key[index..].starts_with('.') {
+            return Some((parts, index));
+        }
+        index += 1;
     }
-    if key.starts_with('\'') {
-        let (parsed, end) = read_toml_literal_string(key, 0)?;
-        return contains_only_toml_whitespace(&key[end..]).then_some(parsed);
+}
+
+fn parse_toml_key_part(key: &str, start: usize) -> Option<(String, usize)> {
+    if key.get(start..)?.starts_with('"') {
+        return read_toml_basic_string(key, start);
     }
-    (!key.is_empty()).then(|| key.to_string())
+    if key.get(start..)?.starts_with('\'') {
+        return read_toml_literal_string(key, start);
+    }
+
+    let mut end = start;
+    while end < key.len() {
+        let char = key[end..].chars().next()?;
+        if !is_toml_bare_key_char(char) {
+            break;
+        }
+        end += char.len_utf8();
+    }
+    (end > start).then(|| (key[start..end].to_string(), end))
+}
+
+fn skip_toml_whitespace_in(text: &str, mut index: usize) -> usize {
+    while index < text.len() {
+        let Some(char) = text[index..].chars().next() else {
+            break;
+        };
+        if !is_toml_whitespace(char) {
+            break;
+        }
+        index += char.len_utf8();
+    }
+    index
+}
+
+fn is_toml_bare_key_char(char: char) -> bool {
+    char.is_ascii_alphanumeric() || matches!(char, '_' | '-')
 }
 
 pub fn parse_architecture(source: &str) -> Architecture {
