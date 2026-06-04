@@ -998,6 +998,11 @@ impl<'a> ExprParser<'a> {
     fn parse_or(&mut self) -> Result<Value, String> {
         let mut left = self.parse_and()?;
         while self.consume(&Token::Or) {
+            if as_bool(left.clone())? {
+                self.skip_short_circuited_operand(true)?;
+                left = Value::Bool(true);
+                continue;
+            }
             let right = self.parse_and()?;
             left = Value::Bool(as_bool(left)? || as_bool(right)?);
         }
@@ -1007,6 +1012,11 @@ impl<'a> ExprParser<'a> {
     fn parse_and(&mut self) -> Result<Value, String> {
         let mut left = self.parse_compare()?;
         while self.consume(&Token::And) {
+            if !as_bool(left.clone())? {
+                self.skip_short_circuited_operand(false)?;
+                left = Value::Bool(false);
+                continue;
+            }
             let right = self.parse_compare()?;
             left = Value::Bool(as_bool(left)? && as_bool(right)?);
         }
@@ -1404,6 +1414,57 @@ impl<'a> ExprParser<'a> {
 
     fn peek(&self) -> Option<&Token> {
         self.tokens.get(self.index)
+    }
+
+    fn skip_short_circuited_operand(&mut self, skip_or_chain: bool) -> Result<(), String> {
+        let mut paren_depth = 0usize;
+        let mut bracket_depth = 0usize;
+        let mut brace_depth = 0usize;
+        while self.index < self.tokens.len() {
+            let top_level = paren_depth == 0 && bracket_depth == 0 && brace_depth == 0;
+            match &self.tokens[self.index] {
+                Token::Or if top_level => {
+                    if skip_or_chain {
+                        self.index += 1;
+                        continue;
+                    }
+                    return Ok(());
+                }
+                Token::Comma
+                | Token::Semicolon
+                | Token::Then
+                | Token::Else
+                | Token::Do
+                | Token::RParen
+                | Token::RBracket
+                | Token::RBrace
+                    if top_level =>
+                {
+                    return Ok(());
+                }
+                Token::LParen => paren_depth += 1,
+                Token::LBracket => bracket_depth += 1,
+                Token::LBrace => brace_depth += 1,
+                Token::RParen => {
+                    paren_depth = paren_depth.checked_sub(1).ok_or_else(|| {
+                        "Unexpected `)` in short-circuited expression.".to_string()
+                    })?;
+                }
+                Token::RBracket => {
+                    bracket_depth = bracket_depth.checked_sub(1).ok_or_else(|| {
+                        "Unexpected `]` in short-circuited expression.".to_string()
+                    })?;
+                }
+                Token::RBrace => {
+                    brace_depth = brace_depth.checked_sub(1).ok_or_else(|| {
+                        "Unexpected `}` in short-circuited expression.".to_string()
+                    })?;
+                }
+                _ => {}
+            }
+            self.index += 1;
+        }
+        Ok(())
     }
 
     fn matching_rparen(&self, start: usize) -> Result<usize, String> {

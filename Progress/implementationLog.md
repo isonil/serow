@@ -1277,3 +1277,7 @@
 - Allocated rendered Rust variant names in declaration order for each enum, reused that mapping for expressions, match arms, and sampled property values, and reserved `Self` as `SerowSelf`.
 - Added a compile-rust regression that generates, compiles, and runs tests for variants `A_B`, `A__B`, and `Self`.
 - Verified with `bin/serow query intent "compile rust enum variant names"`, `bin/serow query symbol "Status"`, `cargo test compile_rust_disambiguates_enum_variant_identifiers --test bootstrap`, `cargo fmt --check`, `bin/serow check`, `bin/serow certify`, `cargo clippy --all-targets -- -D warnings`, and `cargo test`.
+- Chose checker/interpreter boolean hardening because Rust backend lowering already used short-circuiting `&&`/`||`, while executable examples and properties evaluated both Serow `and`/`or` operands and could reject guarded expressions that generated Rust would execute safely.
+- Made evaluator `and`/`or` skip unneeded right-hand operands while preserving surrounding expression boundaries such as `then`, `else`, `do`, separators, and delimiters.
+- Added a regression covering examples and sampled properties that guard integer division by zero behind short-circuited `and` and `or` expressions, and documented the language rule.
+- Verification is recorded in the final run for this change.

@@ -680,6 +680,60 @@ pub fn selected() -> Int
 }
 
 #[test]
+fn boolean_operators_short_circuit_during_evaluation() {
+    let dir = unique_temp_dir("serow-lazy-bool");
+    fs::create_dir_all(&dir).expect("create temp dir");
+    let source = dir.join("lazy_bool.serow");
+    fs::write(
+        &source,
+        r#"module test.lazy_bool
+
+pub fn guarded_or(x: Int) -> Bool
+  intent "Accept zero or a quotient above one."
+  contract
+    ensures result == (x == 0 or 10 // x > 1)
+  examples
+    guarded_or(0) == true
+    guarded_or(10) == false
+  properties
+    forall x: Int:
+      guarded_or(x) == (x == 0 or 10 // x > 1)
+  effects pure
+  impl
+    x == 0 or 10 // x > 1
+
+pub fn guarded_and(x: Int) -> Bool
+  intent "Require non-zero input before checking a quotient."
+  contract
+    ensures result == (x != 0 and 10 // x > 1)
+  examples
+    guarded_and(0) == false
+    guarded_and(2) == true
+  properties
+    forall x: Int:
+      guarded_and(x) == (x != 0 and 10 // x > 1)
+  effects pure
+  impl
+    x != 0 and 10 // x > 1
+"#,
+    )
+    .expect("write fixture");
+
+    let (program, parse_diagnostics) = parse_paths(&[source.to_string_lossy().to_string()]);
+    let summary = check_program(&program, parse_diagnostics);
+    assert!(
+        summary.ok(),
+        "{:#?}",
+        summary
+            .diagnostics
+            .iter()
+            .map(|diagnostic| (&diagnostic.code, &diagnostic.message))
+            .collect::<Vec<_>>()
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
 fn unsupported_contract_clause_repair_mentions_requires_and_ensures() {
     let dir = unique_temp_dir("serow-unsupported-contract-repair");
     fs::create_dir_all(&dir).expect("create temp dir");

@@ -75,7 +75,7 @@ The bootstrap expression subset supports:
 - direct calls by bare name, module-qualified name, version-qualified name, or exact symbol
 - arithmetic operators `+`, `-`, `*`, `/` for floats, and `//`, `%` for integer division and remainder
 - comparisons `==`, `!=`, `<`, `<=`, `>`, `>=`
-- boolean operators `and`, `or`, `not`
+- boolean operators `and`, `or`, `not`, with `and`/`or` short-circuiting the right operand when the left operand decides the result
 - unary numeric negation
 - one-line `if <condition> then <value> else <value>`
 - exhaustive enum `match <value> { Variant -> expr, Other -> expr }`
