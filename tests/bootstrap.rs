@@ -12431,8 +12431,19 @@ fn project_manifest_parser_rejects_non_json_root_text() {
     let suffixed_manifest = "{\n  \"version\": \"0.4.82-rust-bootstrap\"\n}\ntrailing";
     assert_eq!(parse_project_version(suffixed_manifest), None);
 
+    let token_before_version = "{\n  invalid \"version\": \"0.4.82-rust-bootstrap\"\n}";
+    assert_eq!(parse_project_version(token_before_version), None);
+
     let architecture_manifest = "{\n  \"architecture\": {\n    \"modules\": {\n      \"app.main\": {\n        \"may_depend_on\": [\"core.math\"]\n      }\n    }\n  }\n}\ntrailing";
     let architecture = parse_architecture(architecture_manifest);
+    assert!(architecture.modules.is_empty());
+
+    let token_before_architecture = "{\n  invalid \"architecture\": {\n    \"modules\": {\n      \"app.main\": {\n        \"may_depend_on\": [\"core.math\"]\n      }\n    }\n  }\n}";
+    let architecture = parse_architecture(token_before_architecture);
+    assert!(architecture.modules.is_empty());
+
+    let token_before_nested_module = "{\n  \"architecture\": {\n    \"modules\": {\n      invalid \"app.main\": {\n        \"may_depend_on\": [\"core.math\"]\n      }\n    }\n  }\n}";
+    let architecture = parse_architecture(token_before_nested_module);
     assert!(architecture.modules.is_empty());
 }
 

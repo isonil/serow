@@ -152,13 +152,23 @@ pub fn parse_architecture(source: &str) -> Architecture {
     let mut policies = Vec::new();
     let mut index = open + 1;
     while index < close {
+        index = skip_ws(modules, index);
+        if index >= close {
+            break;
+        }
+        if modules[index..].starts_with(',') {
+            index += 1;
+            continue;
+        }
+        if !modules[index..].starts_with('"') {
+            break;
+        }
         let Some((module, key_end)) = read_string(modules, index) else {
             break;
         };
         index = skip_ws(modules, key_end);
         if !modules[index..].starts_with(':') {
-            index = key_end;
-            continue;
+            break;
         }
         index = skip_ws(modules, index + 1);
         if !modules[index..].starts_with('{') {
@@ -215,15 +225,10 @@ fn parse_may_depend_on(object: &str) -> Vec<String> {
 }
 
 fn read_string(text: &str, start: usize) -> Option<(String, usize)> {
-    let bytes = text.as_bytes();
-    let mut index = start;
-    while index < bytes.len() && bytes[index] != b'"' {
-        index += 1;
-    }
-    if index >= bytes.len() {
+    if !text.get(start..)?.starts_with('"') {
         return None;
     }
-    index += 1;
+    let mut index = start + 1;
     let mut value = String::new();
     while index < text.len() {
         let char = text[index..].chars().next()?;
@@ -533,15 +538,14 @@ fn object_field_value<'a>(source: &'a str, key: &str) -> Option<&'a str> {
             continue;
         }
         if !source[index..].starts_with('"') {
-            index += source[index..].chars().next()?.len_utf8();
-            continue;
+            return None;
         }
         let Some((candidate_key, key_end)) = read_string(source, index) else {
             break;
         };
         index = skip_ws(source, key_end);
         if !source[index..].starts_with(':') {
-            continue;
+            return None;
         }
         index = skip_ws(source, index + 1);
         if candidate_key == key {
