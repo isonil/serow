@@ -1,6 +1,6 @@
 # Current State
 
-Date: 2026-06-02
+Date: 2026-06-04
 
 ## Active Mode
 
@@ -25,7 +25,7 @@ Selection policy for generic implementation prompts:
 - Phase 3's first production backend slice is closed for public v1: portable IR plus dependency-free Rust source/crate generation for the supported bootstrap subset, generated metadata, artifact drift checks, runtime contract assertions, generated pure evidence tests, and binary entrypoint support are all implemented.
 - Remaining backend work such as WASM/TypeScript/Python backends, richer external effect boundaries, recursive record layout support, generic list indexing, list pattern matching, higher-order collection APIs, and semantic-embedding intent search is explicitly v2/future scope rather than blocking the public v1 bootstrap baseline.
 - The Python bootstrap remains reference-only. It should keep parity where cheap, but Rust is the source of truth for v1 behavior.
-- Latest cleanup: `bin/serow docs --check` now validates Markdown links whose labels contain balanced nested brackets instead of skipping them at the first closing bracket.
+- Latest cleanup: `bin/serow docs --check` now validates escaped reference-definition labels consistently with escaped reference usages, after the earlier balanced nested-label hardening.
 
 ## Implemented
 

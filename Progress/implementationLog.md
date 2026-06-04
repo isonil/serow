@@ -2,6 +2,9 @@
 
 ## 2026-06-04
 
+- Chose progress-state drift cleanup because `Progress/currentState.md` still dated the project state to 2026-06-02 and named balanced nested Markdown labels as the latest cleanup after escaped reference-definition label hardening had become the newer docs-check state.
+- Updated the current-state date and latest-cleanup summary so future generic iterations start from the actual newest docs-check hardening.
+
 - Chose docs-check nested-label hardening because Markdown inline/reference links can contain balanced bracket pairs in their labels, while the checker stopped at the first closing bracket and could skip broken links.
 - Added a shared balanced Markdown link-label scanner for inline links, reference usages, and reference definitions, covered broken nested-label inline/reference links, and bumped Serow to `1.0.35-rust-bootstrap` / crate `1.0.35`.
 
