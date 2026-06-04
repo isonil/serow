@@ -278,7 +278,7 @@ pub fn replay_property(program: &Program, sample_seed: &str) -> PropertyReplaySu
 
 fn parse_sample_seed(sample_seed: &str) -> Option<ParsedSampleSeed> {
     let (symbol, rest) = sample_seed.split_once("#property:")?;
-    if symbol.trim().is_empty() {
+    if !is_replay_symbol(symbol) {
         return None;
     }
     let (property_index, sample_index) = rest.split_once("#sample:")?;
@@ -287,6 +287,10 @@ fn parse_sample_seed(sample_seed: &str) -> Option<ParsedSampleSeed> {
         property_index: parse_positive_index(property_index)?,
         sample_index: parse_positive_index(sample_index)?,
     })
+}
+
+fn is_replay_symbol(symbol: &str) -> bool {
+    symbol.starts_with('@') && symbol.len() > 1 && !symbol.chars().any(char::is_whitespace)
 }
 
 fn parse_positive_index(value: &str) -> Option<usize> {

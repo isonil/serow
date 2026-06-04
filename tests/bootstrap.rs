@@ -3376,6 +3376,27 @@ pub fn id(x: Int) -> Int
         "{stdout}"
     );
     assert!(stdout.contains("\"shrunk_bindings\": \"x=0\""), "{stdout}");
+
+    let malformed_replay = Command::new(env!("CARGO_BIN_EXE_serow"))
+        .args([
+            "replay",
+            "property",
+            "test.property.id.v1#property:1#sample:1",
+            &source_arg,
+            "--json",
+        ])
+        .output()
+        .expect("run property replay with malformed seed");
+    assert!(!malformed_replay.status.success(), "{malformed_replay:#?}");
+    let stdout = String::from_utf8(malformed_replay.stdout).expect("stdout is utf8");
+    assert!(
+        stdout.contains("\"code\": \"InvalidSampleSeed\""),
+        "{stdout}"
+    );
+    assert!(
+        !stdout.contains("\"code\": \"UnknownReplaySymbol\""),
+        "{stdout}"
+    );
     let _ = fs::remove_dir_all(dir);
 }
 
